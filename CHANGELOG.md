@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0](https://github.com/atinylittleshell/gsh/compare/v0.4.2...v0.5.0) (2025-01-03)
+
+
+### Features
+
+* add -ver flag to display BuildVersion\n\n- Implemented a new command-line flag '-ver' to print the current BuildVersion. ([a452224](https://github.com/atinylittleshell/gsh/commit/a452224a1ccf8210648204f1361e4324c6a850c9))
+* self update ([f863a39](https://github.com/atinylittleshell/gsh/commit/f863a39cb39175f04651ec96b11eb001df922713))
+
 ## [0.4.2](https://github.com/atinylittleshell/gsh/compare/v0.4.1...v0.4.2) (2025-01-03)
 
 
