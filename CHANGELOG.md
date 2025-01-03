@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/atinylittleshell/gsh/compare/v0.4.0...v0.4.1) (2025-01-03)
+
+
+### Bug Fixes
+
+* fix release pipeline ([b70b29c](https://github.com/atinylittleshell/gsh/commit/b70b29c3366455e6dfedb0537f7128f34b4c9221))
+
 ## [0.4.0](https://github.com/atinylittleshell/gsh/compare/v0.3.0...v0.4.0) (2025-01-03)
 
 
