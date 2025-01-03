@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/atinylittleshell/gsh/compare/v0.5.1...v0.5.2) (2025-01-03)
+
+
+### Bug Fixes
+
+* correct login shell profile paths ([84b9437](https://github.com/atinylittleshell/gsh/commit/84b9437a4b956158ed5feb155cc0cdcb269b043c))
+
 ## [0.5.1](https://github.com/atinylittleshell/gsh/compare/v0.5.0...v0.5.1) (2025-01-03)
 
 
