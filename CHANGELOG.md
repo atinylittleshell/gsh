@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/atinylittleshell/gsh/compare/v0.4.1...v0.4.2) (2025-01-03)
+
+
+### Bug Fixes
+
+* fix goreleaser pipeline ([2e9ae6d](https://github.com/atinylittleshell/gsh/commit/2e9ae6ddb714a7aa8944bc05f7916bd57d202d23))
+
 ## [0.4.1](https://github.com/atinylittleshell/gsh/compare/v0.4.0...v0.4.1) (2025-01-03)
 
 
