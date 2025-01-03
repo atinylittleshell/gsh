@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.0](https://github.com/atinylittleshell/gsh/compare/v0.3.0...v0.4.0) (2025-01-03)
+
+
+### Features
+
+* add configurable minimum shell prompt height\n\nIntroduced a new environment variable GSH_MINIMUM_HEIGHT to configure the minimum number of lines the shell prompt occupies. Updated the shell and environment components to utilize this new configuration. ([5aa0abc](https://github.com/atinylittleshell/gsh/commit/5aa0abc77718705d1aa64b4c92ec5f21407558bb))
+* allow backspace to clear prediction at empty input ([428330a](https://github.com/atinylittleshell/gsh/commit/428330a52e746e6cc5bc0c54ccdcb2bb57a9e7fb))
+* attemp to produce homebrew tap ([983197b](https://github.com/atinylittleshell/gsh/commit/983197b45824ebcd0cf348c6d3923018a6383e84))
+* enhance shell prompt and command execution tracking\n\nUpdated .gshrc.starship for richer prompt details including command status and duration. Improved command execution tracking in shell.go and bash.go with duration and exit code handling. ([e16cb84](https://github.com/atinylittleshell/gsh/commit/e16cb8489d9465e601fa6bfbbab3f6d51f2e343a))
+
+
+### Bug Fixes
+
+* read /etc/profile as login shell ([33370d0](https://github.com/atinylittleshell/gsh/commit/33370d09d7e9972a6c264668c02d991de48853f1))
+* update shell.go to improve command execution handling ([727f904](https://github.com/atinylittleshell/gsh/commit/727f9049d4fa780f56a31bbe396b47e8128045eb))
+
 ## [0.3.0](https://github.com/atinylittleshell/gsh/compare/v0.2.0...v0.3.0) (2025-01-02)
 
 
