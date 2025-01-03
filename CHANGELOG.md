@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.1](https://github.com/atinylittleshell/gsh/compare/v0.5.0...v0.5.1) (2025-01-03)
+
+
+### Bug Fixes
+
+* always start output messages with gsh: ([a7e3331](https://github.com/atinylittleshell/gsh/commit/a7e33317a2fcd3f247be26238f0317211f2cd9d1))
+* improve login shell detection ([6623ad6](https://github.com/atinylittleshell/gsh/commit/6623ad64d5fe483514a331625fa76aa785d67394))
+
 ## [0.5.0](https://github.com/atinylittleshell/gsh/compare/v0.4.2...v0.5.0) (2025-01-03)
 
 
