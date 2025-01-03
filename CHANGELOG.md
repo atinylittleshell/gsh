@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.3](https://github.com/atinylittleshell/gsh/compare/v0.5.2...v0.5.3) (2025-01-03)
+
+
+### Bug Fixes
+
+* change error logs to warnings in env.go\n\n- Updated error logs to warnings for parsing environment variables. ([7f0efa1](https://github.com/atinylittleshell/gsh/commit/7f0efa10d803f9a26285c9660795ca421233c6aa))
+
 ## [0.5.2](https://github.com/atinylittleshell/gsh/compare/v0.5.1...v0.5.2) (2025-01-03)
 
 
