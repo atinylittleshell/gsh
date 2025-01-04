@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.4](https://github.com/atinylittleshell/gsh/compare/v0.5.3...v0.5.4) (2025-01-04)
+
+
+### Bug Fixes
+
+* log command line args ([03d6e3a](https://github.com/atinylittleshell/gsh/commit/03d6e3a32eac22a252870788481c2803b93ea7d8))
+
 ## [0.5.3](https://github.com/atinylittleshell/gsh/compare/v0.5.2...v0.5.3) (2025-01-03)
 
 
