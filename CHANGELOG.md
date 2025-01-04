@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/atinylittleshell/gsh/compare/v0.5.4...v0.6.0) (2025-01-04)
+
+
+### Features
+
+* release to AUR ([ec9cf1c](https://github.com/atinylittleshell/gsh/commit/ec9cf1c0915811584748c2347c1d2cfb331a1a12))
+
 ## [0.5.4](https://github.com/atinylittleshell/gsh/compare/v0.5.3...v0.5.4) (2025-01-04)
 
 
