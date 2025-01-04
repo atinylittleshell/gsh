@@ -3,6 +3,7 @@ module github.com/atinylittleshell/gsh
 go 1.22.2
 
 require (
+	github.com/Masterminds/semver/v3 v3.3.0
 	github.com/atotto/clipboard v0.1.4
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.2.4
@@ -13,14 +14,13 @@ require (
 	github.com/rivo/uniseg v0.4.7
 	github.com/sashabaranov/go-openai v1.36.1
 	go.uber.org/zap v1.27.0
-	golang.org/x/term v0.26.0
+	golang.org/x/term v0.27.0
 	gorm.io/gorm v1.25.12
 	mvdan.cc/sh/v3 v3.10.0
 )
 
 require (
 	code.gitea.io/sdk/gitea v0.19.0 // indirect
-	github.com/Masterminds/semver/v3 v3.3.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/davidmz/go-pageant v1.0.2 // indirect
@@ -48,10 +48,10 @@ require (
 	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/xanzy/go-gitlab v0.112.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.28.0 // indirect
+	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/sys v0.27.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/time v0.7.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
