@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/atinylittleshell/gsh/compare/v0.6.0...v0.7.0) (2025-01-05)
+
+
+### Features
+
+* enhance LLM client with special headers for openrouter.ai and update roadmap ([290d0fc](https://github.com/atinylittleshell/gsh/commit/290d0fc2a15619a7ec8aca7b75422549891e7503))
+
 ## [0.6.0](https://github.com/atinylittleshell/gsh/compare/v0.5.4...v0.6.0) (2025-01-04)
 
 
