@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.1](https://github.com/atinylittleshell/gsh/compare/v0.7.0...v0.7.1) (2025-01-06)
+
+
+### Bug Fixes
+
+* put context into agent system message ([0f28fc3](https://github.com/atinylittleshell/gsh/commit/0f28fc374bc166c3c3874853c41a39280e1c2606))
+* tweak agent instructions to emphasize understanding diff before composing commit messages ([0314b67](https://github.com/atinylittleshell/gsh/commit/0314b67afdeea149f1430a383354bf5578037fa5))
+
 ## [0.7.0](https://github.com/atinylittleshell/gsh/compare/v0.6.0...v0.7.0) (2025-01-05)
 
 
