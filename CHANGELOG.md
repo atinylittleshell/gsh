@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.2](https://github.com/atinylittleshell/gsh/compare/v0.7.1...v0.7.2) (2025-01-07)
+
+
+### Bug Fixes
+
+* avoid structured output for predict and explain ([6ab1825](https://github.com/atinylittleshell/gsh/commit/6ab1825835a3a055d17906d4bafcf4028107d8a1))
+* disable parallel tool calls for agent chat ([ac04d32](https://github.com/atinylittleshell/gsh/commit/ac04d3235c2eb36ba62a3d07bf22b31c9351f7da))
+
 ## [0.7.1](https://github.com/atinylittleshell/gsh/compare/v0.7.0...v0.7.1) (2025-01-06)
 
 
