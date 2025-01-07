@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.3](https://github.com/atinylittleshell/gsh/compare/v0.7.2...v0.7.3) (2025-01-07)
+
+
+### Bug Fixes
+
+* ensure relative paths are resolved to absolute paths in tools ([12c64e4](https://github.com/atinylittleshell/gsh/commit/12c64e431ebc691292a4d5fd5ad05362a7afacdb))
+
 ## [0.7.2](https://github.com/atinylittleshell/gsh/compare/v0.7.1...v0.7.2) (2025-01-07)
 
 
