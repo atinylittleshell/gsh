@@ -5,21 +5,21 @@
 class Gsh < Formula
   desc "The Generative Shell"
   homepage "https://github.com/atinylittleshell/gsh"
-  version "0.7.1"
+  version "0.7.2"
   license "GPL-3.0"
 
   on_macos do
     if Hardware::CPU.intel?
-      url "https://github.com/atinylittleshell/gsh/releases/download/v0.7.1/gsh_Darwin_x86_64.tar.gz"
-      sha256 "0b2af9d7d0f9c6bc32f3e5afc56913d7c534da7deab91a17b750b7c1daa9ebb8"
+      url "https://github.com/atinylittleshell/gsh/releases/download/v0.7.2/gsh_Darwin_x86_64.tar.gz"
+      sha256 "51fdb6fac64b698aba34d290936f4fbdf0e6fc6eff41350317f9c8e93a6f638e"
 
       def install
         bin.install "gsh"
       end
     end
     if Hardware::CPU.arm?
-      url "https://github.com/atinylittleshell/gsh/releases/download/v0.7.1/gsh_Darwin_arm64.tar.gz"
-      sha256 "ff29d2eebcba643a9c30d9440724404e88bd9697c0eb99924573b4fd761ad11b"
+      url "https://github.com/atinylittleshell/gsh/releases/download/v0.7.2/gsh_Darwin_arm64.tar.gz"
+      sha256 "17ebfa9bc2cc8d73675ea07a6935c5c0b01d4fe9e562d25fa7ad81b02de26540"
 
       def install
         bin.install "gsh"
@@ -30,8 +30,8 @@ class Gsh < Formula
   on_linux do
     if Hardware::CPU.intel?
       if Hardware::CPU.is_64_bit?
-        url "https://github.com/atinylittleshell/gsh/releases/download/v0.7.1/gsh_Linux_x86_64.tar.gz"
-        sha256 "8d08c84996a37692e5a3aa65d3e7482b95923734f0af5571a86c286ab9e511d6"
+        url "https://github.com/atinylittleshell/gsh/releases/download/v0.7.2/gsh_Linux_x86_64.tar.gz"
+        sha256 "b0b4696e75b85115758aaddd89855d0187c4c53aea095f83ff726d9f7e2f7467"
 
         def install
           bin.install "gsh"
@@ -40,8 +40,8 @@ class Gsh < Formula
     end
     if Hardware::CPU.arm?
       if Hardware::CPU.is_64_bit?
-        url "https://github.com/atinylittleshell/gsh/releases/download/v0.7.1/gsh_Linux_arm64.tar.gz"
-        sha256 "4d0049fbab9bc42777bd6fe92da95eb1f977221d2f6e7b6db013be3687ddc645"
+        url "https://github.com/atinylittleshell/gsh/releases/download/v0.7.2/gsh_Linux_arm64.tar.gz"
+        sha256 "74df67925d33bbbe99609382a66d68c022815b7d5b3635f5a4a6f2b854d8f8ad"
 
         def install
           bin.install "gsh"
