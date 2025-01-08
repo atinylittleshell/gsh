@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/atinylittleshell/gsh/compare/v0.7.3...v0.8.0) (2025-01-08)
+
+
+### Features
+
+* enhance shell input with history navigation and improved utils ([d066369](https://github.com/atinylittleshell/gsh/commit/d066369b56a9a9ba1e1d761a0b015d88202c7005))
+
 ## [0.7.3](https://github.com/atinylittleshell/gsh/compare/v0.7.2...v0.7.3) (2025-01-07)
 
 
