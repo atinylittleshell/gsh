@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/atinylittleshell/gsh/compare/v0.8.0...v0.8.1) (2025-01-10)
+
+
+### Bug Fixes
+
+* standardize output formatting across tools using gline.RESET_CURSOR_COLUMN ([0249a45](https://github.com/atinylittleshell/gsh/commit/0249a456c606d595c33c513694c526c4deeabccf))
+
 ## [0.8.0](https://github.com/atinylittleshell/gsh/compare/v0.7.3...v0.8.0) (2025-01-08)
 
 
