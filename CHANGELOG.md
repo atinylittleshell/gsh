@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/atinylittleshell/gsh/compare/v0.9.0...v0.9.1) (2025-01-11)
+
+
+### Bug Fixes
+
+* update default context types for explanation ([dc7d1d1](https://github.com/atinylittleshell/gsh/commit/dc7d1d1ac69d142a2e1009803575b55f30136ba2))
+
 ## [0.9.0](https://github.com/atinylittleshell/gsh/compare/v0.8.1...v0.9.0) (2025-01-11)
 
 
