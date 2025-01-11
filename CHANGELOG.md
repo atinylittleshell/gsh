@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/atinylittleshell/gsh/compare/v0.8.1...v0.9.0) (2025-01-11)
+
+
+### Features
+
+* make rag context types configurable ([11b8036](https://github.com/atinylittleshell/gsh/commit/11b8036e373ba0962b60e0506bd47c901dabb231))
+
 ## [0.8.1](https://github.com/atinylittleshell/gsh/compare/v0.8.0...v0.8.1) (2025-01-10)
 
 
