@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.2](https://github.com/atinylittleshell/gsh/compare/v0.9.1...v0.9.2) (2025-01-13)
+
+
+### Bug Fixes
+
+* improve privacy of printed paths ([309f2a6](https://github.com/atinylittleshell/gsh/commit/309f2a6de234065f419bed131664f256fa5acf54))
+* improve viewfile tool default behavior ([ef45e89](https://github.com/atinylittleshell/gsh/commit/ef45e89a1867b1cf6a4ad17dbc3f9606f20d9fd1))
+* update JSON schema descriptions and add unit test for bash tool ([23caedb](https://github.com/atinylittleshell/gsh/commit/23caedb5dd43df9b0f15920bf9015722db76c702))
+* **viewfile:** adjust line indexing to be 1-based and handle edge cases ([a4c535e](https://github.com/atinylittleshell/gsh/commit/a4c535e96965101010b9dc0ccd3fc57767b39a1b))
+
 ## [0.9.1](https://github.com/atinylittleshell/gsh/compare/v0.9.0...v0.9.1) (2025-01-11)
 
 
