@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.3](https://github.com/atinylittleshell/gsh/compare/v0.9.2...v0.9.3) (2025-01-13)
+
+
+### Bug Fixes
+
+* remove done tool and add end_turn finish reason ([c5819f4](https://github.com/atinylittleshell/gsh/commit/c5819f4eb9fb7420c753fd75263219dac15281ff))
+* tweak agent prompts ([0ef096c](https://github.com/atinylittleshell/gsh/commit/0ef096cf5eee74021f1bed28d7c2d158b3a289bb))
+
 ## [0.9.2](https://github.com/atinylittleshell/gsh/compare/v0.9.1...v0.9.2) (2025-01-13)
 
 
