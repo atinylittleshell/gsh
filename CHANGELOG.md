@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/atinylittleshell/gsh/compare/v0.10.0...v0.11.0) (2025-01-15)
+
+
+### Features
+
+* add interrupt handling for chat sessions ([657c27c](https://github.com/atinylittleshell/gsh/commit/657c27cba094bf6fd061965a1bfa017db351f961))
+
 ## [0.10.0](https://github.com/atinylittleshell/gsh/compare/v0.9.4...v0.10.0) (2025-01-15)
 
 
