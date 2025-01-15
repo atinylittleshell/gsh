@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.4](https://github.com/atinylittleshell/gsh/compare/v0.9.3...v0.9.4) (2025-01-15)
+
+
+### Bug Fixes
+
+* improve file creation confirmation UI ([1cded2c](https://github.com/atinylittleshell/gsh/commit/1cded2c011102f868f1ac7d06627419db2f1836e))
+* improve file edit confirmation UI ([d850c97](https://github.com/atinylittleshell/gsh/commit/d850c97898acc5a5ab5dcec90a315ac5c725b1ca))
+
 ## [0.9.3](https://github.com/atinylittleshell/gsh/compare/v0.9.2...v0.9.3) (2025-01-13)
 
 
