@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.0](https://github.com/atinylittleshell/gsh/compare/v0.9.4...v0.10.0) (2025-01-15)
+
+
+### Features
+
+* add pre-approved command patterns to skip confirmation ([a765e43](https://github.com/atinylittleshell/gsh/commit/a765e43164dc164f31d636e67c591ce88d556a2d))
+
+
+### Bug Fixes
+
+* improve privacy for printed diffs ([6545c29](https://github.com/atinylittleshell/gsh/commit/6545c2936041e9533fd6cdd835a7c417b544e1e1))
+
 ## [0.9.4](https://github.com/atinylittleshell/gsh/compare/v0.9.3...v0.9.4) (2025-01-15)
 
 
