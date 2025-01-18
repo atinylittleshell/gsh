@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.0](https://github.com/atinylittleshell/gsh/compare/v0.11.3...v0.12.0) (2025-01-18)
+
+
+### Features
+
+* show build version in prompt when in dev mode ([bad7a27](https://github.com/atinylittleshell/gsh/commit/bad7a270561563fdb98d3136992300f792846a9f))
+
+
+### Bug Fixes
+
+* replace charmbracelet/x/ansi with muesli/reflow for text wrapping ([aaf4fe5](https://github.com/atinylittleshell/gsh/commit/aaf4fe5f1853f21309b663cd8af7e34f3ab49d90))
+
 ## [0.11.3](https://github.com/atinylittleshell/gsh/compare/v0.11.2...v0.11.3) (2025-01-18)
 
 
