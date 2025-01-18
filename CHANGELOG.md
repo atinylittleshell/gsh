@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.2](https://github.com/atinylittleshell/gsh/compare/v0.11.1...v0.11.2) (2025-01-18)
+
+
+### Bug Fixes
+
+* removed chain of thought when doing prediction to reduce token usage and improve latency ([1f5ee65](https://github.com/atinylittleshell/gsh/commit/1f5ee654b6e266225b0b40d72cc0b65a383ee99a))
+
 ## [0.11.1](https://github.com/atinylittleshell/gsh/compare/v0.11.0...v0.11.1) (2025-01-18)
 
 
