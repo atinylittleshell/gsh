@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.3](https://github.com/atinylittleshell/gsh/compare/v0.11.2...v0.11.3) (2025-01-18)
+
+
+### Bug Fixes
+
+* fix rendering for multi-line agent response ([cef8dc5](https://github.com/atinylittleshell/gsh/commit/cef8dc51f332eabac8fbd371b105c2b2aa9f7a15))
+
 ## [0.11.2](https://github.com/atinylittleshell/gsh/compare/v0.11.1...v0.11.2) (2025-01-18)
 
 
