@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/atinylittleshell/gsh/compare/v0.11.0...v0.11.1) (2025-01-18)
+
+
+### Bug Fixes
+
+* force a new version release ([6446be4](https://github.com/atinylittleshell/gsh/commit/6446be4a47f0e706e016e6988d261e9cbc879b69))
+
 ## [0.11.0](https://github.com/atinylittleshell/gsh/compare/v0.10.0...v0.11.0) (2025-01-15)
 
 
