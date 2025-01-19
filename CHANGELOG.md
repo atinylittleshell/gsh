@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.13.0](https://github.com/atinylittleshell/gsh/compare/v0.12.0...v0.13.0) (2025-01-19)
+
+
+### Features
+
+* add more read-only commands to pre-approved list ([c05851c](https://github.com/atinylittleshell/gsh/commit/c05851cec47d95fb9cfdc7eb54aca18af9d45b30))
+* support history built-in command ([c9710cb](https://github.com/atinylittleshell/gsh/commit/c9710cb3407727e7507a76391180de0544b28fc1))
+* support shell opts ([d335891](https://github.com/atinylittleshell/gsh/commit/d33589131ce7a38dacd0f88de8911bd1768a7f56))
+
 ## [0.12.0](https://github.com/atinylittleshell/gsh/compare/v0.11.3...v0.12.0) (2025-01-18)
 
 
