@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/atinylittleshell/gsh/compare/v0.13.0...v0.13.1) (2025-01-20)
+
+
+### Bug Fixes
+
+* rollback shellopts change ([961720a](https://github.com/atinylittleshell/gsh/commit/961720acdeaf1103af986a45e988d4c270b1b2ab))
+
 ## [0.13.0](https://github.com/atinylittleshell/gsh/compare/v0.12.0...v0.13.0) (2025-01-19)
 
 
