@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/atinylittleshell/gsh/compare/v0.13.2...v0.14.0) (2025-01-20)
+
+
+### Features
+
+* improve pre-approved command patterns ([8c60662](https://github.com/atinylittleshell/gsh/commit/8c60662ac66bba90364d29c01b788eb396bad461))
+
 ## [0.13.2](https://github.com/atinylittleshell/gsh/compare/v0.13.1...v0.13.2) (2025-01-20)
 
 
