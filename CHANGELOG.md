@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.2](https://github.com/atinylittleshell/gsh/compare/v0.13.1...v0.13.2) (2025-01-20)
+
+
+### Bug Fixes
+
+* make bash output buffer thread-safe ([4ab74ab](https://github.com/atinylittleshell/gsh/commit/4ab74ab747e4e1f6e058135d5f7e285dc7838459))
+
 ## [0.13.1](https://github.com/atinylittleshell/gsh/compare/v0.13.0...v0.13.1) (2025-01-20)
 
 
