@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.4](https://github.com/atinylittleshell/gsh/compare/v0.15.3...v0.15.4) (2025-01-21)
+
+
+### Bug Fixes
+
+* attempt to fir aur sources release ([762c1b5](https://github.com/atinylittleshell/gsh/commit/762c1b5db76c83899750709c71ab4dc1498714cc))
+
 ## [0.15.3](https://github.com/atinylittleshell/gsh/compare/v0.15.2...v0.15.3) (2025-01-21)
 
 
