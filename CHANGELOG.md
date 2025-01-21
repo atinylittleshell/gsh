@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/atinylittleshell/gsh/compare/v0.15.9...v0.16.0) (2025-01-21)
+
+
+### Features
+
+* add support for chat macros ([527b2c1](https://github.com/atinylittleshell/gsh/commit/527b2c106dc6fc134918c68823c0372a8852f268))
+
 ## [0.15.9](https://github.com/atinylittleshell/gsh/compare/v0.15.8...v0.15.9) (2025-01-21)
 
 
