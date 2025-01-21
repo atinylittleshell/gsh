@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.2](https://github.com/atinylittleshell/gsh/compare/v0.15.1...v0.15.2) (2025-01-21)
+
+
+### Bug Fixes
+
+* try fixing goreleaser config ([e17024a](https://github.com/atinylittleshell/gsh/commit/e17024af199bc9db91377076ab696292e0a98c44))
+
 ## [0.15.1](https://github.com/atinylittleshell/gsh/compare/v0.15.0...v0.15.1) (2025-01-21)
 
 
