@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/atinylittleshell/gsh/compare/v0.15.0...v0.15.1) (2025-01-21)
+
+
+### Bug Fixes
+
+* add source archive to goreleaser ([08c3c8c](https://github.com/atinylittleshell/gsh/commit/08c3c8c7990a622ba07aeb5e81179fd720448d54))
+
 ## [0.15.0](https://github.com/atinylittleshell/gsh/compare/v0.14.0...v0.15.0) (2025-01-20)
 
 
