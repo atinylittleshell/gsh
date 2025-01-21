@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.3](https://github.com/atinylittleshell/gsh/compare/v0.15.2...v0.15.3) (2025-01-21)
+
+
+### Bug Fixes
+
+* fix homebrew tap formula release ([2e6106c](https://github.com/atinylittleshell/gsh/commit/2e6106ce6ac9ebd26eee4b92367c7a15f8e90d6b))
+
 ## [0.15.2](https://github.com/atinylittleshell/gsh/compare/v0.15.1...v0.15.2) (2025-01-21)
 
 
