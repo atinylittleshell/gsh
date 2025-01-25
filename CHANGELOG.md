@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1](https://github.com/atinylittleshell/gsh/compare/v0.16.0...v0.16.1) (2025-01-25)
+
+
+### Bug Fixes
+
+* optimize verbose history format by grouping by directory ([a49432f](https://github.com/atinylittleshell/gsh/commit/a49432f17a4166067d2c608a7be574b9e7d81854))
+
 ## [0.16.0](https://github.com/atinylittleshell/gsh/compare/v0.15.9...v0.16.0) (2025-01-21)
 
 
