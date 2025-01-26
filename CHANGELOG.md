@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.1](https://github.com/atinylittleshell/gsh/compare/v0.18.0...v0.18.1) (2025-01-26)
+
+
+### Bug Fixes
+
+* improved rendering for token stats ([d513e49](https://github.com/atinylittleshell/gsh/commit/d513e494d0efa683edcced9bb6a9fd2ce52906f1))
+
 ## [0.18.0](https://github.com/atinylittleshell/gsh/compare/v0.17.0...v0.18.0) (2025-01-26)
 
 
