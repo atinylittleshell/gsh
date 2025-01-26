@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/atinylittleshell/gsh/compare/v0.17.0...v0.18.0) (2025-01-26)
+
+
+### Features
+
+* implement agent controls and add token tracking ([6793455](https://github.com/atinylittleshell/gsh/commit/679345538a793505b96cf809a39ba24abc8cfa01))
+
 ## [0.17.0](https://github.com/atinylittleshell/gsh/compare/v0.16.1...v0.17.0) (2025-01-26)
 
 
