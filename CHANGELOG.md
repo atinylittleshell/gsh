@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.17.0](https://github.com/atinylittleshell/gsh/compare/v0.16.1...v0.17.0) (2025-01-26)
+
+
+### Features
+
+* add compgen command implementation and tests ([0f4f983](https://github.com/atinylittleshell/gsh/commit/0f4f983a81b922cc8eaf541cb3cc8a908ed3d367))
+* basic bash completion support ([f2b4f19](https://github.com/atinylittleshell/gsh/commit/f2b4f1986e9eb04cd3914e535246547494b94a03))
+* basic support for complete command ([6f9d1a8](https://github.com/atinylittleshell/gsh/commit/6f9d1a82e0520e32cb6d26a848a1dc601ae00908))
+
 ## [0.16.1](https://github.com/atinylittleshell/gsh/compare/v0.16.0...v0.16.1) (2025-01-25)
 
 
