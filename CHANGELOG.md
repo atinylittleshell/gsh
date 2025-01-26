@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/atinylittleshell/gsh/compare/v0.18.2...v0.19.0) (2025-01-26)
+
+
+### Features
+
+* add history-based command prefix prediction ([d6b7e83](https://github.com/atinylittleshell/gsh/commit/d6b7e838654ddcb5e5d1b14c05d7a21be266db74))
+
 ## [0.18.2](https://github.com/atinylittleshell/gsh/compare/v0.18.1...v0.18.2) (2025-01-26)
 
 
