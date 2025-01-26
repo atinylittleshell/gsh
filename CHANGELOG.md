@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.2](https://github.com/atinylittleshell/gsh/compare/v0.18.1...v0.18.2) (2025-01-26)
+
+
+### Bug Fixes
+
+* remove source files from gsh-bin aur release script ([1f42fb2](https://github.com/atinylittleshell/gsh/commit/1f42fb2c429eead0175965fd37a5d9156defb156))
+
 ## [0.18.1](https://github.com/atinylittleshell/gsh/compare/v0.18.0...v0.18.1) (2025-01-26)
 
 
