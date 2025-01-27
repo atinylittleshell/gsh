@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.1](https://github.com/atinylittleshell/gsh/compare/v0.19.0...v0.19.1) (2025-01-27)
+
+
+### Bug Fixes
+
+* improve file diff preview when creating existing files ([1e865f9](https://github.com/atinylittleshell/gsh/commit/1e865f9c7c01fe6c3db74043dba12a995075bdba))
+
 ## [0.19.0](https://github.com/atinylittleshell/gsh/compare/v0.18.2...v0.19.0) (2025-01-26)
 
 
