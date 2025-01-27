@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.2](https://github.com/atinylittleshell/gsh/compare/v0.19.1...v0.19.2) (2025-01-27)
+
+
+### Bug Fixes
+
+* improve message pruning to keep early and recent context ([777be1f](https://github.com/atinylittleshell/gsh/commit/777be1f8b677e9a84f0f37620e688a631d3dadf3))
+
 ## [0.19.1](https://github.com/atinylittleshell/gsh/compare/v0.19.0...v0.19.1) (2025-01-27)
 
 
