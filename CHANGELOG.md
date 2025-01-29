@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.3](https://github.com/atinylittleshell/gsh/compare/v0.19.2...v0.19.3) (2025-01-29)
+
+
+### Bug Fixes
+
+* improve file completion to preserve path prefix and earlier arguments ([6d107cb](https://github.com/atinylittleshell/gsh/commit/6d107cbdbb0b0a196da058c8074870003d73282b))
+
 ## [0.19.2](https://github.com/atinylittleshell/gsh/compare/v0.19.1...v0.19.2) (2025-01-27)
 
 
