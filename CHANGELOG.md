@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/atinylittleshell/gsh/compare/v0.19.4...v0.20.0) (2025-02-01)
+
+
+### Features
+
+* track prediction history locally ([f1a0c89](https://github.com/atinylittleshell/gsh/commit/f1a0c89ac8ed3896240514daaf581db11faae692))
+
 ## [0.19.4](https://github.com/atinylittleshell/gsh/compare/v0.19.3...v0.19.4) (2025-02-01)
 
 
