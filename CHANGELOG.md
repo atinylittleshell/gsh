@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.4](https://github.com/atinylittleshell/gsh/compare/v0.19.3...v0.19.4) (2025-02-01)
+
+
+### Bug Fixes
+
+* improve file completion to handle home dir, absolute, and relative paths consistently ([0283834](https://github.com/atinylittleshell/gsh/commit/02838348152710f726afc8fc2139454c02999fb7))
+
 ## [0.19.3](https://github.com/atinylittleshell/gsh/compare/v0.19.2...v0.19.3) (2025-01-29)
 
 
