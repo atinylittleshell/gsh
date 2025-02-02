@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.1](https://github.com/atinylittleshell/gsh/compare/v0.20.0...v0.20.1) (2025-02-02)
+
+
+### Bug Fixes
+
+* analytics file path and null pointer handling ([a8ab90b](https://github.com/atinylittleshell/gsh/commit/a8ab90bf992eadb9987cc514cb74ea8e25bc4cc7))
+
 ## [0.20.0](https://github.com/atinylittleshell/gsh/compare/v0.19.4...v0.20.0) (2025-02-01)
 
 
