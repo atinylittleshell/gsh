@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.1](https://github.com/atinylittleshell/gsh/compare/v0.21.0...v0.21.1) (2025-02-03)
+
+
+### Bug Fixes
+
+* skip evaluation UI when not in terminal ([e733243](https://github.com/atinylittleshell/gsh/commit/e7332435c305497c22b3cc307c6dbd0cb2af77be))
+
 ## [0.21.0](https://github.com/atinylittleshell/gsh/compare/v0.20.1...v0.21.0) (2025-02-03)
 
 
