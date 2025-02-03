@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.1](https://github.com/atinylittleshell/gsh/compare/v0.22.0...v0.22.1) (2025-02-03)
+
+
+### Bug Fixes
+
+* force vesion update ([550a59c](https://github.com/atinylittleshell/gsh/commit/550a59c5485d761653bdd48878ccaf3bb01d5a65))
+
 ## [0.22.0](https://github.com/atinylittleshell/gsh/compare/v0.21.1...v0.22.0) (2025-02-03)
 
 
