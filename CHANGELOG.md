@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.21.0](https://github.com/atinylittleshell/gsh/compare/v0.20.1...v0.21.0) (2025-02-03)
+
+
+### Features
+
+* add command evaluation functionality ([dfdda6d](https://github.com/atinylittleshell/gsh/commit/dfdda6dcaed4acd10f3f4629f6689e8a4f0f700f))
+* add total count support to analytics command ([7f6484f](https://github.com/atinylittleshell/gsh/commit/7f6484fce90c7da7cd0774c4f0b94825c3224b9d))
+
 ## [0.20.1](https://github.com/atinylittleshell/gsh/compare/v0.20.0...v0.20.1) (2025-02-02)
 
 
