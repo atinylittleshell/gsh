@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.2](https://github.com/atinylittleshell/gsh/compare/v0.22.1...v0.22.2) (2025-02-08)
+
+
+### Bug Fixes
+
+* allow nil temperature and parallel tool calls config ([0fbab29](https://github.com/atinylittleshell/gsh/commit/0fbab29345d049be0c18ffd300094d42940ff062))
+
 ## [0.22.1](https://github.com/atinylittleshell/gsh/compare/v0.22.0...v0.22.1) (2025-02-03)
 
 
