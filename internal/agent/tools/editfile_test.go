@@ -1,11 +1,15 @@
 package tools
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/atinylittleshell/gsh/internal/environment"
 	"github.com/atinylittleshell/gsh/internal/filesystem"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
+	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/interp"
 )
 
@@ -197,4 +201,186 @@ func TestWriteFile(t *testing.T) {
 			assert.Equal(t, tt.expectedError, errMsg)
 		})
 	}
+}
+
+func TestPreviewAndConfirmUserDeclines(t *testing.T) {
+	logger := zap.NewNop()
+	runner, _ := interp.New()
+
+	// Mock userConfirmation to return "n"
+	origUserConfirmation := userConfirmation
+	userConfirmation = func(logger *zap.Logger, question string, explanation string) string {
+		return "n"
+	}
+	defer func() { userConfirmation = origUserConfirmation }()
+
+	// Create a temporary file to simulate the existing file
+	tempFile, err := os.CreateTemp("", "test_preview")
+	assert.NoError(t, err)
+	defer os.Remove(tempFile.Name())
+
+	// Write some content to it
+	err = os.WriteFile(tempFile.Name(), []byte("original content"), 0644)
+	assert.NoError(t, err)
+
+	errMsg := previewAndConfirm(runner, logger, tempFile.Name(), "new content")
+	assert.Equal(t, "User declined this request", errMsg)
+}
+
+func TestPreviewAndConfirmManageResponse(t *testing.T) {
+	logger := zap.NewNop()
+	runner, _ := interp.New()
+
+	// Mock userConfirmation to return "manage"
+	origUserConfirmation := userConfirmation
+	userConfirmation = func(logger *zap.Logger, question string, explanation string) string {
+		return "manage"
+	}
+	defer func() { userConfirmation = origUserConfirmation }()
+
+	// Create a temporary file to simulate the existing file
+	tempFile, err := os.CreateTemp("", "test_preview_manage")
+	assert.NoError(t, err)
+	defer os.Remove(tempFile.Name())
+
+	// Write some content to it
+	err = os.WriteFile(tempFile.Name(), []byte("original content"), 0644)
+	assert.NoError(t, err)
+
+	errMsg := previewAndConfirm(runner, logger, tempFile.Name(), "new content")
+	assert.Equal(t, "", errMsg) // Should return empty string for success
+}
+
+func TestPreviewAndConfirmLegacyAlways(t *testing.T) {
+	logger := zap.NewNop()
+	runner, _ := interp.New()
+
+	// Mock userConfirmation to return "always"
+	origUserConfirmation := userConfirmation
+	userConfirmation = func(logger *zap.Logger, question string, explanation string) string {
+		return "always"
+	}
+	defer func() { userConfirmation = origUserConfirmation }()
+
+	// Create a temporary file to simulate the existing file
+	tempFile, err := os.CreateTemp("", "test_preview_always")
+	assert.NoError(t, err)
+	defer os.Remove(tempFile.Name())
+
+	// Write some content to it
+	err = os.WriteFile(tempFile.Name(), []byte("original content"), 0644)
+	assert.NoError(t, err)
+
+	errMsg := previewAndConfirm(runner, logger, tempFile.Name(), "new content")
+	assert.Equal(t, "", errMsg) // Should return empty string for success
+}
+
+func TestPreviewAndConfirmFreeformResponse(t *testing.T) {
+	logger := zap.NewNop()
+	runner, _ := interp.New()
+
+	// Mock userConfirmation to return custom response
+	origUserConfirmation := userConfirmation
+	userConfirmation = func(logger *zap.Logger, question string, explanation string) string {
+		return "custom response"
+	}
+	defer func() { userConfirmation = origUserConfirmation }()
+
+	// Create a temporary file to simulate the existing file
+	tempFile, err := os.CreateTemp("", "test_preview_freeform")
+	assert.NoError(t, err)
+	defer os.Remove(tempFile.Name())
+
+	// Write some content to it
+	err = os.WriteFile(tempFile.Name(), []byte("original content"), 0644)
+	assert.NoError(t, err)
+
+	errMsg := previewAndConfirm(runner, logger, tempFile.Name(), "new content")
+	assert.Equal(t, "User declined this request: custom response", errMsg)
+}
+
+func TestEditFileToolIntegration(t *testing.T) {
+	logger := zap.NewNop()
+	runner, _ := interp.New()
+
+	// Create a temporary file for testing
+	tempFile, err := os.CreateTemp("", "test_edit_integration")
+	assert.NoError(t, err)
+	defer os.Remove(tempFile.Name())
+
+	originalContent := "Hello world!\nThis is a test file.\nEnd of file."
+	err = os.WriteFile(tempFile.Name(), []byte(originalContent), 0644)
+	assert.NoError(t, err)
+
+	// Mock userConfirmation to return "y" (accept)
+	origUserConfirmation := userConfirmation
+	userConfirmation = func(logger *zap.Logger, question string, explanation string) string {
+		return "y"
+	}
+	defer func() { userConfirmation = origUserConfirmation }()
+
+	// Test successful edit
+	params := map[string]any{
+		"path":    tempFile.Name(),
+		"old_str": "world",
+		"new_str": "universe",
+	}
+
+	result := EditFileTool(runner, logger, params)
+	assert.Contains(t, result, "File successfully edited")
+
+	// Verify the file was actually edited
+	newContent, err := os.ReadFile(tempFile.Name())
+	assert.NoError(t, err)
+	assert.Contains(t, string(newContent), "Hello universe!")
+	assert.NotContains(t, string(newContent), "Hello world!")
+}
+
+func TestEditFileToolWithRelativePath(t *testing.T) {
+	logger := zap.NewNop()
+	env := expand.ListEnviron(os.Environ()...)
+	runner, _ := interp.New(interp.Env(env))
+	runner.Vars = make(map[string]expand.Variable)
+
+	// Create a temporary file for testing
+	tempFile, err := os.CreateTemp("", "test_edit_relative")
+	assert.NoError(t, err)
+	tempFile.Close() // Close the file handle
+	defer os.Remove(tempFile.Name())
+
+	originalContent := "Test content for relative path"
+	err = os.WriteFile(tempFile.Name(), []byte(originalContent), 0644)
+	assert.NoError(t, err)
+
+	// Mock userConfirmation to return "y" (accept)
+	origUserConfirmation := userConfirmation
+	userConfirmation = func(logger *zap.Logger, question string, explanation string) string {
+		return "y"
+	}
+	defer func() { userConfirmation = origUserConfirmation }()
+
+	// Use relative path by using just the filename
+	relativePath := filepath.Base(tempFile.Name())
+
+	// Change to the temp directory
+	tempDir := filepath.Dir(tempFile.Name())
+	originalPwd := environment.GetPwd(runner)
+	defer func() {
+		// Restore original directory
+		runner.Dir = originalPwd
+		if originalPwd != "" {
+			runner.Vars["PWD"] = expand.Variable{Kind: expand.String, Str: originalPwd}
+		}
+	}()
+	runner.Dir = tempDir
+	runner.Vars["PWD"] = expand.Variable{Kind: expand.String, Str: tempDir}
+
+	params := map[string]any{
+		"path":    relativePath,
+		"old_str": "relative",
+		"new_str": "absolute",
+	}
+
+	result := EditFileTool(runner, logger, params)
+	assert.Contains(t, result, "File successfully edited")
 }

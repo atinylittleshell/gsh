@@ -35,6 +35,115 @@ var BashToolDefinition = openai.Tool{
 	},
 }
 
+// GenerateCommandRegex generates a regex pattern from a bash command
+// The pattern is specific enough to match similar commands but general enough to be useful
+// For example:
+// - Command: "ls -la /tmp" → Regex: "^ls.*"
+// - Command: "git status" → Regex: "^git status.*"
+// - Command: "npm install package" → Regex: "^npm install.*"
+func GenerateCommandRegex(command string) string {
+	// Split the command into parts
+	parts := strings.Fields(command)
+
+	// If we have no parts, return a pattern that won't match anything
+	if len(parts) == 0 {
+		return "^$"
+	}
+
+	// For most commands, we'll use the first part as the base
+	// For certain commands like git, we might want to include the first two parts
+	baseCommand := parts[0]
+
+	// Special handling for commands that have meaningful subcommands
+	// like git, npm, etc.
+	specialCommands := map[string]bool{
+		"git":     true,
+		"npm":     true,
+		"yarn":    true,
+		"docker":  true,
+		"kubectl": true,
+	}
+
+	if specialCommands[baseCommand] && len(parts) > 1 {
+		// For special commands, include the first two parts
+		return "^" + regexp.QuoteMeta(baseCommand+" "+parts[1]) + ".*"
+	} else {
+		// For regular commands, just use the base command
+		return "^" + regexp.QuoteMeta(baseCommand) + ".*"
+	}
+}
+
+// GenerateSpecificCommandRegex creates a more specific regex pattern for a given command prefix.
+// This is used for pre-selection in the permissions menu to ensure only exact matches are pre-selected.
+// Unlike GenerateCommandRegex, this creates unique patterns for each specific prefix.
+//
+// For example:
+// - Command: "awk" → Regex: "^awk$"
+// - Command: "awk -F'|'" → Regex: "^awk -F'|'.*"
+// - Command: "awk -F'|' '{...}'" → Regex: "^awk -F'|' '{...}'.*"
+func GenerateSpecificCommandRegex(command string) string {
+	// Split the command into parts
+	parts := strings.Fields(command)
+
+	// If we have no parts, return a pattern that won't match anything
+	if len(parts) == 0 {
+		return "^$"
+	}
+
+	if len(parts) == 1 {
+		// For single commands, match exactly
+		return "^" + regexp.QuoteMeta(parts[0]) + "$"
+	} else {
+		// For multi-part commands, match the exact prefix followed by anything
+		return "^" + regexp.QuoteMeta(command) + ".*"
+	}
+}
+
+// GeneratePreselectionPattern generates the pattern that should be checked for pre-selection.
+// This function determines what pattern in the authorized_commands file would correspond
+// to this specific prefix being authorized.
+//
+// The key insight is that we want literal matching: only the prefix that would generate
+// the exact same pattern should be pre-selected.
+//
+// For example:
+// - Prefix "awk" should only be pre-selected if "^awk.*" is in the file
+// - Prefix "awk -F'|'" should only be pre-selected if "^awk -F'|'.*" is in the file
+// - Prefix "git status" should only be pre-selected if "^git status.*" is in the file
+func GeneratePreselectionPattern(prefix string) string {
+	// For pre-selection, we want to check for the specific pattern that would be saved
+	// when THIS exact prefix is selected in the menu
+
+	// Split the prefix into parts
+	parts := strings.Fields(prefix)
+	if len(parts) == 0 {
+		return "^$"
+	}
+
+	baseCommand := parts[0]
+
+	// Special handling for commands that have meaningful subcommands
+	specialCommands := map[string]bool{
+		"git":     true,
+		"npm":     true,
+		"yarn":    true,
+		"docker":  true,
+		"kubectl": true,
+	}
+
+	if specialCommands[baseCommand] && len(parts) > 1 {
+		// For special commands, include the subcommand in the pattern
+		return "^" + regexp.QuoteMeta(baseCommand+" "+parts[1]) + ".*"
+	} else if len(parts) == 1 {
+		// For single-word commands, use the base pattern
+		return "^" + regexp.QuoteMeta(baseCommand) + ".*"
+	} else {
+		// For multi-word regular commands, use the full prefix
+		// This ensures "awk -F'|'" generates a different pattern than "awk"
+		return "^" + regexp.QuoteMeta(prefix) + ".*"
+	}
+}
+
 func BashTool(runner *interp.Runner, historyManager *history.HistoryManager, logger *zap.Logger, params map[string]any) string {
 	reason, ok := params["reason"].(string)
 	if !ok {
@@ -57,15 +166,12 @@ func BashTool(runner *interp.Runner, historyManager *history.HistoryManager, log
 		return failedToolResponse(fmt.Sprintf("`%s` is not a valid bash command: %s", command, err))
 	}
 
-	// Check if the command matches any pre-approved patterns
+	// Check if the command matches any pre-approved patterns using secure compound command validation
 	approvedPatterns := environment.GetApprovedBashCommandRegex(runner, logger)
-	isPreApproved := false
-	for _, pattern := range approvedPatterns {
-		matched, err := regexp.MatchString(pattern, command)
-		if err == nil && matched {
-			isPreApproved = true
-			break
-		}
+	isPreApproved, err := ValidateCompoundCommand(command, approvedPatterns)
+	if err != nil {
+		logger.Debug("Failed to validate compound command", zap.Error(err))
+		isPreApproved = false
 	}
 
 	var confirmResponse string
@@ -80,6 +186,47 @@ func BashTool(runner *interp.Runner, historyManager *history.HistoryManager, log
 	}
 	if confirmResponse == "n" {
 		return failedToolResponse("User declined this request")
+	} else if confirmResponse == "manage" {
+		// User chose "manage" - show permissions menu for command prefixes
+		menuResponse, err := ShowPermissionsMenu(logger, command)
+		if err != nil {
+			logger.Error("Failed to show permissions menu", zap.Error(err))
+			return failedToolResponse("Failed to show permissions menu")
+		}
+
+		// Process the menu response
+		if menuResponse == "n" {
+			return failedToolResponse("User declined this request")
+		} else if menuResponse == "manage" {
+			// User selected specific permissions - the permissions menu has already saved
+			// the enabled permissions to authorized_commands, so we just continue
+			logger.Info("Permissions have been saved by the permissions menu")
+		} else if menuResponse != "y" {
+			return failedToolResponse(fmt.Sprintf("User declined this request: %s", menuResponse))
+		}
+		// If menuResponse == "y", continue with execution
+	} else if confirmResponse == "always" {
+		// Legacy support for "always" - treat as "manage" for backward compatibility
+		regexPatterns, err := GenerateCompoundCommandRegex(command)
+		if err != nil {
+			logger.Error("Failed to generate regex patterns for compound command", zap.Error(err))
+			// Fall back to single command pattern generation
+			regexPattern := GenerateCommandRegex(command)
+			err = environment.AppendToAuthorizedCommands(regexPattern)
+			if err != nil {
+				logger.Error("Failed to append command to authorized_commands file", zap.Error(err))
+			}
+		} else {
+			// Save all generated patterns
+			for _, pattern := range regexPatterns {
+				err = environment.AppendToAuthorizedCommands(pattern)
+				if err != nil {
+					logger.Error("Failed to append command pattern to authorized_commands file",
+						zap.String("pattern", pattern), zap.Error(err))
+					// Continue with other patterns even if one fails
+				}
+			}
+		}
 	} else if confirmResponse != "y" {
 		return failedToolResponse(fmt.Sprintf("User declined this request: %s", confirmResponse))
 	}

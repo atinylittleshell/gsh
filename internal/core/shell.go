@@ -18,6 +18,7 @@ import (
 	"github.com/atinylittleshell/gsh/internal/rag"
 	"github.com/atinylittleshell/gsh/internal/rag/retrievers"
 	"github.com/atinylittleshell/gsh/internal/styles"
+	"github.com/atinylittleshell/gsh/internal/subagent"
 	"github.com/atinylittleshell/gsh/pkg/gline"
 	"go.uber.org/zap"
 	"mvdan.cc/sh/v3/interp"
@@ -49,8 +50,12 @@ func RunInteractiveShell(
 	explainer := predict.NewLLMExplainer(runner, logger)
 	agent := agent.NewAgent(runner, historyManager, logger)
 
+	// Set up subagent integration
+	subagentIntegration := subagent.NewSubagentIntegration(runner, historyManager, logger)
+
 	// Set up completion
 	completionProvider := completion.NewShellCompletionProvider(completionManager, runner)
+	completionProvider.SetSubagentProvider(subagentIntegration.GetCompletionProvider())
 
 	chanSIGINT := make(chan os.Signal, 1)
 	signal.Notify(chanSIGINT, os.Interrupt)
@@ -105,6 +110,13 @@ func RunInteractiveShell(
 			// Handle agent controls
 			if strings.HasPrefix(chatMessage, "!") {
 				control := strings.TrimSpace(strings.TrimPrefix(chatMessage, "!"))
+
+				// Try subagent controls first
+				if subagentIntegration.HandleAgentControl(control) {
+					continue
+				}
+
+				// Handle built-in agent controls
 				switch control {
 				case "new":
 					agent.ResetChat()
@@ -133,7 +145,25 @@ func RunInteractiveShell(
 				}
 			}
 
-			chatChannel, err := agent.Chat(chatMessage)
+			// Check for subagent commands first
+			handled, chatChannel, subagent, err := subagentIntegration.HandleCommand(chatMessage)
+			if handled {
+				if err != nil {
+					logger.Error("error with subagent command", zap.Error(err))
+					fmt.Print(gline.RESET_CURSOR_COLUMN + styles.ERROR("gsh: "+err.Error()+"\n") + gline.RESET_CURSOR_COLUMN)
+					continue
+				}
+
+				// Handle subagent response with subagent identification
+				for message := range chatChannel {
+					prefix := fmt.Sprintf("gsh [%s]: ", subagent.Name)
+					fmt.Print(gline.RESET_CURSOR_COLUMN + styles.AGENT_MESSAGE(prefix+message+"\n") + gline.RESET_CURSOR_COLUMN)
+				}
+				continue
+			}
+
+			// Fall back to regular agent chat
+			chatChannel, err = agent.Chat(chatMessage)
 			if err != nil {
 				logger.Error("error chatting with agent", zap.Error(err))
 				continue

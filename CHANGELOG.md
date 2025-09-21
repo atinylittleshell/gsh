@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased]
+
+### Features
+
+* add "always allow" permission system for agent commands
+  - New 'a' response option for command permission prompts
+  - Automatic approval of similar commands after choosing "always"
+  - File-based authorization storage in ~/.config/gsh/authorized_commands
+  - Intelligent regex pattern generation for command matching
+  - Works alongside existing GSH_AGENT_APPROVED_BASH_COMMAND_REGEX configuration
+
+### Security
+
+* implement compound command security validation
+  - Prevents command injection attacks in compound statements (`;`, `&&`, `||`, `|`, subshells)
+  - Each individual command in compound statements must be separately approved
+  - Comprehensive parsing of shell operators including pipes, subshells, and command substitution
+  - Maintains backward compatibility with existing approval patterns
+  - Extensive security testing for various injection scenarios
+
 ## [0.22.2](https://github.com/atinylittleshell/gsh/compare/v0.22.1...v0.22.2) (2025-02-08)
 
 

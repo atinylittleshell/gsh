@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/atinylittleshell/gsh/internal/filesystem"
 	"github.com/atinylittleshell/gsh/internal/environment"
+	"github.com/atinylittleshell/gsh/internal/filesystem"
 	"github.com/atinylittleshell/gsh/internal/utils"
 	"github.com/atinylittleshell/gsh/pkg/gline"
 	openai "github.com/sashabaranov/go-openai"
@@ -106,6 +106,11 @@ func previewAndConfirm(runner *interp.Runner, logger *zap.Logger, path string, n
 	confirmResponse := userConfirmation(logger, "gsh: Do I have your permission to make the edit proposed above?", "")
 	if confirmResponse == "n" {
 		return "User declined this request"
+	} else if confirmResponse == "manage" {
+		// User chose "manage" - proceed with the operation
+		// Note: File editing doesn't use the prefix menu system like bash commands
+	} else if confirmResponse == "always" {
+		// Legacy support for "always" - proceed with the operation
 	} else if confirmResponse != "y" {
 		return fmt.Sprintf("User declined this request: %s", confirmResponse)
 	}
@@ -153,5 +158,3 @@ func EditFileTool(runner *interp.Runner, logger *zap.Logger, params map[string]a
 
 	return fmt.Sprintf("File successfully edited at %s", fileParams.path)
 }
-
-
