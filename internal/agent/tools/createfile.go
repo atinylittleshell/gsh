@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	"github.com/atinylittleshell/gsh/internal/environment"
 	"github.com/atinylittleshell/gsh/internal/utils"
@@ -74,6 +75,20 @@ func CreateFileTool(runner *interp.Runner, logger *zap.Logger, params map[string
 	)
 	if confirmResponse == "n" {
 		return failedToolResponse("User declined this request")
+	} else if confirmResponse == "manage" {
+		// User chose "manage" - generate regex pattern for file operations
+		regexPattern := GenerateFileOperationRegex(path, "create_file")
+		err := environment.AppendToAuthorizedCommands(regexPattern)
+		if err != nil {
+			logger.Error("Failed to append file operation pattern to authorized_commands file", zap.Error(err))
+		}
+	} else if confirmResponse == "always" {
+		// Legacy support for "always" - treat as "manage"
+		regexPattern := GenerateFileOperationRegex(path, "create_file")
+		err := environment.AppendToAuthorizedCommands(regexPattern)
+		if err != nil {
+			logger.Error("Failed to append file operation pattern to authorized_commands file", zap.Error(err))
+		}
 	} else if confirmResponse != "y" {
 		return failedToolResponse(fmt.Sprintf("User declined this request: %s", confirmResponse))
 	}
@@ -92,4 +107,45 @@ func CreateFileTool(runner *interp.Runner, logger *zap.Logger, params map[string
 	}
 
 	return fmt.Sprintf("File successfully created at %s", path)
+}
+
+// GenerateFileOperationRegex generates a regex pattern for file operations
+// This allows similar file operations to be automatically approved in the future
+//
+// Pattern generation strategy:
+// 1. For files with extensions: match directory + any filename with same extension
+// 2. For files without extensions: match directory + exact filename pattern
+// 3. Include operation type to distinguish between create, edit, etc.
+//
+// Examples:
+// - Path: "/home/user/project/src/main.go" → Pattern: "create_file:/home/user/project/src/.*\.go$"
+// - Path: "/tmp/test.txt" → Pattern: "create_file:/tmp/.*\.txt$"
+// - Path: "/home/user/README" → Pattern: "create_file:/home/user/README$"
+func GenerateFileOperationRegex(filePath, operation string) string {
+	// Clean and get absolute path
+	cleanPath := filepath.Clean(filePath)
+
+	// Get directory and filename
+	dir := filepath.Dir(cleanPath)
+	filename := filepath.Base(cleanPath)
+
+	// Get file extension
+	ext := filepath.Ext(filename)
+
+	var pattern string
+
+	if ext != "" {
+		// For files with extensions, match any file in the same directory with the same extension
+		// Escape special regex characters in the directory path
+		escapedDir := regexp.QuoteMeta(dir)
+		escapedExt := regexp.QuoteMeta(ext)
+		pattern = fmt.Sprintf("%s:%s/.*\\%s$", operation, escapedDir, escapedExt)
+	} else {
+		// For files without extensions, be more specific and match the exact filename
+		// This is safer for files like README, Makefile, etc.
+		escapedPath := regexp.QuoteMeta(cleanPath)
+		pattern = fmt.Sprintf("%s:%s$", operation, escapedPath)
+	}
+
+	return pattern
 }
