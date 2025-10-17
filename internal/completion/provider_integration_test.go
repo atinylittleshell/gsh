@@ -58,11 +58,11 @@ func TestShellCompletionProvider_FileCompletion_Integration(t *testing.T) {
 	provider := NewShellCompletionProvider(manager, runner)
 
 	tests := []struct {
-		name         string
-		line         string
-		pos          int
-		setup        func()
-		expectedMin  int // Minimum expected completions
+		name          string
+		line          string
+		pos           int
+		setup         func()
+		expectedMin   int // Minimum expected completions
 		shouldContain []string
 	}{
 		{
@@ -72,7 +72,7 @@ func TestShellCompletionProvider_FileCompletion_Integration(t *testing.T) {
 			setup: func() {
 				manager.On("GetSpec", "cat").Return(CompletionSpec{}, false)
 			},
-			expectedMin: 1, // At least some files should be found
+			expectedMin:   1,          // At least some files should be found
 			shouldContain: []string{}, // Debug first - don't expect specific files
 		},
 		{
@@ -82,7 +82,7 @@ func TestShellCompletionProvider_FileCompletion_Integration(t *testing.T) {
 			setup: func() {
 				manager.On("GetSpec", "vim").Return(CompletionSpec{}, false)
 			},
-			expectedMin: 2,
+			expectedMin:   2,
 			shouldContain: []string{"file1.txt", "file2.log"},
 		},
 		{
@@ -92,7 +92,7 @@ func TestShellCompletionProvider_FileCompletion_Integration(t *testing.T) {
 			setup: func() {
 				manager.On("GetSpec", "less").Return(CompletionSpec{}, false)
 			},
-			expectedMin: 2,
+			expectedMin:   2,
 			shouldContain: []string{"test_script.sh", "testdir/"},
 		},
 		{
@@ -102,7 +102,7 @@ func TestShellCompletionProvider_FileCompletion_Integration(t *testing.T) {
 			setup: func() {
 				manager.On("GetSpec", "cd").Return(CompletionSpec{}, false)
 			},
-			expectedMin: 1,
+			expectedMin:   1,
 			shouldContain: []string{"src/"},
 		},
 		{
@@ -112,7 +112,7 @@ func TestShellCompletionProvider_FileCompletion_Integration(t *testing.T) {
 			setup: func() {
 				manager.On("GetSpec", "cat").Return(CompletionSpec{}, false)
 			},
-			expectedMin: 1,
+			expectedMin:   1,
 			shouldContain: []string{"src/main.go"},
 		},
 	}
@@ -163,40 +163,40 @@ func TestShellCompletionProvider_MacroCompletion_Integration(t *testing.T) {
 	provider := NewShellCompletionProvider(manager, runner)
 
 	tests := []struct {
-		name           string
-		line           string
-		pos            int
-		expectedCount  int
-		shouldContain  []string
+		name             string
+		line             string
+		pos              int
+		expectedCount    int
+		shouldContain    []string
 		shouldNotContain []string
 	}{
 		{
-			name: "macro completion with #/ prefix",
-			line: "#/",
-			pos:  2,
+			name:          "macro completion with @/ prefix",
+			line:          "@/",
+			pos:           2,
 			expectedCount: 4,
-			shouldContain: []string{"#/deploy", "#/debug", "#/test-all", "#/build"},
+			shouldContain: []string{"@/deploy", "@/debug", "@/test-all", "@/build"},
 		},
 		{
-			name: "macro completion with partial prefix",
-			line: "#/d",
-			pos:  3,
-			expectedCount: 2,
-			shouldContain: []string{"#/deploy", "#/debug"},
-			shouldNotContain: []string{"#/test-all", "#/build"},
+			name:             "macro completion with partial prefix",
+			line:             "@/d",
+			pos:              3,
+			expectedCount:    2,
+			shouldContain:    []string{"@/deploy", "@/debug"},
+			shouldNotContain: []string{"@/test-all", "@/build"},
 		},
 		{
-			name: "macro completion with 'test' prefix",
-			line: "#/test",
-			pos:  6,
-			expectedCount: 1,
-			shouldContain: []string{"#/test-all"},
-			shouldNotContain: []string{"#/deploy", "#/debug", "#/build"},
+			name:             "macro completion with 'test' prefix",
+			line:             "@/test",
+			pos:              6,
+			expectedCount:    1,
+			shouldContain:    []string{"@/test-all"},
+			shouldNotContain: []string{"@/deploy", "@/debug", "@/build"},
 		},
 		{
-			name: "macro completion with non-matching prefix",
-			line: "#/xyz",
-			pos:  5,
+			name:          "macro completion with non-matching prefix",
+			line:          "@/xyz",
+			pos:           5,
 			expectedCount: 0,
 		},
 	}
@@ -230,40 +230,40 @@ func TestShellCompletionProvider_BuiltinCompletion_Integration(t *testing.T) {
 	provider := NewShellCompletionProvider(manager, runner)
 
 	tests := []struct {
-		name           string
-		line           string
-		pos            int
-		expectedCount  int
-		shouldContain  []string
+		name             string
+		line             string
+		pos              int
+		expectedCount    int
+		shouldContain    []string
 		shouldNotContain []string
 	}{
 		{
-			name: "builtin completion with #! prefix",
-			line: "#!",
-			pos:  2,
-			expectedCount: 2,
-			shouldContain: []string{"#!new", "#!tokens"},
+			name:          "builtin completion with @! prefix",
+			line:          "@!",
+			pos:           2,
+			expectedCount: 5,
+			shouldContain: []string{"@!new", "@!tokens", "@!subagents", "@!reload-subagents", "@!subagent-info"},
 		},
 		{
-			name: "builtin completion with 'n' prefix",
-			line: "#!n",
-			pos:  3,
-			expectedCount: 1,
-			shouldContain: []string{"#!new"},
-			shouldNotContain: []string{"#!tokens"},
+			name:             "builtin completion with 'n' prefix",
+			line:             "@!n",
+			pos:              3,
+			expectedCount:    1,
+			shouldContain:    []string{"@!new"},
+			shouldNotContain: []string{"@!tokens"},
 		},
 		{
-			name: "builtin completion with 't' prefix",
-			line: "#!t",
-			pos:  3,
-			expectedCount: 1,
-			shouldContain: []string{"#!tokens"},
-			shouldNotContain: []string{"#!new"},
+			name:             "builtin completion with 't' prefix",
+			line:             "@!t",
+			pos:              3,
+			expectedCount:    1,
+			shouldContain:    []string{"@!tokens"},
+			shouldNotContain: []string{"@!new"},
 		},
 		{
-			name: "builtin completion with non-matching prefix",
-			line: "#!xyz",
-			pos:  5,
+			name:          "builtin completion with non-matching prefix",
+			line:          "@!xyz",
+			pos:           5,
 			expectedCount: 0,
 		},
 	}
@@ -316,12 +316,12 @@ func TestShellCompletionProvider_ExecutableCompletion_Integration(t *testing.T) 
 	provider := NewShellCompletionProvider(manager, runner)
 
 	tests := []struct {
-		name          string
-		line          string
-		pos           int
-		setup         func()
-		expectedMin   int
-		shouldContain []string
+		name             string
+		line             string
+		pos              int
+		setup            func()
+		expectedMin      int
+		shouldContain    []string
 		shouldNotContain []string
 	}{
 		{
@@ -331,7 +331,7 @@ func TestShellCompletionProvider_ExecutableCompletion_Integration(t *testing.T) 
 			setup: func() {
 				manager.On("GetSpec", binDir+"/my").Return(CompletionSpec{}, false)
 			},
-			expectedMin:   3,
+			expectedMin: 3,
 			shouldContain: []string{
 				binDir + "/myapp",
 				binDir + "/mycli",
@@ -346,7 +346,7 @@ func TestShellCompletionProvider_ExecutableCompletion_Integration(t *testing.T) 
 			setup: func() {
 				manager.On("GetSpec", binDir+"/").Return(CompletionSpec{}, false)
 			},
-			expectedMin:   3,
+			expectedMin: 3,
 			shouldContain: []string{
 				binDir + "/myapp",
 				binDir + "/mycli",
@@ -408,28 +408,28 @@ func TestShellCompletionProvider_HelpInfo_Integration(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "help for #! prefix",
-			line:     "#!",
+			name:     "help for @! prefix",
+			line:     "@!",
 			pos:      2,
-			expected: "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **#!new** - Start a new chat session\n• **#!tokens** - Show token usage statistics",
+			expected: "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents** - List available subagents\n• **@!reload-subagents** - Reload subagent configurations\n• **@!subagent-info <name>** - Show subagent details",
 		},
 		{
-			name:     "help for #!new command",
-			line:     "#!new",
+			name:     "help for @!new command",
+			line:     "@!new",
 			pos:      5,
-			expected: "**#!new** - Start a new chat session with the agent\n\nThis command resets the conversation history and starts fresh.",
+			expected: "**@!new** - Start a new chat session with the agent\n\nThis command resets the conversation history and starts fresh.",
 		},
 		{
-			name:     "help for #/ prefix with macros",
-			line:     "#/",
+			name:     "help for @/ prefix with macros",
+			line:     "@/",
 			pos:      2,
-			expected: "**Chat Macros** - Quick shortcuts for common agent messages\n\nAvailable macros:\n• **#/deploy**\n• **#/test**",
+			expected: "**Chat Macros** - Quick shortcuts for common agent messages\n\nAvailable macros:\n• **@/deploy**\n• **@/test**",
 		},
 		{
 			name:     "help for specific macro",
-			line:     "#/deploy",
+			line:     "@/deploy",
 			pos:      8,
-			expected: "**#/deploy** - Chat macro\n\n**Expands to:**\nDeploy the application to production",
+			expected: "**@/deploy** - Chat macro\n\n**Expands to:**\nDeploy the application to production",
 		},
 		{
 			name:     "no help for regular command",
@@ -472,24 +472,24 @@ func TestShellCompletionProvider_CompletionSpec_Integration(t *testing.T) {
 		shouldContain []string
 	}{
 		{
-			name: "git command completion",
-			line: "git a",
-			pos:  5,
-			expectedMin: 1,
+			name:          "git command completion",
+			line:          "git a",
+			pos:           5,
+			expectedMin:   1,
 			shouldContain: []string{"add"},
 		},
 		{
-			name: "git partial completion",
-			line: "git ch",
-			pos:  6,
-			expectedMin: 1,
+			name:          "git partial completion",
+			line:          "git ch",
+			pos:           6,
+			expectedMin:   1,
 			shouldContain: []string{"checkout"},
 		},
 		{
-			name: "git commit completion",
-			line: "git c",
-			pos:  5,
-			expectedMin: 1,
+			name:          "git commit completion",
+			line:          "git c",
+			pos:           5,
+			expectedMin:   1,
 			shouldContain: []string{"commit"},
 		},
 	}
@@ -506,7 +506,7 @@ func TestShellCompletionProvider_CompletionSpec_Integration(t *testing.T) {
 				found := false
 				for _, completion := range completions {
 					if completion == expected ||
-					   completion == "git "+expected {
+						completion == "git "+expected {
 						found = true
 						break
 					}

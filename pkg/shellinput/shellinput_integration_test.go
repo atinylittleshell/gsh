@@ -19,26 +19,26 @@ type realCompletionProvider struct {
 func newRealCompletionProvider() *realCompletionProvider {
 	return &realCompletionProvider{
 		completions: map[string][]string{
-			"git":      {"git add", "git commit", "git push", "git pull", "git status"},
-			"git a":    {"git add"},
-			"git c":    {"git commit"},
-			"docker":   {"docker run", "docker build", "docker ps", "docker images"},
-			"ls":       {"ls -la", "ls -l", "ls -a"},
-			"cd":       {},  // Will be populated dynamically with directories
-			"#/":       {"#/deploy", "#/test", "#/build"},
-			"#/d":      {"#/deploy"},
-			"#/t":      {"#/test"},
-			"#!":       {"#!new", "#!tokens"},
-			"#!n":      {"#!new"},
-			"#!t":      {"#!tokens"},
+			"git":    {"git add", "git commit", "git push", "git pull", "git status"},
+			"git a":  {"git add"},
+			"git c":  {"git commit"},
+			"docker": {"docker run", "docker build", "docker ps", "docker images"},
+			"ls":     {"ls -la", "ls -l", "ls -a"},
+			"cd":     {}, // Will be populated dynamically with directories
+			"@/":     {"@/deploy", "@/test", "@/build"},
+			"@/d":    {"@/deploy"},
+			"@/t":    {"@/test"},
+			"@!":     {"@!new", "@!tokens"},
+			"@!n":    {"@!new"},
+			"@!t":    {"@!tokens"},
 		},
 		helpInfo: map[string]string{
-			"#!":      "**Agent Controls** - Built-in commands\n\nAvailable:\n• #!new\n• #!tokens",
-			"#!new":   "**#!new** - Start new session",
-			"#!tokens": "**#!tokens** - Show token usage",
-			"#/":      "**Chat Macros** - Quick shortcuts\n\nAvailable:\n• #/deploy\n• #/test\n• #/build",
-			"#/deploy": "**#/deploy** - Deploy application",
-			"#/test":   "**#/test** - Run tests",
+			"@!":       "**Agent Controls** - Built-in commands\n\nAvailable:\n• @!new\n• @!tokens",
+			"@!new":    "**@!new** - Start new session",
+			"@!tokens": "**@!tokens** - Show token usage",
+			"@/":       "**Chat Macros** - Quick shortcuts\n\nAvailable:\n• @/deploy\n• @/test\n• @/build",
+			"@/deploy": "**@/deploy** - Deploy application",
+			"@/test":   "**@/test** - Run tests",
 		},
 	}
 }
@@ -114,8 +114,8 @@ func (f *fileSystemCompletionProvider) GetCompletions(line string, pos int) []st
 
 	// Handle file completions for other commands
 	if (len(inputLine) >= 4 && inputLine[:4] == "cat ") ||
-	   (len(inputLine) >= 4 && inputLine[:4] == "vim ") ||
-	   (len(inputLine) >= 5 && inputLine[:5] == "less ") {
+		(len(inputLine) >= 4 && inputLine[:4] == "vim ") ||
+		(len(inputLine) >= 5 && inputLine[:5] == "less ") {
 
 		var prefix string
 		if inputLine[len(inputLine)-1] != ' ' {
@@ -159,13 +159,13 @@ func TestModel_RealCompletion_Integration(t *testing.T) {
 	model.CompletionProvider = newRealCompletionProvider()
 
 	tests := []struct {
-		name            string
-		initialValue    string
-		cursorPos       int
-		keySequence     []tea.KeyMsg
-		expectedValue   string
-		expectedCursor  int
-		expectedActive  bool
+		name           string
+		initialValue   string
+		cursorPos      int
+		keySequence    []tea.KeyMsg
+		expectedValue  string
+		expectedCursor int
+		expectedActive bool
 	}{
 		{
 			name:         "basic git completion",
@@ -220,8 +220,8 @@ func TestModel_RealCompletion_Integration(t *testing.T) {
 			initialValue: "git",
 			cursorPos:    3,
 			keySequence: []tea.KeyMsg{
-				{Type: tea.KeyTab},                         // git add
-				{Type: tea.KeyRunes, Runes: []rune{' '}},  // add space
+				{Type: tea.KeyTab},                       // git add
+				{Type: tea.KeyRunes, Runes: []rune{' '}}, // add space
 			},
 			expectedValue:  "git add ",
 			expectedCursor: 8,
@@ -229,23 +229,23 @@ func TestModel_RealCompletion_Integration(t *testing.T) {
 		},
 		{
 			name:         "macro completion",
-			initialValue: "#/",
+			initialValue: "@/",
 			cursorPos:    2,
 			keySequence: []tea.KeyMsg{
 				{Type: tea.KeyTab},
 			},
-			expectedValue:  "#/deploy",
+			expectedValue:  "@/deploy",
 			expectedCursor: 8,
 			expectedActive: true,
 		},
 		{
 			name:         "builtin completion",
-			initialValue: "#!",
+			initialValue: "@!",
 			cursorPos:    2,
 			keySequence: []tea.KeyMsg{
 				{Type: tea.KeyTab},
 			},
-			expectedValue:  "#!new",
+			expectedValue:  "@!new",
 			expectedCursor: 5,
 			expectedActive: true,
 		},
@@ -428,9 +428,9 @@ func TestModel_HistoryNavigation_Integration(t *testing.T) {
 		{
 			name: "navigate through history",
 			keySequence: []tea.KeyMsg{
-				{Type: tea.KeyUp},   // git status
-				{Type: tea.KeyUp},   // git add .
-				{Type: tea.KeyUp},   // git commit -m 'test'
+				{Type: tea.KeyUp}, // git status
+				{Type: tea.KeyUp}, // git add .
+				{Type: tea.KeyUp}, // git commit -m 'test'
 			},
 			expectedValue:  "git commit -m 'test'",
 			expectedCursor: 20, // Length of string, cursor at end
@@ -438,11 +438,11 @@ func TestModel_HistoryNavigation_Integration(t *testing.T) {
 		{
 			name: "navigate to end of history",
 			keySequence: []tea.KeyMsg{
-				{Type: tea.KeyUp},   // git status
-				{Type: tea.KeyUp},   // git add .
-				{Type: tea.KeyUp},   // git commit -m 'test'
-				{Type: tea.KeyUp},   // git push origin main
-				{Type: tea.KeyUp},   // should stay at last item
+				{Type: tea.KeyUp}, // git status
+				{Type: tea.KeyUp}, // git add .
+				{Type: tea.KeyUp}, // git commit -m 'test'
+				{Type: tea.KeyUp}, // git push origin main
+				{Type: tea.KeyUp}, // should stay at last item
 			},
 			expectedValue:  "git push origin main",
 			expectedCursor: 20, // Length of string, cursor at end
@@ -461,8 +461,8 @@ func TestModel_HistoryNavigation_Integration(t *testing.T) {
 			name: "navigate back to current input",
 			keySequence: []tea.KeyMsg{
 				{Type: tea.KeyRunes, Runes: []rune("test input")}, // Set current input
-				{Type: tea.KeyUp},                                  // git status
-				{Type: tea.KeyDown},                                // back to current input
+				{Type: tea.KeyUp},   // git status
+				{Type: tea.KeyDown}, // back to current input
 			},
 			expectedValue:  "test input",
 			expectedCursor: 10,
@@ -564,8 +564,8 @@ func TestModel_EditOperations_Integration(t *testing.T) {
 			initialValue: "git commit -m 'wrong message here'",
 			cursorPos:    34,
 			keySequence: []tea.KeyMsg{
-				{Type: tea.KeyCtrlW},                              // delete "here'"
-				{Type: tea.KeyRunes, Runes: []rune("correct'")},  // add "correct'"
+				{Type: tea.KeyCtrlW},                            // delete "here'"
+				{Type: tea.KeyRunes, Runes: []rune("correct'")}, // add "correct'"
 			},
 			expectedValue:  "git commit -m 'wrong message correct'",
 			expectedCursor: 37,
@@ -601,34 +601,34 @@ func TestModel_HelpInfo_Integration(t *testing.T) {
 	model.CompletionProvider = provider
 
 	tests := []struct {
-		name           string
-		initialValue   string
-		cursorPos      int
-		expectedHelp   string
+		name         string
+		initialValue string
+		cursorPos    int
+		expectedHelp string
 	}{
 		{
-			name:         "help for #! prefix",
-			initialValue: "#!",
+			name:         "help for @! prefix",
+			initialValue: "@!",
 			cursorPos:    2,
-			expectedHelp: "**Agent Controls** - Built-in commands\n\nAvailable:\n• #!new\n• #!tokens",
+			expectedHelp: "**Agent Controls** - Built-in commands\n\nAvailable:\n• @!new\n• @!tokens",
 		},
 		{
 			name:         "help for specific builtin command",
-			initialValue: "#!new",
+			initialValue: "@!new",
 			cursorPos:    5,
-			expectedHelp: "**#!new** - Start new session",
+			expectedHelp: "**@!new** - Start new session",
 		},
 		{
 			name:         "help for macro prefix",
-			initialValue: "#/",
+			initialValue: "@/",
 			cursorPos:    2,
-			expectedHelp: "**Chat Macros** - Quick shortcuts\n\nAvailable:\n• #/deploy\n• #/test\n• #/build",
+			expectedHelp: "**Chat Macros** - Quick shortcuts\n\nAvailable:\n• @/deploy\n• @/test\n• @/build",
 		},
 		{
 			name:         "help for specific macro",
-			initialValue: "#/deploy",
+			initialValue: "@/deploy",
 			cursorPos:    8,
-			expectedHelp: "**#/deploy** - Deploy application",
+			expectedHelp: "**@/deploy** - Deploy application",
 		},
 		{
 			name:         "no help for regular commands",

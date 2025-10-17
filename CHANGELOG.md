@@ -1,5 +1,36 @@
 # Changelog
 
+## [Unreleased]
+
+### Features
+
+* Implement comprehensive subagent system with Claude and Roo Code compatibility ([2fb7a6e](https://github.com/atinylittleshell/gsh/commit/2fb7a6e))
+* Add support for Roo YAML mode files ([314941a](https://github.com/atinylittleshell/gsh/commit/314941a))
+* Add interactive permissions menu system ([a5c7083](https://github.com/atinylittleshell/gsh/commit/a5c7083))
+* Improve command regex generation with heuristic-based subcommand detection ([8beff60](https://github.com/atinylittleshell/gsh/commit/8beff60))
+* Add context-sensitive completions for macro and builtin command prefixes ([57466dc](https://github.com/atinylittleshell/gsh/commit/57466dc))
+* Improve Ctrl+C handling and interrupt detection in gline app ([cada44d](https://github.com/atinylittleshell/gsh/commit/cada44d))
+* Add basic Nix flake support ([9cc2e03](https://github.com/atinylittleshell/gsh/commit/9cc2e03))
+
+### Bug Fixes
+
+* Fix test dependencies on the local system ([52efcf4](https://github.com/atinylittleshell/gsh/commit/52efcf4))
+* Improve command regex generation and test reliability ([d01934f](https://github.com/atinylittleshell/gsh/commit/d01934f))
+* Remove manage permissions from file operations ([c7367ed](https://github.com/atinylittleshell/gsh/commit/c7367ed))
+* Improve Ctrl+C handling and testability in completion system ([4a5afeb](https://github.com/atinylittleshell/gsh/commit/4a5afeb))
+
+### Refactor
+
+* Remove legacy 'always' workflow, consolidate on 'manage' menu system ([494a105](https://github.com/atinylittleshell/gsh/commit/494a105))
+* Simplify user confirmation logic and remove retry mechanism ([8711cdd](https://github.com/atinylittleshell/gsh/commit/8711cdd))
+
+### Documentation
+
+* Add comprehensive documentation suite ([fb8b7b8](https://github.com/atinylittleshell/gsh/commit/fb8b7b8))
+* Move agent documentation to separate file ([172c350](https://github.com/atinylittleshell/gsh/commit/172c350))
+* Remove COMMAND_REGEX_IMPROVEMENTS documentation ([a7d0bd7](https://github.com/atinylittleshell/gsh/commit/a7d0bd7))
+* Update documentation structure and content ([e88ca9a](https://github.com/atinylittleshell/gsh/commit/e88ca9a), [97a466a](https://github.com/atinylittleshell/gsh/commit/97a466a), [74ead62](https://github.com/atinylittleshell/gsh/commit/74ead62), [1effd42](https://github.com/atinylittleshell/gsh/commit/1effd42), [60b6d66](https://github.com/atinylittleshell/gsh/commit/60b6d66), [e35fc4d](https://github.com/atinylittleshell/gsh/commit/e35fc4d), [8a42f0a](https://github.com/atinylittleshell/gsh/commit/8a42f0a), [c4a9fc2](https://github.com/atinylittleshell/gsh/commit/c4a9fc2), [cf5322a](https://github.com/atinylittleshell/gsh/commit/cf5322a), [e3a79c3](https://github.com/atinylittleshell/gsh/commit/e3a79c3))
+
 ## [0.22.2](https://github.com/atinylittleshell/gsh/compare/v0.22.1...v0.22.2) (2025-02-08)
 
 

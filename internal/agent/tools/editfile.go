@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/atinylittleshell/gsh/internal/filesystem"
 	"github.com/atinylittleshell/gsh/internal/environment"
+	"github.com/atinylittleshell/gsh/internal/filesystem"
 	"github.com/atinylittleshell/gsh/internal/utils"
 	"github.com/atinylittleshell/gsh/pkg/gline"
 	openai "github.com/sashabaranov/go-openai"
@@ -153,5 +153,3 @@ func EditFileTool(runner *interp.Runner, logger *zap.Logger, params map[string]a
 
 	return fmt.Sprintf("File successfully edited at %s", fileParams.path)
 }
-
-
