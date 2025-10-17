@@ -34,6 +34,10 @@ type appModel struct {
 
 	explanationStyle lipgloss.Style
 	completionStyle  lipgloss.Style
+
+	// Multiline support
+	multilineState *MultilineState
+	originalPrompt string
 }
 
 type attemptPredictionMsg struct {
@@ -110,6 +114,10 @@ func initialModel(
 		completionStyle: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("10")),
+
+		// Initialize multiline state
+		multilineState: NewMultilineState(),
+		originalPrompt: prompt,
 	}
 }
 
@@ -160,12 +168,41 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "enter":
-			m.result = m.textInput.Value()
+			input := m.textInput.Value()
+
+			// Handle multiline input with error handling
+			complete, prompt := m.multilineState.AddLine(input)
+			if !complete {
+				// Need more input, update prompt and continue
+				m.textInput.Prompt = prompt + " "
+				// Clear the text input field but preserve the multiline buffer
+				m.textInput.SetValue("")
+				return m, nil
+			}
+
+			// We have a complete command - add error handling for GetCompleteCommand
+			result := m.multilineState.GetCompleteCommand()
+			if result == "" && input != "" {
+				// Only treat empty result as error if input was not empty
+				// Reset the multiline state and continue
+				m.multilineState.Reset()
+				m.textInput.SetValue("")
+				return m, nil
+			}
+
+			m.result = result
 			return m, tea.Sequence(terminate, tea.Quit)
 
 		case "ctrl+c":
 			// Handle Ctrl-C: cancel current line, preserve input with "^C" appended, and present fresh prompt
 			currentInput := m.textInput.Value()
+
+			// Reset multiline state on Ctrl+C
+			if m.multilineState.IsActive() {
+				m.multilineState.Reset()
+				m.textInput.Prompt = m.originalPrompt // Reset to original prompt
+			}
+
 			// Print the current input with "^C" appended, then move to next line
 			// This works for both empty and non-empty input
 			fmt.Printf("%s^C\n", currentInput)
@@ -201,8 +238,24 @@ func (m appModel) View() string {
 		return ""
 	}
 
-	// Render normal state
-	s := m.textInput.View()
+	var s string
+
+	// If we have multiline content, show each line with its original prompt
+	if m.multilineState.IsActive() {
+		lines := m.multilineState.GetLines()
+		for i, line := range lines {
+			if i == 0 {
+				// First line uses the original prompt (textInput already adds the space)
+				s += m.originalPrompt + line + "\n"
+			} else {
+				// Subsequent lines use continuation prompt
+				s += "> " + line + "\n"
+			}
+		}
+	}
+
+	// Add the current input line with appropriate prompt
+	s += m.textInput.View()
 
 	// Add completion box if active
 	completionBox := m.textInput.CompletionBoxView()
@@ -234,6 +287,9 @@ func (m appModel) getFinalOutput() string {
 	m.textInput.SetSuggestions([]string{})
 	m.textInput.Blur()
 	m.textInput.ShowSuggestions = false
+
+	// Reset to original prompt for final output display
+	m.textInput.Prompt = m.originalPrompt
 
 	s := m.textInput.View()
 	return s
