@@ -43,6 +43,94 @@ gsh will provide an explanation of the command you are about to run.
 
 See the complete guide: [docs/AGENT.md](docs/AGENT.md)
 
+### Specialized AI Assistants (Subagents)
+
+gsh includes a powerful subagent system that allows you to work with specialized AI assistants designed for specific tasks. These subagents have focused expertise and restricted tool access for better performance and security.
+
+#### Quick Start
+
+```bash
+# Use explicit syntax to invoke specific subagents
+gsh> #@code-reviewer analyze this function for bugs
+gsh [code-reviewer]: I'll analyze your code for potential issues...
+
+gsh> #@docs-writer create API documentation for this module
+gsh [docs-writer]: I'll help you create comprehensive documentation...
+
+gsh> #@test-writer generate unit tests for this class
+gsh [test-writer]: Let me create thorough test coverage...
+```
+
+#### Intelligent Auto-Selection
+
+gsh can also automatically select the best subagent based on your prompt context:
+
+```bash
+# These prompts will automatically trigger appropriate subagents
+gsh> # please review my code for security issues
+gsh [code-reviewer]: I'll examine your code for security vulnerabilities...
+
+gsh> # help me document this API endpoint
+gsh [docs-writer]: I'll assist with creating clear API documentation...
+```
+
+#### Configuration Formats
+
+gsh supports both **Claude Code** and **Roo Code** configuration formats for maximum compatibility:
+
+- **Claude Code**: `.md` files with YAML frontmatter (`.claude/agents/`)
+- **Roo Code**: `.yaml` files, `.roomodes` files, and `.roo/rules-{slug}/` directories
+- **Automatic Discovery**: Scans both project and user directories
+- **Cross-Platform**: Use existing configurations from other AI tools
+
+#### Discovery Locations
+
+- **Project-level**: `.claude/agents/`, `.roo/`, `.roomodes` (higher priority)
+- **User-level**: `~/.claude/agents/`, `~/.roo/`, `~/.roomodes` (lower priority)
+
+#### Automatic Directory Change Detection
+
+gsh automatically rescans for subagents whenever you change directories, making it easy to have project-specific AI assistants:
+
+```bash
+# In your main project directory
+gsh> #!subagents
+Loaded 3 subagent(s): code-reviewer, docs-writer, test-writer
+
+# Create a subdirectory with custom subagents
+gsh> mkdir my-api && cd my-api
+gsh> mkdir -p .claude/agents
+
+# Add a custom API-focused subagent configuration
+# (create .claude/agents/api-helper.md)
+
+# The subagent is automatically available after cd
+gsh> #!subagents
+Loaded 1 subagent(s): api-helper
+
+# Tab completion and intelligent selection work with current directory's subagents
+gsh> #@<TAB>
+#@api-helper
+
+# Go back to parent directory - original subagents are restored
+gsh> cd ..
+gsh> #!subagents
+Loaded 3 subagent(s): code-reviewer, docs-writer, test-writer
+```
+
+This enables powerful workflows where each project or directory can have specialized AI assistants that are automatically discovered and available when working in that context.
+
+#### Example Subagents
+
+gsh ships with example subagents for testing:
+- `code-reviewer`: Code analysis, bug detection, security review
+- `docs-writer`: Documentation creation and maintenance
+- `test-writer`: Test generation and validation
+
+**Note**: These are demonstrations. For production use, create custom subagents tailored to your specific workflows and expertise domains.
+
+For detailed configuration and usage information, see [SUBAGENTS.md](./SUBAGENTS.md).
+
 ### Supports both local and remote LLMs
 
 gsh can run with either

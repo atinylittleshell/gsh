@@ -241,8 +241,8 @@ func TestShellCompletionProvider_BuiltinCompletion_Integration(t *testing.T) {
 			name: "builtin completion with #! prefix",
 			line: "#!",
 			pos:  2,
-			expectedCount: 2,
-			shouldContain: []string{"#!new", "#!tokens"},
+			expectedCount: 5,
+			shouldContain: []string{"#!new", "#!tokens", "#!subagents", "#!reload-subagents", "#!subagent-info"},
 		},
 		{
 			name: "builtin completion with 'n' prefix",
@@ -411,7 +411,7 @@ func TestShellCompletionProvider_HelpInfo_Integration(t *testing.T) {
 			name:     "help for #! prefix",
 			line:     "#!",
 			pos:      2,
-			expected: "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **#!new** - Start a new chat session\n• **#!tokens** - Show token usage statistics",
+			expected: "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **#!new** - Start a new chat session\n• **#!tokens** - Show token usage statistics\n• **#!subagents** - List available subagents\n• **#!reload-subagents** - Reload subagent configurations\n• **#!subagent-info <name>** - Show subagent details",
 		},
 		{
 			name:     "help for #!new command",
