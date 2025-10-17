@@ -159,6 +159,37 @@ func (p *ShellCompletionProvider) checkSpecialPrefixes(line string, pos int) []s
 			return completions
 		}
 		return completions
+	} else if strings.HasPrefix(currentWord, "@") && !strings.HasPrefix(currentWord, "@/") && !strings.HasPrefix(currentWord, "@!") {
+		// Subagent completions - allow anywhere in the line, not just at the start
+		completions := p.getSubagentCompletions(currentWord)
+
+		// Build the proper prefix and suffix for the current line context
+		var linePrefix string
+		if start > 0 {
+			linePrefix = line[:start]
+		}
+		var lineSuffix string
+		if end < len(line) {
+			lineSuffix = line[end:]
+		}
+
+		if len(completions) == 0 {
+			// No subagent matches found, fall back to path completion
+			pathPrefix := strings.TrimPrefix(currentWord, "@")
+			completions := getFileCompletions(pathPrefix, environment.GetPwd(p.Runner))
+
+			// Add completions with proper prefix and suffix
+			for i, completion := range completions {
+				completions[i] = linePrefix + completion + lineSuffix
+			}
+			return completions
+		}
+
+		// Add completions with proper prefix and suffix
+		for i, completion := range completions {
+			completions[i] = linePrefix + completion + lineSuffix
+		}
+		return completions
 	}
 
 	// Also check if we're at the beginning of a potential prefix
@@ -490,6 +521,39 @@ func (p *ShellCompletionProvider) GetHelpInfo(line string, pos int) string {
 	}
 
 	return ""
+}
+
+// getSubagentCompletions returns completions for subagents starting with @
+func (p *ShellCompletionProvider) getSubagentCompletions(prefix string) []string {
+	var subagentsStr string
+	if p.Runner != nil {
+		subagentsStr = p.Runner.Vars["GSH_SUBAGENTS"].String()
+	} else {
+		// Fallback to environment variable for testing
+		subagentsStr = os.Getenv("GSH_SUBAGENTS")
+	}
+
+	if subagentsStr == "" {
+		return []string{}
+	}
+
+	var subagents map[string]interface{}
+	if err := json.Unmarshal([]byte(subagentsStr), &subagents); err != nil {
+		return []string{}
+	}
+
+	var completions []string
+	prefixAfterAt := strings.TrimPrefix(prefix, "@")
+
+	for subagentName := range subagents {
+		if strings.HasPrefix(subagentName, prefixAfterAt) {
+			completions = append(completions, "@"+subagentName)
+		}
+	}
+
+	// Sort alphabetically for consistent ordering
+	sort.Strings(completions)
+	return completions
 }
 
 // getBuiltinCommandHelp returns help information for built-in commands

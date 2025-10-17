@@ -157,6 +157,9 @@ func RunInteractiveShell(
 			fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
 		}
 
+		// Sync any gsh variables that might have been changed during command execution
+		environment.SyncVariablesToEnv(runner)
+
 		if shouldExit {
 			logger.Debug("exiting...")
 			break
@@ -167,6 +170,37 @@ func RunInteractiveShell(
 }
 
 func executeCommand(ctx context.Context, input string, historyManager *history.HistoryManager, runner *interp.Runner, logger *zap.Logger) (bool, error) {
+	// Pre-process input to transform typeset/declare -f/-F/-p commands to gsh_typeset
+	logger.Debug("preprocessing input", zap.String("original_input", input), zap.Int("input_length", len(input)))
+
+	// Validate input before preprocessing
+	if input == "" {
+		logger.Warn("empty input received for preprocessing")
+		return false, nil
+	}
+
+	// Add timeout protection for preprocessing
+	preprocessStart := time.Now()
+	logger.Debug("calling bash.PreprocessTypesetCommands", zap.String("input", input))
+	processedInput := bash.PreprocessTypesetCommands(input)
+	logger.Debug("bash.PreprocessTypesetCommands completed", zap.String("output", processedInput))
+	preprocessDuration := time.Since(preprocessStart)
+
+	logger.Debug("preprocessing completed",
+		zap.String("processed_input", processedInput),
+		zap.Int("processed_length", len(processedInput)),
+		zap.Duration("preprocess_duration", preprocessDuration),
+		zap.Bool("input_changed", input != processedInput))
+
+	// Check if preprocessing took too long (potential resource exhaustion)
+	if preprocessDuration > 100*time.Millisecond {
+		logger.Warn("preprocessing took unusually long",
+			zap.Duration("duration", preprocessDuration),
+			zap.Int("input_length", len(input)))
+	}
+
+	input = processedInput
+
 	var prog *syntax.Stmt
 	err := syntax.NewParser().Stmts(strings.NewReader(input), func(stmt *syntax.Stmt) bool {
 		prog = stmt

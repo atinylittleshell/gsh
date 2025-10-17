@@ -360,34 +360,34 @@ func TestApp_TextInput_Integration(t *testing.T) {
 	)
 
 	tests := []struct {
-		name           string
-		keyMsg         tea.KeyMsg
-		expectedValue  string
-		expectedDirty  bool
+		name          string
+		keyMsg        tea.KeyMsg
+		expectedValue string
+		expectedDirty bool
 	}{
 		{
-			name:           "typing characters marks as dirty",
-			keyMsg:         tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("g")},
-			expectedValue:  "g",
-			expectedDirty:  true,
+			name:          "typing characters marks as dirty",
+			keyMsg:        tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("g")},
+			expectedValue: "g",
+			expectedDirty: true,
 		},
 		{
-			name:           "continuing to type",
-			keyMsg:         tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")},
-			expectedValue:  "gi",
-			expectedDirty:  true,
+			name:          "continuing to type",
+			keyMsg:        tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")},
+			expectedValue: "gi",
+			expectedDirty: true,
 		},
 		{
-			name:           "backspace removes character",
-			keyMsg:         tea.KeyMsg{Type: tea.KeyBackspace},
-			expectedValue:  "g",
-			expectedDirty:  true,
+			name:          "backspace removes character",
+			keyMsg:        tea.KeyMsg{Type: tea.KeyBackspace},
+			expectedValue: "g",
+			expectedDirty: true,
 		},
 		{
-			name:           "backspace to empty still dirty",
-			keyMsg:         tea.KeyMsg{Type: tea.KeyBackspace},
-			expectedValue:  "",
-			expectedDirty:  true,
+			name:          "backspace to empty still dirty",
+			keyMsg:        tea.KeyMsg{Type: tea.KeyBackspace},
+			expectedValue: "",
+			expectedDirty: true,
 		},
 	}
 
@@ -431,39 +431,39 @@ func TestApp_HistoryIntegration(t *testing.T) {
 
 	// Test history navigation
 	tests := []struct {
-		name           string
-		keyMsg         tea.KeyMsg
-		expectedValue  string
+		name          string
+		keyMsg        tea.KeyMsg
+		expectedValue string
 	}{
 		{
-			name:           "up arrow to first history item",
-			keyMsg:         tea.KeyMsg{Type: tea.KeyUp},
-			expectedValue:  "git add .",
+			name:          "up arrow to first history item",
+			keyMsg:        tea.KeyMsg{Type: tea.KeyUp},
+			expectedValue: "git add .",
 		},
 		{
-			name:           "up arrow to second history item",
-			keyMsg:         tea.KeyMsg{Type: tea.KeyUp},
-			expectedValue:  "git commit",
+			name:          "up arrow to second history item",
+			keyMsg:        tea.KeyMsg{Type: tea.KeyUp},
+			expectedValue: "git commit",
 		},
 		{
-			name:           "up arrow to third history item",
-			keyMsg:         tea.KeyMsg{Type: tea.KeyUp},
-			expectedValue:  "git push",
+			name:          "up arrow to third history item",
+			keyMsg:        tea.KeyMsg{Type: tea.KeyUp},
+			expectedValue: "git push",
 		},
 		{
-			name:           "down arrow back to second",
-			keyMsg:         tea.KeyMsg{Type: tea.KeyDown},
-			expectedValue:  "git commit",
+			name:          "down arrow back to second",
+			keyMsg:        tea.KeyMsg{Type: tea.KeyDown},
+			expectedValue: "git commit",
 		},
 		{
-			name:           "down arrow back to first",
-			keyMsg:         tea.KeyMsg{Type: tea.KeyDown},
-			expectedValue:  "git add .",
+			name:          "down arrow back to first",
+			keyMsg:        tea.KeyMsg{Type: tea.KeyDown},
+			expectedValue: "git add .",
 		},
 		{
-			name:           "down arrow back to current (empty)",
-			keyMsg:         tea.KeyMsg{Type: tea.KeyDown},
-			expectedValue:  "",
+			name:          "down arrow back to current (empty)",
+			keyMsg:        tea.KeyMsg{Type: tea.KeyDown},
+			expectedValue: "",
 		},
 	}
 
@@ -633,20 +633,8 @@ func TestApp_Analytics_Integration(t *testing.T) {
 		MinHeight:          1,
 	}
 
-	// Test that analytics are properly recorded when using the app
-	result, err := Gline(
-		"> ",
-		[]string{},
-		"",
-		predictor,
-		explainer,
-		analytics,
-		logger,
-		options,
-	)
-
-	// Since we can't easily simulate user input in Gline function,
-	// let's test the analytics recording manually
+	// Test analytics functionality directly without starting the interactive UI
+	// Create a model instance to test analytics recording
 	model := initialModel(
 		"> ",
 		[]string{},
@@ -664,7 +652,7 @@ func TestApp_Analytics_Integration(t *testing.T) {
 	model.result = "git status"
 
 	// Simulate calling analytics
-	err = analytics.NewEntry(model.lastPredictionInput, model.lastPrediction, model.result)
+	err := analytics.NewEntry(model.lastPredictionInput, model.lastPrediction, model.result)
 	require.NoError(t, err)
 
 	// Verify analytics entry was recorded
@@ -673,10 +661,6 @@ func TestApp_Analytics_Integration(t *testing.T) {
 	assert.Equal(t, "git", entry.predictionInput, "Expected prediction input to be 'git'")
 	assert.Equal(t, "git status", entry.prediction, "Expected prediction to be 'git status'")
 	assert.Equal(t, "git status", entry.result, "Expected result to be 'git status'")
-
-	// Note: result and err from Gline call above would be empty/nil since no user input was provided
-	_ = result
-	_ = err
 }
 
 func TestApp_View_Integration(t *testing.T) {
@@ -692,10 +676,10 @@ func TestApp_View_Integration(t *testing.T) {
 	}
 
 	tests := []struct {
-		name               string
-		input              string
-		explanation        string
-		expectedContains   []string
+		name                string
+		input               string
+		explanation         string
+		expectedContains    []string
 		expectedNotContains []string
 	}{
 		{
@@ -711,10 +695,10 @@ func TestApp_View_Integration(t *testing.T) {
 			expectedContains: []string{"> git status", "Shows repository status"},
 		},
 		{
-			name:               "terminated view is empty",
-			input:              "command",
-			explanation:        "explanation",
-			expectedContains:   []string{},
+			name:                "terminated view is empty",
+			input:               "command",
+			explanation:         "explanation",
+			expectedContains:    []string{},
 			expectedNotContains: []string{"> command", "explanation"},
 		},
 	}

@@ -65,6 +65,17 @@ func GetPrompt(runner *interp.Runner, logger *zap.Logger) string {
 	return DEFAULT_PROMPT
 }
 
+// GetAgentPrompt returns the prompt to use when the agent displays commands
+// If GSH_APROMPT is set, it uses that; otherwise falls back to GetPrompt
+func GetAgentPrompt(runner *interp.Runner, logger *zap.Logger) string {
+	agentPrompt := runner.Vars["GSH_APROMPT"].String()
+	if agentPrompt != "" {
+		return agentPrompt
+	}
+	// Fall back to regular prompt if GSH_APROMPT is not set
+	return GetPrompt(runner, logger)
+}
+
 func GetAgentContextWindowTokens(runner *interp.Runner, logger *zap.Logger) int {
 	agentContextWindow, err := strconv.ParseInt(
 		runner.Vars["GSH_AGENT_CONTEXT_WINDOW_TOKENS"].String(), 10, 32)
