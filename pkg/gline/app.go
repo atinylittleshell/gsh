@@ -1,6 +1,7 @@
 package gline
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -31,6 +32,7 @@ type appModel struct {
 	historyValues []string
 	result        string
 	appState      appState
+	interrupted   bool
 
 	explanationStyle lipgloss.Style
 	completionStyle  lipgloss.Style
@@ -56,10 +58,19 @@ type setExplanationMsg struct {
 	explanation string
 }
 
+// ErrInterrupted is returned when the user presses Ctrl+C
+var ErrInterrupted = errors.New("interrupted by user")
+
 type terminateMsg struct{}
 
 func terminate() tea.Msg {
 	return terminateMsg{}
+}
+
+type interruptMsg struct{}
+
+func interrupt() tea.Msg {
+	return interruptMsg{}
 }
 
 type appState int
@@ -101,6 +112,7 @@ func initialModel(
 		historyValues: historyValues,
 		result:        "",
 		appState:      Active,
+		interrupted:   false, // Explicitly initialize to prevent stateful behavior
 
 		predictionStateId: 0,
 
@@ -132,6 +144,11 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case terminateMsg:
 		m.appState = Terminated
+		return m, nil
+
+	case interruptMsg:
+		m.appState = Terminated
+		m.interrupted = true
 		return m, nil
 
 	case attemptPredictionMsg:
@@ -175,8 +192,8 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Set result to empty string so shell doesn't try to execute it
 			m.result = ""
-			// Terminate this session to show the result and start fresh
-			return m, tea.Sequence(terminate, tea.Quit)
+			// Use interrupt message to indicate Ctrl+C was pressed
+			return m, tea.Sequence(interrupt, tea.Quit)
 		case "ctrl+d":
 			// Handle Ctrl-D: exit shell if on blank line
 			currentInput := m.textInput.Value()
@@ -410,6 +427,11 @@ func Gline(
 	if !ok {
 		logger.Error("Gline resulted in an unexpected app model")
 		panic("Gline resulted in an unexpected app model")
+	}
+
+	// Check if the session was interrupted by Ctrl+C
+	if appModel.interrupted {
+		return "", ErrInterrupted
 	}
 
 	fmt.Print(RESET_CURSOR_COLUMN + appModel.getFinalOutput() + "\n")

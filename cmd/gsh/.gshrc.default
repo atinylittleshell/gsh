@@ -81,6 +81,18 @@ GSH_AGENT_CONTEXT_WINDOW_TOKENS=32768
 
 # A JSON array of regex patterns for bash commands that should be considered pre-approved
 # Pre-approved commands will be executed without asking for confirmation
+#
+# This configuration works alongside the file-based authorization system:
+# - Patterns defined here are always active (static pre-approval)
+# - Additional patterns can be dynamically added to ~/.config/gsh/authorized_commands
+#   when you respond with 'a' (always) to command permission prompts
+# - Both sources are checked when determining if a command should be auto-approved
+#
+# Example patterns that get automatically generated when using 'always allow':
+# - "^ls.*" (matches any ls command)
+# - "^git status.*" (matches git status with any flags)
+# - "^npm install.*" (matches npm install commands)
+# - "^docker run.*" (matches docker run commands)
 GSH_AGENT_APPROVED_BASH_COMMAND_REGEX='[
   "^ls$",
   "^ls\\s+.*$",
