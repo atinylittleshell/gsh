@@ -15,7 +15,7 @@
     in {
       defaultPackage = pkgs.buildGoModule rec {
         name = "gsh";
-        version = "v0.22.2";
+        version = "v${builtins.readFile ./VERSION}";
         src = pkgs.fetchFromGitHub {
           owner = "atinylittleshell";
           repo = "gsh";
