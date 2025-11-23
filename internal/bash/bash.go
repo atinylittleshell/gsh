@@ -34,7 +34,7 @@ func RunBashCommandInSubShell(ctx context.Context, runner *interp.Runner, comman
 	outWriter := io.Writer(outBuf)
 	errBuf := &threadSafeBuffer{}
 	errWriter := io.Writer(errBuf)
-	interp.StdIO(nil, outWriter, errWriter)(subShell)
+	interp.StdIO(nil, outWriter, errWriter)(subShell) //nolint:all
 
 	var prog *syntax.Stmt
 	err := syntax.NewParser().Stmts(strings.NewReader(command), func(stmt *syntax.Stmt) bool {
@@ -58,8 +58,8 @@ func RunBashCommand(ctx context.Context, runner *interp.Runner, command string) 
 	outWriter := io.Writer(outBuf)
 	errBuf := &threadSafeBuffer{}
 	errWriter := io.Writer(errBuf)
-	interp.StdIO(nil, outWriter, errWriter)(runner)
-	defer interp.StdIO(os.Stdin, os.Stdout, os.Stderr)(runner)
+	interp.StdIO(nil, outWriter, errWriter)(runner)            //nolint:all
+	defer interp.StdIO(os.Stdin, os.Stdout, os.Stderr)(runner) //nolint:all
 
 	var prog *syntax.Stmt
 	err := syntax.NewParser().Stmts(strings.NewReader(command), func(stmt *syntax.Stmt) bool {

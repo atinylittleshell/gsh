@@ -72,4 +72,3 @@ func printEvaluateHelp() {
 	}
 	fmt.Println(strings.Join(help, "\n"))
 }
-

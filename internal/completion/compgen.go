@@ -29,9 +29,9 @@ func handleCompgenCommand(ctx context.Context, runner *interp.Runner, args []str
 
 	// Parse options
 	var (
-		wordList    string
+		wordList     string
 		functionName string
-		word        string // The word to generate completions for
+		word         string // The word to generate completions for
 	)
 
 	for i := 0; i < len(args); i++ {
@@ -74,7 +74,7 @@ func generateWordListCompletions(word string, wordList string) error {
 	words := strings.Fields(wordList)
 	for _, w := range words {
 		if word == "" || strings.HasPrefix(w, word) {
-			printf("%s\n", w)
+			printf("%s\n", w) //nolint:all
 		}
 	}
 	return nil
@@ -93,7 +93,7 @@ func generateFunctionCompletions(ctx context.Context, runner *interp.Runner, fun
 	// Print the completions
 	for _, completion := range completions {
 		if word == "" || strings.HasPrefix(completion, word) {
-			printf("%s\n", completion)
+			printf("%s\n", completion) //nolint:all
 		}
 	}
 	return nil

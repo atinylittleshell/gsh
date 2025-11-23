@@ -285,4 +285,3 @@ func TestSimilarityScoreEdgeCases(t *testing.T) {
 		})
 	}
 }
-

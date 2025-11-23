@@ -71,7 +71,7 @@ func updateToLatestVersion(currentSemVer *semver.Version, logger *zap.Logger, fs
 		return
 	}
 
-	confirm, err := prompter.Prompt(
+	confirm, _ := prompter.Prompt(
 		styles.AGENT_QUESTION("New version of gsh available. Update now? (Y/n) "),
 		[]string{},
 		latestVersion,
@@ -130,12 +130,11 @@ func fetchAndSaveLatestVersion(resultChannel chan string, logger *zap.Logger, fs
 
 	recordFilePath := core.LatestVersionFile()
 	file, err := fs.Create(recordFilePath)
-	defer file.Close()
-
 	if err != nil {
 		logger.Error("failed to save latest version", zap.Error(err))
 		return
 	}
+	defer file.Close()
 
 	_, err = file.WriteString(latest.Version())
 	if err != nil {

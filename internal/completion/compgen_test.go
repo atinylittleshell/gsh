@@ -153,4 +153,3 @@ func TestCompgenCommand(t *testing.T) {
 		})
 	}
 }
-

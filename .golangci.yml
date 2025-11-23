@@ -1,0 +1,34 @@
+version: "2"
+
+linters:
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*go.uber.org/zap.Logger).Sync
+
+  exclusions:
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+          - ineffassign
+          - staticcheck
+          - unused
+        path: ".*_test\\.go$"
+
+      - linters:
+          - unused
+        text: "^(func|type|field) _.* is unused"
+
+      # Ignore De Morgan's law suggestion - current code is more readable
+      - linters:
+          - staticcheck
+        text: "QF1001.*could apply De Morgan's law"
+
+run:
+  timeout: 5m
+  tests: true

@@ -71,13 +71,21 @@ func walkDir(logger *zap.Logger, writer io.StringWriter, dir string, depth int) 
 		fullPath := filepath.Join(dir, entry.Name())
 
 		if entry.IsDir() {
-			writer.WriteString(fullPath + string(os.PathSeparator) + "\n")
+			if _, err := writer.WriteString(fullPath + string(os.PathSeparator) + "\n"); err != nil {
+				logger.Error("Error writing directory path", zap.String("path", fullPath), zap.Error(err))
+				return err
+			}
 
 			if depth < MAX_DEPTH {
-				walkDir(logger, writer, fullPath, depth+1)
+				if err := walkDir(logger, writer, fullPath, depth+1); err != nil {
+					return err
+				}
 			}
 		} else {
-			writer.WriteString(fullPath + "\n")
+			if _, err := writer.WriteString(fullPath + "\n"); err != nil {
+				logger.Error("Error writing file path", zap.String("path", fullPath), zap.Error(err))
+				return err
+			}
 		}
 	}
 	return nil

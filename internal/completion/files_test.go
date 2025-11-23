@@ -62,7 +62,7 @@ func TestFileCompletions(t *testing.T) {
 		prefix      string
 		currentDir  string
 		expected    []string
-		shouldMatch bool // true for exact match, false for contains
+		shouldMatch bool                                 // true for exact match, false for contains
 		verify      func(t *testing.T, results []string) // optional additional verification
 	}{
 		{
@@ -165,4 +165,3 @@ func TestFileCompletions(t *testing.T) {
 		})
 	}
 }
-

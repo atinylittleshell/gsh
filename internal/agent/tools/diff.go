@@ -32,7 +32,7 @@ func getDiff(runner *interp.Runner, logger *zap.Logger, file1, file2 string) (st
 	errWriter := io.Writer(errBuf)
 
 	subShell := runner.Subshell()
-	interp.StdIO(nil, outWriter, errWriter)(subShell)
+	interp.StdIO(nil, outWriter, errWriter)(subShell) //nolint:all
 
 	err = subShell.Run(context.Background(), prog)
 
@@ -47,7 +47,7 @@ func getDiff(runner *interp.Runner, logger *zap.Logger, file1, file2 string) (st
 	}
 
 	if exitCode == 128 {
-		return "", fmt.Errorf("Error running git diff command: %s", errBuf.String())
+		return "", fmt.Errorf("error running git diff command: %s", errBuf.String())
 	}
 
 	result := strings.ReplaceAll(outBuf.String(), "b"+file2, "")
@@ -56,4 +56,3 @@ func getDiff(runner *interp.Runner, logger *zap.Logger, file1, file2 string) (st
 
 	return result, nil
 }
-

@@ -33,11 +33,11 @@ func handleCompleteCommand(manager *CompletionManager, args []string) error {
 
 	// Parse options
 	var (
-		printMode   bool
-		removeMode  bool
-		wordList    string
-		function    string
-		command     string
+		printMode  bool
+		removeMode bool
+		wordList   string
+		function   string
+		command    string
 	)
 
 	for i := 0; i < len(args); i++ {
@@ -122,8 +122,8 @@ func printCompletionSpecs(manager *CompletionManager, command string) error {
 func printCompletionSpec(spec CompletionSpec) {
 	switch spec.Type {
 	case WordListCompletion:
-		printf("complete -W %q %s\n", spec.Value, spec.Command)
+		printf("complete -W %q %s\n", spec.Value, spec.Command) //nolint:all
 	case FunctionCompletion:
-		printf("complete -F %s %s\n", spec.Value, spec.Command)
+		printf("complete -F %s %s\n", spec.Value, spec.Command) //nolint:all
 	}
 }

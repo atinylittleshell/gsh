@@ -174,4 +174,3 @@ func TestResetAnalytics(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, entries, 1)
 }
-

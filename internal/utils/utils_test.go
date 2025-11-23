@@ -3,9 +3,9 @@ package utils
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestComposeContextText(t *testing.T) {

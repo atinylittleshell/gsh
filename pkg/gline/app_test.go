@@ -260,7 +260,6 @@ func TestClearPrediction(t *testing.T) {
 	assert.Equal(t, []string{}, model.textInput.AvailableSuggestions())
 }
 
-
 // Test handleClearScreen
 func TestHandleClearScreen(t *testing.T) {
 	logger := zap.NewNop()

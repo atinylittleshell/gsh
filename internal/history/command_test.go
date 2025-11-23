@@ -272,4 +272,3 @@ func TestHistoryCommand(t *testing.T) {
 		})
 	}
 }
-

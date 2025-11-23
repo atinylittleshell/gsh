@@ -70,4 +70,3 @@ func (f *CompletionFunction) Execute(ctx context.Context, args []string) ([]stri
 	results := compreply.List
 	return results, nil
 }
-

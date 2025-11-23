@@ -95,4 +95,3 @@ func TestRetrieverNames(t *testing.T) {
 	assert.Equal(t, "history_concise", conciseRetriever.Name())
 	assert.Equal(t, "history_verbose", verboseRetriever.Name())
 }
-

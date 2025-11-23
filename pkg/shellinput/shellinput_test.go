@@ -10,7 +10,6 @@ import (
 
 // mockCompletionProvider implements CompletionProvider for testing
 type mockCompletionProvider struct {
-	suggestions []string
 }
 
 func (m *mockCompletionProvider) GetCompletions(line string, pos int) []string {

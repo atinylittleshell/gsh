@@ -32,7 +32,10 @@ func NewHistoryManager(dbFilePath string) (*HistoryManager, error) {
 		return nil, err
 	}
 
-	db.AutoMigrate(&HistoryEntry{})
+	if err := db.AutoMigrate(&HistoryEntry{}); err != nil {
+		fmt.Fprintf(os.Stderr, "error auto-migrating database schema: %v\n", err)
+		return nil, err
+	}
 
 	return &HistoryManager{
 		db: db,

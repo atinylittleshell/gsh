@@ -262,4 +262,3 @@ func TestAnalyticsCommandEdgeCases(t *testing.T) {
 	err = wrappedHandler(context.Background(), []string{"gsh_analytics", "--count"})
 	assert.NoError(t, err) // Should show count as 0
 }
-

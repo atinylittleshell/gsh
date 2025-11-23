@@ -24,4 +24,3 @@ func (b *threadSafeBuffer) String() string {
 	defer b.mutex.Unlock()
 	return b.buffer.String()
 }
-

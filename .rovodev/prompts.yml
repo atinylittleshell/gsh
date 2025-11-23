@@ -1,0 +1,4 @@
+prompts:
+  - name: next
+    description: Implement the next work item in execution backlog
+    content_file: next.md

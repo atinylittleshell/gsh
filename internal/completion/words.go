@@ -53,4 +53,3 @@ func splitPreservingQuotes(line string) []string {
 
 	return words
 }
-

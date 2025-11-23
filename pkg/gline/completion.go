@@ -39,4 +39,3 @@ func (p *ShellCompletionProvider) GetCompletions(line string, pos int) []string 
 
 	return suggestions
 }
-

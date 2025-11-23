@@ -57,7 +57,7 @@ func GetLLMClient(runner *interp.Runner, modelType LLMModelType) (*openai.Client
 	}
 
 	var headers map[string]string
-	json.Unmarshal([]byte(runner.Vars[varPrefix+"HEADERS"].String()), &headers)
+	_ = json.Unmarshal([]byte(runner.Vars[varPrefix+"HEADERS"].String()), &headers)
 
 	// Special headers for the openrouter.ai API
 	if strings.HasPrefix(strings.ToLower(baseURL), "https://openrouter.ai/") {

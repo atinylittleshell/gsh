@@ -101,11 +101,7 @@ func hasSubcommand(baseCommand, s string) bool {
 
 	// Must start with a letter (not a number)
 	firstChar := rune(s[0])
-	if !((firstChar >= 'a' && firstChar <= 'z') || (firstChar >= 'A' && firstChar <= 'Z')) {
-		return false
-	}
-
-	return true
+	return (firstChar >= 'a' && firstChar <= 'z') || (firstChar >= 'A' && firstChar <= 'Z')
 }
 
 // GenerateSpecificCommandRegex creates a more specific regex pattern for a given command prefix.
@@ -246,14 +242,14 @@ func BashTool(runner *interp.Runner, historyManager *history.HistoryManager, log
 	multiOut := io.MultiWriter(os.Stdout, outBuf)
 	multiErr := io.MultiWriter(os.Stderr, errBuf)
 
-	interp.StdIO(os.Stdin, multiOut, multiErr)(runner)
-	defer interp.StdIO(os.Stdin, os.Stdout, os.Stderr)(runner)
+	interp.StdIO(os.Stdin, multiOut, multiErr)(runner)         //nolint:all
+	defer interp.StdIO(os.Stdin, os.Stdout, os.Stderr)(runner) //nolint:all
 
 	historyEntry, _ := historyManager.StartCommand(command, environment.GetPwd(runner))
 
 	err = runner.Run(context.Background(), prog)
 
-	exitCode := -1
+	var exitCode int
 	if err != nil {
 		status, ok := interp.IsExitStatus(err)
 		if ok {
@@ -267,7 +263,7 @@ func BashTool(runner *interp.Runner, historyManager *history.HistoryManager, log
 	stdout := outBuf.String()
 	stderr := errBuf.String()
 
-	historyManager.FinishCommand(historyEntry, exitCode)
+	_, _ = historyManager.FinishCommand(historyEntry, exitCode)
 
 	jsonBuffer, err := json.Marshal(map[string]any{
 		"stdout":   stdout,
