@@ -290,8 +290,7 @@ func (m appModel) View() string {
 	}
 
 	// We need to handle truncation manually because lipgloss Height doesn't truncate automatically
-	// We leave 2 lines for borders
-	availableHeight := max(0, m.options.AssistantHeight-2)
+	availableHeight := m.options.AssistantHeight
 
 	// Render Assistant Box
 	// Use a fixed height box
