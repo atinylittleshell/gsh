@@ -806,7 +806,7 @@ func (m Model) completionView(offset int) string {
 }
 
 // CompletionBoxView renders the completion info box with all available completions
-func (m Model) CompletionBoxView(height int, useColumns bool) string {
+func (m Model) CompletionBoxView(height int, width int) string {
 	if !m.completion.shouldShowInfoBox() {
 		return ""
 	}
@@ -820,11 +820,42 @@ func (m Model) CompletionBoxView(height int, useColumns bool) string {
 		return ""
 	}
 
-	// Calculate capacity and columns
-	numColumns := 1
-	if useColumns && totalItems > height {
-		numColumns = 2
+	// Calculate max width of items to determine columns
+	maxItemWidth := 0
+	for _, s := range m.completion.suggestions {
+		// Length + prefix ("> ") + spacing ("  ")
+		l := len(s) + 4
+		if l > maxItemWidth {
+			maxItemWidth = l
+		}
 	}
+
+	// Ensure at least some width
+	if maxItemWidth < 10 {
+		maxItemWidth = 10
+	}
+
+	// Calculate columns
+	numColumns := 1
+	if width > 0 {
+		numColumns = width / maxItemWidth
+		if numColumns < 1 {
+			numColumns = 1
+		}
+	}
+
+	// Only use multiple columns if we actually have enough items to fill them
+	// This prevents spreading sparse items across too many columns
+	// But the requirement says "allow any number of columns... until horizontal space is used up"
+	// and "When choices scroll off the end... displayed in second column".
+	// This implies we fill columns vertically first.
+	// So we need enough capacity.
+
+	// If items <= height, we stick to 1 column regardless of width (looks cleaner)
+	if totalItems <= height {
+		numColumns = 1
+	}
+
 	capacity := height * numColumns
 
 	// Calculate visible window
@@ -855,22 +886,8 @@ func (m Model) CompletionBoxView(height int, useColumns bool) string {
 				continue
 			}
 
-			// Only render second column if we have content for it
-			// But we need to pad the first column if there is a second column
-			if c > 0 && lineContent == "" {
-				// This shouldn't happen if loops are correct (c=0 runs first)
-				continue
-			}
-
 			suggestion := m.completion.suggestions[idx]
 			var prefix string
-
-			// Determine scroll indicators (only on first column for now)
-			// Or maybe simpler indicators:
-			// If page > 0, show ^ on first line?
-			// If more pages, show v on last line?
-			// For simplicity in column mode, we'll stick to simple selection indicator
-			// and maybe a small scroll hint if needed, but let's keep it clean first.
 
 			// Regular line with spacing
 			prefix = " "
@@ -884,27 +901,12 @@ func (m Model) CompletionBoxView(height int, useColumns bool) string {
 
 			itemStr := prefix + suggestion
 
-			// Pad the first column if we are using columns
-			if c == 0 && numColumns > 1 {
-				// Calculate max width for this column?
-				// For now, let's use a fixed padding or dynamic based on visible items
-				// Dynamic is better but expensive. Let's assume 30 chars?
-				// Or better: pass the width to the function?
-				// Let's rely on gline to handle width? No, we return a string.
-				// We'll pad to a reasonable width, say 30 or 40.
-				// Or check longest item in the current view?
-				maxLen := 0
-				for i := startIdx; i < startIdx+height && i < totalItems; i++ {
-					l := len(m.completion.suggestions[i])
-					if l > maxLen {
-						maxLen = l
-					}
-				}
-				padWidth := maxLen + 5 // prefix + margin
-				if len(itemStr) < padWidth {
-					itemStr += strings.Repeat(" ", padWidth-len(itemStr))
+			// Pad the column (except the last one)
+			if c < numColumns-1 {
+				if len(itemStr) < maxItemWidth {
+					itemStr += strings.Repeat(" ", maxItemWidth-len(itemStr))
 				} else {
-					itemStr += "  " // minimal margin
+					itemStr += "  "
 				}
 			}
 

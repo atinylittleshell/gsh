@@ -283,14 +283,35 @@ func (m appModel) View() string {
 	availableHeight := m.options.AssistantHeight
 
 	helpBox := m.textInput.HelpBoxView()
-	// Allow columns for completion if help box is empty
-	completionBox := m.textInput.CompletionBoxView(availableHeight, helpBox == "")
+
+	// Determine available width for completion box
+	completionWidth := max(0, m.textInput.Width-4)
+	if helpBox != "" {
+		completionWidth = completionWidth / 2
+	}
+
+	completionBox := m.textInput.CompletionBoxView(availableHeight, completionWidth)
 
 	if completionBox != "" && helpBox != "" {
+		// Clean up help box text to avoid redundancy
+		// If help text starts with "**@<currentSuggestion>** - ", remove it.
+		currentSuggestion := m.textInput.CurrentSuggestion()
+		if currentSuggestion != "" {
+			// Check for various patterns of redundancy
+			// Pattern 1: "**@name** - "
+			prefix1 := fmt.Sprintf("**%s** - ", currentSuggestion)
+			// Pattern 2: "**name** - " (if suggestion includes @)
+			prefix2 := fmt.Sprintf("**%s** - ", strings.TrimPrefix(currentSuggestion, "@"))
+
+			if strings.HasPrefix(helpBox, prefix1) {
+				helpBox = strings.TrimPrefix(helpBox, prefix1)
+			} else if strings.HasPrefix(helpBox, prefix2) {
+				helpBox = strings.TrimPrefix(helpBox, prefix2)
+			}
+		}
+
 		// Render side-by-side
-		// Calculate split width
-		// We subtract 4 for borders/padding (2 for outer box, maybe 2 internal padding)
-		halfWidth := max(0, (m.textInput.Width-4)/2)
+		halfWidth := completionWidth // Already calculated
 
 		leftStyle := lipgloss.NewStyle().
 			Width(halfWidth).

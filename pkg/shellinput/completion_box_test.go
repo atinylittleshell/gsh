@@ -18,8 +18,9 @@ func TestCompletionBoxView_SingleColumn(t *testing.T) {
 	m.completion.showInfoBox = true
 	m.completion.selected = 0
 
-	// Height 3, enough for all items
-	view := m.CompletionBoxView(3, true)
+	// Height 3. Items <= Height, so single column forced.
+	// Width 100.
+	view := m.CompletionBoxView(3, 100)
 
 	// Should show 3 lines
 	lines := strings.Split(strings.TrimSpace(view), "\n")
@@ -40,8 +41,11 @@ func TestCompletionBoxView_TwoColumns(t *testing.T) {
 	m.completion.showInfoBox = true
 	m.completion.selected = 0
 
-	// Height 3. Capacity = 3 * 2 = 6. All fits.
-	view := m.CompletionBoxView(3, true)
+	// Height 3.
+	// Item width: 1 char + 4 (padding) = 5.
+	// Min item width set to 10 in code.
+	// To get 2 columns: width >= 20.
+	view := m.CompletionBoxView(3, 25)
 
 	lines := strings.Split(strings.TrimSpace(view), "\n")
 	assert.Equal(t, 3, len(lines), "Should have 3 lines of output")
@@ -60,7 +64,7 @@ func TestCompletionBoxView_TwoColumns(t *testing.T) {
 	assert.Contains(t, lines[2], "6")
 }
 
-func TestCompletionBoxView_DisableColumns(t *testing.T) {
+func TestCompletionBoxView_NarrowWidth(t *testing.T) {
 	m := New()
 	m.ShowSuggestions = true
 
@@ -71,16 +75,16 @@ func TestCompletionBoxView_DisableColumns(t *testing.T) {
 	m.completion.showInfoBox = true
 	m.completion.selected = 0
 
-	// Height 3. useColumns = false.
-	// Should show 3 items (scrolling), single column.
-	view := m.CompletionBoxView(3, false)
+	// Height 3.
+	// Width 10. Should result in 1 column (10/10 = 1).
+	view := m.CompletionBoxView(3, 10)
 
 	lines := strings.Split(strings.TrimSpace(view), "\n")
 	assert.Equal(t, 3, len(lines))
 
 	// Line 1: "1"
 	assert.Contains(t, lines[0], "1")
-	assert.NotContains(t, lines[0], "4") // 4 should not be visible or on same line
+	assert.NotContains(t, lines[0], "4") // 4 should not be visible
 
 	// Line 2: "2"
 	assert.Contains(t, lines[1], "2")
@@ -99,14 +103,14 @@ func TestCompletionBoxView_Paging(t *testing.T) {
 	m.completion.suggestions = items
 	m.completion.showInfoBox = true
 
-	// Height 3. Columns 2. Capacity 6.
+	// Height 3. Width 25 (2 columns). Capacity 6.
 	// Page 0: 1-6
 	// Page 1: 7-12
 
 	// Select item 7 (index 6). Should trigger Page 1.
 	m.completion.selected = 6
 
-	view := m.CompletionBoxView(3, true)
+	view := m.CompletionBoxView(3, 25)
 	lines := strings.Split(strings.TrimSpace(view), "\n")
 
 	assert.Equal(t, 3, len(lines))
