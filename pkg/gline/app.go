@@ -176,15 +176,21 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// TODO: replace with custom keybindings
 		case "backspace":
-			// if the input is already empty, we should clear prediction
-			if m.textInput.Value() == "" {
-				m.dirty = true
-				m.predictionStateId++
-				m.clearPrediction()
-				return m, nil
+			if !m.textInput.InReverseSearch() {
+				// if the input is already empty, we should clear prediction
+				if m.textInput.Value() == "" {
+					m.dirty = true
+					m.predictionStateId++
+					m.clearPrediction()
+					return m, nil
+				}
 			}
 
 		case "enter":
+			if m.textInput.InReverseSearch() {
+				break
+			}
+
 			input := m.textInput.Value()
 
 			// Handle multiline input with error handling
@@ -211,6 +217,10 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Sequence(terminate, tea.Quit)
 
 		case "ctrl+c":
+			if m.textInput.InReverseSearch() {
+				break
+			}
+
 			// Handle Ctrl-C: cancel current line, preserve input with "^C" appended, and present fresh prompt
 			currentInput := m.textInput.Value()
 

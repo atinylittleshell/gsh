@@ -29,6 +29,7 @@ package shellinput
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -88,6 +89,7 @@ type KeyMap struct {
 	Complete                key.Binding
 	PrevSuggestion          key.Binding
 	ClearScreen             key.Binding
+	ReverseSearch           key.Binding
 }
 
 // DefaultKeyMap is the default set of key bindings for navigating and acting
@@ -111,6 +113,7 @@ var DefaultKeyMap = KeyMap{
 	NextValue:               key.NewBinding(key.WithKeys("down", "ctrl+n")),
 	PrevValue:               key.NewBinding(key.WithKeys("up", "ctrl+p")),
 	ClearScreen:             key.NewBinding(key.WithKeys("ctrl+l")),
+	ReverseSearch:           key.NewBinding(key.WithKeys("ctrl+r")),
 }
 
 // Model is the Bubble Tea model for this text input element.
@@ -134,9 +137,10 @@ type Model struct {
 	//
 	// For an introduction to styling with Lip Gloss see:
 	// https://github.com/charmbracelet/lipgloss
-	PromptStyle     lipgloss.Style
-	TextStyle       lipgloss.Style
-	CompletionStyle lipgloss.Style
+	PromptStyle              lipgloss.Style
+	TextStyle                lipgloss.Style
+	CompletionStyle          lipgloss.Style
+	ReverseSearchPromptStyle lipgloss.Style
 
 	// Deprecated: use Cursor.Style instead.
 	CursorStyle lipgloss.Style
@@ -182,18 +186,25 @@ type Model struct {
 	// that can be navigated with the up and down arrow keys.
 	values             [][]rune
 	selectedValueIndex int
+
+	// Reverse search state
+	inReverseSearch         bool
+	reverseSearchQuery      string
+	reverseSearchMatches    []int
+	reverseSearchMatchIndex int
 }
 
 // New creates a new model with default settings.
 func New() Model {
 	return Model{
-		Prompt:          "> ",
-		EchoCharacter:   '*',
-		CharLimit:       0,
-		ShowSuggestions: false,
-		CompletionStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("240")),
-		Cursor:          cursor.New(),
-		KeyMap:          DefaultKeyMap,
+		Prompt:                   "> ",
+		EchoCharacter:            '*',
+		CharLimit:                0,
+		ShowSuggestions:          false,
+		CompletionStyle:          lipgloss.NewStyle().Foreground(lipgloss.Color("240")),
+		ReverseSearchPromptStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("240")),
+		Cursor:                   cursor.New(),
+		KeyMap:                   DefaultKeyMap,
 
 		suggestions: [][]rune{},
 		focus:       false,
@@ -232,6 +243,11 @@ func (m *Model) setValueInternal(runes []rune, err error) {
 // Value returns the value of the text input.
 func (m Model) Value() string {
 	return string(m.values[m.selectedValueIndex])
+}
+
+// InReverseSearch returns true if the input is currently in reverse search mode.
+func (m Model) InReverseSearch() bool {
+	return m.inReverseSearch
 }
 
 // Position returns the cursor position.
@@ -550,6 +566,50 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Handle reverse search specific keys
+		if m.inReverseSearch {
+			switch {
+			case key.Matches(msg, m.KeyMap.ReverseSearch):
+				m.cycleNextMatch()
+				return m, nil
+			case key.Matches(msg, m.KeyMap.PrevValue):
+				m.cycleNextMatch() // Up arrow -> older
+				return m, nil
+			case key.Matches(msg, m.KeyMap.NextValue):
+				m.cyclePrevMatch() // Down arrow -> newer
+				return m, nil
+			case key.Matches(msg, m.KeyMap.CharacterBackward), key.Matches(msg, m.KeyMap.CharacterForward):
+				m.acceptReverseSearch() // Left/Right -> accept and edit
+				return m, nil
+			case msg.String() == "enter":
+				m.acceptReverseSearch()
+				return m, nil
+			case msg.String() == "ctrl+g" || msg.String() == "ctrl+c" || msg.String() == "escape":
+				m.cancelReverseSearch()
+				return m, nil
+			case key.Matches(msg, m.KeyMap.DeleteCharacterBackward):
+				if len(m.reverseSearchQuery) > 0 {
+					runes := []rune(m.reverseSearchQuery)
+					m.reverseSearchQuery = string(runes[:len(runes)-1])
+					// Reset matches because we changed the query
+					m.reverseSearchMatches = []int{}
+					m.reverseSearchMatchIndex = 0
+					m.performReverseSearch()
+				}
+				return m, nil
+			case len(msg.Runes) > 0 && unicode.IsPrint(msg.Runes[0]):
+				m.reverseSearchQuery += string(msg.Runes)
+				// Reset matches because we changed the query
+				m.reverseSearchMatches = []int{}
+				m.reverseSearchMatchIndex = 0
+				m.performReverseSearch()
+				return m, nil
+			default:
+				// Ignore other keys in reverse search mode
+				return m, nil
+			}
+		}
+
 		// Handle completion-specific keys first
 		if m.completion.active {
 			switch msg.String() {
@@ -576,6 +636,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 		switch {
+		case key.Matches(msg, m.KeyMap.ReverseSearch):
+			m.toggleReverseSearch()
+			return m, nil
 		case key.Matches(msg, m.KeyMap.Complete):
 			m.handleCompletion()
 			return m, nil
@@ -679,6 +742,26 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 // View renders the textinput in its current state.
 func (m Model) View() string {
+	if m.inReverseSearch {
+		// When in reverse search mode, show the search prompt
+		matchText := ""
+		prefix := "(reverse-i-search)"
+
+		if len(m.reverseSearchMatches) > 0 {
+			// Ensure index is within bounds
+			if m.reverseSearchMatchIndex < len(m.reverseSearchMatches) {
+				matchIndex := m.reverseSearchMatches[m.reverseSearchMatchIndex]
+				if matchIndex >= 0 && matchIndex < len(m.values) {
+					matchText = string(m.values[matchIndex])
+				}
+			}
+		} else if m.reverseSearchQuery != "" {
+			prefix = "(failed reverse-i-search)"
+		}
+
+		return m.ReverseSearchPromptStyle.Render(fmt.Sprintf("%s`%s': %s", prefix, m.reverseSearchQuery, matchText))
+	}
+
 	styleText := m.TextStyle.Inline(true).Render
 
 	value := m.values[m.selectedValueIndex]
@@ -1015,4 +1098,114 @@ func cloneConcatRunes(r1, r2 []rune) []rune {
 	copy(clone, r1)
 	copy(clone[len(r1):], r2)
 	return clone
+}
+
+// toggleReverseSearch toggles the reverse search mode.
+func (m *Model) toggleReverseSearch() {
+	if m.inReverseSearch {
+		// If we are already in reverse search, cycle to next match
+		m.cycleNextMatch()
+	} else {
+		m.inReverseSearch = true
+		m.reverseSearchQuery = ""
+		m.reverseSearchMatches = []int{}
+		m.reverseSearchMatchIndex = 0
+	}
+}
+
+// cycleNextMatch moves to the next match (older in history).
+func (m *Model) cycleNextMatch() {
+	// If we can move forward in the existing matches list, do so
+	if len(m.reverseSearchMatches) > 0 && m.reverseSearchMatchIndex < len(m.reverseSearchMatches)-1 {
+		m.reverseSearchMatchIndex++
+		return
+	}
+	// Otherwise, search for a new match
+	m.performReverseSearch()
+}
+
+// cyclePrevMatch moves to the previous match (newer in history).
+func (m *Model) cyclePrevMatch() {
+	if m.reverseSearchMatchIndex > 0 {
+		m.reverseSearchMatchIndex--
+	}
+}
+
+// performReverseSearch searches the history for the query.
+func (m *Model) performReverseSearch() {
+	if m.reverseSearchQuery == "" {
+		return
+	}
+
+	// Compile regex for searching
+	// We want to find matches that contain the query
+	regex, err := regexp.Compile("(?i)" + regexp.QuoteMeta(m.reverseSearchQuery))
+	if err != nil {
+		return
+	}
+
+	// If we are continuing a search (Ctrl+R pressed again), look for the next match
+	startSearchIndex := 1
+	if len(m.reverseSearchMatches) > 0 {
+		// Always search relative to the LAST found match, to find the next new one
+		// This allows us to find subsequent matches even if we navigated back to an earlier one
+		lastMatchIndex := m.reverseSearchMatches[len(m.reverseSearchMatches)-1]
+		startSearchIndex = lastMatchIndex + 1
+	} else {
+		// Reset matches if we're starting a new search
+		m.reverseSearchMatches = []int{}
+		m.reverseSearchMatchIndex = 0
+	}
+
+	// Search history starting from the determined index
+	// values[0] is current input, history starts at values[1]
+	found := false
+	for i := startSearchIndex; i < len(m.values); i++ {
+		if regex.MatchString(string(m.values[i])) {
+			// Check if this match is a duplicate of a previously found match
+			isDuplicate := false
+			currentVal := string(m.values[i])
+			for _, matchIdx := range m.reverseSearchMatches {
+				if string(m.values[matchIdx]) == currentVal {
+					isDuplicate = true
+					break
+				}
+			}
+			if isDuplicate {
+				continue
+			}
+
+			// Found a match
+			// Append to the list of matches
+			m.reverseSearchMatches = append(m.reverseSearchMatches, i)
+			m.reverseSearchMatchIndex = len(m.reverseSearchMatches) - 1
+			found = true
+			break
+		}
+	}
+
+	if !found && len(m.reverseSearchMatches) == 0 {
+		// If no matches found at all, try searching from the beginning again (wrap around not implemented yet, just standard behavior)
+		// Standard bash behavior: if no match found with new character, it beeps/fails.
+		// If ctrl+R again and no more matches, it stays on the last one or rings bell.
+		// For now, let's just keep the state as is.
+	}
+}
+
+// acceptReverseSearch accepts the current match and exits reverse search mode.
+func (m *Model) acceptReverseSearch() {
+	if len(m.reverseSearchMatches) > 0 {
+		matchIndex := m.reverseSearchMatches[m.reverseSearchMatchIndex]
+		m.selectedValueIndex = matchIndex
+		m.SetCursor(len(m.values[matchIndex]))
+	}
+	m.inReverseSearch = false
+}
+
+// cancelReverseSearch cancels the reverse search and restores the original state.
+func (m *Model) cancelReverseSearch() {
+	m.inReverseSearch = false
+	// Optionally restore original input? Bash restores the line you were on before Ctrl+R.
+	// Since we modify selectedValueIndex only on accept, just exiting works effectively like cancel if we were editing.
+	// But if we want to cancel effectively, we should just switch off the mode.
 }
