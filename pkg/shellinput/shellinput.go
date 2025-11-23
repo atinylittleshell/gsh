@@ -824,7 +824,7 @@ func (m Model) CompletionBoxView(height int, width int) string {
 	maxItemWidth := 0
 	for _, s := range m.completion.suggestions {
 		// Length + prefix ("> ") + spacing ("  ")
-		l := len(s) + 4
+		l := uniseg.StringWidth(s) + 4
 		if l > maxItemWidth {
 			maxItemWidth = l
 		}
@@ -903,8 +903,9 @@ func (m Model) CompletionBoxView(height int, width int) string {
 
 			// Pad the column (except the last one)
 			if c < numColumns-1 {
-				if len(itemStr) < maxItemWidth {
-					itemStr += strings.Repeat(" ", maxItemWidth-len(itemStr))
+				width := uniseg.StringWidth(itemStr)
+				if width < maxItemWidth {
+					itemStr += strings.Repeat(" ", maxItemWidth-width)
 				} else {
 					itemStr += "  "
 				}
@@ -913,12 +914,29 @@ func (m Model) CompletionBoxView(height int, width int) string {
 			lineContent += itemStr
 		}
 
-		// Only add line if it has content
+		// If line is empty but we need to maintain fixed height, add empty line
+		// But only if we haven't reached the end of items logic above which continues
+		// Actually, we iterate r < height. If lineContent is empty, it means no items for this row.
+		// To maintain fixed height visuals, we might want to output empty lines.
+		// However, the loop `idx >= totalItems` continue might cause empty lines at the end.
+
+		// If we want strict fixed height output:
+		if lineContent == "" {
+			// Fill with empty space or just newline?
+			// Just newline is sufficient if container handles width, but for TUI usually we want
+			// to be explicit or just let the container fill background.
+			// Here we return string.
+			// If we don't add anything, the height will be less than `height`.
+			// To ensure fixed height semantics:
+			// We should add newlines up to height.
+		}
+
 		if lineContent != "" {
 			content.WriteString(lineContent)
-			if r < height-1 {
-				content.WriteString("\n")
-			}
+		}
+
+		if r < height-1 {
+			content.WriteString("\n")
 		}
 	}
 

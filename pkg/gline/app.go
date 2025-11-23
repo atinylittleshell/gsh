@@ -59,6 +59,9 @@ type attemptExplanationMsg struct {
 	prediction string
 }
 
+// helpHeaderRegex matches redundant help headers like "**@name** - "
+var helpHeaderRegex = regexp.MustCompile(`^\*\*[^\*]+\*\* - `)
+
 type setExplanationMsg struct {
 	stateId     int
 	explanation string
@@ -297,8 +300,7 @@ func (m appModel) View() string {
 		// Clean up help box text to avoid redundancy
 		// Remove headers like "**@name** - " or "**name** - " using regex
 		// This covers patterns like "**@debug-assistant** - " or "**@!new** - "
-		headerRegex := regexp.MustCompile(`^\*\*[^\*]+\*\* - `)
-		helpBox = headerRegex.ReplaceAllString(helpBox, "")
+		helpBox = helpHeaderRegex.ReplaceAllString(helpBox, "")
 
 		// Render side-by-side
 		halfWidth := completionWidth // Already calculated

@@ -29,7 +29,7 @@ func TestViewLayout(t *testing.T) {
 	// 2. The explanation should be present (inside assistant box)
 	assert.Contains(t, view, "explanation")
 
-	// 3. Check that view starts with input (no spacer)
+	// 3. Check that prompt is present (layout is pinned so prompt is not necessarily at very top)
 	assert.Contains(t, view, "gsh> ", "View should contain prompt")
 
 	// 4. Check for assistant box content
@@ -39,7 +39,7 @@ func TestViewLayout(t *testing.T) {
 func TestViewTruncation(t *testing.T) {
 	logger := zap.NewNop()
 	options := NewOptions()
-	options.AssistantHeight = 3 // Small height
+	options.AssistantHeight = 3 // Visible content height (excluding borders)
 
 	// Long explanation
 	longExplanation := "Line 1\nLine 2\nLine 3\nLine 4\nLine 5"
@@ -50,12 +50,12 @@ func TestViewTruncation(t *testing.T) {
 
 	view := model.View()
 
-	// Check that view contains truncated explanation
-	// Since AssistantHeight is 3, and we have borders (2 lines), available content height is 1.
-	// So only "Line 1" should be visible?
-	// Or if borders are added to height, then yes.
+	// Check that view contains correctly truncated explanation
+	// AssistantHeight=3 means 3 lines of content are visible inside the box
 
 	assert.Contains(t, view, "Line 1")
+	assert.Contains(t, view, "Line 2")
+	assert.Contains(t, view, "Line 3")
 	assert.NotContains(t, view, "Line 4")
 	assert.NotContains(t, view, "Line 5")
 }

@@ -7,16 +7,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCompletionBoxView_SingleColumn(t *testing.T) {
+func setupCompletionModel(items []string) Model {
 	m := New()
-	m.suggestions = [][]rune{[]rune("A"), []rune("B"), []rune("C")}
 	m.ShowSuggestions = true
-
-	// Manually set up completion state
 	m.completion.active = true
-	m.completion.suggestions = []string{"A", "B", "C"}
+	m.completion.suggestions = items
 	m.completion.showInfoBox = true
 	m.completion.selected = 0
+	// Also set suggestions field for consistency, though logic mostly uses completion.suggestions
+	runes := make([][]rune, len(items))
+	for i, item := range items {
+		runes[i] = []rune(item)
+	}
+	m.suggestions = runes
+	return m
+}
+
+func TestCompletionBoxView_SingleColumn(t *testing.T) {
+	m := setupCompletionModel([]string{"A", "B", "C"})
 
 	// Height 3. Items <= Height, so single column forced.
 	// Width 100.
@@ -31,15 +39,8 @@ func TestCompletionBoxView_SingleColumn(t *testing.T) {
 }
 
 func TestCompletionBoxView_TwoColumns(t *testing.T) {
-	m := New()
-	m.ShowSuggestions = true
-
 	// 6 items
-	items := []string{"1", "2", "3", "4", "5", "6"}
-	m.completion.active = true
-	m.completion.suggestions = items
-	m.completion.showInfoBox = true
-	m.completion.selected = 0
+	m := setupCompletionModel([]string{"1", "2", "3", "4", "5", "6"})
 
 	// Height 3.
 	// Item width: 1 char + 4 (padding) = 5.
@@ -65,15 +66,8 @@ func TestCompletionBoxView_TwoColumns(t *testing.T) {
 }
 
 func TestCompletionBoxView_NarrowWidth(t *testing.T) {
-	m := New()
-	m.ShowSuggestions = true
-
 	// 6 items
-	items := []string{"1", "2", "3", "4", "5", "6"}
-	m.completion.active = true
-	m.completion.suggestions = items
-	m.completion.showInfoBox = true
-	m.completion.selected = 0
+	m := setupCompletionModel([]string{"1", "2", "3", "4", "5", "6"})
 
 	// Height 3.
 	// Width 10. Should result in 1 column (10/10 = 1).
@@ -94,14 +88,8 @@ func TestCompletionBoxView_NarrowWidth(t *testing.T) {
 }
 
 func TestCompletionBoxView_Paging(t *testing.T) {
-	m := New()
-	m.ShowSuggestions = true
-
 	// 12 items
-	items := []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"}
-	m.completion.active = true
-	m.completion.suggestions = items
-	m.completion.showInfoBox = true
+	m := setupCompletionModel([]string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"})
 
 	// Height 3. Width 25 (2 columns). Capacity 6.
 	// Page 0: 1-6

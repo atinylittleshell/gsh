@@ -633,8 +633,8 @@ func TestEnvironmentHelperFunctions(t *testing.T) {
 	contextWindow := GetAgentContextWindowTokens(runner, logger)
 	assert.Equal(t, 32768, contextWindow)
 
-	minLines := GetMinimumLines(runner, logger)
-	assert.Equal(t, 8, minLines)
+	assistantHeight := GetAssistantHeight(runner, logger)
+	assert.Equal(t, 3, assistantHeight)
 
 	homeDir := GetHomeDir(runner)
 	// HOME may be empty in test environment without shell initialization
@@ -681,7 +681,7 @@ func TestEnvironmentHelperFunctionsWithCustomValues(t *testing.T) {
 	runner.Vars["GSH_PROMPT"] = expand.Variable{Kind: expand.String, Str: "custom> "}
 	runner.Vars["GSH_BUILD_VERSION"] = expand.Variable{Kind: expand.String, Str: "dev"}
 	runner.Vars["GSH_AGENT_CONTEXT_WINDOW_TOKENS"] = expand.Variable{Kind: expand.String, Str: "16384"}
-	runner.Vars["GSH_MINIMUM_HEIGHT"] = expand.Variable{Kind: expand.String, Str: "12"}
+	runner.Vars["GSH_ASSISTANT_HEIGHT"] = expand.Variable{Kind: expand.String, Str: "5"}
 	runner.Vars["GSH_AGENT_MACROS"] = expand.Variable{Kind: expand.String, Str: "{\"test\": \"echo test\"}"}
 	runner.Vars["GSH_CONTEXT_TYPES_FOR_AGENT"] = expand.Variable{Kind: expand.String, Str: "history,files"}
 	runner.Vars["GSH_CONTEXT_NUM_HISTORY_CONCISE"] = expand.Variable{Kind: expand.String, Str: "20"}
@@ -703,8 +703,8 @@ func TestEnvironmentHelperFunctionsWithCustomValues(t *testing.T) {
 	contextWindow := GetAgentContextWindowTokens(runner, logger)
 	assert.Equal(t, 16384, contextWindow)
 
-	minLines := GetMinimumLines(runner, logger)
-	assert.Equal(t, 12, minLines)
+	assistantHeight := GetAssistantHeight(runner, logger)
+	assert.Equal(t, 5, assistantHeight)
 
 	macros := GetAgentMacros(runner, logger)
 	expected := map[string]string{"test": "echo test"}
