@@ -1,7 +1,6 @@
 package gline
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -150,7 +149,6 @@ func TestApp_PredictionFlow_Integration(t *testing.T) {
 
 	options := NewOptions()
 	options.CompletionProvider = completionProvider
-	options.MinHeight = 1
 
 	// Test prediction flow by simulating typing
 	tests := []struct {
@@ -250,7 +248,6 @@ func TestApp_KeyHandling_Integration(t *testing.T) {
 
 	options := NewOptions()
 	options.CompletionProvider = completionProvider
-	options.MinHeight = 1
 
 	tests := []struct {
 		name           string
@@ -343,7 +340,6 @@ func TestApp_TextInput_Integration(t *testing.T) {
 
 	options := NewOptions()
 	options.CompletionProvider = completionProvider
-	options.MinHeight = 1
 
 	model := initialModel(
 		"> ",
@@ -410,7 +406,6 @@ func TestApp_HistoryIntegration(t *testing.T) {
 
 	options := NewOptions()
 	options.CompletionProvider = completionProvider
-	options.MinHeight = 1
 
 	historyValues := []string{"git add .", "git commit", "git push"}
 
@@ -483,7 +478,6 @@ func TestApp_CompletionIntegration(t *testing.T) {
 
 	options := NewOptions()
 	options.CompletionProvider = completionProvider
-	options.MinHeight = 1
 
 	model := initialModel(
 		"> ",
@@ -531,7 +525,6 @@ func TestApp_WindowResize_Integration(t *testing.T) {
 
 	options := NewOptions()
 	options.CompletionProvider = completionProvider
-	options.MinHeight = 1
 
 	model := initialModel(
 		"> ",
@@ -568,7 +561,6 @@ func TestApp_StateManagement_Integration(t *testing.T) {
 
 	options := NewOptions()
 	options.CompletionProvider = completionProvider
-	options.MinHeight = 3
 
 	model := initialModel(
 		"> ",
@@ -623,7 +615,6 @@ func TestApp_Analytics_Integration(t *testing.T) {
 
 	options := NewOptions()
 	options.CompletionProvider = completionProvider
-	options.MinHeight = 1
 
 	// Test analytics recording directly without calling Gline
 	// to avoid double analytics recording (once by Gline, once manually)
@@ -666,7 +657,6 @@ func TestApp_View_Integration(t *testing.T) {
 
 	options := NewOptions()
 	options.CompletionProvider = completionProvider
-	options.MinHeight = 3
 	// Increase AssistantHeight so content fits
 	options.AssistantHeight = 5
 
@@ -734,12 +724,6 @@ func TestApp_View_Integration(t *testing.T) {
 					"Expected view to not contain %q, got: %s", notExpected, view)
 			}
 
-			// Test minimum height
-			if model.appState != Terminated {
-				numLines := strings.Count(view, "\n")
-				assert.GreaterOrEqual(t, numLines, options.MinHeight,
-					"Expected at least %d lines, got %d", options.MinHeight, numLines)
-			}
 		})
 	}
 }

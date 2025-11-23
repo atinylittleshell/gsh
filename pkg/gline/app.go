@@ -289,18 +289,19 @@ func (m appModel) View() string {
 		assistantContent = m.explanation
 	}
 
-	// Render Assistant Box
-	// Use a fixed height box
-	assistantStyle := lipgloss.NewStyle().
-		Width(m.textInput.Width).
-		Height(m.options.AssistantHeight).
-		MaxHeight(m.options.AssistantHeight).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62"))
-
 	// We need to handle truncation manually because lipgloss Height doesn't truncate automatically
 	// We leave 2 lines for borders
 	availableHeight := max(0, m.options.AssistantHeight-2)
+
+	// Render Assistant Box
+	// Use a fixed height box
+	// Subtract 2 from width to account for terminal margins and prevent wrapping issues
+	assistantStyle := lipgloss.NewStyle().
+		Width(max(0, m.textInput.Width-2)).
+		Height(availableHeight).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62"))
+
 	lines := strings.Split(assistantContent, "\n")
 	if len(lines) > availableHeight {
 		lines = lines[:availableHeight]
@@ -308,29 +309,7 @@ func (m appModel) View() string {
 	truncatedContent := strings.Join(lines, "\n")
 	renderedAssistant := assistantStyle.Render(truncatedContent)
 
-	// Calculate layout
-	// We want:
-	// [Spacer]
-	// [Input]
-	// [Assistant Box]
-	//
-	// The Input sits on top of Assistant Box.
-	// The Spacer pushes everything to the bottom.
-
-	inputHeight := lipgloss.Height(inputStr)
-	assistantHeight := lipgloss.Height(renderedAssistant) // Should be m.options.AssistantHeight
-	totalContentHeight := inputHeight + assistantHeight
-
-	// Ensure we have a height (might be 0 on first render)
-	termHeight := m.height
-	if termHeight == 0 {
-		termHeight = 24 // Fallback
-	}
-
-	spacerHeight := max(0, termHeight-totalContentHeight)
-	spacer := strings.Repeat("\n", spacerHeight)
-
-	return spacer + inputStr + "\n" + renderedAssistant
+	return inputStr + "\n" + renderedAssistant
 }
 
 func (m appModel) getFinalOutput() string {

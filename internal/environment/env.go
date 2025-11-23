@@ -117,16 +117,6 @@ func GetAgentContextWindowTokens(runner *interp.Runner, logger *zap.Logger) int 
 	return int(agentContextWindow)
 }
 
-func GetMinimumLines(runner *interp.Runner, logger *zap.Logger) int {
-	minimumLines, err := strconv.ParseInt(
-		runner.Vars["GSH_MINIMUM_HEIGHT"].String(), 10, 32)
-	if err != nil {
-		logger.Debug("error parsing GSH_MINIMUM_HEIGHT", zap.Error(err))
-		minimumLines = 1
-	}
-	return int(minimumLines)
-}
-
 func GetAssistantHeight(runner *interp.Runner, logger *zap.Logger) int {
 	assistantHeight, err := strconv.ParseInt(
 		runner.Vars["GSH_ASSISTANT_HEIGHT"].String(), 10, 32)

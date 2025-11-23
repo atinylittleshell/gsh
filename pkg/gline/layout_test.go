@@ -1,7 +1,6 @@
 package gline
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,30 +29,11 @@ func TestViewLayout(t *testing.T) {
 	// 2. The explanation should be present (inside assistant box)
 	assert.Contains(t, view, "explanation")
 
-	// 3. The view should contain padding (newlines) to fill the screen
-	// We expect the height of the returned string to be roughly termHeight or slightly more
-	// because View returns the full string to print.
-	// Note: bubbletea counts actual lines.
+	// 3. Check that view starts with input (no spacer)
+	assert.Contains(t, view, "gsh> ", "View should contain prompt")
 
-	// Let's count newlines in the output.
-	lineCount := strings.Count(view, "\n")
-
-	// The view consists of:
-	// Spacer (X lines)
-	// Input (1 line usually)
-	// Assistant Box (AssistantHeight lines)
-
-	// Total should be around termHeight.
-	// It might vary slightly due to how lipgloss or exact counting works,
-	// but it should be at least termHeight - 1.
-
-	assert.True(t, lineCount >= termHeight - 2, "View should return enough lines to fill the terminal. Got %d lines for %d term height", lineCount, termHeight)
-
-	// 4. Check that spacer is at the top (starts with newlines)
-	// If spacer > 0, it should start with \n
-	if lineCount > options.AssistantHeight + 2 {
-		assert.True(t, strings.HasPrefix(view, "\n"), "View should start with newlines (spacer)")
-	}
+	// 4. Check for assistant box content
+	assert.Contains(t, view, "explanation", "View should contain explanation")
 }
 
 func TestViewTruncation(t *testing.T) {

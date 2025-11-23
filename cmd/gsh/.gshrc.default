@@ -14,9 +14,6 @@ GSH_LOG_LEVEL="info"
 # Whether gsh should remove existing content in the log file when it starts
 GSH_CLEAN_LOG_FILE=0
 
-# Minimum number of lines the shell prompt would occupy
-GSH_MINIMUM_HEIGHT=1
-
 # Height of the assistant message box (help/completion/explanation) at the bottom of the screen
 GSH_ASSISTANT_HEIGHT=3
 
