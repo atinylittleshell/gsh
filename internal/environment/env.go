@@ -122,9 +122,19 @@ func GetMinimumLines(runner *interp.Runner, logger *zap.Logger) int {
 		runner.Vars["GSH_MINIMUM_HEIGHT"].String(), 10, 32)
 	if err != nil {
 		logger.Debug("error parsing GSH_MINIMUM_HEIGHT", zap.Error(err))
-		minimumLines = 8
+		minimumLines = 1
 	}
 	return int(minimumLines)
+}
+
+func GetAssistantHeight(runner *interp.Runner, logger *zap.Logger) int {
+	assistantHeight, err := strconv.ParseInt(
+		runner.Vars["GSH_ASSISTANT_HEIGHT"].String(), 10, 32)
+	if err != nil {
+		logger.Debug("error parsing GSH_ASSISTANT_HEIGHT", zap.Error(err))
+		assistantHeight = 3
+	}
+	return int(assistantHeight)
 }
 
 func getContextTypes(runner *interp.Runner, key string) []string {
