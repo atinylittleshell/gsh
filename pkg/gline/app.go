@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -294,21 +295,10 @@ func (m appModel) View() string {
 
 	if completionBox != "" && helpBox != "" {
 		// Clean up help box text to avoid redundancy
-		// If help text starts with "**@<currentSuggestion>** - ", remove it.
-		currentSuggestion := m.textInput.CurrentSuggestion()
-		if currentSuggestion != "" {
-			// Check for various patterns of redundancy
-			// Pattern 1: "**@name** - "
-			prefix1 := fmt.Sprintf("**%s** - ", currentSuggestion)
-			// Pattern 2: "**name** - " (if suggestion includes @)
-			prefix2 := fmt.Sprintf("**%s** - ", strings.TrimPrefix(currentSuggestion, "@"))
-
-			if strings.HasPrefix(helpBox, prefix1) {
-				helpBox = strings.TrimPrefix(helpBox, prefix1)
-			} else if strings.HasPrefix(helpBox, prefix2) {
-				helpBox = strings.TrimPrefix(helpBox, prefix2)
-			}
-		}
+		// Remove headers like "**@name** - " or "**name** - " using regex
+		// This covers patterns like "**@debug-assistant** - " or "**@!new** - "
+		headerRegex := regexp.MustCompile(`^\*\*[^\*]+\*\* - `)
+		helpBox = headerRegex.ReplaceAllString(helpBox, "")
 
 		// Render side-by-side
 		halfWidth := completionWidth // Already calculated
