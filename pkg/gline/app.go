@@ -278,19 +278,43 @@ func (m appModel) View() string {
 
 	// Determine assistant content
 	var assistantContent string
-	completionBox := m.textInput.CompletionBoxView()
-	helpBox := m.textInput.HelpBoxView()
 
-	if completionBox != "" {
+	// We need to handle truncation manually because lipgloss Height doesn't truncate automatically
+	availableHeight := m.options.AssistantHeight
+
+	helpBox := m.textInput.HelpBoxView()
+	// Allow columns for completion if help box is empty
+	completionBox := m.textInput.CompletionBoxView(availableHeight, helpBox == "")
+
+	if completionBox != "" && helpBox != "" {
+		// Render side-by-side
+		// Calculate split width
+		// We subtract 4 for borders/padding (2 for outer box, maybe 2 internal padding)
+		halfWidth := max(0, (m.textInput.Width-4)/2)
+
+		leftStyle := lipgloss.NewStyle().
+			Width(halfWidth).
+			Height(availableHeight).
+			MaxHeight(availableHeight)
+
+		rightStyle := lipgloss.NewStyle().
+			Width(halfWidth).
+			Height(availableHeight).
+			MaxHeight(availableHeight).
+			PaddingLeft(1) // Add some spacing between columns
+
+		// Render completion on left, help on right
+		assistantContent = lipgloss.JoinHorizontal(lipgloss.Top,
+			leftStyle.Render(completionBox),
+			rightStyle.Render(helpBox))
+
+	} else if completionBox != "" {
 		assistantContent = completionBox
 	} else if helpBox != "" {
 		assistantContent = helpBox
 	} else {
 		assistantContent = m.explanation
 	}
-
-	// We need to handle truncation manually because lipgloss Height doesn't truncate automatically
-	availableHeight := m.options.AssistantHeight
 
 	// Render Assistant Box
 	// Use a fixed height box

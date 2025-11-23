@@ -27,7 +27,6 @@ SOFTWARE.
 package shellinput
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 	"time"
@@ -807,93 +806,117 @@ func (m Model) completionView(offset int) string {
 }
 
 // CompletionBoxView renders the completion info box with all available completions
-func (m Model) CompletionBoxView() string {
+func (m Model) CompletionBoxView(height int, useColumns bool) string {
 	if !m.completion.shouldShowInfoBox() {
 		return ""
 	}
 
-	const maxVisibleItems = 4
-	totalItems := len(m.completion.suggestions)
+	if height <= 0 {
+		height = 4 // default fallback
+	}
 
+	totalItems := len(m.completion.suggestions)
 	if totalItems == 0 {
 		return ""
 	}
 
-	var content strings.Builder
+	// Calculate capacity and columns
+	numColumns := 1
+	if useColumns && totalItems > height {
+		numColumns = 2
+	}
+	capacity := height * numColumns
 
-	// Calculate the visible window based on selected item
-	var startIdx, endIdx int
-	if totalItems <= maxVisibleItems {
-		// Show all items if we have 4 or fewer
-		startIdx = 0
-		endIdx = totalItems
-	} else {
-		// Calculate scrolling window
-		selectedIdx := m.completion.selected
-		if selectedIdx < 0 {
-			selectedIdx = 0
-		}
-
-		// More balanced scrolling logic
-		if selectedIdx < 2 {
-			// Keep selection in top positions when near the beginning
-			startIdx = 0
-		} else if selectedIdx >= totalItems-2 {
-			// Keep selection in bottom positions when near the end
-			startIdx = totalItems - maxVisibleItems
-		} else {
-			// Try to keep selection in the middle (position 1 or 2)
-			startIdx = selectedIdx - 1
-		}
-
-		endIdx = startIdx + maxVisibleItems
-
-		// Ensure bounds are valid
-		if startIdx < 0 {
-			startIdx = 0
-		}
-		if endIdx > totalItems {
-			endIdx = totalItems
-			startIdx = endIdx - maxVisibleItems
-			if startIdx < 0 {
-				startIdx = 0
-			}
-		}
+	// Calculate visible window
+	var startIdx int
+	selectedIdx := m.completion.selected
+	if selectedIdx < 0 {
+		selectedIdx = 0
 	}
 
-	// Add visible items with scroll indicators as prefixes
-	for idx, i := range []int{startIdx, startIdx + 1, startIdx + 2, startIdx + 3} {
-		if i >= endIdx {
-			break
+	// Page-based scrolling logic
+	page := selectedIdx / capacity
+	startIdx = page * capacity
+
+	// Ensure bounds are valid
+	if startIdx < 0 {
+		startIdx = 0
+	}
+
+	var content strings.Builder
+
+	// Render rows
+	for r := 0; r < height; r++ {
+		lineContent := ""
+
+		for c := 0; c < numColumns; c++ {
+			idx := startIdx + c*height + r
+			if idx >= totalItems {
+				continue
+			}
+
+			// Only render second column if we have content for it
+			// But we need to pad the first column if there is a second column
+			if c > 0 && lineContent == "" {
+				// This shouldn't happen if loops are correct (c=0 runs first)
+				continue
+			}
+
+			suggestion := m.completion.suggestions[idx]
+			var prefix string
+
+			// Determine scroll indicators (only on first column for now)
+			// Or maybe simpler indicators:
+			// If page > 0, show ^ on first line?
+			// If more pages, show v on last line?
+			// For simplicity in column mode, we'll stick to simple selection indicator
+			// and maybe a small scroll hint if needed, but let's keep it clean first.
+
+			// Regular line with spacing
+			prefix = " "
+
+			// Add selection indicator
+			if idx == m.completion.selected {
+				prefix += "> "
+			} else {
+				prefix += "  "
+			}
+
+			itemStr := prefix + suggestion
+
+			// Pad the first column if we are using columns
+			if c == 0 && numColumns > 1 {
+				// Calculate max width for this column?
+				// For now, let's use a fixed padding or dynamic based on visible items
+				// Dynamic is better but expensive. Let's assume 30 chars?
+				// Or better: pass the width to the function?
+				// Let's rely on gline to handle width? No, we return a string.
+				// We'll pad to a reasonable width, say 30 or 40.
+				// Or check longest item in the current view?
+				maxLen := 0
+				for i := startIdx; i < startIdx+height && i < totalItems; i++ {
+					l := len(m.completion.suggestions[i])
+					if l > maxLen {
+						maxLen = l
+					}
+				}
+				padWidth := maxLen + 5 // prefix + margin
+				if len(itemStr) < padWidth {
+					itemStr += strings.Repeat(" ", padWidth-len(itemStr))
+				} else {
+					itemStr += "  " // minimal margin
+				}
+			}
+
+			lineContent += itemStr
 		}
 
-		suggestion := m.completion.suggestions[i]
-		var prefix string
-
-		// Determine prefix based on position and scroll state
-		if idx == 0 && totalItems > maxVisibleItems && startIdx > 0 {
-			// First line with "more above" indicator
-			prefix = fmt.Sprintf("↑ %-3d", startIdx)
-		} else if idx == 3 && totalItems > maxVisibleItems && endIdx < totalItems {
-			// Last line with "more below" indicator
-			prefix = fmt.Sprintf("↓ %-3d", totalItems-endIdx)
-		} else {
-			// Regular line with spacing to align with indicators
-			prefix = "     "
-		}
-
-		// Add selection indicator
-		if i == m.completion.selected {
-			prefix += "> "
-		} else {
-			prefix += "  "
-		}
-
-		content.WriteString(prefix + suggestion)
-
-		// Add newline except for the last item
-		if idx < 3 && i < endIdx-1 {
-			content.WriteString("\n")
+		// Only add line if it has content
+		if lineContent != "" {
+			content.WriteString(lineContent)
+			if r < height-1 {
+				content.WriteString("\n")
+			}
 		}
 	}
 
