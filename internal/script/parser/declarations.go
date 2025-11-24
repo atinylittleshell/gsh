@@ -31,7 +31,9 @@ func (p *Parser) parseMcpDeclaration() Statement {
 
 	// Expect '}' to close the declaration
 	if !p.curTokenIs(lexer.RBRACE) {
-		p.addError("expected '}' at line %d, column %d", p.curToken.Line, p.curToken.Column)
+		tokenDesc := formatTokenType(p.curToken.Type)
+		p.addError("expected '}' to close mcp declaration, got %s (line %d, column %d)",
+			tokenDesc, p.curToken.Line, p.curToken.Column)
 		return nil
 	}
 
@@ -65,7 +67,9 @@ func (p *Parser) parseModelDeclaration() Statement {
 
 	// Expect '}' to close the declaration
 	if !p.curTokenIs(lexer.RBRACE) {
-		p.addError("expected '}' at line %d, column %d", p.curToken.Line, p.curToken.Column)
+		tokenDesc := formatTokenType(p.curToken.Type)
+		p.addError("expected '}' to close model declaration, got %s (line %d, column %d)",
+			tokenDesc, p.curToken.Line, p.curToken.Column)
 		return nil
 	}
 
@@ -99,7 +103,9 @@ func (p *Parser) parseAgentDeclaration() Statement {
 
 	// Expect '}' to close the declaration
 	if !p.curTokenIs(lexer.RBRACE) {
-		p.addError("expected '}' at line %d, column %d", p.curToken.Line, p.curToken.Column)
+		tokenDesc := formatTokenType(p.curToken.Type)
+		p.addError("expected '}' to close agent declaration, got %s (line %d, column %d)",
+			tokenDesc, p.curToken.Line, p.curToken.Column)
 		return nil
 	}
 
@@ -120,8 +126,9 @@ func (p *Parser) parseDeclarationConfig() map[string]Expression {
 
 		// Expect identifier or keyword for config key (keywords like "model" can be used as keys)
 		if !p.curTokenIs(lexer.IDENT) && !p.isKeyword(p.curToken.Type) {
-			p.addError("expected identifier for config key, got %v at line %d, column %d",
-				p.curToken.Type, p.curToken.Line, p.curToken.Column)
+			tokenDesc := formatTokenType(p.curToken.Type)
+			p.addError("expected identifier for config key, got %s (line %d, column %d)",
+				tokenDesc, p.curToken.Line, p.curToken.Column)
 			return nil
 		}
 
@@ -179,7 +186,9 @@ func (p *Parser) parseToolDeclaration() Statement {
 
 	// Expect ')' after parameters
 	if !p.curTokenIs(lexer.RPAREN) {
-		p.addError("expected ')' at line %d, column %d", p.curToken.Line, p.curToken.Column)
+		tokenDesc := formatTokenType(p.curToken.Type)
+		p.addError("expected ')' after parameters, got %s (line %d, column %d)",
+			tokenDesc, p.curToken.Line, p.curToken.Column)
 		return nil
 	}
 
@@ -190,8 +199,9 @@ func (p *Parser) parseToolDeclaration() Statement {
 
 		// Expect identifier for return type
 		if !p.curTokenIs(lexer.IDENT) {
-			p.addError("expected return type after ':', got %v at line %d, column %d",
-				p.curToken.Type, p.curToken.Line, p.curToken.Column)
+			tokenDesc := formatTokenType(p.curToken.Type)
+			p.addError("expected return type after ':', got %s (line %d, column %d)",
+				tokenDesc, p.curToken.Line, p.curToken.Column)
 			return nil
 		}
 
@@ -226,8 +236,9 @@ func (p *Parser) parseToolParameters() []*ToolParameter {
 	for {
 		// Expect identifier for parameter name
 		if !p.curTokenIs(lexer.IDENT) {
-			p.addError("expected parameter name, got %v at line %d, column %d",
-				p.curToken.Type, p.curToken.Line, p.curToken.Column)
+			tokenDesc := formatTokenType(p.curToken.Type)
+			p.addError("expected parameter name (identifier), got %s (line %d, column %d)",
+				tokenDesc, p.curToken.Line, p.curToken.Column)
 			return nil
 		}
 
@@ -242,8 +253,9 @@ func (p *Parser) parseToolParameters() []*ToolParameter {
 
 			// Expect identifier for type
 			if !p.curTokenIs(lexer.IDENT) {
-				p.addError("expected type annotation after ':', got %v at line %d, column %d",
-					p.curToken.Type, p.curToken.Line, p.curToken.Column)
+				tokenDesc := formatTokenType(p.curToken.Type)
+				p.addError("expected type annotation after ':', got %s (line %d, column %d)",
+					tokenDesc, p.curToken.Line, p.curToken.Column)
 				return nil
 			}
 

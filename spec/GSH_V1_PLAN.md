@@ -139,8 +139,8 @@ gsh/
 
 ### Phase 2.4: Error Messages
 
-- [ ] Sensible and detailed error messages
-- [ ] Error recovery
+- [x] Sensible and detailed error messages
+- [x] Error recovery
 
 ---
 

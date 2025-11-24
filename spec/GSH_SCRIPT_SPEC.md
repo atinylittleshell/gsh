@@ -86,6 +86,25 @@ userAges = Map([["alice", 25], ["bob", 30]])
 config = Map([["host", "localhost"], ["port", 8080]])
 ```
 
+### Statement Separation
+
+Statements must be separated by **newlines only**. Semicolons are **not** used as statement terminators in gsh.
+
+```gsh
+# ✓ Valid: statements on separate lines
+x = 5
+y = 10
+z = x + y
+
+# ✗ Invalid: multiple statements on same line
+x = 5 y = 10  # Error!
+
+# ✗ Invalid: semicolons are not statement separators
+x = 5; y = 10  # Error!
+```
+
+This design choice makes gsh scripts more readable and closer to Python's philosophy of "one statement per line."
+
 ### Variable Declarations
 
 Variables are declared using assignment syntax and are always mutable:

@@ -930,3 +930,221 @@ print(x)
 		t.Errorf("expected at least 50 tokens, got %d", tokenCount)
 	}
 }
+
+// TestUnterminatedStringErrors tests that lexer reports errors for unterminated strings
+func TestUnterminatedStringErrors(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		expectedError string
+	}{
+		{
+			name:          "unterminated double quote string",
+			input:         `message = "hello world`,
+			expectedError: "unterminated string literal",
+		},
+		{
+			name:          "unterminated single quote string",
+			input:         `message = 'hello world`,
+			expectedError: "unterminated string literal",
+		},
+		{
+			name:          "unterminated template string",
+			input:         "message = `hello world",
+			expectedError: "unterminated template string",
+		},
+		{
+			name:          "unterminated triple-quoted double quote string",
+			input:         `message = """hello world`,
+			expectedError: "unterminated triple-quoted string",
+		},
+		{
+			name:          "unterminated triple-quoted single quote string",
+			input:         `message = '''hello world`,
+			expectedError: "unterminated triple-quoted string",
+		},
+		{
+			name:          "unterminated string with escape sequences",
+			input:         `message = "hello\nworld`,
+			expectedError: "unterminated string literal",
+		},
+		{
+			name:          "unterminated string at EOF",
+			input:         `"incomplete`,
+			expectedError: "unterminated string literal",
+		},
+		{
+			name:          "unterminated template at EOF",
+			input:         "`incomplete",
+			expectedError: "unterminated template string",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := New(tt.input)
+
+			// Consume all tokens
+			for {
+				tok := l.NextToken()
+				if tok.Type == EOF {
+					break
+				}
+			}
+
+			// Check that lexer has errors
+			errors := l.Errors()
+			if len(errors) == 0 {
+				t.Fatalf("expected lexer to report error, but got none")
+			}
+
+			// Check that error message contains expected substring
+			found := false
+			for _, err := range errors {
+				if containsSubstring(err, tt.expectedError) {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				t.Errorf("expected error containing %q, got errors: %v", tt.expectedError, errors)
+			}
+		})
+	}
+}
+
+// TestValidStringsNoErrors tests that valid strings don't produce errors
+func TestValidStringsNoErrors(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "valid double quote string",
+			input: `message = "hello world"`,
+		},
+		{
+			name:  "valid single quote string",
+			input: `message = 'hello world'`,
+		},
+		{
+			name:  "valid template string",
+			input: "message = `hello world`",
+		},
+		{
+			name:  "valid triple-quoted string",
+			input: `message = """hello world"""`,
+		},
+		{
+			name:  "valid string with escape sequences",
+			input: `message = "hello\nworld\t!"`,
+		},
+		{
+			name:  "empty string",
+			input: `message = ""`,
+		},
+		{
+			name:  "multiple valid strings",
+			input: `a = "hello"\nb = 'world'\nc = ` + "`template`",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := New(tt.input)
+
+			// Consume all tokens
+			for {
+				tok := l.NextToken()
+				if tok.Type == EOF {
+					break
+				}
+			}
+
+			// Check that lexer has no errors
+			errors := l.Errors()
+			if len(errors) > 0 {
+				t.Errorf("expected no lexer errors, but got: %v", errors)
+			}
+		})
+	}
+}
+
+// TestLexerErrorsIncludeLocation tests that error messages include line and column info
+func TestLexerErrorsIncludeLocation(t *testing.T) {
+	input := `
+x = "valid"
+y = "unterminated
+`
+
+	l := New(input)
+
+	// Consume all tokens
+	for {
+		tok := l.NextToken()
+		if tok.Type == EOF {
+			break
+		}
+	}
+
+	errors := l.Errors()
+	if len(errors) == 0 {
+		t.Fatal("expected lexer error, but got none")
+	}
+
+	// Check that error includes "line" and "column"
+	err := errors[0]
+	if !containsSubstring(err, "line") || !containsSubstring(err, "column") {
+		t.Errorf("expected error to include line and column information, got: %q", err)
+	}
+
+	// Check that it mentions line 3 (where the unterminated string starts)
+	if !containsSubstring(err, "line 3") {
+		t.Errorf("expected error to mention line 3, got: %q", err)
+	}
+}
+
+// TestMultipleLexerErrors tests that lexer can report multiple errors
+func TestMultipleLexerErrors(t *testing.T) {
+	// Multiple unterminated strings on separate lines (each hits EOF)
+	inputs := []string{
+		`x = "unterminated`,
+		`y = 'another unterminated`,
+	}
+
+	totalErrors := 0
+	for _, input := range inputs {
+		l := New(input)
+
+		// Consume all tokens
+		for {
+			tok := l.NextToken()
+			if tok.Type == EOF {
+				break
+			}
+		}
+
+		errors := l.Errors()
+		totalErrors += len(errors)
+	}
+
+	if totalErrors < 2 {
+		t.Errorf("expected at least 2 lexer errors total, got %d", totalErrors)
+	}
+}
+
+// Helper function to check if a string contains a substring
+func containsSubstring(s, substr string) bool {
+	return len(substr) > 0 && len(s) >= len(substr) &&
+		(s == substr || len(s) > len(substr) && findInString(s, substr))
+}
+
+func findInString(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}

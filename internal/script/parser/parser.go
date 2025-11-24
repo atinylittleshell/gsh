@@ -117,6 +117,21 @@ func (p *Parser) registerInfix(tokenType lexer.TokenType, fn infixParseFn) {
 func (p *Parser) nextToken() {
 	p.curToken = p.peekToken
 	p.peekToken = p.l.NextToken()
+
+	// Collect any new lexer errors
+	for _, err := range p.l.Errors() {
+		// Avoid duplicates
+		found := false
+		for _, existing := range p.errors {
+			if existing == err {
+				found = true
+				break
+			}
+		}
+		if !found {
+			p.errors = append(p.errors, err)
+		}
+	}
 }
 
 // Errors returns the list of parsing errors
@@ -152,8 +167,99 @@ func (p *Parser) expectPeek(t lexer.TokenType) bool {
 
 // peekError adds an error for unexpected peek token
 func (p *Parser) peekError(t lexer.TokenType) {
-	p.addError("expected next token to be %v, got %v instead at line %d, column %d",
-		t, p.peekToken.Type, p.peekToken.Line, p.peekToken.Column)
+	msg := formatTokenType(t)
+	got := formatTokenType(p.peekToken.Type)
+
+	// Add the actual token literal if it's not a structural token
+	gotLiteral := ""
+	if p.peekToken.Literal != "" && !isStructuralToken(p.peekToken.Type) {
+		gotLiteral = " '" + p.peekToken.Literal + "'"
+	}
+
+	p.addError("expected next token to be %s, got %s%s instead (line %d, column %d)",
+		msg, got, gotLiteral, p.peekToken.Line, p.peekToken.Column)
+}
+
+// formatTokenType formats a token type for error messages
+func formatTokenType(t lexer.TokenType) string {
+	switch t {
+	case lexer.LPAREN:
+		return "'('"
+	case lexer.RPAREN:
+		return "')'"
+	case lexer.LBRACE:
+		return "'{'"
+	case lexer.RBRACE:
+		return "'}'"
+	case lexer.LBRACKET:
+		return "'['"
+	case lexer.RBRACKET:
+		return "']'"
+	case lexer.COMMA:
+		return "','"
+	case lexer.COLON:
+		return "':'"
+	case lexer.SEMICOLON:
+		return "';'"
+	case lexer.DOT:
+		return "'.'"
+	case lexer.OP_ASSIGN:
+		return "'='"
+	case lexer.IDENT:
+		return "identifier"
+	case lexer.NUMBER:
+		return "number"
+	case lexer.STRING:
+		return "string"
+	case lexer.KW_IF:
+		return "keyword 'if'"
+	case lexer.KW_ELSE:
+		return "keyword 'else'"
+	case lexer.KW_FOR:
+		return "keyword 'for'"
+	case lexer.KW_OF:
+		return "keyword 'of'"
+	case lexer.KW_WHILE:
+		return "keyword 'while'"
+	case lexer.KW_BREAK:
+		return "keyword 'break'"
+	case lexer.KW_CONTINUE:
+		return "keyword 'continue'"
+	case lexer.KW_TRY:
+		return "keyword 'try'"
+	case lexer.KW_CATCH:
+		return "keyword 'catch'"
+	case lexer.KW_FINALLY:
+		return "keyword 'finally'"
+	case lexer.KW_RETURN:
+		return "keyword 'return'"
+	case lexer.KW_MCP:
+		return "keyword 'mcp'"
+	case lexer.KW_MODEL:
+		return "keyword 'model'"
+	case lexer.KW_AGENT:
+		return "keyword 'agent'"
+	case lexer.KW_TOOL:
+		return "keyword 'tool'"
+	case lexer.EOF:
+		return "end of file"
+	case lexer.ILLEGAL:
+		return "illegal token"
+	default:
+		return fmt.Sprintf("token(%v)", t)
+	}
+}
+
+// isStructuralToken checks if a token is a structural token (braces, parens, etc.)
+func isStructuralToken(t lexer.TokenType) bool {
+	switch t {
+	case lexer.LPAREN, lexer.RPAREN, lexer.LBRACE, lexer.RBRACE,
+		lexer.LBRACKET, lexer.RBRACKET, lexer.COMMA, lexer.COLON,
+		lexer.SEMICOLON, lexer.DOT, lexer.EOF:
+		return true
+	default:
+		return false
+	}
 }
 
 // peekPrecedence returns the precedence of the peek token
@@ -176,17 +282,35 @@ func (p *Parser) curPrecedence() int {
 func (p *Parser) ParseProgram() *Program {
 	program := &Program{}
 	program.Statements = []Statement{}
+	lastStmtLine := 0
 
 	for !p.curTokenIs(lexer.EOF) {
-		// Skip semicolons (they're optional statement terminators)
+		// Semicolons are not allowed as statement separators in gsh
 		if p.curTokenIs(lexer.SEMICOLON) {
+			p.addError("semicolons are not allowed as statement separators; use newlines instead (line %d, column %d)",
+				p.curToken.Line, p.curToken.Column)
 			p.nextToken()
 			continue
 		}
 
+		stmtStartLine := p.curToken.Line
 		stmt := p.parseStatement()
 		if stmt != nil {
 			program.Statements = append(program.Statements, stmt)
+
+			// Check if we need a statement separator
+			// Only allow multiple statements if separated by newlines
+			if lastStmtLine > 0 && lastStmtLine == p.curToken.Line {
+				// Same line as previous statement - this is an error
+				tokenDesc := formatTokenType(p.curToken.Type)
+				if p.curToken.Literal != "" && !isStructuralToken(p.curToken.Type) {
+					tokenDesc += " '" + p.curToken.Literal + "'"
+				}
+				p.addError("unexpected token %s on same line as previous statement; expected newline (line %d, column %d)",
+					tokenDesc, p.curToken.Line, p.curToken.Column)
+			}
+
+			lastStmtLine = stmtStartLine
 		}
 		p.nextToken()
 	}

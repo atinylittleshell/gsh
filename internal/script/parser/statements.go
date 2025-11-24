@@ -57,8 +57,9 @@ func (p *Parser) parseAssignmentStatement() Statement {
 
 		// Parse type annotation
 		if !p.curTokenIs(lexer.IDENT) {
-			p.addError("expected type annotation after ':', got %v at line %d, column %d",
-				p.curToken.Type, p.curToken.Line, p.curToken.Column)
+			tokenDesc := formatTokenType(p.curToken.Type)
+			p.addError("expected type annotation after ':', got %s (line %d, column %d)",
+				tokenDesc, p.curToken.Line, p.curToken.Column)
 			return nil
 		}
 		stmt.TypeAnnotation = &Identifier{Token: p.curToken, Value: p.curToken.Literal}
@@ -70,8 +71,13 @@ func (p *Parser) parseAssignmentStatement() Statement {
 	} else if p.peekTokenIs(lexer.OP_ASSIGN) {
 		p.nextToken() // consume identifier, now on '='
 	} else {
-		p.addError("expected '=' or ':', got %v at line %d, column %d",
-			p.peekToken.Type, p.peekToken.Line, p.peekToken.Column)
+		tokenDesc := formatTokenType(p.peekToken.Type)
+		hint := ""
+		if p.peekToken.Literal != "" && !isStructuralToken(p.peekToken.Type) {
+			hint = " '" + p.peekToken.Literal + "'"
+		}
+		p.addError("expected '=' or ':' after identifier, got %s%s (line %d, column %d)",
+			tokenDesc, hint, p.peekToken.Line, p.peekToken.Column)
 		return nil
 	}
 
@@ -114,7 +120,9 @@ func (p *Parser) parseBlockStatement() *BlockStatement {
 	}
 
 	if !p.curTokenIs(lexer.RBRACE) {
-		p.addError("expected '}' at line %d, column %d", p.curToken.Line, p.curToken.Column)
+		tokenDesc := formatTokenType(p.curToken.Type)
+		p.addError("expected '}' to close block, got %s (line %d, column %d)",
+			tokenDesc, p.curToken.Line, p.curToken.Column)
 		return nil
 	}
 
@@ -316,7 +324,7 @@ func (p *Parser) parseTryStatement() Statement {
 
 	// Validate that at least one of catch or finally is present
 	if stmt.CatchClause == nil && stmt.FinallyClause == nil {
-		p.addError("try statement must have at least one catch or finally clause at line %d, column %d",
+		p.addError("try statement must have at least one 'catch' or 'finally' clause (line %d, column %d)",
 			stmt.Token.Line, stmt.Token.Column)
 		return nil
 	}

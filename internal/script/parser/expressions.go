@@ -10,8 +10,12 @@ import (
 func (p *Parser) parseExpression(precedence int) Expression {
 	prefix := p.prefixParseFns[p.curToken.Type]
 	if prefix == nil {
-		p.addError("no prefix parse function for %v found at line %d, column %d",
-			p.curToken.Type, p.curToken.Line, p.curToken.Column)
+		tokenDesc := formatTokenType(p.curToken.Type)
+		if p.curToken.Literal != "" && !isStructuralToken(p.curToken.Type) {
+			tokenDesc += " '" + p.curToken.Literal + "'"
+		}
+		p.addError("unexpected token %s in expression (line %d, column %d)",
+			tokenDesc, p.curToken.Line, p.curToken.Column)
 		return nil
 	}
 	leftExp := prefix()
@@ -50,7 +54,7 @@ func (p *Parser) parseNumberLiteral() Expression {
 	// Validate that it's a valid number
 	_, err := strconv.ParseFloat(p.curToken.Literal, 64)
 	if err != nil {
-		p.addError("could not parse %q as number at line %d, column %d",
+		p.addError("invalid number literal '%s' (line %d, column %d)",
 			p.curToken.Literal, p.curToken.Line, p.curToken.Column)
 		return nil
 	}
@@ -154,8 +158,9 @@ func (p *Parser) parseObjectLiteral() Expression {
 		} else if p.curTokenIs(lexer.STRING) {
 			key = p.curToken.Literal
 		} else {
-			p.addError("expected object key (identifier or string), got %v at line %d, column %d",
-				p.curToken.Type, p.curToken.Line, p.curToken.Column)
+			tokenDesc := formatTokenType(p.curToken.Type)
+			p.addError("expected object key (identifier or string), got %s (line %d, column %d)",
+				tokenDesc, p.curToken.Line, p.curToken.Column)
 			return nil
 		}
 

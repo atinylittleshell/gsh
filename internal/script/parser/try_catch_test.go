@@ -358,31 +358,31 @@ func TestTryCatchErrorCases(t *testing.T) {
 	}{
 		{
 			input:       "try x = 1",
-			expectedErr: "expected next token to be LBRACE",
+			expectedErr: "expected next token to be '{'",
 		},
 		{
 			input:       "try { x = 1 }",
-			expectedErr: "try statement must have at least one catch or finally clause",
+			expectedErr: "try statement must have at least one 'catch' or 'finally' clause",
 		},
 		{
 			input:       "try { x = 1 } catch",
-			expectedErr: "expected next token to be LPAREN",
+			expectedErr: "expected next token to be '('",
 		},
 		{
 			input:       "try { x = 1 } catch ()",
-			expectedErr: "expected next token to be IDENT",
+			expectedErr: "expected next token to be identifier",
 		},
 		{
 			input:       "try { x = 1 } catch (error",
-			expectedErr: "expected next token to be RPAREN",
+			expectedErr: "expected next token to be ')'",
 		},
 		{
 			input:       "try { x = 1 } catch (error)",
-			expectedErr: "expected next token to be LBRACE",
+			expectedErr: "expected next token to be '{'",
 		},
 		{
 			input:       "try { x = 1 } finally",
-			expectedErr: "expected next token to be LBRACE",
+			expectedErr: "expected next token to be '{'",
 		},
 	}
 
