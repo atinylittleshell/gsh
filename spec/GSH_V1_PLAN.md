@@ -134,16 +134,13 @@ gsh/
 - [x] Parse agent declarations
 - [x] Parse tool declarations with parameters and types
 - [x] Parse pipe expressions (critical for agents)
-- [ ] Parse member access (e.g., `filesystem.read_file`)
-- [ ] Parse function calls with arguments
+- [x] Parse member access (e.g., `filesystem.read_file`)
+- [x] Parse function calls with arguments
 
-### Phase 2.4: Testing & Validation
+### Phase 2.4: Error Messages
 
-- [ ] Parse all examples from spec
-- [ ] Compare AST structure with expected output
-- [ ] Test operator precedence edge cases
-- [ ] Error recovery and clear error messages
-- [ ] Parse all declaration types
+- [ ] Sensible and detailed error messages
+- [ ] Error recovery
 
 ---
 
@@ -153,7 +150,7 @@ gsh/
 
 ### Phase 3.1: Core Execution
 
-- [ ] Implement value types (String, Number, Bool, Null)
+- [x] Implement value types (String, Number, Bool, Null)
 - [ ] Implement environment/scope management
 - [ ] Execute variable declarations and assignments
 - [ ] Evaluate expressions (binary, unary, literals)
