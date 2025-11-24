@@ -311,3 +311,24 @@ func (w *WhileStatement) String() string {
 	out.WriteString(w.Body.String())
 	return out.String()
 }
+
+// ForOfStatement represents a for-of loop
+type ForOfStatement struct {
+	Token    lexer.Token // the 'for' token
+	Variable *Identifier
+	Iterable Expression
+	Body     *BlockStatement
+}
+
+func (f *ForOfStatement) statementNode()       {}
+func (f *ForOfStatement) TokenLiteral() string { return f.Token.Literal }
+func (f *ForOfStatement) String() string {
+	var out strings.Builder
+	out.WriteString("for (")
+	out.WriteString(f.Variable.String())
+	out.WriteString(" of ")
+	out.WriteString(f.Iterable.String())
+	out.WriteString(") ")
+	out.WriteString(f.Body.String())
+	return out.String()
+}

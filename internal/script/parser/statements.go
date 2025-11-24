@@ -12,6 +12,8 @@ func (p *Parser) parseStatement() Statement {
 		return p.parseIfStatement()
 	case lexer.KW_WHILE:
 		return p.parseWhileStatement()
+	case lexer.KW_FOR:
+		return p.parseForOfStatement()
 	}
 
 	// Check if this is an assignment (identifier followed by '=' or ':')
@@ -174,6 +176,54 @@ func (p *Parser) parseWhileStatement() Statement {
 	}
 
 	// Expect ')' after condition
+	if !p.expectPeek(lexer.RPAREN) {
+		return nil
+	}
+
+	// Expect '{' after ')'
+	if !p.expectPeek(lexer.LBRACE) {
+		return nil
+	}
+
+	// Parse body block
+	stmt.Body = p.parseBlockStatement()
+	if stmt.Body == nil {
+		return nil
+	}
+
+	return stmt
+}
+
+// parseForOfStatement parses a for-of loop
+func (p *Parser) parseForOfStatement() Statement {
+	stmt := &ForOfStatement{Token: p.curToken}
+
+	// Expect '(' after 'for'
+	if !p.expectPeek(lexer.LPAREN) {
+		return nil
+	}
+
+	// Expect identifier for loop variable
+	if !p.expectPeek(lexer.IDENT) {
+		return nil
+	}
+
+	stmt.Variable = &Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	// Expect 'of' keyword
+	if !p.expectPeek(lexer.KW_OF) {
+		return nil
+	}
+
+	p.nextToken() // move to iterable expression
+
+	// Parse iterable
+	stmt.Iterable = p.parseExpression(LOWEST)
+	if stmt.Iterable == nil {
+		return nil
+	}
+
+	// Expect ')' after iterable
 	if !p.expectPeek(lexer.RPAREN) {
 		return nil
 	}
