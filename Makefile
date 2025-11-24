@@ -1,7 +1,12 @@
 .PHONY: build
-build: fmt lint
+build: generate fmt lint
 	@echo "Running go build..."
 	@go build -o ./bin/gsh ./cmd/gsh/main.go
+
+.PHONY: generate
+generate:
+	@echo "Running go generate..."
+	@go generate ./...
 
 .PHONY: fmt
 fmt:
