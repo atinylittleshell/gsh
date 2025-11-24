@@ -27,6 +27,7 @@ SOFTWARE.
 package shellinput
 
 import (
+	"fmt"
 	"reflect"
 	"regexp"
 	"strings"
