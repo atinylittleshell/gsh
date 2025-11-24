@@ -132,7 +132,7 @@ gsh/
 - [x] Parse MCP server declarations
 - [x] Parse model declarations
 - [x] Parse agent declarations
-- [ ] Parse tool declarations with parameters and types
+- [x] Parse tool declarations with parameters and types
 - [ ] Parse pipe expressions (critical for agents)
 - [ ] Parse member access (e.g., `filesystem.read_file`)
 - [ ] Parse function calls with arguments
