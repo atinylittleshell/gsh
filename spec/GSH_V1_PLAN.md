@@ -125,7 +125,7 @@ gsh/
 - [x] Parse for-of loops
 - [x] Parse break/continue
 - [x] Parse try/catch blocks
-- [ ] Parse blocks and scoping
+- [x] Parse blocks and scoping
 
 ### Phase 2.3: Declarations & Advanced Features
 
