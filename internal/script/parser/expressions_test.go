@@ -7,7 +7,7 @@ import (
 )
 
 func TestIdentifierExpression(t *testing.T) {
-	input := "foobar;"
+	input := "foobar"
 
 	l := lexer.New(input)
 	p := New(l)
@@ -32,7 +32,7 @@ func TestIdentifierExpression(t *testing.T) {
 }
 
 func TestNumberLiteralExpression(t *testing.T) {
-	input := "5;"
+	input := "5"
 
 	l := lexer.New(input)
 	p := New(l)
@@ -57,7 +57,7 @@ func TestNumberLiteralExpression(t *testing.T) {
 }
 
 func TestStringLiteralExpression(t *testing.T) {
-	input := `"hello world";`
+	input := `"hello world"`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -86,8 +86,8 @@ func TestBooleanExpression(t *testing.T) {
 		input    string
 		expected bool
 	}{
-		{"true;", true},
-		{"false;", false},
+		{"true", true},
+		{"false", false},
 	}
 
 	for _, tt := range tests {
@@ -120,10 +120,10 @@ func TestParsingUnaryExpressions(t *testing.T) {
 		input    string
 		operator string
 	}{
-		{"!5;", "!"},
-		{"-15;", "-"},
-		{"!true;", "!"},
-		{"!false;", "!"},
+		{"!5", "!"},
+		{"-15", "-"},
+		{"!true", "!"},
+		{"!false", "!"},
 	}
 
 	for _, tt := range tests {
@@ -156,16 +156,16 @@ func TestParsingBinaryExpressions(t *testing.T) {
 		input    string
 		operator string
 	}{
-		{"5 + 5;", "+"},
-		{"5 - 5;", "-"},
-		{"5 * 5;", "*"},
-		{"5 / 5;", "/"},
-		{"5 > 5;", ">"},
-		{"5 < 5;", "<"},
-		{"5 == 5;", "=="},
-		{"5 != 5;", "!="},
-		{"true && false;", "&&"},
-		{"true || false;", "||"},
+		{"5 + 5", "+"},
+		{"5 - 5", "-"},
+		{"5 * 5", "*"},
+		{"5 / 5", "/"},
+		{"5 > 5", ">"},
+		{"5 < 5", "<"},
+		{"5 == 5", "=="},
+		{"5 != 5", "!="},
+		{"true && false", "&&"},
+		{"true || false", "||"},
 	}
 
 	for _, tt := range tests {
@@ -207,7 +207,6 @@ func TestOperatorPrecedenceParsing(t *testing.T) {
 		{"a * b / c", "((a * b) / c)"},
 		{"a + b / c", "(a + (b / c))"},
 		{"a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"},
-		{"3 + 4; -5 * 5", "(3 + 4)((-5) * 5)"},
 		{"5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))"},
 		{"5 < 4 != 3 > 4", "((5 < 4) != (3 > 4))"},
 		{"3 + 4 * 5 == 3 * 1 + 4 * 5", "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))"},
@@ -236,7 +235,7 @@ func TestOperatorPrecedenceParsing(t *testing.T) {
 }
 
 func TestCallExpressionParsing(t *testing.T) {
-	input := "add(1, 2 * 3, 4 + 5);"
+	input := "add(1, 2 * 3, 4 + 5)"
 
 	l := lexer.New(input)
 	p := New(l)

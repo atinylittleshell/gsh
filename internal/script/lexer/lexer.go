@@ -9,11 +9,12 @@ import (
 // Lexer tokenizes gsh script source code
 type Lexer struct {
 	input        string
-	position     int  // current position in input (points to current char)
-	readPosition int  // current reading position in input (after current char)
-	ch           byte // current char under examination
-	line         int  // current line number (1-indexed)
-	column       int  // current column number (1-indexed)
+	position     int      // current position in input (points to current char)
+	readPosition int      // current reading position in input (after current char)
+	ch           byte     // current char under examination
+	line         int      // current line number (1-indexed)
+	column       int      // current column number (1-indexed)
+	errors       []string // lexer errors
 }
 
 // New creates a new Lexer instance
@@ -22,9 +23,21 @@ func New(input string) *Lexer {
 		input:  input,
 		line:   1,
 		column: 0,
+		errors: []string{},
 	}
 	l.readChar()
 	return l
+}
+
+// Errors returns the list of lexer errors
+func (l *Lexer) Errors() []string {
+	return l.errors
+}
+
+// addError adds a lexer error
+func (l *Lexer) addError(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	l.errors = append(l.errors, fmt.Sprintf("lexer error at line %d, column %d: %s", l.line, l.column, msg))
 }
 
 // NextToken returns the next token from the input
@@ -140,8 +153,14 @@ func (l *Lexer) NextToken() Token {
 		}
 		return tok
 	case '\'':
-		tok.Type = STRING
-		tok.Literal = l.readString('\'')
+		// Check for triple-quoted string
+		if l.peekChar() == '\'' && l.peekCharN(2) == '\'' {
+			tok.Type = STRING
+			tok.Literal = l.readTripleQuotedString('\'')
+		} else {
+			tok.Type = STRING
+			tok.Literal = l.readString('\'')
+		}
 		return tok
 	case '`':
 		tok.Type = STRING
@@ -245,6 +264,8 @@ func (l *Lexer) readNumber() string {
 // readString reads a quoted string (single or double quotes)
 func (l *Lexer) readString(quote byte) string {
 	var result strings.Builder
+	startLine := l.line
+	startColumn := l.column
 	l.readChar() // consume opening quote
 
 	for l.ch != quote && l.ch != 0 {
@@ -277,6 +298,9 @@ func (l *Lexer) readString(quote byte) string {
 
 	if l.ch == quote {
 		l.readChar() // consume closing quote
+	} else {
+		// Reached EOF without closing quote
+		l.addError("unterminated string literal starting at line %d, column %d", startLine, startColumn)
 	}
 
 	return result.String()
@@ -284,12 +308,15 @@ func (l *Lexer) readString(quote byte) string {
 
 // readTripleQuotedString reads a triple-quoted string
 func (l *Lexer) readTripleQuotedString(quote byte) string {
+	startLine := l.line
+	startColumn := l.column
 	// Consume opening triple quotes
 	l.readChar() // first quote
 	l.readChar() // second quote
 	l.readChar() // third quote
 
 	var result strings.Builder
+	foundClosing := false
 
 	for l.ch != 0 {
 		// Check for closing triple quotes
@@ -297,11 +324,17 @@ func (l *Lexer) readTripleQuotedString(quote byte) string {
 			l.readChar() // first closing quote
 			l.readChar() // second closing quote
 			l.readChar() // third closing quote
+			foundClosing = true
 			break
 		}
 
 		result.WriteByte(l.ch)
 		l.readChar()
+	}
+
+	if !foundClosing {
+		// Reached EOF without closing triple quotes
+		l.addError("unterminated triple-quoted string starting at line %d, column %d", startLine, startColumn)
 	}
 
 	content := result.String()
@@ -318,6 +351,8 @@ func (l *Lexer) readTripleQuotedString(quote byte) string {
 // readTemplateString reads a template string with interpolation
 func (l *Lexer) readTemplateString() string {
 	var result strings.Builder
+	startLine := l.line
+	startColumn := l.column
 	l.readChar() // consume opening backtick
 
 	for l.ch != '`' && l.ch != 0 {
@@ -347,6 +382,9 @@ func (l *Lexer) readTemplateString() string {
 
 	if l.ch == '`' {
 		l.readChar() // consume closing backtick
+	} else {
+		// Reached EOF without closing backtick
+		l.addError("unterminated template string starting at line %d, column %d", startLine, startColumn)
 	}
 
 	return result.String()

@@ -291,12 +291,12 @@ func TestMcpDeclarationErrors(t *testing.T) {
 		{
 			name:          "missing MCP name",
 			input:         `mcp { command: "npx" }`,
-			expectedError: "expected next token to be IDENT",
+			expectedError: "expected next token to be identifier",
 		},
 		{
 			name:          "missing opening brace",
 			input:         `mcp filesystem command: "npx" }`,
-			expectedError: "expected next token to be LBRACE",
+			expectedError: "expected next token to be '{'",
 		},
 		{
 			name:          "missing closing brace",
@@ -311,7 +311,7 @@ func TestMcpDeclarationErrors(t *testing.T) {
 		{
 			name:          "missing colon after key",
 			input:         `mcp filesystem { command "npx" }`,
-			expectedError: "expected next token to be COLON",
+			expectedError: "expected next token to be ':'",
 		},
 	}
 

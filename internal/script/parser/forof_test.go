@@ -184,27 +184,27 @@ func TestForOfStatementErrors(t *testing.T) {
 		{
 			name:          "missing opening parenthesis",
 			input:         `for item of items) {}`,
-			expectedError: "expected next token to be LPAREN",
+			expectedError: "expected next token to be '('",
 		},
 		{
 			name:          "missing variable name",
 			input:         `for (of items) {}`,
-			expectedError: "expected next token to be IDENT",
+			expectedError: "expected next token to be identifier",
 		},
 		{
 			name:          "missing 'of' keyword",
 			input:         `for (item items) {}`,
-			expectedError: "expected next token to be KW_OF",
+			expectedError: "expected next token to be keyword 'of'",
 		},
 		{
 			name:          "missing closing parenthesis",
 			input:         `for (item of items {}`,
-			expectedError: "expected next token to be RPAREN",
+			expectedError: "expected next token to be ')'",
 		},
 		{
 			name:          "missing opening brace",
 			input:         `for (item of items) print(item) }`,
-			expectedError: "expected next token to be LBRACE",
+			expectedError: "expected next token to be '{'",
 		},
 		{
 			name:          "missing closing brace",
