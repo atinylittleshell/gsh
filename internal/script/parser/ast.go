@@ -332,3 +332,21 @@ func (f *ForOfStatement) String() string {
 	out.WriteString(f.Body.String())
 	return out.String()
 }
+
+// BreakStatement represents a break statement
+type BreakStatement struct {
+	Token lexer.Token // the 'break' token
+}
+
+func (b *BreakStatement) statementNode()       {}
+func (b *BreakStatement) TokenLiteral() string { return b.Token.Literal }
+func (b *BreakStatement) String() string       { return "break" }
+
+// ContinueStatement represents a continue statement
+type ContinueStatement struct {
+	Token lexer.Token // the 'continue' token
+}
+
+func (c *ContinueStatement) statementNode()       {}
+func (c *ContinueStatement) TokenLiteral() string { return c.Token.Literal }
+func (c *ContinueStatement) String() string       { return "continue" }
