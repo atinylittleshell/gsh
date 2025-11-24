@@ -431,3 +431,28 @@ func (m *McpDeclaration) String() string {
 	out.WriteString("}")
 	return out.String()
 }
+
+// ModelDeclaration represents a model declaration
+type ModelDeclaration struct {
+	Token  lexer.Token // the 'model' token
+	Name   *Identifier
+	Config map[string]Expression
+}
+
+func (m *ModelDeclaration) statementNode()       {}
+func (m *ModelDeclaration) TokenLiteral() string { return m.Token.Literal }
+func (m *ModelDeclaration) String() string {
+	var out strings.Builder
+	out.WriteString("model ")
+	out.WriteString(m.Name.String())
+	out.WriteString(" {\n")
+	for key, value := range m.Config {
+		out.WriteString("  ")
+		out.WriteString(key)
+		out.WriteString(": ")
+		out.WriteString(value.String())
+		out.WriteString(",\n")
+	}
+	out.WriteString("}")
+	return out.String()
+}

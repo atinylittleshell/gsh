@@ -389,6 +389,272 @@ func TestMultipleMcpDeclarations(t *testing.T) {
 	}
 }
 
+func TestParseModelDeclaration(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected func(t *testing.T, stmt Statement)
+	}{
+		{
+			name:  "Basic model declaration with Anthropic",
+			input: "model claude {\n\tprovider: \"anthropic\",\n\tapiKey: env.ANTHROPIC_API_KEY,\n\tmodel: \"claude-3-5-sonnet-20241022\",\n}",
+			expected: func(t *testing.T, stmt Statement) {
+				modelDecl, ok := stmt.(*ModelDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ModelDeclaration. got=%T", stmt)
+				}
+
+				if modelDecl.Name.Value != "claude" {
+					t.Errorf("modelDecl.Name.Value not 'claude'. got=%q", modelDecl.Name.Value)
+				}
+
+				if len(modelDecl.Config) != 3 {
+					t.Errorf("modelDecl.Config should have 3 keys. got=%d", len(modelDecl.Config))
+				}
+
+				// Check provider
+				providerVal, ok := modelDecl.Config["provider"]
+				if !ok {
+					t.Fatalf("modelDecl.Config missing 'provider' key")
+				}
+				providerStr, ok := providerVal.(*StringLiteral)
+				if !ok {
+					t.Fatalf("provider value is not *StringLiteral. got=%T", providerVal)
+				}
+				if providerStr.Value != "anthropic" {
+					t.Errorf("provider not 'anthropic'. got=%q", providerStr.Value)
+				}
+
+				// Check apiKey
+				apiKeyVal, ok := modelDecl.Config["apiKey"]
+				if !ok {
+					t.Fatalf("modelDecl.Config missing 'apiKey' key")
+				}
+				apiKeyMember, ok := apiKeyVal.(*MemberExpression)
+				if !ok {
+					t.Fatalf("apiKey value is not *MemberExpression. got=%T", apiKeyVal)
+				}
+				envIdent, ok := apiKeyMember.Object.(*Identifier)
+				if !ok || envIdent.Value != "env" {
+					t.Errorf("apiKey object not 'env'. got=%v", apiKeyMember.Object)
+				}
+				if apiKeyMember.Property.Value != "ANTHROPIC_API_KEY" {
+					t.Errorf("apiKey property not 'ANTHROPIC_API_KEY'. got=%q", apiKeyMember.Property.Value)
+				}
+
+				// Check model
+				modelVal, ok := modelDecl.Config["model"]
+				if !ok {
+					t.Fatalf("modelDecl.Config missing 'model' key")
+				}
+				modelStr, ok := modelVal.(*StringLiteral)
+				if !ok {
+					t.Fatalf("model value is not *StringLiteral. got=%T", modelVal)
+				}
+				if modelStr.Value != "claude-3-5-sonnet-20241022" {
+					t.Errorf("model not 'claude-3-5-sonnet-20241022'. got=%q", modelStr.Value)
+				}
+			},
+		},
+		{
+			name:  "Model declaration with OpenAI",
+			input: "model gpt4 {\n\tprovider: \"openai\",\n\tapiKey: env.OPENAI_API_KEY,\n\tmodel: \"gpt-4\",\n\ttemperature: 0.5,\n}",
+			expected: func(t *testing.T, stmt Statement) {
+				modelDecl, ok := stmt.(*ModelDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ModelDeclaration. got=%T", stmt)
+				}
+
+				if modelDecl.Name.Value != "gpt4" {
+					t.Errorf("modelDecl.Name.Value not 'gpt4'. got=%q", modelDecl.Name.Value)
+				}
+
+				if len(modelDecl.Config) != 4 {
+					t.Errorf("modelDecl.Config should have 4 keys. got=%d", len(modelDecl.Config))
+				}
+
+				// Check temperature
+				tempVal, ok := modelDecl.Config["temperature"]
+				if !ok {
+					t.Fatalf("modelDecl.Config missing 'temperature' key")
+				}
+				tempNum, ok := tempVal.(*NumberLiteral)
+				if !ok {
+					t.Fatalf("temperature value is not *NumberLiteral. got=%T", tempVal)
+				}
+				if tempNum.Value != "0.5" {
+					t.Errorf("temperature not '0.5'. got=%q", tempNum.Value)
+				}
+			},
+		},
+		{
+			name:  "Model declaration with Ollama (local)",
+			input: "model llama {\n\tprovider: \"ollama\",\n\turl: \"http://localhost:11434\",\n\tmodel: \"llama3.2:3b\",\n}",
+			expected: func(t *testing.T, stmt Statement) {
+				modelDecl, ok := stmt.(*ModelDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ModelDeclaration. got=%T", stmt)
+				}
+
+				if modelDecl.Name.Value != "llama" {
+					t.Errorf("modelDecl.Name.Value not 'llama'. got=%q", modelDecl.Name.Value)
+				}
+
+				// Check url
+				urlVal, ok := modelDecl.Config["url"]
+				if !ok {
+					t.Fatalf("modelDecl.Config missing 'url' key")
+				}
+				urlStr, ok := urlVal.(*StringLiteral)
+				if !ok {
+					t.Fatalf("url value is not *StringLiteral. got=%T", urlVal)
+				}
+				if urlStr.Value != "http://localhost:11434" {
+					t.Errorf("url not 'http://localhost:11434'. got=%q", urlStr.Value)
+				}
+			},
+		},
+		{
+			name:  "Model declaration with minimal config",
+			input: "model minimal {\n\tprovider: \"anthropic\",\n}",
+			expected: func(t *testing.T, stmt Statement) {
+				modelDecl, ok := stmt.(*ModelDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ModelDeclaration. got=%T", stmt)
+				}
+
+				if modelDecl.Name.Value != "minimal" {
+					t.Errorf("modelDecl.Name.Value not 'minimal'. got=%q", modelDecl.Name.Value)
+				}
+
+				if len(modelDecl.Config) != 1 {
+					t.Errorf("modelDecl.Config should have 1 key. got=%d", len(modelDecl.Config))
+				}
+			},
+		},
+		{
+			name:  "Model declaration with template literal",
+			input: "model dynamic {\n\tprovider: \"openai\",\n\tapiKey: `Bearer ${env.TOKEN}`,\n}",
+			expected: func(t *testing.T, stmt Statement) {
+				modelDecl, ok := stmt.(*ModelDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ModelDeclaration. got=%T", stmt)
+				}
+
+				if modelDecl.Name.Value != "dynamic" {
+					t.Errorf("modelDecl.Name.Value not 'dynamic'. got=%q", modelDecl.Name.Value)
+				}
+
+				// Check apiKey with template literal
+				apiKeyVal, ok := modelDecl.Config["apiKey"]
+				if !ok {
+					t.Fatalf("modelDecl.Config missing 'apiKey' key")
+				}
+				apiKeyStr, ok := apiKeyVal.(*StringLiteral)
+				if !ok {
+					t.Fatalf("apiKey value is not *StringLiteral. got=%T", apiKeyVal)
+				}
+				if apiKeyStr.Value != "Bearer ${env.TOKEN}" {
+					t.Errorf("apiKey not 'Bearer ${env.TOKEN}'. got=%q", apiKeyStr.Value)
+				}
+			},
+		},
+		{
+			name:  "Model declaration without trailing comma",
+			input: "model nocomma {\n\tprovider: \"anthropic\"\n}",
+			expected: func(t *testing.T, stmt Statement) {
+				modelDecl, ok := stmt.(*ModelDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ModelDeclaration. got=%T", stmt)
+				}
+
+				if modelDecl.Name.Value != "nocomma" {
+					t.Errorf("modelDecl.Name.Value not 'nocomma'. got=%q", modelDecl.Name.Value)
+				}
+
+				if len(modelDecl.Config) != 1 {
+					t.Errorf("modelDecl.Config should have 1 key. got=%d", len(modelDecl.Config))
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l)
+			program := p.ParseProgram()
+
+			checkParserErrors(t, p)
+
+			if len(program.Statements) != 1 {
+				t.Fatalf("program.Statements does not contain 1 statement. got=%d", len(program.Statements))
+			}
+
+			tt.expected(t, program.Statements[0])
+		})
+	}
+}
+
+func TestParseModelDeclarationErrors(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		expectedError string
+	}{
+		{
+			name:          "Model declaration without name",
+			input:         "model { provider: \"anthropic\" }",
+			expectedError: "expected next token to be",
+		},
+		{
+			name:          "Model declaration without opening brace",
+			input:         "model claude provider: \"anthropic\" }",
+			expectedError: "expected next token to be",
+		},
+		{
+			name:          "Model declaration without closing brace",
+			input:         "model claude { provider: \"anthropic\"",
+			expectedError: "expected '}'",
+		},
+		{
+			name:          "Model declaration with invalid config key",
+			input:         "model claude { 123: \"value\" }",
+			expectedError: "expected identifier for config key",
+		},
+		{
+			name:          "Model declaration without colon after key",
+			input:         "model claude { provider \"anthropic\" }",
+			expectedError: "expected next token to be",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l)
+			_ = p.ParseProgram()
+
+			errors := p.Errors()
+			if len(errors) == 0 {
+				t.Fatalf("expected parser errors, but got none")
+			}
+
+			found := false
+			for _, err := range errors {
+				if contains(err, tt.expectedError) {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				t.Errorf("expected error containing %q, got errors: %v", tt.expectedError, errors)
+			}
+		})
+	}
+}
+
 // Helper function to check if a string contains a substring
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
