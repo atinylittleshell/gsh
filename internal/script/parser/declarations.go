@@ -72,6 +72,40 @@ func (p *Parser) parseModelDeclaration() Statement {
 	return stmt
 }
 
+// parseAgentDeclaration parses an agent declaration
+// agent <name> { <config> }
+func (p *Parser) parseAgentDeclaration() Statement {
+	stmt := &AgentDeclaration{Token: p.curToken}
+
+	// Expect identifier for agent name
+	if !p.expectPeek(lexer.IDENT) {
+		return nil
+	}
+
+	stmt.Name = &Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	// Expect '{' after name
+	if !p.expectPeek(lexer.LBRACE) {
+		return nil
+	}
+
+	p.nextToken() // move past '{'
+
+	// Parse configuration object
+	stmt.Config = p.parseDeclarationConfig()
+	if stmt.Config == nil {
+		return nil
+	}
+
+	// Expect '}' to close the declaration
+	if !p.curTokenIs(lexer.RBRACE) {
+		p.addError("expected '}' at line %d, column %d", p.curToken.Line, p.curToken.Column)
+		return nil
+	}
+
+	return stmt
+}
+
 // parseDeclarationConfig parses a configuration object inside a declaration
 // This is similar to object literal but uses a different structure for declarations
 func (p *Parser) parseDeclarationConfig() map[string]Expression {

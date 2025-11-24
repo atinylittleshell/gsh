@@ -456,3 +456,28 @@ func (m *ModelDeclaration) String() string {
 	out.WriteString("}")
 	return out.String()
 }
+
+// AgentDeclaration represents an agent declaration
+type AgentDeclaration struct {
+	Token  lexer.Token // the 'agent' token
+	Name   *Identifier
+	Config map[string]Expression
+}
+
+func (a *AgentDeclaration) statementNode()       {}
+func (a *AgentDeclaration) TokenLiteral() string { return a.Token.Literal }
+func (a *AgentDeclaration) String() string {
+	var out strings.Builder
+	out.WriteString("agent ")
+	out.WriteString(a.Name.String())
+	out.WriteString(" {\n")
+	for key, value := range a.Config {
+		out.WriteString("  ")
+		out.WriteString(key)
+		out.WriteString(": ")
+		out.WriteString(value.String())
+		out.WriteString(",\n")
+	}
+	out.WriteString("}")
+	return out.String()
+}
