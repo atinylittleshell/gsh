@@ -10,6 +10,8 @@ func (p *Parser) parseStatement() Statement {
 	switch p.curToken.Type {
 	case lexer.KW_IF:
 		return p.parseIfStatement()
+	case lexer.KW_WHILE:
+		return p.parseWhileStatement()
 	}
 
 	// Check if this is an assignment (identifier followed by '=' or ':')
@@ -149,6 +151,42 @@ func (p *Parser) parseIfStatement() Statement {
 			}
 			stmt.Alternative = p.parseBlockStatement()
 		}
+	}
+
+	return stmt
+}
+
+// parseWhileStatement parses a while loop
+func (p *Parser) parseWhileStatement() Statement {
+	stmt := &WhileStatement{Token: p.curToken}
+
+	// Expect '(' after 'while'
+	if !p.expectPeek(lexer.LPAREN) {
+		return nil
+	}
+
+	p.nextToken() // move to condition expression
+
+	// Parse condition
+	stmt.Condition = p.parseExpression(LOWEST)
+	if stmt.Condition == nil {
+		return nil
+	}
+
+	// Expect ')' after condition
+	if !p.expectPeek(lexer.RPAREN) {
+		return nil
+	}
+
+	// Expect '{' after ')'
+	if !p.expectPeek(lexer.LBRACE) {
+		return nil
+	}
+
+	// Parse body block
+	stmt.Body = p.parseBlockStatement()
+	if stmt.Body == nil {
+		return nil
 	}
 
 	return stmt

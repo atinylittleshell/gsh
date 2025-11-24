@@ -121,7 +121,7 @@ gsh/
 ### Phase 2.2: Statements & Control Flow
 
 - [x] Parse if/else statements
-- [ ] Parse while loops
+- [x] Parse while loops
 - [ ] Parse for-of loops
 - [ ] Parse break/continue
 - [ ] Parse try/catch blocks

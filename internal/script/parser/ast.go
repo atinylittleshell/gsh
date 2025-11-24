@@ -293,3 +293,21 @@ func (i *IfStatement) String() string {
 	}
 	return out.String()
 }
+
+// WhileStatement represents a while loop
+type WhileStatement struct {
+	Token     lexer.Token // the 'while' token
+	Condition Expression
+	Body      *BlockStatement
+}
+
+func (w *WhileStatement) statementNode()       {}
+func (w *WhileStatement) TokenLiteral() string { return w.Token.Literal }
+func (w *WhileStatement) String() string {
+	var out strings.Builder
+	out.WriteString("while (")
+	out.WriteString(w.Condition.String())
+	out.WriteString(") ")
+	out.WriteString(w.Body.String())
+	return out.String()
+}
