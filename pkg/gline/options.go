@@ -3,12 +3,14 @@ package gline
 import "github.com/atinylittleshell/gsh/pkg/shellinput"
 
 type Options struct {
+	// Deprecated: use AssistantHeight instead
 	MinHeight          int
+	AssistantHeight    int
 	CompletionProvider shellinput.CompletionProvider
 }
 
 func NewOptions() Options {
 	return Options{
-		MinHeight: 8,
+		AssistantHeight: 3,
 	}
 }

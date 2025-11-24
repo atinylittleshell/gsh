@@ -56,6 +56,7 @@ You will be given a bash command entered by me, enclosed in <command> tags.
 
 # Instructions
 * Give a concise explanation of what the command will do for me
+* Keep the explanation extremely concise, fitting within 3 lines of text
 * If any uncommon arguments are present in the command, 
   format your explanation in markdown and explain arguments in a bullet point list
 

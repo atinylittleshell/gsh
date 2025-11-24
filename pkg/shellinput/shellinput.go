@@ -27,7 +27,6 @@ SOFTWARE.
 package shellinput
 
 import (
-	"fmt"
 	"reflect"
 	"regexp"
 	"strings"
@@ -890,92 +889,136 @@ func (m Model) completionView(offset int) string {
 }
 
 // CompletionBoxView renders the completion info box with all available completions
-func (m Model) CompletionBoxView() string {
+func (m Model) CompletionBoxView(height int, width int) string {
 	if !m.completion.shouldShowInfoBox() {
 		return ""
 	}
 
-	const maxVisibleItems = 4
-	totalItems := len(m.completion.suggestions)
+	if height <= 0 {
+		height = 4 // default fallback
+	}
 
+	totalItems := len(m.completion.suggestions)
 	if totalItems == 0 {
 		return ""
 	}
 
-	var content strings.Builder
-
-	// Calculate the visible window based on selected item
-	var startIdx, endIdx int
-	if totalItems <= maxVisibleItems {
-		// Show all items if we have 4 or fewer
-		startIdx = 0
-		endIdx = totalItems
-	} else {
-		// Calculate scrolling window
-		selectedIdx := m.completion.selected
-		if selectedIdx < 0 {
-			selectedIdx = 0
-		}
-
-		// More balanced scrolling logic
-		if selectedIdx < 2 {
-			// Keep selection in top positions when near the beginning
-			startIdx = 0
-		} else if selectedIdx >= totalItems-2 {
-			// Keep selection in bottom positions when near the end
-			startIdx = totalItems - maxVisibleItems
-		} else {
-			// Try to keep selection in the middle (position 1 or 2)
-			startIdx = selectedIdx - 1
-		}
-
-		endIdx = startIdx + maxVisibleItems
-
-		// Ensure bounds are valid
-		if startIdx < 0 {
-			startIdx = 0
-		}
-		if endIdx > totalItems {
-			endIdx = totalItems
-			startIdx = endIdx - maxVisibleItems
-			if startIdx < 0 {
-				startIdx = 0
-			}
+	// Calculate max width of items to determine columns
+	maxItemWidth := 0
+	for _, s := range m.completion.suggestions {
+		// Length + prefix ("> ") + spacing ("  ")
+		l := uniseg.StringWidth(s) + 4
+		if l > maxItemWidth {
+			maxItemWidth = l
 		}
 	}
 
-	// Add visible items with scroll indicators as prefixes
-	for idx, i := range []int{startIdx, startIdx + 1, startIdx + 2, startIdx + 3} {
-		if i >= endIdx {
-			break
+	// Ensure at least some width
+	if maxItemWidth < 10 {
+		maxItemWidth = 10
+	}
+
+	// Calculate columns
+	numColumns := 1
+	if width > 0 {
+		numColumns = width / maxItemWidth
+		if numColumns < 1 {
+			numColumns = 1
+		}
+	}
+
+	// Only use multiple columns if we actually have enough items to fill them
+	// This prevents spreading sparse items across too many columns
+	// But the requirement says "allow any number of columns... until horizontal space is used up"
+	// and "When choices scroll off the end... displayed in second column".
+	// This implies we fill columns vertically first.
+	// So we need enough capacity.
+
+	// If items <= height, we stick to 1 column regardless of width (looks cleaner)
+	if totalItems <= height {
+		numColumns = 1
+	}
+
+	capacity := height * numColumns
+
+	// Calculate visible window
+	var startIdx int
+	selectedIdx := m.completion.selected
+	if selectedIdx < 0 {
+		selectedIdx = 0
+	}
+
+	// Page-based scrolling logic
+	page := selectedIdx / capacity
+	startIdx = page * capacity
+
+	// Ensure bounds are valid
+	if startIdx < 0 {
+		startIdx = 0
+	}
+
+	var content strings.Builder
+
+	// Render rows
+	for r := 0; r < height; r++ {
+		lineContent := ""
+
+		for c := 0; c < numColumns; c++ {
+			idx := startIdx + c*height + r
+			if idx >= totalItems {
+				continue
+			}
+
+			suggestion := m.completion.suggestions[idx]
+			var prefix string
+
+			// Regular line with spacing
+			prefix = " "
+
+			// Add selection indicator
+			if idx == m.completion.selected {
+				prefix += "> "
+			} else {
+				prefix += "  "
+			}
+
+			itemStr := prefix + suggestion
+
+			// Pad the column (except the last one)
+			if c < numColumns-1 {
+				width := uniseg.StringWidth(itemStr)
+				if width < maxItemWidth {
+					itemStr += strings.Repeat(" ", maxItemWidth-width)
+				} else {
+					itemStr += "  "
+				}
+			}
+
+			lineContent += itemStr
 		}
 
-		suggestion := m.completion.suggestions[i]
-		var prefix string
+		// If line is empty but we need to maintain fixed height, add empty line
+		// But only if we haven't reached the end of items logic above which continues
+		// Actually, we iterate r < height. If lineContent is empty, it means no items for this row.
+		// To maintain fixed height visuals, we might want to output empty lines.
+		// However, the loop `idx >= totalItems` continue might cause empty lines at the end.
 
-		// Determine prefix based on position and scroll state
-		if idx == 0 && totalItems > maxVisibleItems && startIdx > 0 {
-			// First line with "more above" indicator
-			prefix = fmt.Sprintf("↑ %-3d", startIdx)
-		} else if idx == 3 && totalItems > maxVisibleItems && endIdx < totalItems {
-			// Last line with "more below" indicator
-			prefix = fmt.Sprintf("↓ %-3d", totalItems-endIdx)
-		} else {
-			// Regular line with spacing to align with indicators
-			prefix = "     "
+		// If we want strict fixed height output:
+		if lineContent == "" {
+			// Fill with empty space or just newline?
+			// Just newline is sufficient if container handles width, but for TUI usually we want
+			// to be explicit or just let the container fill background.
+			// Here we return string.
+			// If we don't add anything, the height will be less than `height`.
+			// To ensure fixed height semantics:
+			// We should add newlines up to height.
 		}
 
-		// Add selection indicator
-		if i == m.completion.selected {
-			prefix += "> "
-		} else {
-			prefix += "  "
+		if lineContent != "" {
+			content.WriteString(lineContent)
 		}
 
-		content.WriteString(prefix + suggestion)
-
-		// Add newline except for the last item
-		if idx < 3 && i < endIdx-1 {
+		if r < height-1 {
 			content.WriteString("\n")
 		}
 	}
