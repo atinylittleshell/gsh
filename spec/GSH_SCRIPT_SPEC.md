@@ -334,7 +334,7 @@ conv = "Analyze this: ${data}" | DataAnalyst
 
 ## 5. Error Handling
 
-### Try-Catch Blocks
+### Try-Catch-Finally Blocks
 
 ```gsh
 try {
@@ -345,6 +345,36 @@ try {
     print(`Error: ${error.message}`)
     # Fallback logic
     data = getDefaultData()
+} finally {
+    # Always executed, regardless of success or error
+    log.info("File processing completed")
+}
+```
+
+The `catch` and `finally` blocks are both optional, but at least one must be present:
+
+```gsh
+# Valid: try with only catch
+try {
+    doSomething()
+} catch (error) {
+    handleError(error)
+}
+
+# Valid: try with only finally
+try {
+    doSomething()
+} finally {
+    cleanup()
+}
+
+# Valid: try with both catch and finally
+try {
+    doSomething()
+} catch (error) {
+    handleError(error)
+} finally {
+    cleanup()
 }
 ```
 
