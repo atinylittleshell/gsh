@@ -112,11 +112,11 @@ gsh/
 
 ### Phase 2.1: Parser Foundation
 
-- [ ] Define AST node types (Statement, Expression interfaces)
-- [ ] Implement recursive descent parser structure
-- [ ] Parse basic expressions (literals, binary ops, unary ops)
-- [ ] Parse variable declarations and assignments
-- [ ] Implement operator precedence correctly
+- [x] Define AST node types (Statement, Expression interfaces)
+- [x] Implement recursive descent parser structure
+- [x] Parse basic expressions (literals, binary ops, unary ops)
+- [x] Parse variable declarations and assignments
+- [x] Implement operator precedence correctly
 
 ### Phase 2.2: Statements & Control Flow
 
