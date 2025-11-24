@@ -14,6 +14,10 @@ func (p *Parser) parseStatement() Statement {
 		return p.parseWhileStatement()
 	case lexer.KW_FOR:
 		return p.parseForOfStatement()
+	case lexer.KW_BREAK:
+		return p.parseBreakStatement()
+	case lexer.KW_CONTINUE:
+		return p.parseContinueStatement()
 	}
 
 	// Check if this is an assignment (identifier followed by '=' or ':')
@@ -240,4 +244,14 @@ func (p *Parser) parseForOfStatement() Statement {
 	}
 
 	return stmt
+}
+
+// parseBreakStatement parses a break statement
+func (p *Parser) parseBreakStatement() Statement {
+	return &BreakStatement{Token: p.curToken}
+}
+
+// parseContinueStatement parses a continue statement
+func (p *Parser) parseContinueStatement() Statement {
+	return &ContinueStatement{Token: p.curToken}
 }

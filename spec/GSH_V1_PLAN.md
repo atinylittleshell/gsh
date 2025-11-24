@@ -123,7 +123,7 @@ gsh/
 - [x] Parse if/else statements
 - [x] Parse while loops
 - [x] Parse for-of loops
-- [ ] Parse break/continue
+- [x] Parse break/continue
 - [ ] Parse try/catch blocks
 - [ ] Parse blocks and scoping
 
