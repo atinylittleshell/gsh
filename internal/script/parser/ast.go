@@ -351,6 +351,24 @@ func (c *ContinueStatement) statementNode()       {}
 func (c *ContinueStatement) TokenLiteral() string { return c.Token.Literal }
 func (c *ContinueStatement) String() string       { return "continue" }
 
+// ReturnStatement represents a return statement
+type ReturnStatement struct {
+	Token       lexer.Token // the 'return' token
+	ReturnValue Expression  // optional return value
+}
+
+func (r *ReturnStatement) statementNode()       {}
+func (r *ReturnStatement) TokenLiteral() string { return r.Token.Literal }
+func (r *ReturnStatement) String() string {
+	var out strings.Builder
+	out.WriteString("return")
+	if r.ReturnValue != nil {
+		out.WriteString(" ")
+		out.WriteString(r.ReturnValue.String())
+	}
+	return out.String()
+}
+
 // TryStatement represents a try/catch/finally block
 type TryStatement struct {
 	Token         lexer.Token // the 'try' token
@@ -479,5 +497,47 @@ func (a *AgentDeclaration) String() string {
 		out.WriteString(",\n")
 	}
 	out.WriteString("}")
+	return out.String()
+}
+
+// ToolParameter represents a parameter in a tool declaration
+type ToolParameter struct {
+	Name *Identifier
+	Type *Identifier // optional type annotation
+}
+
+// ToolDeclaration represents a tool declaration
+type ToolDeclaration struct {
+	Token      lexer.Token // the 'tool' token
+	Name       *Identifier
+	Parameters []*ToolParameter
+	ReturnType *Identifier // optional return type annotation
+	Body       *BlockStatement
+}
+
+func (t *ToolDeclaration) statementNode()       {}
+func (t *ToolDeclaration) TokenLiteral() string { return t.Token.Literal }
+func (t *ToolDeclaration) String() string {
+	var out strings.Builder
+	out.WriteString("tool ")
+	out.WriteString(t.Name.String())
+	out.WriteString("(")
+	for i, param := range t.Parameters {
+		if i > 0 {
+			out.WriteString(", ")
+		}
+		out.WriteString(param.Name.String())
+		if param.Type != nil {
+			out.WriteString(": ")
+			out.WriteString(param.Type.String())
+		}
+	}
+	out.WriteString(")")
+	if t.ReturnType != nil {
+		out.WriteString(": ")
+		out.WriteString(t.ReturnType.String())
+	}
+	out.WriteString(" ")
+	out.WriteString(t.Body.String())
 	return out.String()
 }

@@ -153,6 +153,120 @@ func (p *Parser) parseDeclarationConfig() map[string]Expression {
 	return config
 }
 
+// parseToolDeclaration parses a tool declaration
+// tool <name>(<params>) { <body> }
+// tool <name>(<params>): <returnType> { <body> }
+func (p *Parser) parseToolDeclaration() Statement {
+	stmt := &ToolDeclaration{Token: p.curToken}
+
+	// Expect identifier for tool name
+	if !p.expectPeek(lexer.IDENT) {
+		return nil
+	}
+
+	stmt.Name = &Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	// Expect '(' after name
+	if !p.expectPeek(lexer.LPAREN) {
+		return nil
+	}
+
+	// Parse parameters
+	stmt.Parameters = p.parseToolParameters()
+	if stmt.Parameters == nil {
+		return nil
+	}
+
+	// Expect ')' after parameters
+	if !p.curTokenIs(lexer.RPAREN) {
+		p.addError("expected ')' at line %d, column %d", p.curToken.Line, p.curToken.Column)
+		return nil
+	}
+
+	// Check for return type annotation
+	if p.peekTokenIs(lexer.COLON) {
+		p.nextToken() // consume ')'
+		p.nextToken() // consume ':'
+
+		// Expect identifier for return type
+		if !p.curTokenIs(lexer.IDENT) {
+			p.addError("expected return type after ':', got %v at line %d, column %d",
+				p.curToken.Type, p.curToken.Line, p.curToken.Column)
+			return nil
+		}
+
+		stmt.ReturnType = &Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	}
+
+	// Expect '{' after parameters (and optional return type)
+	if !p.expectPeek(lexer.LBRACE) {
+		return nil
+	}
+
+	// Parse body
+	stmt.Body = p.parseBlockStatement()
+	if stmt.Body == nil {
+		return nil
+	}
+
+	return stmt
+}
+
+// parseToolParameters parses the parameter list of a tool declaration
+func (p *Parser) parseToolParameters() []*ToolParameter {
+	params := []*ToolParameter{}
+
+	p.nextToken() // move past '('
+
+	// Check for empty parameter list
+	if p.curTokenIs(lexer.RPAREN) {
+		return params
+	}
+
+	for {
+		// Expect identifier for parameter name
+		if !p.curTokenIs(lexer.IDENT) {
+			p.addError("expected parameter name, got %v at line %d, column %d",
+				p.curToken.Type, p.curToken.Line, p.curToken.Column)
+			return nil
+		}
+
+		param := &ToolParameter{
+			Name: &Identifier{Token: p.curToken, Value: p.curToken.Literal},
+		}
+
+		// Check for type annotation
+		if p.peekTokenIs(lexer.COLON) {
+			p.nextToken() // consume parameter name
+			p.nextToken() // consume ':'
+
+			// Expect identifier for type
+			if !p.curTokenIs(lexer.IDENT) {
+				p.addError("expected type annotation after ':', got %v at line %d, column %d",
+					p.curToken.Type, p.curToken.Line, p.curToken.Column)
+				return nil
+			}
+
+			param.Type = &Identifier{Token: p.curToken, Value: p.curToken.Literal}
+		}
+
+		params = append(params, param)
+
+		// Check for more parameters or end of list
+		if p.peekTokenIs(lexer.COMMA) {
+			p.nextToken() // consume current param or type
+			p.nextToken() // consume comma
+			continue
+		}
+
+		// Move to closing paren or next token
+		p.nextToken()
+		break
+	}
+
+	return params
+}
+
 // isKeyword checks if a token type is a keyword
 func (p *Parser) isKeyword(t lexer.TokenType) bool {
 	return t == lexer.KW_MCP || t == lexer.KW_MODEL || t == lexer.KW_AGENT ||

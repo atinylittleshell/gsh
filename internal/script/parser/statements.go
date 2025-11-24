@@ -14,6 +14,8 @@ func (p *Parser) parseStatement() Statement {
 		return p.parseModelDeclaration()
 	case lexer.KW_AGENT:
 		return p.parseAgentDeclaration()
+	case lexer.KW_TOOL:
+		return p.parseToolDeclaration()
 	case lexer.KW_IF:
 		return p.parseIfStatement()
 	case lexer.KW_WHILE:
@@ -24,6 +26,8 @@ func (p *Parser) parseStatement() Statement {
 		return p.parseBreakStatement()
 	case lexer.KW_CONTINUE:
 		return p.parseContinueStatement()
+	case lexer.KW_RETURN:
+		return p.parseReturnStatement()
 	case lexer.KW_TRY:
 		return p.parseTryStatement()
 	}
@@ -262,6 +266,19 @@ func (p *Parser) parseBreakStatement() Statement {
 // parseContinueStatement parses a continue statement
 func (p *Parser) parseContinueStatement() Statement {
 	return &ContinueStatement{Token: p.curToken}
+}
+
+// parseReturnStatement parses a return statement
+func (p *Parser) parseReturnStatement() Statement {
+	stmt := &ReturnStatement{Token: p.curToken}
+
+	// Check if there's a return value
+	if !p.peekTokenIs(lexer.SEMICOLON) && !p.peekTokenIs(lexer.RBRACE) && !p.peekTokenIs(lexer.EOF) {
+		p.nextToken() // move to return value expression
+		stmt.ReturnValue = p.parseExpression(LOWEST)
+	}
+
+	return stmt
 }
 
 // parseTryStatement parses a try/catch/finally statement

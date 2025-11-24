@@ -1001,3 +1001,434 @@ func TestParseAgentDeclarationErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestParseToolDeclaration(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected func(t *testing.T, stmt Statement)
+	}{
+		{
+			name: "Basic tool declaration without parameters",
+			input: `tool hello() {
+	print("Hello, world!")
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				toolDecl, ok := stmt.(*ToolDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ToolDeclaration. got=%T", stmt)
+				}
+
+				if toolDecl.Name.Value != "hello" {
+					t.Errorf("toolDecl.Name.Value not 'hello'. got=%q", toolDecl.Name.Value)
+				}
+
+				if len(toolDecl.Parameters) != 0 {
+					t.Errorf("toolDecl.Parameters should be empty. got=%d", len(toolDecl.Parameters))
+				}
+
+				if toolDecl.ReturnType != nil {
+					t.Errorf("toolDecl.ReturnType should be nil. got=%v", toolDecl.ReturnType)
+				}
+
+				if toolDecl.Body == nil {
+					t.Fatal("toolDecl.Body is nil")
+				}
+			},
+		},
+		{
+			name: "Tool declaration with single parameter without type",
+			input: `tool processData(input) {
+	content = filesystem.read_file(input)
+	return JSON.parse(content)
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				toolDecl, ok := stmt.(*ToolDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ToolDeclaration. got=%T", stmt)
+				}
+
+				if toolDecl.Name.Value != "processData" {
+					t.Errorf("toolDecl.Name.Value not 'processData'. got=%q", toolDecl.Name.Value)
+				}
+
+				if len(toolDecl.Parameters) != 1 {
+					t.Fatalf("toolDecl.Parameters should have 1 parameter. got=%d", len(toolDecl.Parameters))
+				}
+
+				param := toolDecl.Parameters[0]
+				if param.Name.Value != "input" {
+					t.Errorf("param.Name.Value not 'input'. got=%q", param.Name.Value)
+				}
+
+				if param.Type != nil {
+					t.Errorf("param.Type should be nil. got=%v", param.Type)
+				}
+
+				if toolDecl.ReturnType != nil {
+					t.Errorf("toolDecl.ReturnType should be nil. got=%v", toolDecl.ReturnType)
+				}
+			},
+		},
+		{
+			name: "Tool declaration with typed parameters",
+			input: `tool calculateScore(points: number, multiplier: number) {
+	return points * multiplier
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				toolDecl, ok := stmt.(*ToolDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ToolDeclaration. got=%T", stmt)
+				}
+
+				if toolDecl.Name.Value != "calculateScore" {
+					t.Errorf("toolDecl.Name.Value not 'calculateScore'. got=%q", toolDecl.Name.Value)
+				}
+
+				if len(toolDecl.Parameters) != 2 {
+					t.Fatalf("toolDecl.Parameters should have 2 parameters. got=%d", len(toolDecl.Parameters))
+				}
+
+				// Check first parameter
+				param0 := toolDecl.Parameters[0]
+				if param0.Name.Value != "points" {
+					t.Errorf("param0.Name.Value not 'points'. got=%q", param0.Name.Value)
+				}
+				if param0.Type == nil {
+					t.Fatal("param0.Type is nil")
+				}
+				if param0.Type.Value != "number" {
+					t.Errorf("param0.Type.Value not 'number'. got=%q", param0.Type.Value)
+				}
+
+				// Check second parameter
+				param1 := toolDecl.Parameters[1]
+				if param1.Name.Value != "multiplier" {
+					t.Errorf("param1.Name.Value not 'multiplier'. got=%q", param1.Name.Value)
+				}
+				if param1.Type == nil {
+					t.Fatal("param1.Type is nil")
+				}
+				if param1.Type.Value != "number" {
+					t.Errorf("param1.Type.Value not 'number'. got=%q", param1.Type.Value)
+				}
+
+				if toolDecl.ReturnType != nil {
+					t.Errorf("toolDecl.ReturnType should be nil. got=%v", toolDecl.ReturnType)
+				}
+			},
+		},
+		{
+			name: "Tool declaration with return type",
+			input: `tool calculateScore(points: number, multiplier: number): number {
+	return points * multiplier
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				toolDecl, ok := stmt.(*ToolDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ToolDeclaration. got=%T", stmt)
+				}
+
+				if toolDecl.Name.Value != "calculateScore" {
+					t.Errorf("toolDecl.Name.Value not 'calculateScore'. got=%q", toolDecl.Name.Value)
+				}
+
+				if len(toolDecl.Parameters) != 2 {
+					t.Fatalf("toolDecl.Parameters should have 2 parameters. got=%d", len(toolDecl.Parameters))
+				}
+
+				if toolDecl.ReturnType == nil {
+					t.Fatal("toolDecl.ReturnType is nil")
+				}
+				if toolDecl.ReturnType.Value != "number" {
+					t.Errorf("toolDecl.ReturnType.Value not 'number'. got=%q", toolDecl.ReturnType.Value)
+				}
+			},
+		},
+		{
+			name: "Tool declaration with mixed typed and untyped parameters",
+			input: `tool processFile(path: string, options) {
+	return filesystem.read_file(path)
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				toolDecl, ok := stmt.(*ToolDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ToolDeclaration. got=%T", stmt)
+				}
+
+				if toolDecl.Name.Value != "processFile" {
+					t.Errorf("toolDecl.Name.Value not 'processFile'. got=%q", toolDecl.Name.Value)
+				}
+
+				if len(toolDecl.Parameters) != 2 {
+					t.Fatalf("toolDecl.Parameters should have 2 parameters. got=%d", len(toolDecl.Parameters))
+				}
+
+				// Check first parameter (typed)
+				param0 := toolDecl.Parameters[0]
+				if param0.Name.Value != "path" {
+					t.Errorf("param0.Name.Value not 'path'. got=%q", param0.Name.Value)
+				}
+				if param0.Type == nil {
+					t.Fatal("param0.Type is nil")
+				}
+				if param0.Type.Value != "string" {
+					t.Errorf("param0.Type.Value not 'string'. got=%q", param0.Type.Value)
+				}
+
+				// Check second parameter (untyped)
+				param1 := toolDecl.Parameters[1]
+				if param1.Name.Value != "options" {
+					t.Errorf("param1.Name.Value not 'options'. got=%q", param1.Name.Value)
+				}
+				if param1.Type != nil {
+					t.Errorf("param1.Type should be nil. got=%v", param1.Type)
+				}
+			},
+		},
+		{
+			name: "Tool declaration with string return type",
+			input: `tool formatReport(content: string): string {
+	return "# Report\n\n" + content
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				toolDecl, ok := stmt.(*ToolDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ToolDeclaration. got=%T", stmt)
+				}
+
+				if toolDecl.Name.Value != "formatReport" {
+					t.Errorf("toolDecl.Name.Value not 'formatReport'. got=%q", toolDecl.Name.Value)
+				}
+
+				if len(toolDecl.Parameters) != 1 {
+					t.Fatalf("toolDecl.Parameters should have 1 parameter. got=%d", len(toolDecl.Parameters))
+				}
+
+				if toolDecl.ReturnType == nil {
+					t.Fatal("toolDecl.ReturnType is nil")
+				}
+				if toolDecl.ReturnType.Value != "string" {
+					t.Errorf("toolDecl.ReturnType.Value not 'string'. got=%q", toolDecl.ReturnType.Value)
+				}
+			},
+		},
+		{
+			name: "Tool declaration from spec example",
+			input: `tool analyzeData(data: string): string {
+	parsed = JSON.parse(data)
+	return "Found " + parsed.length + " records"
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				toolDecl, ok := stmt.(*ToolDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ToolDeclaration. got=%T", stmt)
+				}
+
+				if toolDecl.Name.Value != "analyzeData" {
+					t.Errorf("toolDecl.Name.Value not 'analyzeData'. got=%q", toolDecl.Name.Value)
+				}
+
+				if len(toolDecl.Parameters) != 1 {
+					t.Fatalf("toolDecl.Parameters should have 1 parameter. got=%d", len(toolDecl.Parameters))
+				}
+
+				param := toolDecl.Parameters[0]
+				if param.Name.Value != "data" {
+					t.Errorf("param.Name.Value not 'data'. got=%q", param.Name.Value)
+				}
+				if param.Type == nil {
+					t.Fatal("param.Type is nil")
+				}
+				if param.Type.Value != "string" {
+					t.Errorf("param.Type.Value not 'string'. got=%q", param.Type.Value)
+				}
+
+				if toolDecl.ReturnType == nil {
+					t.Fatal("toolDecl.ReturnType is nil")
+				}
+				if toolDecl.ReturnType.Value != "string" {
+					t.Errorf("toolDecl.ReturnType.Value not 'string'. got=%q", toolDecl.ReturnType.Value)
+				}
+
+				if toolDecl.Body == nil {
+					t.Fatal("toolDecl.Body is nil")
+				}
+				if len(toolDecl.Body.Statements) == 0 {
+					t.Error("toolDecl.Body.Statements is empty")
+				}
+			},
+		},
+		{
+			name: "Tool declaration with any type",
+			input: `tool safeProcess(path: string): any {
+	try {
+		return processFile(path)
+	} catch (error) {
+		return null
+	}
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				toolDecl, ok := stmt.(*ToolDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ToolDeclaration. got=%T", stmt)
+				}
+
+				if toolDecl.Name.Value != "safeProcess" {
+					t.Errorf("toolDecl.Name.Value not 'safeProcess'. got=%q", toolDecl.Name.Value)
+				}
+
+				if toolDecl.ReturnType == nil {
+					t.Fatal("toolDecl.ReturnType is nil")
+				}
+				if toolDecl.ReturnType.Value != "any" {
+					t.Errorf("toolDecl.ReturnType.Value not 'any'. got=%q", toolDecl.ReturnType.Value)
+				}
+			},
+		},
+		{
+			name: "Tool declaration with multiple parameters and complex body",
+			input: `tool analyzePR(repo: string, prNumber: number) {
+	log.info("Analyzing PR #" + prNumber)
+	diff = github.get_pull_request_diff(repo, prNumber)
+	return diff
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				toolDecl, ok := stmt.(*ToolDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ToolDeclaration. got=%T", stmt)
+				}
+
+				if toolDecl.Name.Value != "analyzePR" {
+					t.Errorf("toolDecl.Name.Value not 'analyzePR'. got=%q", toolDecl.Name.Value)
+				}
+
+				if len(toolDecl.Parameters) != 2 {
+					t.Fatalf("toolDecl.Parameters should have 2 parameters. got=%d", len(toolDecl.Parameters))
+				}
+
+				// Check parameters
+				param0 := toolDecl.Parameters[0]
+				if param0.Name.Value != "repo" {
+					t.Errorf("param0.Name.Value not 'repo'. got=%q", param0.Name.Value)
+				}
+				if param0.Type == nil {
+					t.Fatal("param0.Type is nil")
+				}
+				if param0.Type.Value != "string" {
+					t.Errorf("param0.Type.Value not 'string'. got=%q", param0.Type.Value)
+				}
+
+				param1 := toolDecl.Parameters[1]
+				if param1.Name.Value != "prNumber" {
+					t.Errorf("param1.Name.Value not 'prNumber'. got=%q", param1.Name.Value)
+				}
+				if param1.Type == nil {
+					t.Fatal("param1.Type is nil")
+				}
+				if param1.Type.Value != "number" {
+					t.Errorf("param1.Type.Value not 'number'. got=%q", param1.Type.Value)
+				}
+
+				if toolDecl.Body == nil {
+					t.Fatal("toolDecl.Body is nil")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l)
+			program := p.ParseProgram()
+
+			checkParserErrors(t, p)
+
+			if len(program.Statements) != 1 {
+				t.Fatalf("program.Statements does not contain 1 statement. got=%d", len(program.Statements))
+			}
+
+			tt.expected(t, program.Statements[0])
+		})
+	}
+}
+
+func TestParseToolDeclarationErrors(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		expectedError string
+	}{
+		{
+			name:          "Tool declaration without name",
+			input:         "tool () { print(\"hello\") }",
+			expectedError: "expected next token to be",
+		},
+		{
+			name:          "Tool declaration without opening paren",
+			input:         "tool hello { print(\"hello\") }",
+			expectedError: "expected next token to be",
+		},
+		{
+			name:          "Tool declaration without closing paren",
+			input:         "tool hello(x { print(x) }",
+			expectedError: "expected ')'",
+		},
+		{
+			name:          "Tool declaration without opening brace",
+			input:         "tool hello() print(\"hello\") }",
+			expectedError: "expected next token to be",
+		},
+		{
+			name:          "Tool declaration without closing brace",
+			input:         "tool hello() { print(\"hello\")",
+			expectedError: "expected '}'",
+		},
+		{
+			name:          "Tool declaration with invalid parameter name",
+			input:         "tool hello(123) { print(\"hello\") }",
+			expectedError: "expected parameter name",
+		},
+		{
+			name:          "Tool declaration with type but no colon",
+			input:         "tool hello(x string) { print(x) }",
+			expectedError: "expected ')'",
+		},
+		{
+			name:          "Tool declaration with missing type after colon",
+			input:         "tool hello(x:) { print(x) }",
+			expectedError: "expected type annotation",
+		},
+		{
+			name:          "Tool declaration with missing return type after colon",
+			input:         "tool hello(): { print(\"hello\") }",
+			expectedError: "expected return type",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l)
+			_ = p.ParseProgram()
+
+			errors := p.Errors()
+			if len(errors) == 0 {
+				t.Fatalf("expected parser errors, but got none")
+			}
+
+			found := false
+			for _, err := range errors {
+				if contains(err, tt.expectedError) {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				t.Errorf("expected error containing %q, got errors: %v", tt.expectedError, errors)
+			}
+		})
+	}
+}
