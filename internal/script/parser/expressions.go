@@ -211,3 +211,17 @@ func (p *Parser) parseExpressionList(end lexer.TokenType) []Expression {
 
 	return list
 }
+
+// parsePipeExpression parses pipe expressions for agent chaining
+func (p *Parser) parsePipeExpression(left Expression) Expression {
+	expression := &PipeExpression{
+		Token: p.curToken,
+		Left:  left,
+	}
+
+	precedence := p.curPrecedence()
+	p.nextToken()
+	expression.Right = p.parseExpression(precedence)
+
+	return expression
+}

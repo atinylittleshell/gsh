@@ -94,7 +94,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(lexer.OP_AND, p.parseBinaryExpression)
 	p.registerInfix(lexer.OP_OR, p.parseBinaryExpression)
 	p.registerInfix(lexer.OP_NULLCOAL, p.parseBinaryExpression)
-	p.registerInfix(lexer.OP_PIPE, p.parseBinaryExpression)
+	p.registerInfix(lexer.OP_PIPE, p.parsePipeExpression)
 	p.registerInfix(lexer.LPAREN, p.parseCallExpression)
 	p.registerInfix(lexer.DOT, p.parseMemberExpression)
 
