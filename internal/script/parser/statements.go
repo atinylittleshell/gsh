@@ -12,6 +12,8 @@ func (p *Parser) parseStatement() Statement {
 		return p.parseMcpDeclaration()
 	case lexer.KW_MODEL:
 		return p.parseModelDeclaration()
+	case lexer.KW_AGENT:
+		return p.parseAgentDeclaration()
 	case lexer.KW_IF:
 		return p.parseIfStatement()
 	case lexer.KW_WHILE:

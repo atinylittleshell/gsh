@@ -659,3 +659,345 @@ func TestParseModelDeclarationErrors(t *testing.T) {
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
 }
+
+func TestParseAgentDeclaration(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected func(t *testing.T, stmt Statement)
+	}{
+		{
+			name: "Basic agent declaration with model and systemPrompt",
+			input: `agent DataAnalyst {
+	model: claude,
+	systemPrompt: "You are a data analyst",
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				agentDecl, ok := stmt.(*AgentDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *AgentDeclaration. got=%T", stmt)
+				}
+
+				if agentDecl.Name.Value != "DataAnalyst" {
+					t.Errorf("agentDecl.Name.Value not 'DataAnalyst'. got=%q", agentDecl.Name.Value)
+				}
+
+				if len(agentDecl.Config) != 2 {
+					t.Errorf("agentDecl.Config should have 2 keys. got=%d", len(agentDecl.Config))
+				}
+
+				// Check model
+				modelVal, ok := agentDecl.Config["model"]
+				if !ok {
+					t.Fatalf("agentDecl.Config missing 'model' key")
+				}
+				modelIdent, ok := modelVal.(*Identifier)
+				if !ok {
+					t.Fatalf("model value is not *Identifier. got=%T", modelVal)
+				}
+				if modelIdent.Value != "claude" {
+					t.Errorf("model not 'claude'. got=%q", modelIdent.Value)
+				}
+
+				// Check systemPrompt
+				promptVal, ok := agentDecl.Config["systemPrompt"]
+				if !ok {
+					t.Fatalf("agentDecl.Config missing 'systemPrompt' key")
+				}
+				promptStr, ok := promptVal.(*StringLiteral)
+				if !ok {
+					t.Fatalf("systemPrompt value is not *StringLiteral. got=%T", promptVal)
+				}
+				if promptStr.Value != "You are a data analyst" {
+					t.Errorf("systemPrompt not 'You are a data analyst'. got=%q", promptStr.Value)
+				}
+			},
+		},
+		{
+			name: "Agent declaration with tools array",
+			input: `agent Helper {
+	model: gpt4,
+	systemPrompt: "You help users",
+	tools: [filesystem.read_file, filesystem.write_file, analyzeData],
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				agentDecl, ok := stmt.(*AgentDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *AgentDeclaration. got=%T", stmt)
+				}
+
+				if agentDecl.Name.Value != "Helper" {
+					t.Errorf("agentDecl.Name.Value not 'Helper'. got=%q", agentDecl.Name.Value)
+				}
+
+				// Check tools array
+				toolsVal, ok := agentDecl.Config["tools"]
+				if !ok {
+					t.Fatalf("agentDecl.Config missing 'tools' key")
+				}
+				toolsArray, ok := toolsVal.(*ArrayLiteral)
+				if !ok {
+					t.Fatalf("tools value is not *ArrayLiteral. got=%T", toolsVal)
+				}
+				if len(toolsArray.Elements) != 3 {
+					t.Fatalf("tools array should have 3 elements. got=%d", len(toolsArray.Elements))
+				}
+
+				// Check first tool (MemberExpression)
+				tool0, ok := toolsArray.Elements[0].(*MemberExpression)
+				if !ok {
+					t.Fatalf("tools[0] is not *MemberExpression. got=%T", toolsArray.Elements[0])
+				}
+				obj0, ok := tool0.Object.(*Identifier)
+				if !ok || obj0.Value != "filesystem" {
+					t.Errorf("tools[0] object not 'filesystem'. got=%v", tool0.Object)
+				}
+				if tool0.Property.Value != "read_file" {
+					t.Errorf("tools[0] property not 'read_file'. got=%q", tool0.Property.Value)
+				}
+
+				// Check third tool (Identifier)
+				tool2, ok := toolsArray.Elements[2].(*Identifier)
+				if !ok {
+					t.Fatalf("tools[2] is not *Identifier. got=%T", toolsArray.Elements[2])
+				}
+				if tool2.Value != "analyzeData" {
+					t.Errorf("tools[2] not 'analyzeData'. got=%q", tool2.Value)
+				}
+			},
+		},
+		{
+			name: "Agent declaration with multiline string and temperature override",
+			input: `agent Analyst {
+	model: claude,
+	systemPrompt: """
+		You are a data analyst. Analyze the provided data
+		and generate insights using the available tools.
+	""",
+	tools: [analyzeData, formatReport],
+	temperature: 0.5,
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				agentDecl, ok := stmt.(*AgentDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *AgentDeclaration. got=%T", stmt)
+				}
+
+				if agentDecl.Name.Value != "Analyst" {
+					t.Errorf("agentDecl.Name.Value not 'Analyst'. got=%q", agentDecl.Name.Value)
+				}
+
+				if len(agentDecl.Config) != 4 {
+					t.Errorf("agentDecl.Config should have 4 keys. got=%d", len(agentDecl.Config))
+				}
+
+				// Check systemPrompt (multiline string)
+				promptVal, ok := agentDecl.Config["systemPrompt"]
+				if !ok {
+					t.Fatalf("agentDecl.Config missing 'systemPrompt' key")
+				}
+				promptStr, ok := promptVal.(*StringLiteral)
+				if !ok {
+					t.Fatalf("systemPrompt value is not *StringLiteral. got=%T", promptVal)
+				}
+				// The multiline string should contain the text (whitespace handling done by lexer)
+				if !contains(promptStr.Value, "You are a data analyst") {
+					t.Errorf("systemPrompt doesn't contain expected text. got=%q", promptStr.Value)
+				}
+
+				// Check temperature
+				tempVal, ok := agentDecl.Config["temperature"]
+				if !ok {
+					t.Fatalf("agentDecl.Config missing 'temperature' key")
+				}
+				tempNum, ok := tempVal.(*NumberLiteral)
+				if !ok {
+					t.Fatalf("temperature value is not *NumberLiteral. got=%T", tempVal)
+				}
+				if tempNum.Value != "0.5" {
+					t.Errorf("temperature not '0.5'. got=%q", tempNum.Value)
+				}
+			},
+		},
+		{
+			name: "Agent declaration with minimal config",
+			input: `agent Minimal {
+	model: gpt4,
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				agentDecl, ok := stmt.(*AgentDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *AgentDeclaration. got=%T", stmt)
+				}
+
+				if agentDecl.Name.Value != "Minimal" {
+					t.Errorf("agentDecl.Name.Value not 'Minimal'. got=%q", agentDecl.Name.Value)
+				}
+
+				if len(agentDecl.Config) != 1 {
+					t.Errorf("agentDecl.Config should have 1 key. got=%d", len(agentDecl.Config))
+				}
+			},
+		},
+		{
+			name: "Agent declaration without trailing comma",
+			input: `agent NoComma {
+	model: claude
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				agentDecl, ok := stmt.(*AgentDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *AgentDeclaration. got=%T", stmt)
+				}
+
+				if agentDecl.Name.Value != "NoComma" {
+					t.Errorf("agentDecl.Name.Value not 'NoComma'. got=%q", agentDecl.Name.Value)
+				}
+
+				if len(agentDecl.Config) != 1 {
+					t.Errorf("agentDecl.Config should have 1 key. got=%d", len(agentDecl.Config))
+				}
+			},
+		},
+		{
+			name: "Agent declaration with template literal in systemPrompt",
+			input: `agent Dynamic {
+	model: gpt4,
+	systemPrompt: ` + "`You are a ${role} assistant`" + `,
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				agentDecl, ok := stmt.(*AgentDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *AgentDeclaration. got=%T", stmt)
+				}
+
+				if agentDecl.Name.Value != "Dynamic" {
+					t.Errorf("agentDecl.Name.Value not 'Dynamic'. got=%q", agentDecl.Name.Value)
+				}
+
+				// Check systemPrompt with template literal
+				promptVal, ok := agentDecl.Config["systemPrompt"]
+				if !ok {
+					t.Fatalf("agentDecl.Config missing 'systemPrompt' key")
+				}
+				promptStr, ok := promptVal.(*StringLiteral)
+				if !ok {
+					t.Fatalf("systemPrompt value is not *StringLiteral. got=%T", promptVal)
+				}
+				if promptStr.Value != "You are a ${role} assistant" {
+					t.Errorf("systemPrompt not 'You are a ${role} assistant'. got=%q", promptStr.Value)
+				}
+			},
+		},
+		{
+			name: "Agent declaration from spec example",
+			input: `agent PRAnalyzer {
+	model: claude,
+	systemPrompt: "You analyze pull requests for code quality and issues",
+	tools: [github.get_pull_request_diff],
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				agentDecl, ok := stmt.(*AgentDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *AgentDeclaration. got=%T", stmt)
+				}
+
+				if agentDecl.Name.Value != "PRAnalyzer" {
+					t.Errorf("agentDecl.Name.Value not 'PRAnalyzer'. got=%q", agentDecl.Name.Value)
+				}
+
+				if len(agentDecl.Config) != 3 {
+					t.Errorf("agentDecl.Config should have 3 keys. got=%d", len(agentDecl.Config))
+				}
+
+				// Verify tools array with MCP tool
+				toolsVal, ok := agentDecl.Config["tools"]
+				if !ok {
+					t.Fatalf("agentDecl.Config missing 'tools' key")
+				}
+				toolsArray, ok := toolsVal.(*ArrayLiteral)
+				if !ok {
+					t.Fatalf("tools value is not *ArrayLiteral. got=%T", toolsVal)
+				}
+				if len(toolsArray.Elements) != 1 {
+					t.Fatalf("tools array should have 1 element. got=%d", len(toolsArray.Elements))
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l)
+			program := p.ParseProgram()
+
+			checkParserErrors(t, p)
+
+			if len(program.Statements) != 1 {
+				t.Fatalf("program.Statements does not contain 1 statement. got=%d", len(program.Statements))
+			}
+
+			tt.expected(t, program.Statements[0])
+		})
+	}
+}
+
+func TestParseAgentDeclarationErrors(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		expectedError string
+	}{
+		{
+			name:          "Agent declaration without name",
+			input:         "agent { model: claude }",
+			expectedError: "expected next token to be",
+		},
+		{
+			name:          "Agent declaration without opening brace",
+			input:         "agent DataAnalyst model: claude }",
+			expectedError: "expected next token to be",
+		},
+		{
+			name:          "Agent declaration without closing brace",
+			input:         "agent DataAnalyst { model: claude",
+			expectedError: "expected '}'",
+		},
+		{
+			name:          "Agent declaration with invalid config key",
+			input:         "agent DataAnalyst { 123: claude }",
+			expectedError: "expected identifier for config key",
+		},
+		{
+			name:          "Agent declaration without colon after key",
+			input:         "agent DataAnalyst { model claude }",
+			expectedError: "expected next token to be",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l)
+			_ = p.ParseProgram()
+
+			errors := p.Errors()
+			if len(errors) == 0 {
+				t.Fatalf("expected parser errors, but got none")
+			}
+
+			found := false
+			for _, err := range errors {
+				if contains(err, tt.expectedError) {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				t.Errorf("expected error containing %q, got errors: %v", tt.expectedError, errors)
+			}
+		})
+	}
+}
