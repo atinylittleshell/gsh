@@ -10,6 +10,8 @@ func (p *Parser) parseStatement() Statement {
 	switch p.curToken.Type {
 	case lexer.KW_MCP:
 		return p.parseMcpDeclaration()
+	case lexer.KW_MODEL:
+		return p.parseModelDeclaration()
 	case lexer.KW_IF:
 		return p.parseIfStatement()
 	case lexer.KW_WHILE:
