@@ -350,3 +350,59 @@ type ContinueStatement struct {
 func (c *ContinueStatement) statementNode()       {}
 func (c *ContinueStatement) TokenLiteral() string { return c.Token.Literal }
 func (c *ContinueStatement) String() string       { return "continue" }
+
+// TryStatement represents a try/catch/finally block
+type TryStatement struct {
+	Token         lexer.Token // the 'try' token
+	Block         *BlockStatement
+	CatchClause   *CatchClause
+	FinallyClause *FinallyClause
+}
+
+func (t *TryStatement) statementNode()       {}
+func (t *TryStatement) TokenLiteral() string { return t.Token.Literal }
+func (t *TryStatement) String() string {
+	var out strings.Builder
+	out.WriteString("try ")
+	out.WriteString(t.Block.String())
+	if t.CatchClause != nil {
+		out.WriteString(" ")
+		out.WriteString(t.CatchClause.String())
+	}
+	if t.FinallyClause != nil {
+		out.WriteString(" ")
+		out.WriteString(t.FinallyClause.String())
+	}
+	return out.String()
+}
+
+// CatchClause represents a catch clause
+type CatchClause struct {
+	Token     lexer.Token // the 'catch' token
+	Parameter *Identifier // error parameter
+	Block     *BlockStatement
+}
+
+func (c *CatchClause) String() string {
+	var out strings.Builder
+	out.WriteString("catch (")
+	if c.Parameter != nil {
+		out.WriteString(c.Parameter.String())
+	}
+	out.WriteString(") ")
+	out.WriteString(c.Block.String())
+	return out.String()
+}
+
+// FinallyClause represents a finally clause
+type FinallyClause struct {
+	Token lexer.Token // the 'finally' token
+	Block *BlockStatement
+}
+
+func (f *FinallyClause) String() string {
+	var out strings.Builder
+	out.WriteString("finally ")
+	out.WriteString(f.Block.String())
+	return out.String()
+}

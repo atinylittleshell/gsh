@@ -30,6 +30,7 @@ const (
 	KW_CONTINUE
 	KW_TRY
 	KW_CATCH
+	KW_FINALLY
 	KW_RETURN
 
 	// Operators
@@ -88,6 +89,7 @@ var keywords = map[string]TokenType{
 	"continue": KW_CONTINUE,
 	"try":      KW_TRY,
 	"catch":    KW_CATCH,
+	"finally":  KW_FINALLY,
 	"return":   KW_RETURN,
 }
 

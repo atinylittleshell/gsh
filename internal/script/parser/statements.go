@@ -18,6 +18,8 @@ func (p *Parser) parseStatement() Statement {
 		return p.parseBreakStatement()
 	case lexer.KW_CONTINUE:
 		return p.parseContinueStatement()
+	case lexer.KW_TRY:
+		return p.parseTryStatement()
 	}
 
 	// Check if this is an assignment (identifier followed by '=' or ':')
@@ -254,4 +256,100 @@ func (p *Parser) parseBreakStatement() Statement {
 // parseContinueStatement parses a continue statement
 func (p *Parser) parseContinueStatement() Statement {
 	return &ContinueStatement{Token: p.curToken}
+}
+
+// parseTryStatement parses a try/catch/finally statement
+func (p *Parser) parseTryStatement() Statement {
+	stmt := &TryStatement{Token: p.curToken}
+
+	// Expect '{' after 'try'
+	if !p.expectPeek(lexer.LBRACE) {
+		return nil
+	}
+
+	// Parse try block
+	stmt.Block = p.parseBlockStatement()
+	if stmt.Block == nil {
+		return nil
+	}
+
+	// Check for catch clause
+	if p.peekTokenIs(lexer.KW_CATCH) {
+		p.nextToken() // move to 'catch'
+		stmt.CatchClause = p.parseCatchClause()
+		if stmt.CatchClause == nil {
+			return nil
+		}
+	}
+
+	// Check for finally clause
+	if p.peekTokenIs(lexer.KW_FINALLY) {
+		p.nextToken() // move to 'finally'
+		stmt.FinallyClause = p.parseFinallyClause()
+		if stmt.FinallyClause == nil {
+			return nil
+		}
+	}
+
+	// Validate that at least one of catch or finally is present
+	if stmt.CatchClause == nil && stmt.FinallyClause == nil {
+		p.addError("try statement must have at least one catch or finally clause at line %d, column %d",
+			stmt.Token.Line, stmt.Token.Column)
+		return nil
+	}
+
+	return stmt
+}
+
+// parseCatchClause parses a catch clause
+func (p *Parser) parseCatchClause() *CatchClause {
+	clause := &CatchClause{Token: p.curToken}
+
+	// Expect '(' after 'catch'
+	if !p.expectPeek(lexer.LPAREN) {
+		return nil
+	}
+
+	// Expect identifier for error parameter
+	if !p.expectPeek(lexer.IDENT) {
+		return nil
+	}
+
+	clause.Parameter = &Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	// Expect ')' after parameter
+	if !p.expectPeek(lexer.RPAREN) {
+		return nil
+	}
+
+	// Expect '{' after ')'
+	if !p.expectPeek(lexer.LBRACE) {
+		return nil
+	}
+
+	// Parse catch block
+	clause.Block = p.parseBlockStatement()
+	if clause.Block == nil {
+		return nil
+	}
+
+	return clause
+}
+
+// parseFinallyClause parses a finally clause
+func (p *Parser) parseFinallyClause() *FinallyClause {
+	clause := &FinallyClause{Token: p.curToken}
+
+	// Expect '{' after 'finally'
+	if !p.expectPeek(lexer.LBRACE) {
+		return nil
+	}
+
+	// Parse finally block
+	clause.Block = p.parseBlockStatement()
+	if clause.Block == nil {
+		return nil
+	}
+
+	return clause
 }
