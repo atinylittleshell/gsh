@@ -146,7 +146,7 @@ func (p *Parser) parseObjectLiteral() Expression {
 
 	p.nextToken() // move to first key
 
-	for {
+	for !p.curTokenIs(lexer.RBRACE) {
 		// Parse key (must be identifier or string)
 		var key string
 		if p.curTokenIs(lexer.IDENT) {
@@ -181,7 +181,7 @@ func (p *Parser) parseObjectLiteral() Expression {
 			return nil
 		}
 
-		p.nextToken() // move to next key
+		p.nextToken() // move to next key (or closing brace if trailing comma)
 	}
 
 	return obj

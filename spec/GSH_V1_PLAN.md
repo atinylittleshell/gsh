@@ -129,7 +129,7 @@ gsh/
 
 ### Phase 2.3: Declarations & Advanced Features
 
-- [ ] Parse MCP server declarations
+- [x] Parse MCP server declarations
 - [ ] Parse model declarations
 - [ ] Parse agent declarations
 - [ ] Parse tool declarations with parameters and types
