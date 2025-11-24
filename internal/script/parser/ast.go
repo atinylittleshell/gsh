@@ -270,3 +270,26 @@ func (o *ObjectLiteral) String() string {
 	out.WriteString("}")
 	return out.String()
 }
+
+// IfStatement represents an if/else statement
+type IfStatement struct {
+	Token       lexer.Token // the 'if' token
+	Condition   Expression
+	Consequence *BlockStatement
+	Alternative Statement // can be another IfStatement (for else if) or BlockStatement (for else)
+}
+
+func (i *IfStatement) statementNode()       {}
+func (i *IfStatement) TokenLiteral() string { return i.Token.Literal }
+func (i *IfStatement) String() string {
+	var out strings.Builder
+	out.WriteString("if (")
+	out.WriteString(i.Condition.String())
+	out.WriteString(") ")
+	out.WriteString(i.Consequence.String())
+	if i.Alternative != nil {
+		out.WriteString(" else ")
+		out.WriteString(i.Alternative.String())
+	}
+	return out.String()
+}

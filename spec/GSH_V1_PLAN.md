@@ -120,7 +120,7 @@ gsh/
 
 ### Phase 2.2: Statements & Control Flow
 
-- [ ] Parse if/else statements
+- [x] Parse if/else statements
 - [ ] Parse while loops
 - [ ] Parse for-of loops
 - [ ] Parse break/continue
