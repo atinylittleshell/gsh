@@ -1,0 +1,3 @@
+- look at all staged changes to understand their content
+- generate a conventional commit message that describes the changes
+- commit all staged changes as-is into the current branch

@@ -96,7 +96,7 @@ gsh/
 
 ### Tasks
 
-- [ ] Define token types (keywords, operators, literals, identifiers)
+- [x] Define token types (keywords, operators, literals, identifiers)
 - [ ] Implement lexer/scanner in Go
 - [ ] Handle whitespace, comments, line tracking
 - [ ] Support string literals (single, double, triple-quoted)
