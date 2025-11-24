@@ -6,8 +6,10 @@ import (
 
 // parseStatement parses a statement
 func (p *Parser) parseStatement() Statement {
-	// Check for control flow statements
+	// Check for declaration keywords
 	switch p.curToken.Type {
+	case lexer.KW_MCP:
+		return p.parseMcpDeclaration()
 	case lexer.KW_IF:
 		return p.parseIfStatement()
 	case lexer.KW_WHILE:

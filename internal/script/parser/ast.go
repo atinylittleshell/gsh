@@ -406,3 +406,28 @@ func (f *FinallyClause) String() string {
 	out.WriteString(f.Block.String())
 	return out.String()
 }
+
+// McpDeclaration represents an MCP server declaration
+type McpDeclaration struct {
+	Token  lexer.Token // the 'mcp' token
+	Name   *Identifier
+	Config map[string]Expression
+}
+
+func (m *McpDeclaration) statementNode()       {}
+func (m *McpDeclaration) TokenLiteral() string { return m.Token.Literal }
+func (m *McpDeclaration) String() string {
+	var out strings.Builder
+	out.WriteString("mcp ")
+	out.WriteString(m.Name.String())
+	out.WriteString(" {\n")
+	for key, value := range m.Config {
+		out.WriteString("  ")
+		out.WriteString(key)
+		out.WriteString(": ")
+		out.WriteString(value.String())
+		out.WriteString(",\n")
+	}
+	out.WriteString("}")
+	return out.String()
+}
