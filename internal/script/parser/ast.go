@@ -226,6 +226,26 @@ func (m *MemberExpression) String() string {
 	return out.String()
 }
 
+// PipeExpression represents a pipe operation (e.g., "prompt" | Agent)
+// Used for agent chaining and conversation management
+type PipeExpression struct {
+	Token lexer.Token // the '|' token
+	Left  Expression
+	Right Expression
+}
+
+func (p *PipeExpression) expressionNode()      {}
+func (p *PipeExpression) TokenLiteral() string { return p.Token.Literal }
+func (p *PipeExpression) String() string {
+	var out strings.Builder
+	out.WriteString("(")
+	out.WriteString(p.Left.String())
+	out.WriteString(" | ")
+	out.WriteString(p.Right.String())
+	out.WriteString(")")
+	return out.String()
+}
+
 // ArrayLiteral represents an array literal (e.g., [1, 2, 3])
 type ArrayLiteral struct {
 	Token    lexer.Token // the '[' token

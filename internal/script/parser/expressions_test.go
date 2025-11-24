@@ -458,13 +458,19 @@ func TestPipeOperator(t *testing.T) {
 		t.Fatalf("program.Statements[0] is not ExpressionStatement. got=%T", program.Statements[0])
 	}
 
-	binExpr, ok := stmt.Expression.(*BinaryExpression)
+	pipeExpr, ok := stmt.Expression.(*PipeExpression)
 	if !ok {
-		t.Fatalf("exp is not BinaryExpression. got=%T", stmt.Expression)
+		t.Fatalf("exp is not PipeExpression. got=%T", stmt.Expression)
 	}
 
-	if binExpr.Operator != "|" {
-		t.Errorf("binExpr.Operator is not '|'. got=%s", binExpr.Operator)
+	// Check left side is string literal
+	if _, ok := pipeExpr.Left.(*StringLiteral); !ok {
+		t.Errorf("pipeExpr.Left is not StringLiteral. got=%T", pipeExpr.Left)
+	}
+
+	// Check right side is identifier
+	if _, ok := pipeExpr.Right.(*Identifier); !ok {
+		t.Errorf("pipeExpr.Right is not Identifier. got=%T", pipeExpr.Right)
 	}
 }
 
