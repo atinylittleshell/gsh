@@ -97,12 +97,12 @@ gsh/
 ### Tasks
 
 - [x] Define token types (keywords, operators, literals, identifiers)
-- [ ] Implement lexer/scanner in Go
-- [ ] Handle whitespace, comments, line tracking
-- [ ] Support string literals (single, double, triple-quoted)
-- [ ] Support template literals with interpolation
-- [ ] Error reporting with line/column information
-- [ ] 100% unit test coverage for lexer
+- [x] Implement lexer/scanner in Go
+- [x] Handle whitespace, comments, line tracking
+- [x] Support string literals (single, double, triple-quoted)
+- [x] Support template literals with interpolation
+- [x] Error reporting with line/column information
+- [x] 100% unit test coverage for lexer
 
 ---
 
