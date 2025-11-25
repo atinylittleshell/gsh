@@ -155,7 +155,7 @@ gsh/
 - [x] Execute variable declarations and assignments
 - [x] Evaluate expressions (binary, unary, literals)
 - [x] Execute statements (expression statements, blocks)
-- [ ] Implement control flow (if/else, while, for)
+- [x] Implement control flow (if/else, while, for)
 
 ### Phase 3.2: Functions & Error Handling
 
