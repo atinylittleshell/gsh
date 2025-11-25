@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/atinylittleshell/gsh/internal/script/lexer"
+	"slices"
 )
 
 // Parser represents the parser
@@ -121,13 +122,7 @@ func (p *Parser) nextToken() {
 	// Collect any new lexer errors
 	for _, err := range p.l.Errors() {
 		// Avoid duplicates
-		found := false
-		for _, existing := range p.errors {
-			if existing == err {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(p.errors, err)
 		if !found {
 			p.errors = append(p.errors, err)
 		}
