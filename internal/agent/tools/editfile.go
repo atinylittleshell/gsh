@@ -103,7 +103,8 @@ func previewAndConfirm(runner *interp.Runner, logger *zap.Logger, path string, n
 
 	fmt.Print(gline.RESET_CURSOR_COLUMN + diff + "\n" + gline.RESET_CURSOR_COLUMN)
 
-	confirmResponse := userConfirmation(logger, "gsh: Do I have your permission to make the edit proposed above?", "")
+	agentName := environment.GetAgentName(runner)
+	confirmResponse := userConfirmation(logger, fmt.Sprintf("%s: Do I have your permission to make the edit proposed above?", agentName), "")
 	if confirmResponse == "n" {
 		return "User declined this request"
 	} else if confirmResponse != "y" {

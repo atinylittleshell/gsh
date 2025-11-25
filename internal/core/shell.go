@@ -155,6 +155,9 @@ func RunInteractiveShell(
 					continue
 				}
 
+				// Print notification: "Asking <subagent_name> to assist with this task"
+				fmt.Print(gline.RESET_CURSOR_COLUMN + styles.AGENT_MESSAGE(fmt.Sprintf("Asking %s to assist with this task\n", subagent.Name)) + gline.RESET_CURSOR_COLUMN)
+
 				// Handle subagent response with subagent identification
 				for message := range chatChannel {
 					prefix := fmt.Sprintf("gsh [%s]: ", subagent.Name)

@@ -107,6 +107,15 @@ func GetAgentPrompt(runner *interp.Runner, logger *zap.Logger) string {
 	return GetPrompt(runner, logger)
 }
 
+// GetAgentName returns the name of the active subagent or defaults to "gsh"
+func GetAgentName(runner *interp.Runner) string {
+	agentName := runner.Vars["GSH_AGENT_NAME"].String()
+	if agentName != "" {
+		return agentName
+	}
+	return "gsh"
+}
+
 func GetAgentContextWindowTokens(runner *interp.Runner, logger *zap.Logger) int {
 	agentContextWindow, err := strconv.ParseInt(
 		runner.Vars["GSH_AGENT_CONTEXT_WINDOW_TOKENS"].String(), 10, 32)

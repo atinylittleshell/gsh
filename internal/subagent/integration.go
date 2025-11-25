@@ -47,7 +47,13 @@ func (si *SubagentIntegration) HandleCommand(chatMessage string) (bool, <-chan s
 	si.ensureSubagentsUpToDate()
 
 	// Check for subagent invocation patterns
-	subagentID, prompt := si.parseSubagentCommand(chatMessage)
+	subagentID, prompt, isExplicit := si.parseSubagentCommand(chatMessage)
+
+	// If explicit selection failed (e.g. @@ was used but no subagent found)
+	if isExplicit && subagentID == "" {
+		return true, nil, nil, fmt.Errorf("auto-selection failed: no suitable subagent found")
+	}
+
 	if subagentID == "" {
 		return false, nil, nil, nil // Not a subagent command
 	}
@@ -79,20 +85,48 @@ func (si *SubagentIntegration) HandleCommand(chatMessage string) (bool, <-chan s
 }
 
 // parseSubagentCommand parses various subagent invocation patterns
-func (si *SubagentIntegration) parseSubagentCommand(chatMessage string) (string, string) {
+// Returns: (subagentID, prompt, isExplicit)
+func (si *SubagentIntegration) parseSubagentCommand(chatMessage string) (string, string, bool) {
 	chatMessage = strings.TrimSpace(chatMessage)
 
-	// Pattern 1: @subagent-name prompt (Claude style)
+	// Handle @@ invocation (chatMessage starts with @)
+	// This corresponds to shell input starting with @@ (or @ @)
 	if strings.HasPrefix(chatMessage, "@") {
-		parts := strings.SplitN(chatMessage[1:], " ", 2)
-		if len(parts) >= 1 {
-			subagentID := parts[0]
-			prompt := ""
-			if len(parts) > 1 {
-				prompt = parts[1]
+		content := chatMessage[1:]
+
+		// If content starts with space or is empty, it's @@ <prompt> -> Auto-detect
+		if strings.HasPrefix(content, " ") || content == "" {
+			prompt := strings.TrimSpace(content)
+
+			if prompt == "" {
+				return "", "", true // Explicit but no prompt - will trigger error in HandleCommand
 			}
-			return subagentID, prompt
+
+			// Pattern 3: Intelligent auto-detection using LLM
+			// Use the intelligent selector to find the best subagent for the entire message
+			availableSubagents := si.manager.GetAllSubagents()
+			if len(availableSubagents) > 0 {
+				selectedSubagent, err := si.selector.SelectBestSubagent(prompt, availableSubagents)
+				if err == nil && selectedSubagent != nil {
+					return selectedSubagent.ID, prompt, true
+				}
+				// Log the error but continue
+				si.logger.Debug("Intelligent subagent selection failed", zap.Error(err))
+			}
+
+			// Explicit @@ was used but failed to select
+			return "", prompt, true
 		}
+
+		// Otherwise it's @@<subagent> -> Explicit selection (Pattern 1 logic)
+		// e.g. @@git -> subagent=git
+		parts := strings.SplitN(content, " ", 2)
+		subagentID := parts[0]
+		prompt := ""
+		if len(parts) > 1 {
+			prompt = parts[1]
+		}
+		return subagentID, prompt, true
 	}
 
 	// Pattern 2: @:mode-slug prompt (Roo Code style)
@@ -104,35 +138,24 @@ func (si *SubagentIntegration) parseSubagentCommand(chatMessage string) (string,
 			if len(parts) > 1 {
 				prompt = parts[1]
 			}
-			return subagentID, prompt
+			return subagentID, prompt, true
 		}
 	}
 
-	// Pattern 3: Intelligent auto-detection using LLM
-	// Use the intelligent selector to find the best subagent for the entire message
-	availableSubagents := si.manager.GetAllSubagents()
-	if len(availableSubagents) > 0 {
-		selectedSubagent, err := si.selector.SelectBestSubagent(chatMessage, availableSubagents)
-		if err == nil && selectedSubagent != nil {
-			return selectedSubagent.ID, chatMessage
-		}
-		// Log the error but continue with fallback
-		si.logger.Debug("Intelligent subagent selection failed, trying fallback", zap.Error(err))
-
-		// Fallback: Try the old string matching approach
-		words := strings.Fields(chatMessage)
-		if len(words) > 0 {
-			firstWord := words[0]
-			if subagent, exists := si.manager.FindSubagentByName(firstWord); exists {
-				prompt := strings.Join(words[1:], " ")
-				si.logger.Debug("Used fallback string matching for subagent selection",
-					zap.String("subagent", subagent.ID))
-				return subagent.ID, prompt
-			}
+	// Fallback: Check if the first word matches a subagent name explicitly
+	// This allows `@ git ...` to work if `git` is a known subagent.
+	words := strings.Fields(chatMessage)
+	if len(words) > 0 {
+		firstWord := words[0]
+		if subagent, exists := si.manager.FindSubagentByName(firstWord); exists {
+			prompt := strings.Join(words[1:], " ")
+			si.logger.Debug("Used fallback string matching for subagent selection",
+				zap.String("subagent", subagent.ID))
+			return subagent.ID, prompt, false
 		}
 	}
 
-	return "", "" // Not a subagent command
+	return "", "", false // Not a subagent command
 }
 
 // getExecutor gets or creates an executor for a subagent

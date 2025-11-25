@@ -62,7 +62,8 @@ func ViewFileTool(runner *interp.Runner, logger *zap.Logger, params map[string]a
 	}
 	defer file.Close()
 
-	printToolMessage("gsh: I'm reading the following file:")
+	agentName := environment.GetAgentName(runner)
+	printToolMessage(fmt.Sprintf("%s: I'm reading the following file:", agentName))
 	fmt.Print(gline.RESET_CURSOR_COLUMN + utils.HideHomeDirPath(runner, path) + "\n")
 
 	var buf bytes.Buffer

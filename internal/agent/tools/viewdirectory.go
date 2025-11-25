@@ -44,7 +44,8 @@ func ViewDirectoryTool(runner *interp.Runner, logger *zap.Logger, params map[str
 	var buf bytes.Buffer
 	writer := io.StringWriter(&buf)
 
-	printToolMessage("gsh: I'm viewing the following directory:")
+	agentName := environment.GetAgentName(runner)
+	printToolMessage(fmt.Sprintf("%s: I'm viewing the following directory:", agentName))
 	fmt.Print(gline.RESET_CURSOR_COLUMN + utils.HideHomeDirPath(runner, path) + "\n")
 
 	err := walkDir(logger, writer, path, 1)

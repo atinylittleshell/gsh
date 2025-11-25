@@ -67,9 +67,10 @@ func CreateFileTool(runner *interp.Runner, logger *zap.Logger, params map[string
 
 	fmt.Print(gline.RESET_CURSOR_COLUMN + diff + "\n" + gline.RESET_CURSOR_COLUMN)
 
+	agentName := environment.GetAgentName(runner)
 	confirmResponse := userConfirmation(
 		logger,
-		"gsh: Do I have your permission to create the file with the content shown above?",
+		fmt.Sprintf("%s: Do I have your permission to create the file with the content shown above?", agentName),
 		"",
 	)
 	if confirmResponse == "n" {

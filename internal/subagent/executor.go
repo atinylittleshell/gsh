@@ -16,7 +16,9 @@ import (
 	"github.com/atinylittleshell/gsh/pkg/gline"
 	openai "github.com/sashabaranov/go-openai"
 	"go.uber.org/zap"
+	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/interp"
+	"mvdan.cc/sh/v3/syntax"
 )
 
 // SubagentExecutor handles the execution of individual subagents
@@ -172,6 +174,56 @@ func (e *SubagentExecutor) Chat(prompt string) (<-chan string, error) {
 		defer signal.Stop(signalChan)
 
 		continueSession := true
+
+		// Set prompt for subagent execution
+		// We must use the runner to set the variable so that it persists correctly
+		// across tool execution calls (which use runner.Run and might overwrite Vars)
+		originalPromptVar := e.runner.Vars["GSH_APROMPT"]
+		originalPrompt := ""
+		if originalPromptVar.IsSet() {
+			originalPrompt = originalPromptVar.String()
+		}
+
+		// Determine subagent prompt (icon or name)
+		subagentPrompt := fmt.Sprintf("%s > ", e.subagent.Name) // Default: "Name > "
+
+		// Let's try to be smart about extracting an emoji/icon
+		parts := strings.Fields(e.subagent.Name)
+		if len(parts) > 0 {
+			// Check if first part contains non-alphanumeric chars
+			firstPart := parts[0]
+			matched, _ := regexp.MatchString(`^[a-zA-Z0-9]+$`, firstPart)
+			if !matched && len(firstPart) < 10 {
+				// Assume it's an icon if short and has special chars
+				// For icon, use "Icon> " (no space before >)
+				subagentPrompt = firstPart + "> "
+			}
+		}
+
+		// Helper to set variable via runner execution
+		setVar := func(name, value string) {
+			quotedValue, err := syntax.Quote(value, syntax.LangBash)
+			if err != nil {
+				// Fallback to simple quoting if syntax.Quote fails
+				quotedValue = fmt.Sprintf("'%s'", strings.ReplaceAll(value, "'", "'\\''"))
+			}
+			cmd := fmt.Sprintf("%s=%s", name, quotedValue)
+			p, err := syntax.NewParser().Parse(strings.NewReader(cmd), "")
+			if err == nil {
+				e.runner.Run(ctx, p)
+			} else {
+				// Fallback to direct assignment if parsing fails (unlikely)
+				e.runner.Vars[name] = expand.Variable{Kind: expand.String, Str: value}
+			}
+		}
+
+		// Set the prompt
+		setVar("GSH_APROMPT", subagentPrompt)
+
+		// Restore prompt when done
+		defer func() {
+			setVar("GSH_APROMPT", originalPrompt)
+		}()
 
 		for continueSession {
 			continueSession = false
