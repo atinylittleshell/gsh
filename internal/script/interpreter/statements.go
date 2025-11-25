@@ -62,6 +62,8 @@ func (i *Interpreter) evalStatement(stmt parser.Statement) (Value, error) {
 		return i.evalToolDeclaration(node)
 	case *parser.BlockStatement:
 		return i.evalBlockStatement(node)
+	case *parser.TryStatement:
+		return i.evalTryStatement(node)
 	default:
 		return nil, fmt.Errorf("unsupported statement type: %T", stmt)
 	}
@@ -282,4 +284,75 @@ func (i *Interpreter) evalToolDeclaration(node *parser.ToolDeclaration) (Value, 
 	}
 
 	return tool, nil
+}
+
+// evalTryStatement evaluates a try/catch/finally statement
+func (i *Interpreter) evalTryStatement(node *parser.TryStatement) (Value, error) {
+	var result Value
+	var tryError error
+
+	// Execute the try block
+	result, tryError = i.evalBlockStatement(node.Block)
+
+	// If there was an error and we have a catch clause, handle it
+	if tryError != nil && node.CatchClause != nil {
+		// Don't catch control flow signals (break, continue, return)
+		if _, isControlFlow := tryError.(*ControlFlowError); !isControlFlow {
+			// Create an error object with a message property
+			errorObj := &ObjectValue{
+				Properties: map[string]Value{
+					"message": &StringValue{Value: tryError.Error()},
+				},
+			}
+
+			// Bind the error parameter to the current scope temporarily
+			var savedErrorValue Value
+			var hadErrorParam bool
+			if node.CatchClause.Parameter != nil {
+				paramName := node.CatchClause.Parameter.Value
+				// Save existing value if the parameter name is already defined
+				savedErrorValue, hadErrorParam = i.env.Get(paramName)
+				// Set the error parameter in current scope
+				i.env.Set(paramName, errorObj)
+			}
+
+			// Execute the catch block (it will have its own scope via BlockStatement)
+			catchResult, catchErr := i.evalBlockStatement(node.CatchClause.Block)
+
+			// Restore the error parameter if it was shadowed
+			if node.CatchClause.Parameter != nil {
+				paramName := node.CatchClause.Parameter.Value
+				if hadErrorParam {
+					i.env.Set(paramName, savedErrorValue)
+				} else {
+					i.env.Delete(paramName)
+				}
+			}
+
+			// If the catch block executed successfully, clear the error
+			if catchErr == nil {
+				tryError = nil
+				result = catchResult
+			} else {
+				// If catch block had an error, that becomes the new error
+				tryError = catchErr
+			}
+		}
+	}
+
+	// Execute the finally block if present
+	if node.FinallyClause != nil {
+		_, finallyErr := i.evalBlockStatement(node.FinallyClause.Block)
+		// Finally errors override previous errors
+		if finallyErr != nil {
+			return nil, finallyErr
+		}
+	}
+
+	// If there's still an error after catch (or no catch clause), propagate it
+	if tryError != nil {
+		return nil, tryError
+	}
+
+	return result, nil
 }
