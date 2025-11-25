@@ -161,7 +161,7 @@ gsh/
 
 - [x] Implement tool declarations and tool parameters and return values
 - [x] Implement tool calls
-- [ ] Implement try/catch error handling
+- [x] Implement try/catch error handling
 - [x] Implement break/continue
 - [ ] Add built-in functions (print, log._, JSON._)
 - [ ] Environment variable access (env object)
