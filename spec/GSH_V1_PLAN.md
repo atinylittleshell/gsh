@@ -151,7 +151,7 @@ gsh/
 ### Phase 3.1: Core Execution
 
 - [x] Implement value types (String, Number, Bool, Null)
-- [ ] Implement environment/scope management
+- [x] Implement environment/scope management
 - [ ] Execute variable declarations and assignments
 - [ ] Evaluate expressions (binary, unary, literals)
 - [ ] Execute statements (expression statements, blocks)
