@@ -152,9 +152,9 @@ gsh/
 
 - [x] Implement value types (String, Number, Bool, Null)
 - [x] Implement environment/scope management
-- [ ] Execute variable declarations and assignments
-- [ ] Evaluate expressions (binary, unary, literals)
-- [ ] Execute statements (expression statements, blocks)
+- [x] Execute variable declarations and assignments
+- [x] Evaluate expressions (binary, unary, literals)
+- [x] Execute statements (expression statements, blocks)
 - [ ] Implement control flow (if/else, while, for)
 
 ### Phase 3.2: Functions & Error Handling
