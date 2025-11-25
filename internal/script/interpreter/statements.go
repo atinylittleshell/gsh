@@ -56,6 +56,10 @@ func (i *Interpreter) evalStatement(stmt parser.Statement) (Value, error) {
 		return nil, &ControlFlowError{Signal: SignalBreak}
 	case *parser.ContinueStatement:
 		return nil, &ControlFlowError{Signal: SignalContinue}
+	case *parser.ReturnStatement:
+		return i.evalReturnStatement(node)
+	case *parser.ToolDeclaration:
+		return i.evalToolDeclaration(node)
 	case *parser.BlockStatement:
 		return i.evalBlockStatement(node)
 	default:
@@ -225,4 +229,57 @@ func (i *Interpreter) evalBlockStatement(node *parser.BlockStatement) (Value, er
 	}
 
 	return result, nil
+}
+
+// evalReturnStatement evaluates a return statement
+func (i *Interpreter) evalReturnStatement(node *parser.ReturnStatement) (Value, error) {
+	var returnValue Value = &NullValue{}
+
+	if node.ReturnValue != nil {
+		val, err := i.evalExpression(node.ReturnValue)
+		if err != nil {
+			return nil, err
+		}
+		returnValue = val
+	}
+
+	return nil, &ControlFlowError{
+		Signal: SignalReturn,
+		Value:  returnValue,
+	}
+}
+
+// evalToolDeclaration evaluates a tool declaration
+func (i *Interpreter) evalToolDeclaration(node *parser.ToolDeclaration) (Value, error) {
+	// Extract parameter names and types
+	params := make([]string, len(node.Parameters))
+	paramTypes := make(map[string]string)
+
+	for idx, param := range node.Parameters {
+		params[idx] = param.Name.Value
+		if param.Type != nil {
+			paramTypes[param.Name.Value] = param.Type.Value
+		}
+	}
+
+	// Create the tool value
+	tool := &ToolValue{
+		Name:       node.Name.Value,
+		Parameters: params,
+		ParamTypes: paramTypes,
+		Body:       node.Body,
+		Env:        i.env, // Capture current environment for closure
+	}
+
+	if node.ReturnType != nil {
+		tool.ReturnType = node.ReturnType.Value
+	}
+
+	// Register the tool in the environment
+	err := i.env.Define(node.Name.Value, tool)
+	if err != nil {
+		return nil, err
+	}
+
+	return tool, nil
 }

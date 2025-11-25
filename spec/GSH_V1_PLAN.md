@@ -159,10 +159,10 @@ gsh/
 
 ### Phase 3.2: Functions & Error Handling
 
-- [ ] Implement tool declarations and calls
-- [ ] Implement tool parameters and return values
+- [x] Implement tool declarations and tool parameters and return values
+- [x] Implement tool calls
 - [ ] Implement try/catch error handling
-- [ ] Implement break/continue
+- [x] Implement break/continue
 - [ ] Add built-in functions (print, log._, JSON._)
 - [ ] Environment variable access (env object)
 

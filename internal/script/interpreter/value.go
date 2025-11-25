@@ -233,3 +233,25 @@ func (e *ErrorValue) Equals(other Value) bool {
 func NewError(format string, args ...interface{}) *ErrorValue {
 	return &ErrorValue{Message: fmt.Sprintf(format, args...)}
 }
+
+// ToolValue represents a tool/function value
+type ToolValue struct {
+	Name       string
+	Parameters []string
+	ParamTypes map[string]string // parameter name -> type annotation (optional)
+	ReturnType string            // return type annotation (optional)
+	Body       interface{}       // *parser.BlockStatement for user-defined tools
+	Env        *Environment      // closure environment
+}
+
+func (t *ToolValue) Type() ValueType { return ValueTypeTool }
+func (t *ToolValue) String() string {
+	return fmt.Sprintf("<tool %s>", t.Name)
+}
+func (t *ToolValue) IsTruthy() bool { return true }
+func (t *ToolValue) Equals(other Value) bool {
+	if otherTool, ok := other.(*ToolValue); ok {
+		return t.Name == otherTool.Name
+	}
+	return false
+}
