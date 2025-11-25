@@ -25,6 +25,8 @@ func (i *Interpreter) evalExpression(expr parser.Expression) (Value, error) {
 		return i.evalArrayLiteral(node)
 	case *parser.ObjectLiteral:
 		return i.evalObjectLiteral(node)
+	case *parser.CallExpression:
+		return i.evalCallExpression(node)
 	default:
 		return nil, fmt.Errorf("unsupported expression type: %T", expr)
 	}
@@ -191,4 +193,128 @@ func (i *Interpreter) evalObjectLiteral(node *parser.ObjectLiteral) (Value, erro
 	}
 
 	return &ObjectValue{Properties: properties}, nil
+}
+
+// evalCallExpression evaluates a function/tool call
+func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, error) {
+	// Evaluate the function expression
+	function, err := i.evalExpression(node.Function)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if it's a tool
+	tool, ok := function.(*ToolValue)
+	if !ok {
+		return nil, fmt.Errorf("cannot call non-tool value of type %s", function.Type())
+	}
+
+	// Evaluate arguments
+	args := make([]Value, len(node.Arguments))
+	for idx, argExpr := range node.Arguments {
+		val, err := i.evalExpression(argExpr)
+		if err != nil {
+			return nil, err
+		}
+		args[idx] = val
+	}
+
+	// Check parameter count
+	if len(args) != len(tool.Parameters) {
+		return nil, fmt.Errorf("tool %s expects %d arguments, got %d", tool.Name, len(tool.Parameters), len(args))
+	}
+
+	// Validate parameter types (runtime type checking)
+	for idx, paramName := range tool.Parameters {
+		if expectedType, hasType := tool.ParamTypes[paramName]; hasType {
+			actualType := args[idx].Type().String()
+			if !i.typesMatch(expectedType, actualType) {
+				return nil, fmt.Errorf("tool %s parameter %s expects type %s, got %s",
+					tool.Name, paramName, expectedType, actualType)
+			}
+		}
+	}
+
+	// Call the tool
+	result, err := i.callTool(tool, args)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate return type if specified
+	if tool.ReturnType != "" {
+		actualType := result.Type().String()
+		if !i.typesMatch(tool.ReturnType, actualType) {
+			return nil, fmt.Errorf("tool %s expected to return %s, got %s",
+				tool.Name, tool.ReturnType, actualType)
+		}
+	}
+
+	return result, nil
+}
+
+// callTool executes a tool with the given arguments
+func (i *Interpreter) callTool(tool *ToolValue, args []Value) (Value, error) {
+	// Get the body as a block statement
+	body, ok := tool.Body.(*parser.BlockStatement)
+	if !ok {
+		return nil, fmt.Errorf("invalid tool body")
+	}
+
+	// Create a new environment for the tool execution (closure)
+	// Start with the tool's captured environment
+	toolEnv := NewEnclosedEnvironment(tool.Env)
+
+	// Bind parameters to arguments
+	for idx, paramName := range tool.Parameters {
+		toolEnv.Set(paramName, args[idx])
+	}
+
+	// Save current environment and switch to tool environment
+	prevEnv := i.env
+	i.env = toolEnv
+	defer func() {
+		i.env = prevEnv
+	}()
+
+	// Execute the tool body
+	var result Value = &NullValue{}
+	for _, stmt := range body.Statements {
+		val, err := i.evalStatement(stmt)
+		if err != nil {
+			// Check for return signal
+			if cfErr, ok := err.(*ControlFlowError); ok && cfErr.Signal == SignalReturn {
+				return cfErr.Value, nil
+			}
+			return nil, err
+		}
+		result = val
+	}
+
+	// If no explicit return, return the last expression value
+	return result, nil
+}
+
+// typesMatch checks if an actual type matches an expected type annotation
+func (i *Interpreter) typesMatch(expected, actual string) bool {
+	// Handle basic types
+	if expected == actual {
+		return true
+	}
+
+	// Handle "any" type which matches anything
+	if expected == "any" {
+		return true
+	}
+
+	// Handle array types (e.g., "string[]", "number[]")
+	if len(expected) > 2 && expected[len(expected)-2:] == "[]" {
+		if actual == "array" {
+			// For now, we accept any array for typed array annotations
+			// Full array element type checking would require more complex logic
+			return true
+		}
+	}
+
+	return false
 }
