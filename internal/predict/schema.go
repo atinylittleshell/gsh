@@ -15,3 +15,9 @@ type explainedCommand struct {
 }
 
 var EXPLAINED_COMMAND_SCHEMA = utils.GenerateJsonSchema(explainedCommand{})
+
+type CompletionCandidates struct {
+	Candidates []string `json:"candidates" description:"A list of valid completion candidates for the current incomplete command. The candidates should complete the current word or be full commands starting with the input prefix." required:"true"`
+}
+
+var COMPLETION_CANDIDATES_SCHEMA = utils.GenerateJsonSchema(CompletionCandidates{})

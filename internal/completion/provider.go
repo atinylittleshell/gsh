@@ -12,6 +12,9 @@ import (
 	"unicode"
 
 	"github.com/atinylittleshell/gsh/internal/environment"
+	"github.com/atinylittleshell/gsh/internal/history"
+	"github.com/atinylittleshell/gsh/internal/predict"
+	"go.uber.org/zap"
 	"mvdan.cc/sh/v3/interp"
 )
 
@@ -36,23 +39,41 @@ type SubagentProvider interface {
 
 // ShellCompletionProvider implements shellinput.CompletionProvider using the shell's CompletionManager
 type ShellCompletionProvider struct {
-	CompletionManager CompletionManagerInterface
-	Runner            *interp.Runner
-	SubagentProvider  SubagentProvider // Optional, for @ completions
+	CompletionManager   CompletionManagerInterface
+	Runner              *interp.Runner
+	SubagentProvider    SubagentProvider // Optional, for @ completions
+	CompletionPredictor *predict.LLMCompletionPredictor
 }
 
 // NewShellCompletionProvider creates a new ShellCompletionProvider
-func NewShellCompletionProvider(manager CompletionManagerInterface, runner *interp.Runner) *ShellCompletionProvider {
+func NewShellCompletionProvider(
+	manager CompletionManagerInterface,
+	runner *interp.Runner,
+	historyManager *history.HistoryManager,
+	logger *zap.Logger,
+) *ShellCompletionProvider {
+	var completionPredictor *predict.LLMCompletionPredictor
+	if historyManager != nil && logger != nil && runner != nil {
+		completionPredictor = predict.NewLLMCompletionPredictor(runner, historyManager, logger)
+	}
+
 	return &ShellCompletionProvider{
-		CompletionManager: manager,
-		Runner:            runner,
-		SubagentProvider:  nil, // Set later via SetSubagentProvider if needed
+		CompletionManager:   manager,
+		Runner:              runner,
+		SubagentProvider:    nil, // Set later via SetSubagentProvider if needed
+		CompletionPredictor: completionPredictor,
 	}
 }
 
 // SetSubagentProvider sets the subagent provider for @ completions
 func (p *ShellCompletionProvider) SetSubagentProvider(provider SubagentProvider) {
 	p.SubagentProvider = provider
+}
+
+func (p *ShellCompletionProvider) UpdateContext(context *map[string]string) {
+	if p.CompletionPredictor != nil {
+		p.CompletionPredictor.UpdateContext(context)
+	}
 }
 
 // GetCompletions returns completion suggestions for the current input line
@@ -94,7 +115,15 @@ func (p *ShellCompletionProvider) GetCompletions(line string, pos int) []string 
 			}
 		}
 
-		// No command matches or multiple words, try file path completion
+		// No command matches or multiple words, try LLM completion
+		if p.CompletionPredictor != nil {
+			completions, err := p.CompletionPredictor.Predict(line[:pos])
+			if err == nil && len(completions) > 0 {
+				return completions
+			}
+		}
+
+		// Fallback to file completions if LLM fails or is not available
 		var prefix string
 		if len(words) > 1 {
 			// Get the last word as the prefix for file completion

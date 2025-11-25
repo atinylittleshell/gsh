@@ -34,7 +34,7 @@ func (m *MockSubagentProvider) GetSubagent(id string) (*SubagentInfo, bool) {
 func TestSubagentCompletions(t *testing.T) {
 	runner, _ := interp.New()
 	manager := NewCompletionManager()
-	provider := NewShellCompletionProvider(manager, runner)
+	provider := NewShellCompletionProvider(manager, runner, nil, nil)
 
 	// Create mock subagent provider
 	mockProvider := NewMockSubagentProvider()
@@ -117,7 +117,7 @@ func TestSubagentCompletions(t *testing.T) {
 func TestSubagentHelp(t *testing.T) {
 	runner, _ := interp.New()
 	manager := NewCompletionManager()
-	provider := NewShellCompletionProvider(manager, runner)
+	provider := NewShellCompletionProvider(manager, runner, nil, nil)
 
 	// Create mock subagent provider
 	mockProvider := NewMockSubagentProvider()
@@ -181,7 +181,7 @@ func TestSubagentHelp(t *testing.T) {
 func TestSubagentCompletionWithoutProvider(t *testing.T) {
 	runner, _ := interp.New()
 	manager := NewCompletionManager()
-	provider := NewShellCompletionProvider(manager, runner)
+	provider := NewShellCompletionProvider(manager, runner, nil, nil)
 	// Note: No subagent provider set
 
 	// Should return empty completions when no provider is set

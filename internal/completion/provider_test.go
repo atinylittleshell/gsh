@@ -125,7 +125,7 @@ func TestGetCompletions(t *testing.T) {
 	}
 
 	manager := &mockCompletionManager{}
-	provider := NewShellCompletionProvider(manager, runner)
+	provider := NewShellCompletionProvider(manager, runner, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -470,7 +470,7 @@ func TestGetHelpInfo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			runner, _ := interp.New()
 			manager := NewCompletionManager()
-			provider := NewShellCompletionProvider(manager, runner)
+			provider := NewShellCompletionProvider(manager, runner, nil, nil)
 
 			result := provider.GetHelpInfo(tt.line, tt.pos)
 			assert.Equal(t, tt.expected, result)
@@ -485,7 +485,7 @@ func TestGetHelpInfoWithMacros(t *testing.T) {
 
 	// Use nil runner to force fallback to environment variable
 	manager := NewCompletionManager()
-	provider := NewShellCompletionProvider(manager, nil)
+	provider := NewShellCompletionProvider(manager, nil, nil, nil)
 
 	tests := []struct {
 		name     string

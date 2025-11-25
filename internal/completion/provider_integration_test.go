@@ -55,7 +55,7 @@ func TestShellCompletionProvider_FileCompletion_Integration(t *testing.T) {
 	}
 
 	manager := &mockCompletionManager{}
-	provider := NewShellCompletionProvider(manager, runner)
+	provider := NewShellCompletionProvider(manager, runner, nil, nil)
 
 	tests := []struct {
 		name          string
@@ -160,7 +160,7 @@ func TestShellCompletionProvider_MacroCompletion_Integration(t *testing.T) {
 	}
 
 	manager := &mockCompletionManager{}
-	provider := NewShellCompletionProvider(manager, runner)
+	provider := NewShellCompletionProvider(manager, runner, nil, nil)
 
 	tests := []struct {
 		name             string
@@ -227,7 +227,7 @@ func TestShellCompletionProvider_BuiltinCompletion_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	manager := &mockCompletionManager{}
-	provider := NewShellCompletionProvider(manager, runner)
+	provider := NewShellCompletionProvider(manager, runner, nil, nil)
 
 	tests := []struct {
 		name             string
@@ -313,7 +313,7 @@ func TestShellCompletionProvider_ExecutableCompletion_Integration(t *testing.T) 
 	require.NoError(t, err)
 
 	manager := &mockCompletionManager{}
-	provider := NewShellCompletionProvider(manager, runner)
+	provider := NewShellCompletionProvider(manager, runner, nil, nil)
 
 	tests := []struct {
 		name             string
@@ -399,7 +399,7 @@ func TestShellCompletionProvider_HelpInfo_Integration(t *testing.T) {
 	}
 
 	manager := NewCompletionManager()
-	provider := NewShellCompletionProvider(manager, runner)
+	provider := NewShellCompletionProvider(manager, runner, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -462,7 +462,7 @@ func TestShellCompletionProvider_CompletionSpec_Integration(t *testing.T) {
 	}
 	manager.specs["git"] = gitSpec
 
-	provider := NewShellCompletionProvider(manager, runner)
+	provider := NewShellCompletionProvider(manager, runner, nil, nil)
 
 	tests := []struct {
 		name          string
