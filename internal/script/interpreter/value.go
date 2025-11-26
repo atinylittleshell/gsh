@@ -26,6 +26,8 @@ const (
 	ValueTypeTool
 	// ValueTypeError represents an error value
 	ValueTypeError
+	// ValueTypeModel represents a model configuration
+	ValueTypeModel
 )
 
 // String returns the string representation of the value type
@@ -47,6 +49,8 @@ func (vt ValueType) String() string {
 		return "tool"
 	case ValueTypeError:
 		return "error"
+	case ValueTypeModel:
+		return "model"
 	default:
 		return "unknown"
 	}
@@ -252,6 +256,24 @@ func (t *ToolValue) IsTruthy() bool { return true }
 func (t *ToolValue) Equals(other Value) bool {
 	if otherTool, ok := other.(*ToolValue); ok {
 		return t.Name == otherTool.Name
+	}
+	return false
+}
+
+// ModelValue represents a model configuration
+type ModelValue struct {
+	Name   string
+	Config map[string]Value
+}
+
+func (m *ModelValue) Type() ValueType { return ValueTypeModel }
+func (m *ModelValue) String() string {
+	return fmt.Sprintf("<model %s>", m.Name)
+}
+func (m *ModelValue) IsTruthy() bool { return true }
+func (m *ModelValue) Equals(other Value) bool {
+	if otherModel, ok := other.(*ModelValue); ok {
+		return m.Name == otherModel.Name
 	}
 	return false
 }
