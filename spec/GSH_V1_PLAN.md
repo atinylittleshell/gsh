@@ -281,6 +281,8 @@ gsh/
 
 - [ ] Add `.gsh` file execution to gsh CLI
 - [ ] Integrate interpreter into gsh binary
+- [ ] Integrate log.* functions with zap logger (currently outputs to stderr)
+- [ ] Pass logger context to interpreter for proper log file integration
 - [ ] Ensure `.gshrc` remains bash-compatible (no breaking changes)
 - [ ] Test REPL + script mode interaction
 - [ ] Add `#` prefix agent mode in REPL (if not already present)
