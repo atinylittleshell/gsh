@@ -166,15 +166,6 @@ gsh/
 - [x] Add built-in functions (print, log._, JSON._)
 - [x] Environment variable access (env object)
 
-### Phase 3.3: Testing
-
-- [ ] Execute simple scripts with variables and math
-- [ ] Test control flow (if/else, loops)
-- [ ] Test tool definitions and calls
-- [ ] Test error handling (try/catch)
-- [ ] Test scoping rules
-- [ ] Test built-in functions
-
 ---
 
 ## Phase 4: MCP Integration
@@ -183,7 +174,7 @@ gsh/
 
 ### Phase 4.1: MCP SDK Integration
 
-- [ ] Add Go MCP SDK dependency: `github.com/modelcontextprotocol/go-sdk/mcp`
+- [x] Add Go MCP SDK dependency (use context7 for docs): `github.com/modelcontextprotocol/go-sdk/mcp`
 - [ ] Implement MCP manager to handle multiple servers
 - [ ] Start MCP servers as subprocesses (stdio transport)
 - [ ] Initialize and connect to MCP servers
@@ -281,7 +272,7 @@ gsh/
 
 - [ ] Add `.gsh` file execution to gsh CLI
 - [ ] Integrate interpreter into gsh binary
-- [ ] Integrate log.* functions with zap logger (currently outputs to stderr)
+- [ ] Integrate log.\* functions with zap logger (currently outputs to stderr)
 - [ ] Pass logger context to interpreter for proper log file integration
 - [ ] Ensure `.gshrc` remains bash-compatible (no breaking changes)
 - [ ] Test REPL + script mode interaction
