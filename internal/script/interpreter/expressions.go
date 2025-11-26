@@ -15,6 +15,8 @@ func (i *Interpreter) evalExpression(expr parser.Expression) (Value, error) {
 		return i.evalStringLiteral(node)
 	case *parser.BooleanLiteral:
 		return i.evalBooleanLiteral(node)
+	case *parser.NullLiteral:
+		return i.evalNullLiteral(node)
 	case *parser.Identifier:
 		return i.evalIdentifier(node)
 	case *parser.BinaryExpression:
@@ -53,6 +55,11 @@ func (i *Interpreter) evalStringLiteral(node *parser.StringLiteral) (Value, erro
 // evalBooleanLiteral evaluates a boolean literal
 func (i *Interpreter) evalBooleanLiteral(node *parser.BooleanLiteral) (Value, error) {
 	return &BoolValue{Value: node.Value}, nil
+}
+
+// evalNullLiteral evaluates a null literal
+func (i *Interpreter) evalNullLiteral(node *parser.NullLiteral) (Value, error) {
+	return &NullValue{}, nil
 }
 
 // evalIdentifier evaluates an identifier (variable lookup)

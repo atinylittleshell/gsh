@@ -43,6 +43,10 @@ func (p *Parser) parseIdentifier() Expression {
 	if p.curToken.Literal == "false" {
 		return &BooleanLiteral{Token: p.curToken, Value: false}
 	}
+	// Handle null literal
+	if p.curToken.Literal == "null" {
+		return &NullLiteral{Token: p.curToken}
+	}
 
 	return &Identifier{Token: p.curToken, Value: p.curToken.Literal}
 }

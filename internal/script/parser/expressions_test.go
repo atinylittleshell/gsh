@@ -115,6 +115,32 @@ func TestBooleanExpression(t *testing.T) {
 	}
 }
 
+func TestNullExpression(t *testing.T) {
+	input := "null"
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program has not enough statements. got=%d", len(program.Statements))
+	}
+
+	stmt, ok := program.Statements[0].(*ExpressionStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not ExpressionStatement. got=%T", program.Statements[0])
+	}
+
+	nullLit, ok := stmt.Expression.(*NullLiteral)
+	if !ok {
+		t.Fatalf("exp not *NullLiteral. got=%T", stmt.Expression)
+	}
+	if nullLit.String() != "null" {
+		t.Errorf("nullLit.String() not 'null'. got=%s", nullLit.String())
+	}
+}
+
 func TestParsingUnaryExpressions(t *testing.T) {
 	tests := []struct {
 		input    string
