@@ -163,8 +163,8 @@ gsh/
 - [x] Implement tool calls
 - [x] Implement try/catch error handling
 - [x] Implement break/continue
-- [ ] Add built-in functions (print, log._, JSON._)
-- [ ] Environment variable access (env object)
+- [x] Add built-in functions (print, log._, JSON._)
+- [x] Environment variable access (env object)
 
 ### Phase 3.3: Testing
 

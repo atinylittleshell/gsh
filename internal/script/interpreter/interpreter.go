@@ -20,14 +20,18 @@ func (r *EvalResult) Value() Value {
 	return r.FinalResult
 }
 
-// Variables returns all top-level variables as a map
+// Variables returns all top-level variables as a map (excluding built-ins)
 func (r *EvalResult) Variables() map[string]Value {
 	if r.Env == nil {
 		return make(map[string]Value)
 	}
-	// Return a copy to prevent external modification
+	// Return a copy to prevent external modification, excluding built-ins
 	vars := make(map[string]Value)
 	for k, v := range r.Env.store {
+		// Skip built-in functions and objects
+		if isBuiltin(k) {
+			continue
+		}
 		vars[k] = v
 	}
 	return vars
@@ -35,16 +39,20 @@ func (r *EvalResult) Variables() map[string]Value {
 
 // New creates a new interpreter instance
 func New() *Interpreter {
-	return &Interpreter{
+	interp := &Interpreter{
 		env: NewEnvironment(),
 	}
+	interp.registerBuiltins()
+	return interp
 }
 
 // NewWithEnvironment creates a new interpreter with a custom environment
 func NewWithEnvironment(env *Environment) *Interpreter {
-	return &Interpreter{
+	interp := &Interpreter{
 		env: env,
 	}
+	interp.registerBuiltins()
+	return interp
 }
 
 // Eval evaluates a program and returns the result

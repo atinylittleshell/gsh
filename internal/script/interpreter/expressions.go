@@ -27,6 +27,8 @@ func (i *Interpreter) evalExpression(expr parser.Expression) (Value, error) {
 		return i.evalObjectLiteral(node)
 	case *parser.CallExpression:
 		return i.evalCallExpression(node)
+	case *parser.MemberExpression:
+		return i.evalMemberExpression(node)
 	default:
 		return nil, fmt.Errorf("unsupported expression type: %T", expr)
 	}
@@ -203,6 +205,21 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 		return nil, err
 	}
 
+	// Check if it's a built-in function
+	if builtin, ok := function.(*BuiltinValue); ok {
+		// Evaluate arguments
+		args := make([]Value, len(node.Arguments))
+		for idx, argExpr := range node.Arguments {
+			val, err := i.evalExpression(argExpr)
+			if err != nil {
+				return nil, err
+			}
+			args[idx] = val
+		}
+		// Call the built-in function
+		return builtin.Fn(args)
+	}
+
 	// Check if it's a tool
 	tool, ok := function.(*ToolValue)
 	if !ok {
@@ -317,4 +334,30 @@ func (i *Interpreter) typesMatch(expected, actual string) bool {
 	}
 
 	return false
+}
+
+// evalMemberExpression evaluates a member access expression (e.g., obj.property, env.HOME)
+func (i *Interpreter) evalMemberExpression(node *parser.MemberExpression) (Value, error) {
+	// Evaluate the object expression
+	object, err := i.evalExpression(node.Object)
+	if err != nil {
+		return nil, err
+	}
+
+	propertyName := node.Property.Value
+
+	// Handle special env object
+	if envVal, ok := object.(*EnvValue); ok {
+		return envVal.GetProperty(propertyName), nil
+	}
+
+	// Handle regular objects
+	if objVal, ok := object.(*ObjectValue); ok {
+		if prop, exists := objVal.Properties[propertyName]; exists {
+			return prop, nil
+		}
+		return nil, fmt.Errorf("property '%s' not found on object", propertyName)
+	}
+
+	return nil, fmt.Errorf("cannot access property '%s' on type %s", propertyName, object.Type())
 }
