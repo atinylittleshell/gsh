@@ -183,7 +183,7 @@ gsh/
 ### Phase 4.2: MCP Tool Execution
 
 - [x] Parse MCP declarations in interpreter
-- [ ] Make MCP tools available in environment (e.g., `filesystem.read_file`)
+- [x] Make MCP tools available in environment (e.g., `filesystem.read_file`)
 - [ ] Implement MCP tool call execution
 - [ ] Handle MCP tool parameters and results
 - [ ] Error handling for MCP failures
