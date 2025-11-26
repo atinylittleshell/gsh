@@ -227,7 +227,12 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 		return builtin.Fn(args)
 	}
 
-	// Check if it's a tool
+	// Check if it's an MCP tool
+	if mcpTool, ok := function.(*MCPToolValue); ok {
+		return i.callMCPTool(mcpTool, node.Arguments)
+	}
+
+	// Check if it's a user-defined tool
 	tool, ok := function.(*ToolValue)
 	if !ok {
 		return nil, fmt.Errorf("cannot call non-tool value of type %s", function.Type())
@@ -356,6 +361,11 @@ func (i *Interpreter) evalMemberExpression(node *parser.MemberExpression) (Value
 	// Handle special env object
 	if envVal, ok := object.(*EnvValue); ok {
 		return envVal.GetProperty(propertyName), nil
+	}
+
+	// Handle MCP proxy objects
+	if mcpProxy, ok := object.(*MCPProxyValue); ok {
+		return mcpProxy.GetProperty(propertyName)
 	}
 
 	// Handle regular objects

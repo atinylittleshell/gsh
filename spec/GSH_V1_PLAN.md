@@ -175,14 +175,14 @@ gsh/
 ### Phase 4.1: MCP SDK Integration
 
 - [x] Add Go MCP SDK dependency (use context7 for docs): `github.com/modelcontextprotocol/go-sdk/mcp`
-- [ ] Implement MCP manager to handle multiple servers
-- [ ] Start MCP servers as subprocesses (stdio transport)
-- [ ] Initialize and connect to MCP servers
-- [ ] List available tools from MCP servers
+- [x] Implement MCP manager to handle multiple servers
+- [x] Start MCP servers as subprocesses (stdio transport)
+- [x] Initialize and connect to MCP servers
+- [x] List available tools from MCP servers
 
 ### Phase 4.2: MCP Tool Execution
 
-- [ ] Parse MCP declarations in interpreter
+- [x] Parse MCP declarations in interpreter
 - [ ] Make MCP tools available in environment (e.g., `filesystem.read_file`)
 - [ ] Implement MCP tool call execution
 - [ ] Handle MCP tool parameters and results

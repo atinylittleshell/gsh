@@ -60,6 +60,8 @@ func (i *Interpreter) evalStatement(stmt parser.Statement) (Value, error) {
 		return i.evalReturnStatement(node)
 	case *parser.ToolDeclaration:
 		return i.evalToolDeclaration(node)
+	case *parser.McpDeclaration:
+		return i.evalMcpDeclaration(node)
 	case *parser.BlockStatement:
 		return i.evalBlockStatement(node)
 	case *parser.TryStatement:
