@@ -334,16 +334,16 @@ func TestMCPServer_ThreadSafety(t *testing.T) {
 	server.mu.RUnlock()
 }
 
-func TestManagerHTTPTransport_NotImplemented(t *testing.T) {
+func TestManagerHTTPTransport_FailsForInvalidURL(t *testing.T) {
 	manager := NewManager()
 	defer manager.Close()
 
 	config := ServerConfig{
-		URL:     "http://localhost:3000/mcp",
+		URL:     "http://localhost:9999/nonexistent",
 		Headers: map[string]string{"Authorization": "Bearer token"},
 	}
 
 	err := manager.RegisterServer("http-server", config)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "HTTP/SSE transport not yet implemented")
+	assert.Contains(t, err.Error(), "failed to start HTTP server")
 }

@@ -3,8 +3,10 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os/exec"
 	"sync"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -78,7 +80,9 @@ func (m *Manager) RegisterServer(name string, config ServerConfig) error {
 		}
 	} else {
 		// HTTP/SSE transport
-		return fmt.Errorf("HTTP/SSE transport not yet implemented for server '%s'", name)
+		if err := m.startHTTPServer(server); err != nil {
+			return fmt.Errorf("failed to start HTTP server '%s': %w", name, err)
+		}
 	}
 
 	m.servers[name] = server
@@ -132,6 +136,82 @@ func (m *Manager) startStdioServer(server *MCPServer) error {
 	server.mu.Unlock()
 
 	return nil
+}
+
+// startHTTPServer starts an MCP server using HTTP/SSE transport
+func (m *Manager) startHTTPServer(server *MCPServer) error {
+	// Create HTTP client with custom headers if specified
+	httpClient := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	// Create client
+	client := mcp.NewClient(&mcp.Implementation{
+		Name:    "gsh-mcp-client",
+		Version: "1.0.0",
+	}, nil)
+
+	// Create streamable transport for HTTP/SSE
+	transport := &mcp.StreamableClientTransport{
+		Endpoint:   server.Config.URL,
+		HTTPClient: httpClient,
+	}
+
+	// If headers are specified, wrap the HTTP client with a custom transport
+	if len(server.Config.Headers) > 0 {
+		transport.HTTPClient = &http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &headerTransport{
+				base:    http.DefaultTransport,
+				headers: server.Config.Headers,
+			},
+		}
+	}
+
+	// Connect to the server
+	session, err := client.Connect(m.ctx, transport, nil)
+	if err != nil {
+		return fmt.Errorf("failed to connect to HTTP MCP server: %w", err)
+	}
+
+	server.Session = session
+
+	// List available tools
+	toolsList, err := session.ListTools(m.ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to list tools: %w", err)
+	}
+
+	// Store tools
+	server.mu.Lock()
+	for _, tool := range toolsList.Tools {
+		server.Tools[tool.Name] = tool
+	}
+	server.mu.Unlock()
+
+	return nil
+}
+
+// headerTransport is a custom http.RoundTripper that adds headers to requests
+type headerTransport struct {
+	base    http.RoundTripper
+	headers map[string]string
+}
+
+func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Clone the request to avoid modifying the original
+	reqCopy := req.Clone(req.Context())
+
+	// Add custom headers
+	for key, value := range t.headers {
+		reqCopy.Header.Set(key, value)
+	}
+
+	// Use the base transport
+	if t.base == nil {
+		t.base = http.DefaultTransport
+	}
+	return t.base.RoundTrip(reqCopy)
 }
 
 // GetServer returns a server by name

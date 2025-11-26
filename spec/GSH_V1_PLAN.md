@@ -195,7 +195,7 @@ gsh/
 - [x] Call `read_file`, `write_file` tools
 - [x] Test with multiple MCP servers
 - [x] Error handling for missing servers/tools
-- [ ] Test with remote MCP servers (HTTP/SSE)
+- [x] Test with remote MCP servers (HTTP/SSE)
 
 ---
 
