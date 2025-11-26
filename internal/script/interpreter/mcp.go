@@ -6,6 +6,7 @@ import (
 
 	"github.com/atinylittleshell/gsh/internal/script/mcp"
 	"github.com/atinylittleshell/gsh/internal/script/parser"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // MCPProxyValue represents a proxy object for an MCP server
@@ -67,6 +68,11 @@ func (m *MCPToolValue) Call(args map[string]interface{}) (Value, error) {
 	result, err := m.Manager.CallTool(m.ServerName, m.ToolName, args)
 	if err != nil {
 		return nil, err
+	}
+
+	// Check if the tool call resulted in an error
+	if result.IsError {
+		return nil, fmt.Errorf("MCP tool error: %v", result.Content)
 	}
 
 	// Convert MCP result to Value
@@ -174,24 +180,87 @@ func (i *Interpreter) evalMcpDeclaration(node *parser.McpDeclaration) (Value, er
 }
 
 // mcpResultToValue converts an MCP tool result to a Value
-func mcpResultToValue(result interface{}) (Value, error) {
+func mcpResultToValue(result *mcpsdk.CallToolResult) (Value, error) {
 	if result == nil {
 		return &NullValue{}, nil
 	}
 
-	// Marshal to JSON and unmarshal to get a clean structure
-	jsonData, err := json.Marshal(result)
+	// If there's structured content, use that
+	if result.StructuredContent != nil {
+		// Marshal to JSON and unmarshal to get a clean structure
+		jsonData, err := json.Marshal(result.StructuredContent)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert MCP structured content to JSON: %w", err)
+		}
+
+		var data interface{}
+		if err := json.Unmarshal(jsonData, &data); err != nil {
+			return nil, fmt.Errorf("failed to parse MCP structured content JSON: %w", err)
+		}
+
+		return jsonToValue(data), nil
+	}
+
+	// Otherwise, extract text from Content array
+	if len(result.Content) == 0 {
+		return &NullValue{}, nil
+	}
+
+	// If single content item, return it directly
+	if len(result.Content) == 1 {
+		return contentToValue(result.Content[0])
+	}
+
+	// Multiple content items - return as array of values
+	values := make([]Value, len(result.Content))
+	for i, content := range result.Content {
+		val, err := contentToValue(content)
+		if err != nil {
+			return nil, err
+		}
+		values[i] = val
+	}
+	return &ArrayValue{Elements: values}, nil
+}
+
+// contentToValue converts a single MCP Content item to a Value
+func contentToValue(content mcpsdk.Content) (Value, error) {
+	// Marshal and unmarshal to extract the actual content
+	// The Content interface needs to be handled based on its concrete type
+	jsonData, err := json.Marshal(content)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert MCP result to JSON: %w", err)
+		return nil, fmt.Errorf("failed to marshal MCP content: %w", err)
 	}
 
-	var data interface{}
-	if err := json.Unmarshal(jsonData, &data); err != nil {
-		return nil, fmt.Errorf("failed to parse MCP result JSON: %w", err)
+	var contentMap map[string]interface{}
+	if err := json.Unmarshal(jsonData, &contentMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal MCP content: %w", err)
 	}
 
-	// Use the existing jsonToValue function from builtin.go
-	return jsonToValue(data), nil
+	// Check content type
+	contentType, ok := contentMap["type"].(string)
+	if !ok {
+		// If no type field, return the whole object
+		return jsonToValue(contentMap), nil
+	}
+
+	switch contentType {
+	case "text":
+		// Extract text field
+		if text, ok := contentMap["text"].(string); ok {
+			return &StringValue{Value: text}, nil
+		}
+		return jsonToValue(contentMap), nil
+	case "image":
+		// Return the whole image object (with data, mimeType, etc.)
+		return jsonToValue(contentMap), nil
+	case "resource":
+		// Return the whole resource object
+		return jsonToValue(contentMap), nil
+	default:
+		// Unknown content type - return as object
+		return jsonToValue(contentMap), nil
+	}
 }
 
 // callMCPTool calls an MCP tool with the given arguments
