@@ -172,6 +172,33 @@ func TestBooleanLiterals(t *testing.T) {
 	}
 }
 
+func TestNullLiterals(t *testing.T) {
+	tests := []struct {
+		input string
+	}{
+		{"x = null"},
+		{"null"},
+	}
+
+	for _, tt := range tests {
+		result := testEval(t, tt.input)
+		nullVal, ok := result.(*NullValue)
+		if !ok {
+			t.Errorf("expected NullValue, got %T", result)
+			continue
+		}
+		if nullVal.String() != "null" {
+			t.Errorf("for input %q: expected 'null', got %q", tt.input, nullVal.String())
+		}
+		if nullVal.Type() != ValueTypeNull {
+			t.Errorf("for input %q: expected ValueTypeNull, got %v", tt.input, nullVal.Type())
+		}
+		if nullVal.IsTruthy() {
+			t.Errorf("for input %q: null should be falsy", tt.input)
+		}
+	}
+}
+
 func TestArithmeticOperators(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -442,11 +469,7 @@ func TestEqualityWithDifferentTypes(t *testing.T) {
 		{`x = null == null`, true},
 	}
 
-	// Add null literal to parser if not already there, for now skip null tests
 	for _, tt := range tests {
-		if tt.input == `x = null == null` {
-			continue // Skip null test for now
-		}
 		result := testEval(t, tt.input)
 		boolVal, ok := result.(*BoolValue)
 		if !ok {

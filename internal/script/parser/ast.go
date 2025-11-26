@@ -89,6 +89,15 @@ func (b *BooleanLiteral) String() string {
 	return "false"
 }
 
+// NullLiteral represents a null literal
+type NullLiteral struct {
+	Token lexer.Token // the 'null' token
+}
+
+func (n *NullLiteral) expressionNode()      {}
+func (n *NullLiteral) TokenLiteral() string { return n.Token.Literal }
+func (n *NullLiteral) String() string       { return "null" }
+
 // BinaryExpression represents a binary operation (e.g., x + y)
 type BinaryExpression struct {
 	Token    lexer.Token // the operator token
