@@ -1,12 +1,14 @@
 package interpreter
 
 import (
+	"github.com/atinylittleshell/gsh/internal/script/mcp"
 	"github.com/atinylittleshell/gsh/internal/script/parser"
 )
 
 // Interpreter represents the gsh script interpreter
 type Interpreter struct {
-	env *Environment
+	env        *Environment
+	mcpManager *mcp.Manager
 }
 
 // EvalResult represents the result of evaluating a program
@@ -40,7 +42,8 @@ func (r *EvalResult) Variables() map[string]Value {
 // New creates a new interpreter instance
 func New() *Interpreter {
 	interp := &Interpreter{
-		env: NewEnvironment(),
+		env:        NewEnvironment(),
+		mcpManager: mcp.NewManager(),
 	}
 	interp.registerBuiltins()
 	return interp
@@ -49,10 +52,19 @@ func New() *Interpreter {
 // NewWithEnvironment creates a new interpreter with a custom environment
 func NewWithEnvironment(env *Environment) *Interpreter {
 	interp := &Interpreter{
-		env: env,
+		env:        env,
+		mcpManager: mcp.NewManager(),
 	}
 	interp.registerBuiltins()
 	return interp
+}
+
+// Close cleans up resources used by the interpreter
+func (i *Interpreter) Close() error {
+	if i.mcpManager != nil {
+		return i.mcpManager.Close()
+	}
+	return nil
 }
 
 // Eval evaluates a program and returns the result
