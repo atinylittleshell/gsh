@@ -1,0 +1,66 @@
+package interpreter
+
+import (
+	"fmt"
+
+	"github.com/atinylittleshell/gsh/internal/script/parser"
+)
+
+// evalModelDeclaration evaluates a model declaration
+func (i *Interpreter) evalModelDeclaration(node *parser.ModelDeclaration) (Value, error) {
+	modelName := node.Name.Value
+
+	// Evaluate each config field and store as Value
+	config := make(map[string]Value)
+
+	for key, expr := range node.Config {
+		value, err := i.evalExpression(expr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to evaluate model config field '%s': %w", key, err)
+		}
+
+		// Validate common config fields
+		switch key {
+		case "provider":
+			if _, ok := value.(*StringValue); !ok {
+				return nil, fmt.Errorf("model config 'provider' must be a string, got %s", value.Type())
+			}
+		case "apiKey":
+			// apiKey can be any type (string, null for missing env vars, etc.)
+			// No validation needed - it will be used as-is
+		case "model":
+			if _, ok := value.(*StringValue); !ok {
+				return nil, fmt.Errorf("model config 'model' must be a string, got %s", value.Type())
+			}
+		case "url":
+			if _, ok := value.(*StringValue); !ok {
+				return nil, fmt.Errorf("model config 'url' must be a string, got %s", value.Type())
+			}
+		case "temperature":
+			if _, ok := value.(*NumberValue); !ok {
+				return nil, fmt.Errorf("model config 'temperature' must be a number, got %s", value.Type())
+			}
+		case "maxTokens":
+			if _, ok := value.(*NumberValue); !ok {
+				return nil, fmt.Errorf("model config 'maxTokens' must be a number, got %s", value.Type())
+			}
+			// Allow other fields without validation for extensibility
+		}
+
+		config[key] = value
+	}
+
+	// Create the model value
+	model := &ModelValue{
+		Name:   modelName,
+		Config: config,
+	}
+
+	// Register the model in the environment
+	err := i.env.Define(modelName, model)
+	if err != nil {
+		return nil, err
+	}
+
+	return model, nil
+}
