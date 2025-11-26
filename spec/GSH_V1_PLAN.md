@@ -191,10 +191,10 @@ gsh/
 
 ### Phase 4.3: Testing
 
-- [ ] Start filesystem MCP server
-- [ ] Call `read_file`, `write_file` tools
-- [ ] Test with multiple MCP servers
-- [ ] Error handling for missing servers/tools
+- [x] Start filesystem MCP server
+- [x] Call `read_file`, `write_file` tools
+- [x] Test with multiple MCP servers
+- [x] Error handling for missing servers/tools
 - [ ] Test with remote MCP servers (HTTP/SSE)
 
 ---

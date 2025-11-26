@@ -72,7 +72,17 @@ func (m *MCPToolValue) Call(args map[string]interface{}) (Value, error) {
 
 	// Check if the tool call resulted in an error
 	if result.IsError {
-		return nil, fmt.Errorf("MCP tool error: %v", result.Content)
+		// Extract error message from Content
+		errorMsg := "MCP tool error"
+		if len(result.Content) > 0 {
+			// Try to extract text from the first content item
+			if val, err := contentToValue(result.Content[0]); err == nil {
+				if strVal, ok := val.(*StringValue); ok {
+					errorMsg = strVal.Value
+				}
+			}
+		}
+		return nil, fmt.Errorf("%s", errorMsg)
 	}
 
 	// Convert MCP result to Value
