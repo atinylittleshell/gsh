@@ -184,10 +184,10 @@ gsh/
 
 - [x] Parse MCP declarations in interpreter
 - [x] Make MCP tools available in environment (e.g., `filesystem.read_file`)
-- [ ] Implement MCP tool call execution
-- [ ] Handle MCP tool parameters and results
-- [ ] Error handling for MCP failures
-- [ ] Resource cleanup (close connections on exit)
+- [x] Implement MCP tool call execution
+- [x] Handle MCP tool parameters and results
+- [x] Error handling for MCP failures
+- [x] Resource cleanup (close connections on exit)
 
 ### Phase 4.3: Testing
 
