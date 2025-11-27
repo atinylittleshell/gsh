@@ -28,6 +28,8 @@ const (
 	ValueTypeError
 	// ValueTypeModel represents a model configuration
 	ValueTypeModel
+	// ValueTypeAgent represents an agent configuration
+	ValueTypeAgent
 )
 
 // String returns the string representation of the value type
@@ -51,6 +53,8 @@ func (vt ValueType) String() string {
 		return "error"
 	case ValueTypeModel:
 		return "model"
+	case ValueTypeAgent:
+		return "agent"
 	default:
 		return "unknown"
 	}
@@ -274,6 +278,24 @@ func (m *ModelValue) IsTruthy() bool { return true }
 func (m *ModelValue) Equals(other Value) bool {
 	if otherModel, ok := other.(*ModelValue); ok {
 		return m.Name == otherModel.Name
+	}
+	return false
+}
+
+// AgentValue represents an agent configuration
+type AgentValue struct {
+	Name   string
+	Config map[string]Value
+}
+
+func (a *AgentValue) Type() ValueType { return ValueTypeAgent }
+func (a *AgentValue) String() string {
+	return fmt.Sprintf("<agent %s>", a.Name)
+}
+func (a *AgentValue) IsTruthy() bool { return true }
+func (a *AgentValue) Equals(other Value) bool {
+	if otherAgent, ok := other.(*AgentValue); ok {
+		return a.Name == otherAgent.Name
 	}
 	return false
 }

@@ -206,7 +206,7 @@ gsh/
 ### Phase 5.1: Agent Infrastructure
 
 - [x] Parse model declarations
-- [ ] Parse agent declarations
+- [x] Parse agent declarations
 - [ ] Integrate with existing gsh agent/LLM code
 - [ ] Implement agent configuration (model, system prompt, tools, overrides)
 - [ ] Register agents in interpreter environment
