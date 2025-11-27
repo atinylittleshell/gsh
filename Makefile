@@ -38,4 +38,6 @@ install-tools:
 	@echo "Installing development tools..."
 	@brew install golangci-lint
 	@brew upgrade golangci-lint
+	@echo "Installing Go tools..."
+	@go install golang.org/x/tools/cmd/stringer@latest
 	@echo "Tools installed successfully!"
