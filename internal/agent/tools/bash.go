@@ -12,6 +12,7 @@ import (
 
 	"github.com/atinylittleshell/gsh/internal/environment"
 	"github.com/atinylittleshell/gsh/internal/history"
+	"github.com/atinylittleshell/gsh/internal/styles"
 	"github.com/atinylittleshell/gsh/internal/utils"
 	"github.com/atinylittleshell/gsh/pkg/gline"
 	openai "github.com/sashabaranov/go-openai"
@@ -197,7 +198,7 @@ func BashTool(runner *interp.Runner, historyManager *history.HistoryManager, log
 	}
 
 	// Always display the command first for consistent behavior
-	fmt.Print(gline.RESET_CURSOR_COLUMN + environment.GetAgentPrompt(runner, logger) + command + "\n")
+	fmt.Print(gline.RESET_CURSOR_COLUMN + styles.AGENT_MESSAGE(environment.GetAgentPrompt(runner, logger)+command) + "\n")
 
 	// Check if the command matches any pre-approved patterns using secure compound command validation
 	approvedPatterns := environment.GetApprovedBashCommandRegex(runner, logger)
