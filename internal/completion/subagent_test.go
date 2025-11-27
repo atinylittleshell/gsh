@@ -148,7 +148,7 @@ func TestSubagentHelp(t *testing.T) {
 			name:     "help for @ empty shows all subagents",
 			line:     "@",
 			pos:      1,
-			expected: "**Subagents** - Specialized AI assistants with specific roles\n\nAvailable subagents:\n• **@code-reviewer** - Review code for bugs and best practices\n• **@test-writer** - Write comprehensive tests",
+			expected: "**@Subagents** - Invoke a specialized assistant\nUse '@<name>' for a specific agent, '@@' to auto-select,\nor '@!' for agent commands. Tab-complete for a list.",
 		},
 		{
 			name:     "help for specific subagent",
@@ -190,6 +190,6 @@ func TestSubagentCompletionWithoutProvider(t *testing.T) {
 
 	// Should return generic help when no provider is set
 	help := provider.GetHelpInfo("@", 1)
-	expected := "**Subagents** - Specialized AI assistants with specific roles\n\nNo subagent manager configured. Use @<subagent-name> to invoke a subagent."
+	expected := "**@Subagents** - Invoke a specialized assistant\nUse '@<name>' for a specific agent, '@@' to auto-select,\nor '@!' for agent commands. Tab-complete for a list."
 	assert.Equal(t, expected, help)
 }
