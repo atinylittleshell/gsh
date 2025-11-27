@@ -207,9 +207,9 @@ gsh/
 
 - [x] Parse model declarations
 - [x] Parse agent declarations
-- [ ] Integrate with existing gsh agent/LLM code
-- [ ] Implement agent configuration (model, system prompt, tools, overrides)
-- [ ] Register agents in interpreter environment
+- [x] Implement model provider abstraction
+- [x] Implement OpenAI provider with ChatCompletion API
+- [x] Register agents in interpreter environment
 
 ### Phase 5.2: Pipe Operator & Conversations
 
