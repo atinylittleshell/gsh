@@ -239,7 +239,7 @@ gsh/
 ### Phase 6.1: Type System & Collections
 
 - [x] Array operations (indexing, methods)
-- [ ] Object operations (member access, methods)
+- [x] Object operations (member access, methods)
 - [ ] String operations
 - [ ] Map and Set support
 - [ ] Template literal interpolation
