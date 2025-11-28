@@ -189,7 +189,8 @@ func (i *Interpreter) evalNullLiteral(node *parser.NullLiteral) (Value, error) {
 func (i *Interpreter) evalIdentifier(node *parser.Identifier) (Value, error) {
 	value, ok := i.env.Get(node.Value)
 	if !ok {
-		return nil, NewRuntimeError("undefined variable: %s", node.Value)
+		return nil, NewRuntimeError("undefined variable: %s (line %d, column %d)",
+			node.Value, node.Token.Line, node.Token.Column)
 	}
 	return value, nil
 }
@@ -433,7 +434,8 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 	// Check if it's a user-defined tool
 	tool, ok := function.(*ToolValue)
 	if !ok {
-		return nil, fmt.Errorf("cannot call non-tool value of type %s", function.Type())
+		return nil, NewRuntimeError("cannot call non-tool value of type %s (line %d, column %d)",
+			function.Type(), node.Token.Line, node.Token.Column)
 	}
 
 	// Evaluate arguments
@@ -448,7 +450,8 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 
 	// Check parameter count
 	if len(args) != len(tool.Parameters) {
-		return nil, NewRuntimeError("tool %s expects %d arguments, got %d", tool.Name, len(tool.Parameters), len(args))
+		return nil, NewRuntimeError("tool %s expects %d arguments, got %d (line %d, column %d)",
+			tool.Name, len(tool.Parameters), len(args), node.Token.Line, node.Token.Column)
 	}
 
 	// Validate parameter types (runtime type checking)
@@ -580,34 +583,35 @@ func (i *Interpreter) evalMemberExpression(node *parser.MemberExpression) (Value
 
 	// Handle array properties/methods
 	if arrVal, ok := object.(*ArrayValue); ok {
-		return i.getArrayProperty(arrVal, propertyName)
+		return i.getArrayProperty(arrVal, propertyName, node)
 	}
 
 	// Handle string properties/methods
 	if strVal, ok := object.(*StringValue); ok {
-		return i.getStringProperty(strVal, propertyName)
+		return i.getStringProperty(strVal, propertyName, node)
 	}
 
 	// Handle map properties/methods
 	if mapVal, ok := object.(*MapValue); ok {
-		return i.getMapProperty(mapVal, propertyName)
+		return i.getMapProperty(mapVal, propertyName, node)
 	}
 
 	// Handle set properties/methods
 	if setVal, ok := object.(*SetValue); ok {
-		return i.getSetProperty(setVal, propertyName)
+		return i.getSetProperty(setVal, propertyName, node)
 	}
 
 	// Handle regular objects
 	if objVal, ok := object.(*ObjectValue); ok {
-		return i.getObjectProperty(objVal, propertyName)
+		return i.getObjectProperty(objVal, propertyName, node)
 	}
 
-	return nil, fmt.Errorf("cannot access property '%s' on type %s", propertyName, object.Type())
+	return nil, NewRuntimeError("cannot access property '%s' on type %s (line %d, column %d)",
+		propertyName, object.Type(), node.Token.Line, node.Token.Column)
 }
 
 // getArrayProperty returns array properties and methods
-func (i *Interpreter) getArrayProperty(arr *ArrayValue, property string) (Value, error) {
+func (i *Interpreter) getArrayProperty(arr *ArrayValue, property string, node *parser.MemberExpression) (Value, error) {
 	switch property {
 	case "length":
 		return &NumberValue{Value: float64(len(arr.Elements))}, nil
@@ -626,12 +630,13 @@ func (i *Interpreter) getArrayProperty(arr *ArrayValue, property string) (Value,
 	case "reverse":
 		return &ArrayMethodValue{Name: "reverse", Impl: arrayReverseImpl, Arr: arr}, nil
 	default:
-		return nil, fmt.Errorf("array property '%s' not found", property)
+		return nil, NewRuntimeError("array property '%s' not found (line %d, column %d)",
+			property, node.Token.Line, node.Token.Column)
 	}
 }
 
 // getStringProperty returns string properties and methods
-func (i *Interpreter) getStringProperty(str *StringValue, property string) (Value, error) {
+func (i *Interpreter) getStringProperty(str *StringValue, property string, node *parser.MemberExpression) (Value, error) {
 	switch property {
 	case "length":
 		return &NumberValue{Value: float64(len([]rune(str.Value)))}, nil
@@ -670,12 +675,13 @@ func (i *Interpreter) getStringProperty(str *StringValue, property string) (Valu
 	case "charAt":
 		return &StringMethodValue{Name: "charAt", Impl: stringCharAtImpl, Str: str}, nil
 	default:
-		return nil, fmt.Errorf("string property '%s' not found", property)
+		return nil, NewRuntimeError("string property '%s' not found (line %d, column %d)",
+			property, node.Token.Line, node.Token.Column)
 	}
 }
 
 // getObjectProperty returns object properties and methods
-func (i *Interpreter) getObjectProperty(obj *ObjectValue, property string) (Value, error) {
+func (i *Interpreter) getObjectProperty(obj *ObjectValue, property string, node *parser.MemberExpression) (Value, error) {
 	// Check for built-in methods first
 	switch property {
 	case "keys":
@@ -693,11 +699,12 @@ func (i *Interpreter) getObjectProperty(obj *ObjectValue, property string) (Valu
 		return prop, nil
 	}
 
-	return nil, NewRuntimeError("property '%s' not found on object", property)
+	return nil, NewRuntimeError("property '%s' not found on object (line %d, column %d)",
+		property, node.Token.Line, node.Token.Column)
 }
 
 // getMapProperty returns map properties and methods
-func (i *Interpreter) getMapProperty(m *MapValue, property string) (Value, error) {
+func (i *Interpreter) getMapProperty(m *MapValue, property string, node *parser.MemberExpression) (Value, error) {
 	switch property {
 	case "get":
 		return &MapMethodValue{Name: "get", Impl: mapGetImpl, Map: m}, nil
@@ -716,12 +723,13 @@ func (i *Interpreter) getMapProperty(m *MapValue, property string) (Value, error
 	case "size":
 		return mapSizeImpl(m, nil)
 	default:
-		return nil, fmt.Errorf("map property '%s' not found", property)
+		return nil, NewRuntimeError("map property '%s' not found (line %d, column %d)",
+			property, node.Token.Line, node.Token.Column)
 	}
 }
 
 // getSetProperty returns set properties and methods
-func (i *Interpreter) getSetProperty(s *SetValue, property string) (Value, error) {
+func (i *Interpreter) getSetProperty(s *SetValue, property string, node *parser.MemberExpression) (Value, error) {
 	switch property {
 	case "add":
 		return &SetMethodValue{Name: "add", Impl: setAddImpl, Set: s}, nil
@@ -732,7 +740,8 @@ func (i *Interpreter) getSetProperty(s *SetValue, property string) (Value, error
 	case "size":
 		return setSizeImpl(s, nil)
 	default:
-		return nil, fmt.Errorf("set property '%s' not found", property)
+		return nil, NewRuntimeError("set property '%s' not found (line %d, column %d)",
+			property, node.Token.Line, node.Token.Column)
 	}
 }
 
@@ -751,11 +760,13 @@ func (i *Interpreter) evalIndexExpression(node *parser.IndexExpression) (Value, 
 	// Handle array indexing
 	if arrVal, ok := left.(*ArrayValue); ok {
 		if index.Type() != ValueTypeNumber {
-			return nil, NewRuntimeError("array index must be a number, got %s", index.Type())
+			return nil, NewRuntimeError("array index must be a number, got %s (line %d, column %d)",
+				index.Type(), node.Token.Line, node.Token.Column)
 		}
 		idx := int(index.(*NumberValue).Value)
 		if idx < 0 || idx >= len(arrVal.Elements) {
-			return nil, NewRuntimeError("array index out of bounds: %d (length: %d)", idx, len(arrVal.Elements))
+			return nil, NewRuntimeError("array index out of bounds: %d (length: %d) (line %d, column %d)",
+				idx, len(arrVal.Elements), node.Token.Line, node.Token.Column)
 		}
 		return arrVal.Elements[idx], nil
 	}
@@ -763,14 +774,17 @@ func (i *Interpreter) evalIndexExpression(node *parser.IndexExpression) (Value, 
 	// Handle object indexing with string keys
 	if objVal, ok := left.(*ObjectValue); ok {
 		if index.Type() != ValueTypeString {
-			return nil, NewRuntimeError("object index must be a string, got %s", index.Type())
+			return nil, NewRuntimeError("object index must be a string, got %s (line %d, column %d)",
+				index.Type(), node.Token.Line, node.Token.Column)
 		}
 		key := index.(*StringValue).Value
 		if prop, exists := objVal.Properties[key]; exists {
 			return prop, nil
 		}
-		return nil, NewRuntimeError("property '%s' not found on object", key)
+		return nil, NewRuntimeError("property '%s' not found on object (line %d, column %d)",
+			key, node.Token.Line, node.Token.Column)
 	}
 
-	return nil, NewRuntimeError("cannot index type %s", left.Type())
+	return nil, NewRuntimeError("cannot index type %s (line %d, column %d)",
+		left.Type(), node.Token.Line, node.Token.Column)
 }
