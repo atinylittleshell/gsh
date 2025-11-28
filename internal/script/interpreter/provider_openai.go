@@ -54,12 +54,15 @@ func (p *OpenAIProvider) ChatCompletion(request ChatRequest) (*ChatResponse, err
 	modelID := modelIDStr.Value
 
 	// Get base URL (default to OpenAI)
-	baseURL := "https://api.openai.com/v1/chat/completions"
+	baseURL := "https://api.openai.com/v1"
 	if baseURLVal, ok := request.Model.Config["baseURL"]; ok {
 		if baseURLStr, ok := baseURLVal.(*StringValue); ok && baseURLStr.Value != "" {
 			baseURL = baseURLStr.Value
 		}
 	}
+
+	// Append the chat completions endpoint
+	apiURL := baseURL + "/chat/completions"
 
 	// Build OpenAI-specific request
 	openaiReq := openAIChatCompletionRequest{
@@ -120,7 +123,7 @@ func (p *OpenAIProvider) ChatCompletion(request ChatRequest) (*ChatResponse, err
 	}
 
 	// Create HTTP request
-	httpReq, err := http.NewRequest("POST", baseURL, bytes.NewBuffer(reqBody))
+	httpReq, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
