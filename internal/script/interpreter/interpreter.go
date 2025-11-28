@@ -10,6 +10,7 @@ type Interpreter struct {
 	env              *Environment
 	mcpManager       *mcp.Manager
 	providerRegistry *ProviderRegistry
+	callStack        []StackFrame // Track call stack for error reporting
 }
 
 // EvalResult represents the result of evaluating a program
@@ -83,7 +84,7 @@ func (i *Interpreter) Eval(program *parser.Program) (*EvalResult, error) {
 	for _, stmt := range program.Statements {
 		val, err := i.evalStatement(stmt)
 		if err != nil {
-			return nil, err
+			return nil, i.wrapError(err, stmt)
 		}
 		finalResult = val
 	}
@@ -92,4 +93,45 @@ func (i *Interpreter) Eval(program *parser.Program) (*EvalResult, error) {
 		FinalResult: finalResult,
 		Env:         i.env,
 	}, nil
+}
+
+// wrapError wraps an error with stack trace information
+func (i *Interpreter) wrapError(err error, node parser.Node) error {
+	// Don't wrap control flow errors
+	if _, isControlFlow := err.(*ControlFlowError); isControlFlow {
+		return err
+	}
+
+	// If it's already a RuntimeError, add current stack
+	if rte, ok := err.(*RuntimeError); ok {
+		// Add all frames from the call stack
+		for _, frame := range i.callStack {
+			rte.AddStackFrame(frame.FunctionName, frame.Location)
+		}
+		return rte
+	}
+
+	// Otherwise, create a new RuntimeError
+	rte := &RuntimeError{
+		Message:    err.Error(),
+		StackTrace: make([]StackFrame, len(i.callStack)),
+	}
+	copy(rte.StackTrace, i.callStack)
+
+	return rte
+}
+
+// pushStackFrame adds a frame to the call stack
+func (i *Interpreter) pushStackFrame(functionName, location string) {
+	i.callStack = append(i.callStack, StackFrame{
+		FunctionName: functionName,
+		Location:     location,
+	})
+}
+
+// popStackFrame removes the top frame from the call stack
+func (i *Interpreter) popStackFrame() {
+	if len(i.callStack) > 0 {
+		i.callStack = i.callStack[:len(i.callStack)-1]
+	}
 }
