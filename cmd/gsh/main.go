@@ -203,8 +203,8 @@ func runGshScript(ctx context.Context, filePath string, logger *zap.Logger) erro
 		return fmt.Errorf("failed to parse script")
 	}
 
-	// Create interpreter
-	interp := interpreter.New()
+	// Create interpreter with the zap logger for log.* function integration
+	interp := interpreter.NewWithLogger(logger)
 	defer interp.Close()
 
 	// Execute the script

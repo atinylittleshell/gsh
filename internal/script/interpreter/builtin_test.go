@@ -11,6 +11,8 @@ import (
 
 	"github.com/atinylittleshell/gsh/internal/script/lexer"
 	"github.com/atinylittleshell/gsh/internal/script/parser"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // Helper function to capture stdout
@@ -163,6 +165,99 @@ func TestLogFunctions(t *testing.T) {
 
 			if output != tt.expected {
 				t.Errorf("output = %q, want %q", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestLogFunctionsWithZapLogger(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		expectedLevel string
+		expectedMsg   string
+	}{
+		{
+			name:          "log.debug with zap",
+			input:         `log.debug("Debug message")`,
+			expectedLevel: "debug",
+			expectedMsg:   "Debug message",
+		},
+		{
+			name:          "log.info with zap",
+			input:         `log.info("Info message")`,
+			expectedLevel: "info",
+			expectedMsg:   "Info message",
+		},
+		{
+			name:          "log.warn with zap",
+			input:         `log.warn("Warning message")`,
+			expectedLevel: "warn",
+			expectedMsg:   "Warning message",
+		},
+		{
+			name:          "log.error with zap",
+			input:         `log.error("Error message")`,
+			expectedLevel: "error",
+			expectedMsg:   "Error message",
+		},
+		{
+			name:          "log with multiple values using zap",
+			input:         `log.info("Status:", 200, "OK")`,
+			expectedLevel: "info",
+			expectedMsg:   "Status: 200 OK",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a buffer to capture zap output
+			var buf bytes.Buffer
+			encoder := zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig())
+			core := zapcore.NewCore(encoder, zapcore.AddSync(&buf), zapcore.DebugLevel)
+			logger := zap.New(core)
+
+			l := lexer.New(tt.input)
+			p := parser.New(l)
+			program := p.ParseProgram()
+
+			interp := NewWithLogger(logger)
+
+			// Capture stderr to ensure nothing goes there when zap is used
+			stderrOutput := captureStderr(func() {
+				_, err := interp.Eval(program)
+				if err != nil {
+					t.Fatalf("eval error: %v", err)
+				}
+			})
+
+			// Sync the logger to flush buffered entries
+			logger.Sync()
+
+			// Verify nothing was written to stderr (zap should have captured it)
+			if stderrOutput != "" {
+				t.Errorf("expected no stderr output when zap logger is used, got: %q", stderrOutput)
+			}
+
+			// Parse the JSON log entry
+			logOutput := buf.String()
+			if logOutput == "" {
+				t.Fatal("expected zap logger output, got empty string")
+			}
+
+			var logEntry map[string]interface{}
+			if err := json.Unmarshal([]byte(logOutput), &logEntry); err != nil {
+				t.Fatalf("failed to parse zap log output as JSON: %v, output: %s", err, logOutput)
+			}
+
+			// Check log level
+			if level, ok := logEntry["level"].(string); !ok || level != tt.expectedLevel {
+				t.Errorf("expected level %q, got %q", tt.expectedLevel, level)
+			}
+
+			// Check message
+			if msg, ok := logEntry["msg"].(string); !ok || msg != tt.expectedMsg {
+				t.Errorf("expected msg %q, got %q", tt.expectedMsg, msg)
 			}
 		})
 	}

@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
+
+	"go.uber.org/zap/zapcore"
 )
 
 // builtinNames contains all the names of built-in functions and objects
@@ -66,23 +69,24 @@ func (i *Interpreter) registerBuiltins() {
 	i.env.Set("JSON", jsonObj)
 
 	// Register log object with debug, info, warn, error methods
+	// These methods use the interpreter's zap logger if available
 	logObj := &ObjectValue{
 		Properties: map[string]Value{
 			"debug": &BuiltinValue{
 				Name: "log.debug",
-				Fn:   builtinLogDebug,
+				Fn:   i.makeLogFunc(zapcore.DebugLevel, "DEBUG"),
 			},
 			"info": &BuiltinValue{
 				Name: "log.info",
-				Fn:   builtinLogInfo,
+				Fn:   i.makeLogFunc(zapcore.InfoLevel, "INFO"),
 			},
 			"warn": &BuiltinValue{
 				Name: "log.warn",
-				Fn:   builtinLogWarn,
+				Fn:   i.makeLogFunc(zapcore.WarnLevel, "WARN"),
 			},
 			"error": &BuiltinValue{
 				Name: "log.error",
-				Fn:   builtinLogError,
+				Fn:   i.makeLogFunc(zapcore.ErrorLevel, "ERROR"),
 			},
 		},
 	}
@@ -117,64 +121,36 @@ func builtinPrint(args []Value) (Value, error) {
 	return &NullValue{}, nil
 }
 
-// builtinLogDebug implements log.debug()
-// Currently outputs to stderr with [DEBUG] prefix
-// TODO: Integrate with zap logger when interpreter is integrated with main gsh app
-func builtinLogDebug(args []Value) (Value, error) {
-	fmt.Fprint(os.Stderr, "[DEBUG] ")
-	for i, arg := range args {
-		if i > 0 {
-			fmt.Fprint(os.Stderr, " ")
+// makeLogFunc creates a log function that uses the zap logger if available,
+// otherwise falls back to stderr output with the given prefix.
+func (i *Interpreter) makeLogFunc(level zapcore.Level, prefix string) BuiltinFunction {
+	return func(args []Value) (Value, error) {
+		// Build the message from all arguments
+		var parts []string
+		for _, arg := range args {
+			parts = append(parts, arg.String())
 		}
-		fmt.Fprint(os.Stderr, arg.String())
-	}
-	fmt.Fprintln(os.Stderr)
-	return &NullValue{}, nil
-}
+		message := strings.Join(parts, " ")
 
-// builtinLogInfo implements log.info()
-// Currently outputs to stderr with [INFO] prefix
-// TODO: Integrate with zap logger when interpreter is integrated with main gsh app
-func builtinLogInfo(args []Value) (Value, error) {
-	fmt.Fprint(os.Stderr, "[INFO] ")
-	for i, arg := range args {
-		if i > 0 {
-			fmt.Fprint(os.Stderr, " ")
+		// Use zap logger if available, otherwise fall back to stderr
+		if i.logger != nil {
+			switch level {
+			case zapcore.DebugLevel:
+				i.logger.Debug(message)
+			case zapcore.InfoLevel:
+				i.logger.Info(message)
+			case zapcore.WarnLevel:
+				i.logger.Warn(message)
+			case zapcore.ErrorLevel:
+				i.logger.Error(message)
+			}
+		} else {
+			// Fallback: output to stderr with prefix
+			fmt.Fprintf(os.Stderr, "[%s] %s\n", prefix, message)
 		}
-		fmt.Fprint(os.Stderr, arg.String())
-	}
-	fmt.Fprintln(os.Stderr)
-	return &NullValue{}, nil
-}
 
-// builtinLogWarn implements log.warn()
-// Currently outputs to stderr with [WARN] prefix
-// TODO: Integrate with zap logger when interpreter is integrated with main gsh app
-func builtinLogWarn(args []Value) (Value, error) {
-	fmt.Fprint(os.Stderr, "[WARN] ")
-	for i, arg := range args {
-		if i > 0 {
-			fmt.Fprint(os.Stderr, " ")
-		}
-		fmt.Fprint(os.Stderr, arg.String())
+		return &NullValue{}, nil
 	}
-	fmt.Fprintln(os.Stderr)
-	return &NullValue{}, nil
-}
-
-// builtinLogError implements log.error()
-// Currently outputs to stderr with [ERROR] prefix
-// TODO: Integrate with zap logger when interpreter is integrated with main gsh app
-func builtinLogError(args []Value) (Value, error) {
-	fmt.Fprint(os.Stderr, "[ERROR] ")
-	for i, arg := range args {
-		if i > 0 {
-			fmt.Fprint(os.Stderr, " ")
-		}
-		fmt.Fprint(os.Stderr, arg.String())
-	}
-	fmt.Fprintln(os.Stderr)
-	return &NullValue{}, nil
 }
 
 // builtinJSONParse implements JSON.parse()

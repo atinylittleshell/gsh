@@ -3,6 +3,7 @@ package interpreter
 import (
 	"github.com/atinylittleshell/gsh/internal/script/mcp"
 	"github.com/atinylittleshell/gsh/internal/script/parser"
+	"go.uber.org/zap"
 )
 
 // Interpreter represents the gsh script interpreter
@@ -11,6 +12,7 @@ type Interpreter struct {
 	mcpManager       *mcp.Manager
 	providerRegistry *ProviderRegistry
 	callStack        []StackFrame // Track call stack for error reporting
+	logger           *zap.Logger  // Optional zap logger for log.* functions
 }
 
 // EvalResult represents the result of evaluating a program
@@ -43,6 +45,13 @@ func (r *EvalResult) Variables() map[string]Value {
 
 // New creates a new interpreter instance
 func New() *Interpreter {
+	return NewWithLogger(nil)
+}
+
+// NewWithLogger creates a new interpreter with an optional zap logger
+// When logger is provided, log.* functions will write to the zap logger
+// When logger is nil, log.* functions will write to stderr with prefixes
+func NewWithLogger(logger *zap.Logger) *Interpreter {
 	registry := NewProviderRegistry()
 	registry.Register(NewOpenAIProvider())
 
@@ -50,6 +59,7 @@ func New() *Interpreter {
 		env:              NewEnvironment(),
 		mcpManager:       mcp.NewManager(),
 		providerRegistry: registry,
+		logger:           logger,
 	}
 	interp.registerBuiltins()
 	return interp
@@ -57,6 +67,11 @@ func New() *Interpreter {
 
 // NewWithEnvironment creates a new interpreter with a custom environment
 func NewWithEnvironment(env *Environment) *Interpreter {
+	return NewWithEnvironmentAndLogger(env, nil)
+}
+
+// NewWithEnvironmentAndLogger creates a new interpreter with a custom environment and optional logger
+func NewWithEnvironmentAndLogger(env *Environment, logger *zap.Logger) *Interpreter {
 	registry := NewProviderRegistry()
 	registry.Register(NewOpenAIProvider())
 
@@ -64,6 +79,7 @@ func NewWithEnvironment(env *Environment) *Interpreter {
 		env:              env,
 		mcpManager:       mcp.NewManager(),
 		providerRegistry: registry,
+		logger:           logger,
 	}
 	interp.registerBuiltins()
 	return interp
