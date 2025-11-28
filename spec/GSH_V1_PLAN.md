@@ -259,8 +259,8 @@ gsh/
 - [x] Add `.gsh` file execution to gsh CLI
 - [x] Shebang support for `.gsh` files
 - [x] Add tests for clear error messages E2E through gsh CLI executing `.gsh` scripts
-- [ ] Add inline help in CLI
-- [ ] Integrate log.\\* functions with zap logger (currently outputs to stderr)
+- [x] Add help info in CLI for executing `.gsh` scripts
+- [ ] Integrate log.\\\* functions with zap logger (currently outputs to stderr)
 - [ ] Pass logger context to interpreter for proper log file integration
 
 ### Phase 7.2: Polish
