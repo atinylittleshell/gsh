@@ -376,15 +376,15 @@ result`,
 
 			interp := New()
 			_, err := interp.Eval(program)
-			
+
 			if tt.expectError && err == nil {
 				t.Fatalf("expected error but got none")
 			}
-			
+
 			if !tt.expectError && err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			
+
 			if tt.expectError && tt.errorMsg != "" && err != nil {
 				if !containsSubstring(err.Error(), tt.errorMsg) {
 					t.Errorf("expected error containing %q, got %q", tt.errorMsg, err.Error())

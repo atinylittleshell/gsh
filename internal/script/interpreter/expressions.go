@@ -76,7 +76,7 @@ func (i *Interpreter) evalStringLiteral(node *parser.StringLiteral) (Value, erro
 	}
 
 	// Then, convert escaped dollar placeholders back to literal dollars
-	result = strings.Replace(result, "\x00ESCAPED_DOLLAR\x00", "$", -1)
+	result = strings.ReplaceAll(result, "\x00ESCAPED_DOLLAR\x00", "$")
 
 	return &StringValue{Value: result}, nil
 }
@@ -106,9 +106,10 @@ func (i *Interpreter) interpolateString(template string) (string, error) {
 			end := start
 
 			for end < len(runes) && braceCount > 0 {
-				if runes[end] == '{' {
+				switch runes[end] {
+				case '{':
 					braceCount++
-				} else if runes[end] == '}' {
+				case '}':
 					braceCount--
 				}
 				if braceCount > 0 {
@@ -150,26 +151,26 @@ func (i *Interpreter) evalInterpolationExpression(exprStr string) (Value, error)
 	// We wrap it in a simple expression statement to use the parser
 	l := lexer.New(exprStr)
 	p := parser.New(l)
-	
+
 	// Parse as a program (which will parse the expression as an expression statement)
 	program := p.ParseProgram()
-	
+
 	// Check for parse errors
 	if len(p.Errors()) > 0 {
 		return nil, fmt.Errorf("error parsing template literal expression: %s", p.Errors()[0])
 	}
-	
+
 	// The program should have exactly one expression statement
 	if len(program.Statements) != 1 {
 		return nil, fmt.Errorf("template literal expression must be a single expression")
 	}
-	
+
 	// Extract the expression from the expression statement
 	exprStmt, ok := program.Statements[0].(*parser.ExpressionStatement)
 	if !ok {
 		return nil, fmt.Errorf("template literal must contain an expression, not a statement")
 	}
-	
+
 	// Evaluate the expression using existing evaluation logic
 	return i.evalExpression(exprStmt.Expression)
 }
@@ -188,7 +189,7 @@ func (i *Interpreter) evalNullLiteral(node *parser.NullLiteral) (Value, error) {
 func (i *Interpreter) evalIdentifier(node *parser.Identifier) (Value, error) {
 	value, ok := i.env.Get(node.Value)
 	if !ok {
-		return nil, fmt.Errorf("undefined variable: %s", node.Value)
+		return nil, NewRuntimeError("undefined variable: %s", node.Value)
 	}
 	return value, nil
 }
@@ -224,12 +225,12 @@ func (i *Interpreter) applyBinaryOperator(op string, left, right Value) (Value, 
 			return &NumberValue{Value: leftNum * rightNum}, nil
 		case "/":
 			if rightNum == 0 {
-				return nil, fmt.Errorf("division by zero")
+				return nil, NewRuntimeError("division by zero")
 			}
 			return &NumberValue{Value: leftNum / rightNum}, nil
 		case "%":
 			if rightNum == 0 {
-				return nil, fmt.Errorf("modulo by zero")
+				return nil, NewRuntimeError("modulo by zero")
 			}
 			return &NumberValue{Value: float64(int64(leftNum) % int64(rightNum))}, nil
 		case "<":
@@ -447,7 +448,7 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 
 	// Check parameter count
 	if len(args) != len(tool.Parameters) {
-		return nil, fmt.Errorf("tool %s expects %d arguments, got %d", tool.Name, len(tool.Parameters), len(args))
+		return nil, NewRuntimeError("tool %s expects %d arguments, got %d", tool.Name, len(tool.Parameters), len(args))
 	}
 
 	// Validate parameter types (runtime type checking)
@@ -455,7 +456,7 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 		if expectedType, hasType := tool.ParamTypes[paramName]; hasType {
 			actualType := args[idx].Type().String()
 			if !i.typesMatch(expectedType, actualType) {
-				return nil, fmt.Errorf("tool %s parameter %s expects type %s, got %s",
+				return nil, NewRuntimeError("tool %s parameter %s expects type %s, got %s",
 					tool.Name, paramName, expectedType, actualType)
 			}
 		}
@@ -487,6 +488,16 @@ func (i *Interpreter) callTool(tool *ToolValue, args []Value) (Value, error) {
 		return nil, fmt.Errorf("invalid tool body")
 	}
 
+	// Push stack frame for this tool call
+	i.pushStackFrame(tool.Name, fmt.Sprintf("tool '%s'", tool.Name))
+
+	// Ensure we handle errors properly before popping the stack frame
+	var finalErr error
+	defer func() {
+		// Pop stack frame after error handling
+		i.popStackFrame()
+	}()
+
 	// Create a new environment for the tool execution (closure)
 	// Start with the tool's captured environment
 	toolEnv := NewEnclosedEnvironment(tool.Env)
@@ -512,7 +523,9 @@ func (i *Interpreter) callTool(tool *ToolValue, args []Value) (Value, error) {
 			if cfErr, ok := err.(*ControlFlowError); ok && cfErr.Signal == SignalReturn {
 				return cfErr.Value, nil
 			}
-			return nil, err
+			// Wrap the error with current stack frame before returning
+			finalErr = i.wrapError(err, stmt)
+			return nil, finalErr
 		}
 		result = val
 	}
@@ -680,7 +693,7 @@ func (i *Interpreter) getObjectProperty(obj *ObjectValue, property string) (Valu
 		return prop, nil
 	}
 
-	return nil, fmt.Errorf("property '%s' not found on object", property)
+	return nil, NewRuntimeError("property '%s' not found on object", property)
 }
 
 // getMapProperty returns map properties and methods
@@ -738,11 +751,11 @@ func (i *Interpreter) evalIndexExpression(node *parser.IndexExpression) (Value, 
 	// Handle array indexing
 	if arrVal, ok := left.(*ArrayValue); ok {
 		if index.Type() != ValueTypeNumber {
-			return nil, fmt.Errorf("array index must be a number, got %s", index.Type())
+			return nil, NewRuntimeError("array index must be a number, got %s", index.Type())
 		}
 		idx := int(index.(*NumberValue).Value)
 		if idx < 0 || idx >= len(arrVal.Elements) {
-			return nil, fmt.Errorf("array index out of bounds: %d (length: %d)", idx, len(arrVal.Elements))
+			return nil, NewRuntimeError("array index out of bounds: %d (length: %d)", idx, len(arrVal.Elements))
 		}
 		return arrVal.Elements[idx], nil
 	}
@@ -750,14 +763,14 @@ func (i *Interpreter) evalIndexExpression(node *parser.IndexExpression) (Value, 
 	// Handle object indexing with string keys
 	if objVal, ok := left.(*ObjectValue); ok {
 		if index.Type() != ValueTypeString {
-			return nil, fmt.Errorf("object index must be a string, got %s", index.Type())
+			return nil, NewRuntimeError("object index must be a string, got %s", index.Type())
 		}
 		key := index.(*StringValue).Value
 		if prop, exists := objVal.Properties[key]; exists {
 			return prop, nil
 		}
-		return nil, fmt.Errorf("property '%s' not found on object", key)
+		return nil, NewRuntimeError("property '%s' not found on object", key)
 	}
 
-	return nil, fmt.Errorf("cannot index type %s", left.Type())
+	return nil, NewRuntimeError("cannot index type %s", left.Type())
 }

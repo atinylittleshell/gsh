@@ -236,32 +236,17 @@ gsh/
 
 **Goal:** Polish and complete remaining features
 
-### Phase 6.1: Type System & Collections
+### Phase 6.1: Collections
 
 - [x] Array operations (indexing, methods)
 - [x] Object operations (member access, methods)
 - [x] String operations
 - [x] Map and Set support
 - [x] Template literal interpolation
-- [ ] Runtime type validation for tool parameters
-- [ ] Type checking for tool return values
 
-### Phase 6.2: Error Messages & Documentation
+### Phase 6.2: Error Messages
 
-- [ ] Improve error messages across all phases
-- [ ] Add stack traces for runtime errors
-- [ ] Write comprehensive documentation
-- [ ] Create example scripts (10+ examples)
-- [ ] Add inline help in CLI
-- [ ] Performance profiling and optimization
-
-### Phase 6.3: Testing
-
-- [ ] Type validation edge cases
-- [ ] Complex collection operations
-- [ ] Stress tests (large scripts, many MCP servers)
-- [ ] Error message clarity review
-- [ ] Documentation accuracy review
+- [x] Add stack traces for runtime errors
 
 ---
 
@@ -271,17 +256,18 @@ gsh/
 
 ### Phase 7.1: Integration
 
+- [ ] Shebang support for `.gsh` files
 - [ ] Add `.gsh` file execution to gsh CLI
+- [ ] Add tests for clear error messages E2E through gsh CLI executing `.gsh` scripts
+- [ ] Add inline help in CLI
 - [ ] Integrate interpreter into gsh binary
 - [ ] Integrate log.\* functions with zap logger (currently outputs to stderr)
 - [ ] Pass logger context to interpreter for proper log file integration
-- [ ] Ensure `.gshrc` remains bash-compatible (no breaking changes)
-- [ ] Test REPL + script mode interaction
-- [ ] Add `#` prefix agent mode in REPL (if not already present)
-- [ ] Shebang support for `.gsh` files
 
 ### Phase 7.2: Polish
 
+- [ ] Write comprehensive documentation
+- [ ] Create example scripts (10+ examples)
 - [ ] End-to-end testing with real workflows
 - [ ] Performance optimization
 - [ ] Memory leak detection and fixing
@@ -300,27 +286,35 @@ gsh/
 
 ## Post-v1.0 Roadmap
 
-### v1.1 - Module System
+### v1.1 - Type System
+
+- [ ] Parse time type checks
+- [ ] Runtime type validation for tool parameters
+- [ ] Type checking for tool return values
+- [ ] Type annotations for variables and functions
+- [ ] Type inference improvements
+
+### v1.2 - Module System
 
 - [ ] Import/export between `.gsh` files
 - [ ] Code reuse and libraries
 - [ ] Package management (optional)
 
-### v1.2 - Standard Library
+### v1.3 - Standard Library
 
 - [ ] HTTP client
 - [ ] JSON/CSV parsing
 - [ ] Date/time utilities
 - [ ] File I/O helpers
 
-### v1.3 - Developer Experience
+### v1.4 - Developer Experience
 
 - [ ] Syntax highlighting
 - [ ] Language Server Protocol (LSP)
 - [ ] Debugger
 - [ ] REPL improvements
 
-### v1.4 - Performance
+### v1.5 - Performance
 
 - [ ] Bytecode compilation
 - [ ] VM optimization
