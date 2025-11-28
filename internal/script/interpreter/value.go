@@ -32,6 +32,10 @@ const (
 	ValueTypeAgent
 	// ValueTypeConversation represents a conversation state
 	ValueTypeConversation
+	// ValueTypeMap represents a map value
+	ValueTypeMap
+	// ValueTypeSet represents a set value
+	ValueTypeSet
 )
 
 // String returns the string representation of the value type
@@ -59,6 +63,10 @@ func (vt ValueType) String() string {
 		return "agent"
 	case ValueTypeConversation:
 		return "conversation"
+	case ValueTypeMap:
+		return "map"
+	case ValueTypeSet:
+		return "set"
 	default:
 		return "unknown"
 	}
@@ -318,6 +326,93 @@ func (c *ConversationValue) IsTruthy() bool { return len(c.Messages) > 0 }
 func (c *ConversationValue) Equals(other Value) bool {
 	if otherConv, ok := other.(*ConversationValue); ok {
 		return len(c.Messages) == len(otherConv.Messages)
+	}
+	return false
+}
+
+// MapValue represents a map value (key-value pairs)
+type MapValue struct {
+	Entries map[string]Value
+}
+
+func (m *MapValue) Type() ValueType { return ValueTypeMap }
+func (m *MapValue) String() string {
+	var out strings.Builder
+	out.WriteString("Map({")
+	first := true
+	for key, value := range m.Entries {
+		if !first {
+			out.WriteString(", ")
+		}
+		first = false
+		out.WriteString(key)
+		out.WriteString(" => ")
+		if value.Type() == ValueTypeString {
+			out.WriteString(`"`)
+			out.WriteString(value.String())
+			out.WriteString(`"`)
+		} else {
+			out.WriteString(value.String())
+		}
+	}
+	out.WriteString("})")
+	return out.String()
+}
+func (m *MapValue) IsTruthy() bool { return len(m.Entries) > 0 }
+func (m *MapValue) Equals(other Value) bool {
+	if otherMap, ok := other.(*MapValue); ok {
+		if len(m.Entries) != len(otherMap.Entries) {
+			return false
+		}
+		for key, value := range m.Entries {
+			otherValue, exists := otherMap.Entries[key]
+			if !exists || !value.Equals(otherValue) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
+// SetValue represents a set value (unique values)
+type SetValue struct {
+	Elements map[string]Value // Using map for uniqueness, key is String() representation
+}
+
+func (s *SetValue) Type() ValueType { return ValueTypeSet }
+func (s *SetValue) String() string {
+	var out strings.Builder
+	out.WriteString("Set({")
+	first := true
+	for _, value := range s.Elements {
+		if !first {
+			out.WriteString(", ")
+		}
+		first = false
+		if value.Type() == ValueTypeString {
+			out.WriteString(`"`)
+			out.WriteString(value.String())
+			out.WriteString(`"`)
+		} else {
+			out.WriteString(value.String())
+		}
+	}
+	out.WriteString("})")
+	return out.String()
+}
+func (s *SetValue) IsTruthy() bool { return len(s.Elements) > 0 }
+func (s *SetValue) Equals(other Value) bool {
+	if otherSet, ok := other.(*SetValue); ok {
+		if len(s.Elements) != len(otherSet.Elements) {
+			return false
+		}
+		for key := range s.Elements {
+			if _, exists := otherSet.Elements[key]; !exists {
+				return false
+			}
+		}
+		return true
 	}
 	return false
 }
