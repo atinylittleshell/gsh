@@ -33,11 +33,12 @@ func handleCompleteCommand(manager *CompletionManager, args []string) error {
 
 	// Parse options
 	var (
-		printMode   bool
-		removeMode  bool
-		wordList    string
-		function    string
-		command     string
+		printMode  bool
+		removeMode bool
+		wordList   string
+		function   string
+		commandCmd string
+		command    string
 	)
 
 	for i := 0; i < len(args); i++ {
@@ -59,6 +60,12 @@ func handleCompleteCommand(manager *CompletionManager, args []string) error {
 			}
 			i++
 			function = args[i]
+		case "-C":
+			if i+1 >= len(args) {
+				return fmt.Errorf("option -C requires a command")
+			}
+			i++
+			commandCmd = args[i]
 		default:
 			if !strings.HasPrefix(arg, "-") {
 				command = arg
@@ -100,6 +107,15 @@ func handleCompleteCommand(manager *CompletionManager, args []string) error {
 		return nil
 	}
 
+	if commandCmd != "" {
+		manager.AddSpec(CompletionSpec{
+			Command: command,
+			Type:    CommandCompletion,
+			Value:   commandCmd,
+		})
+		return nil
+	}
+
 	return fmt.Errorf("invalid complete command usage")
 }
 
@@ -125,5 +141,7 @@ func printCompletionSpec(spec CompletionSpec) {
 		_, _ = printf("complete -W %q %s\n", spec.Value, spec.Command)
 	case FunctionCompletion:
 		_, _ = printf("complete -F %s %s\n", spec.Value, spec.Command)
+	case CommandCompletion:
+		_, _ = printf("complete -C %q %s\n", spec.Value, spec.Command)
 	}
 }

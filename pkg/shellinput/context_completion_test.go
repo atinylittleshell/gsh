@@ -13,32 +13,54 @@ type mockContextCompletionProvider struct{}
 // mockShortLongCompletionProvider tests completions of different lengths
 type mockShortLongCompletionProvider struct{}
 
-func (m *mockShortLongCompletionProvider) GetCompletions(line string, pos int) []string {
+func (m *mockShortLongCompletionProvider) GetCompletions(line string, pos int) []CompletionCandidate {
 	if line == "@!" {
-		return []string{"@!short", "@!longer_completion"}
+		return []CompletionCandidate{
+			{Value: "@!short"},
+			{Value: "@!longer_completion"},
+		}
 	}
-	return []string{}
+	return []CompletionCandidate{}
 }
 
 func (m *mockShortLongCompletionProvider) GetHelpInfo(line string, pos int) string {
 	return ""
 }
 
-func (m *mockContextCompletionProvider) GetCompletions(line string, pos int) []string {
+func (m *mockContextCompletionProvider) GetCompletions(line string, pos int) []CompletionCandidate {
 	// Handle exact matches first
 	switch line {
 	case "@/":
-		return []string{"@/macro1", "@/macro2", "@/macro3"}
+		return []CompletionCandidate{
+			{Value: "@/macro1"},
+			{Value: "@/macro2"},
+			{Value: "@/macro3"},
+		}
 	case "@!":
-		return []string{"@!gsh_analytics", "@!gsh_evaluate", "@!history", "@!complete"}
+		return []CompletionCandidate{
+			{Value: "@!gsh_analytics"},
+			{Value: "@!gsh_evaluate"},
+			{Value: "@!history"},
+			{Value: "@!complete"},
+		}
 	case "@/m":
-		return []string{"@/macro1", "@/macro2"}
+		return []CompletionCandidate{
+			{Value: "@/macro1"},
+			{Value: "@/macro2"},
+		}
 	case "@!g":
-		return []string{"@!gsh_analytics", "@!gsh_evaluate"}
+		return []CompletionCandidate{
+			{Value: "@!gsh_analytics"},
+			{Value: "@!gsh_evaluate"},
+		}
 	case "@/macro1":
-		return []string{"@/macro1", "@/macro2", "@/macro3"} // Return all macros for cycling
+		return []CompletionCandidate{
+			{Value: "@/macro1"},
+			{Value: "@/macro2"},
+			{Value: "@/macro3"},
+		}
 	}
-	return []string{}
+	return []CompletionCandidate{}
 }
 
 func (m *mockContextCompletionProvider) GetHelpInfo(line string, pos int) string {

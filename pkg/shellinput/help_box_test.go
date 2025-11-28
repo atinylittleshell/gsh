@@ -11,14 +11,19 @@ import (
 // mockHelpCompletionProvider implements CompletionProvider for testing help box functionality
 type mockHelpCompletionProvider struct{}
 
-func (m *mockHelpCompletionProvider) GetCompletions(line string, pos int) []string {
+func (m *mockHelpCompletionProvider) GetCompletions(line string, pos int) []CompletionCandidate {
 	switch line {
 	case "@!":
-		return []string{"@!new", "@!tokens"}
+		return []CompletionCandidate{
+			{Value: "@!new"},
+			{Value: "@!tokens"},
+		}
 	case "@/":
-		return []string{"@/test"}
+		return []CompletionCandidate{
+			{Value: "@/test"},
+		}
 	default:
-		return []string{}
+		return []CompletionCandidate{}
 	}
 }
 

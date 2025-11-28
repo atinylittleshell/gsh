@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/atinylittleshell/gsh/pkg/shellinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -128,12 +129,16 @@ func newAppCompletionProvider() *appCompletionProvider {
 	}
 }
 
-func (p *appCompletionProvider) GetCompletions(line string, pos int) []string {
+func (p *appCompletionProvider) GetCompletions(line string, pos int) []shellinput.CompletionCandidate {
 	inputLine := line[:pos]
 	if completions, ok := p.completions[inputLine]; ok {
-		return completions
+		candidates := make([]shellinput.CompletionCandidate, len(completions))
+		for i, s := range completions {
+			candidates[i] = shellinput.CompletionCandidate{Value: s}
+		}
+		return candidates
 	}
-	return []string{}
+	return []shellinput.CompletionCandidate{}
 }
 
 func (p *appCompletionProvider) GetHelpInfo(line string, pos int) string {

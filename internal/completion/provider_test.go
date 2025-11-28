@@ -3,12 +3,13 @@ package completion
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
-	"runtime"
-	"path/filepath"
 
+	"github.com/atinylittleshell/gsh/pkg/shellinput"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"mvdan.cc/sh/v3/expand"
@@ -51,9 +52,9 @@ func (m *mockCompletionManager) GetSpec(command string) (CompletionSpec, bool) {
 	return args.Get(0).(CompletionSpec), args.Bool(1)
 }
 
-func (m *mockCompletionManager) ExecuteCompletion(ctx context.Context, runner *interp.Runner, spec CompletionSpec, args []string) ([]string, error) {
+func (m *mockCompletionManager) ExecuteCompletion(ctx context.Context, runner *interp.Runner, spec CompletionSpec, args []string, line string, pos int) ([]shellinput.CompletionCandidate, error) {
 	callArgs := m.Called(ctx, runner, spec, args)
-	return callArgs.Get(0).([]string), callArgs.Error(1)
+	return callArgs.Get(0).([]shellinput.CompletionCandidate), callArgs.Error(1)
 }
 
 // Mock osReadDir for testing
@@ -128,7 +129,7 @@ func TestGetCompletions(t *testing.T) {
 	}
 
 	manager := &mockCompletionManager{}
-	provider := NewShellCompletionProvider(manager, runner, nil, nil)
+	provider := NewShellCompletionProvider(manager, runner)
 
 	// Helper to determine expected /bin/ completions based on OS
 	var binCompletions []string
@@ -150,7 +151,7 @@ func TestGetCompletions(t *testing.T) {
 		line     string
 		pos      int
 		setup    func()
-		expected []string
+		expected []shellinput.CompletionCandidate
 	}{
 		{
 			name: "empty line returns no completions",
@@ -159,7 +160,7 @@ func TestGetCompletions(t *testing.T) {
 			setup: func() {
 				// no setup needed
 			},
-			expected: []string{},
+			expected: []shellinput.CompletionCandidate{},
 		},
 		{
 			name: "command with no completion spec returns no completions",
@@ -168,7 +169,7 @@ func TestGetCompletions(t *testing.T) {
 			setup: func() {
 				manager.On("GetSpec", "unknown-command").Return(CompletionSpec{}, false)
 			},
-			expected: []string{},
+			expected: []shellinput.CompletionCandidate{},
 		},
 		{
 			name: "command with word list completion returns suggestions",
@@ -182,9 +183,15 @@ func TestGetCompletions(t *testing.T) {
 				}
 				manager.On("GetSpec", "git").Return(spec, true)
 				manager.On("ExecuteCompletion", mock.Anything, runner, spec, []string{"git", "ch"}).
-					Return([]string{"checkout", "cherry-pick"}, nil)
+					Return([]shellinput.CompletionCandidate{
+						{Value: "checkout"},
+						{Value: "cherry-pick"},
+					}, nil)
 			},
-			expected: []string{"checkout", "cherry-pick"},
+			expected: []shellinput.CompletionCandidate{
+				{Value: "checkout"},
+				{Value: "cherry-pick"},
+			},
 		},
 		{
 			name: "cursor position in middle of line only uses text up to cursor",
@@ -198,9 +205,15 @@ func TestGetCompletions(t *testing.T) {
 				}
 				manager.On("GetSpec", "git").Return(spec, true)
 				manager.On("ExecuteCompletion", mock.Anything, runner, spec, []string{"git", "ch"}).
-					Return([]string{"checkout", "cherry-pick"}, nil)
+					Return([]shellinput.CompletionCandidate{
+						{Value: "checkout"},
+						{Value: "cherry-pick"},
+					}, nil)
 			},
-			expected: []string{"checkout", "cherry-pick"},
+			expected: []shellinput.CompletionCandidate{
+				{Value: "checkout"},
+				{Value: "cherry-pick"},
+			},
 		},
 		{
 			name: "file completion preserves command and path prefix",
@@ -209,7 +222,10 @@ func TestGetCompletions(t *testing.T) {
 			setup: func() {
 				manager.On("GetSpec", "cat").Return(CompletionSpec{}, false)
 			},
-			expected: []string{"some/path.txt", "some/path2.txt"},
+			expected: []shellinput.CompletionCandidate{
+				{Value: "some/path.txt"},
+				{Value: "some/path2.txt"},
+			},
 		},
 		{
 			name: "file completion with multiple path segments",
@@ -218,7 +234,10 @@ func TestGetCompletions(t *testing.T) {
 			setup: func() {
 				manager.On("GetSpec", "vim").Return(CompletionSpec{}, false)
 			},
-			expected: []string{"/usr/local/bin", "/usr/local/bin/"}, // Mocked response, not dependent on actual filesystem
+			expected: []shellinput.CompletionCandidate{
+				{Value: "/usr/local/bin"},
+				{Value: "/usr/local/bin/"},
+			},
 		},
 		{
 			name: "file completion with spaces in path",
@@ -227,7 +246,10 @@ func TestGetCompletions(t *testing.T) {
 			setup: func() {
 				manager.On("GetSpec", "less").Return(CompletionSpec{}, false)
 			},
-			expected: []string{"\"my documents/something.txt\"", "\"my documents/somefile.txt\""},
+			expected: []shellinput.CompletionCandidate{
+				{Value: "\"my documents/something.txt\""},
+				{Value: "\"my documents/somefile.txt\""},
+			},
 		},
 		{
 			name: "file completion after command with space",
@@ -236,7 +258,10 @@ func TestGetCompletions(t *testing.T) {
 			setup: func() {
 				manager.On("GetSpec", "cd").Return(CompletionSpec{}, false)
 			},
-			expected: []string{"folder1/", "folder2/", "file1.txt", "file2.txt"},
+			expected: []shellinput.CompletionCandidate{
+				{Value: "folder1/", Description: "Directory"},
+				{Value: "folder2/", Description: "Directory"},
+			},
 		},
 		{
 			name: "file completion after command with multiple spaces",
@@ -245,7 +270,10 @@ func TestGetCompletions(t *testing.T) {
 			setup: func() {
 				manager.On("GetSpec", "cd").Return(CompletionSpec{}, false)
 			},
-			expected: []string{"folder1/", "folder2/", "file1.txt", "file2.txt"},
+			expected: []shellinput.CompletionCandidate{
+				{Value: "folder1/", Description: "Directory"},
+				{Value: "folder2/", Description: "Directory"},
+			},
 		},
 		{
 			name: "file completion with multiple path segments should only replace last segment",
@@ -254,7 +282,10 @@ func TestGetCompletions(t *testing.T) {
 			setup: func() {
 				manager.On("GetSpec", "ls").Return(CompletionSpec{}, false)
 			},
-			expected: []string{"foo/bar/baz", "foo/bar/bin"},
+			expected: []shellinput.CompletionCandidate{
+				{Value: "foo/bar/baz"},
+				{Value: "foo/bar/bin"},
+			},
 		},
 		{
 			name: "file completion with multiple arguments should preserve earlier arguments",
@@ -263,7 +294,10 @@ func TestGetCompletions(t *testing.T) {
 			setup: func() {
 				manager.On("GetSpec", "ls").Return(CompletionSpec{}, false)
 			},
-			expected: []string{"other/path/test.txt", "other/path/temp.txt"},
+			expected: []shellinput.CompletionCandidate{
+				{Value: "other/path/test.txt"},
+				{Value: "other/path/temp.txt"},
+			},
 		},
 		{
 			name: "macro completion with @/ prefix",
@@ -272,7 +306,11 @@ func TestGetCompletions(t *testing.T) {
 			setup: func() {
 				// No setup needed - macro completion doesn't depend on manager
 			},
-			expected: []string{"@/macro1", "@/macro2", "@/macro3"},
+			expected: []shellinput.CompletionCandidate{
+				{Value: "@/macro1"},
+				{Value: "@/macro2"},
+				{Value: "@/macro3"},
+			},
 		},
 		{
 			name: "builtin command completion with @! prefix",
@@ -281,7 +319,9 @@ func TestGetCompletions(t *testing.T) {
 			setup: func() {
 				// No setup needed - builtin completion doesn't depend on manager
 			},
-			expected: []string{"@!new"},
+			expected: []shellinput.CompletionCandidate{
+				{Value: "@!new"},
+			},
 		},
 		{
 			name: "partial macro match should complete to macro, not fall back",
@@ -290,7 +330,11 @@ func TestGetCompletions(t *testing.T) {
 			setup: func() {
 				// No setup needed - should match macros
 			},
-			expected: []string{"@/macro1", "@/macro2", "@/macro3"}, // All macros starting with 'm'
+			expected: []shellinput.CompletionCandidate{
+				{Value: "@/macro1"},
+				{Value: "@/macro2"},
+				{Value: "@/macro3"},
+			},
 		},
 		{
 			name: "partial builtin match should complete to builtin, not fall back",
@@ -299,7 +343,9 @@ func TestGetCompletions(t *testing.T) {
 			setup: func() {
 				// No setup needed - should match builtins
 			},
-			expected: []string{"@!tokens"}, // Only builtin starting with 't'
+			expected: []shellinput.CompletionCandidate{
+				{Value: "@!tokens"},
+			},
 		},
 		{
 			name: "subagent commands completion with 's' prefix",
@@ -308,7 +354,10 @@ func TestGetCompletions(t *testing.T) {
 			setup: func() {
 				// No setup needed - should match builtin subagent commands
 			},
-			expected: []string{"@!subagent-info", "@!subagents"}, // Both subagent commands starting with 's'
+			expected: []shellinput.CompletionCandidate{
+				{Value: "@!subagent-info"},
+				{Value: "@!subagents"},
+			},
 		},
 		{
 			name: "reload-subagents completion with 'r' prefix",
@@ -317,7 +366,9 @@ func TestGetCompletions(t *testing.T) {
 			setup: func() {
 				// No setup needed - should match builtin reload command
 			},
-			expected: []string{"@!reload-subagents"}, // Only reload command starting with 'r'
+			expected: []shellinput.CompletionCandidate{
+				{Value: "@!reload-subagents"},
+			},
 		},
 		{
 			name: "path-based command completion with ./",
@@ -327,7 +378,7 @@ func TestGetCompletions(t *testing.T) {
 				// Mock GetSpec to return no completion spec for path-based commands
 				manager.On("GetSpec", "./").Return(CompletionSpec{}, false)
 			},
-			expected: []string{}, // Will depend on actual executable files in current directory
+			expected: []shellinput.CompletionCandidate{}, // Will depend on actual executable files in current directory
 		},
 		{
 			name: "path-based command completion with /bin/",
@@ -337,7 +388,13 @@ func TestGetCompletions(t *testing.T) {
 				// Mock GetSpec to return no completion spec for path-based commands
 				manager.On("GetSpec", "/bin/").Return(CompletionSpec{}, false)
 			},
-			expected: binCompletions, // Mocked executables
+			expected: func() []shellinput.CompletionCandidate {
+				candidates := make([]shellinput.CompletionCandidate, len(binCompletions))
+				for i, path := range binCompletions {
+					candidates[i] = shellinput.CompletionCandidate{Value: path}
+				}
+				return candidates
+			}(),
 		},
 		{
 			name: "alias completion with matching prefix",
@@ -350,7 +407,10 @@ func TestGetCompletions(t *testing.T) {
 				// Set up aliases using reflection (simulating aliases in the runner)
 				setupTestAliases(runner)
 			},
-			expected: []string{"test123", "testfoo"}, // Only includes test aliases, not system commands
+			expected: []shellinput.CompletionCandidate{
+				{Value: "test123"},
+				{Value: "testfoo"},
+			},
 		},
 		{
 			name: "alias completion with partial match",
@@ -363,7 +423,9 @@ func TestGetCompletions(t *testing.T) {
 				// Set up aliases using reflection
 				setupTestAliases(runner)
 			},
-			expected: []string{"test123"},
+			expected: []shellinput.CompletionCandidate{
+				{Value: "test123"},
+			},
 		},
 		{
 			name: "alias completion with no matches falls back to system commands",
@@ -376,7 +438,7 @@ func TestGetCompletions(t *testing.T) {
 				// Set up aliases using reflection
 				setupTestAliases(runner)
 			},
-			expected: []string{}, // No aliases or system commands start with "nonexistent"
+			expected: []shellinput.CompletionCandidate{},
 		},
 	}
 
@@ -426,7 +488,7 @@ func TestGetHelpInfo(t *testing.T) {
 			name:     "help for @! empty",
 			line:     "@!",
 			pos:      2,
-			expected: "**@!Agent Controls** - Manage the agent\n'@!new' - Start a new session\n'@!subagents' - List available subagents",
+			expected: "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents** - List available subagents\n• **@!reload-subagents** - Reload subagent configurations\n• **@!subagent-info <name>** - Show subagent details",
 		},
 		{
 			name:     "help for @!new",
@@ -450,13 +512,13 @@ func TestGetHelpInfo(t *testing.T) {
 			name:     "help for partial @!n (matches new)",
 			line:     "@!n",
 			pos:      3,
-			expected: "**@!Agent Controls** - Manage the agent\n'@!new' - Start a new session\n'@!subagents' - List available subagents",
+			expected: "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents** - List available subagents\n• **@!reload-subagents** - Reload subagent configurations\n• **@!subagent-info <name>** - Show subagent details",
 		},
 		{
 			name:     "help for partial @!t (matches tokens)",
 			line:     "@!t",
 			pos:      3,
-			expected: "**@!Agent Controls** - Manage the agent\n'@!new' - Start a new session\n'@!subagents' - List available subagents",
+			expected: "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents** - List available subagents\n• **@!reload-subagents** - Reload subagent configurations\n• **@!subagent-info <name>** - Show subagent details",
 		},
 		{
 			name:     "help for @!subagents",
@@ -488,7 +550,7 @@ func TestGetHelpInfo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			runner, _ := interp.New()
 			manager := NewCompletionManager()
-			provider := NewShellCompletionProvider(manager, runner, nil, nil)
+			provider := NewShellCompletionProvider(manager, runner)
 
 			result := provider.GetHelpInfo(tt.line, tt.pos)
 			assert.Equal(t, tt.expected, result)
@@ -503,7 +565,7 @@ func TestGetHelpInfoWithMacros(t *testing.T) {
 
 	// Use nil runner to force fallback to environment variable
 	manager := NewCompletionManager()
-	provider := NewShellCompletionProvider(manager, nil, nil, nil)
+	provider := NewShellCompletionProvider(manager, nil)
 
 	tests := []struct {
 		name     string

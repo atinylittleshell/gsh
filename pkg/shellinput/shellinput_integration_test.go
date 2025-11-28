@@ -43,29 +43,40 @@ func newRealCompletionProvider() *realCompletionProvider {
 	}
 }
 
-func (r *realCompletionProvider) GetCompletions(line string, pos int) []string {
+func (r *realCompletionProvider) GetCompletions(line string, pos int) []CompletionCandidate {
 	// Extract the part of the line up to the cursor
 	inputLine := line[:pos]
 
+	var result []string
+
 	// Try exact match first
 	if completions, ok := r.completions[inputLine]; ok {
-		return completions
-	}
-
-	// Try prefix matching
-	for prefix, completions := range r.completions {
-		if len(inputLine) >= len(prefix) && inputLine[:len(prefix)] == prefix {
-			return completions
+		result = completions
+	} else {
+		// Try prefix matching
+		for prefix, completions := range r.completions {
+			if len(inputLine) >= len(prefix) && inputLine[:len(prefix)] == prefix {
+				result = completions
+				break
+			}
 		}
 	}
 
 	// For file/directory completions (cd command)
-	if len(inputLine) >= 3 && inputLine[:2] == "cd" {
+	if len(result) == 0 && len(inputLine) >= 3 && inputLine[:2] == "cd" {
 		// Create some mock directories for testing
-		return []string{"dir1/", "dir2/", "documents/", "downloads/"}
+		result = []string{"dir1/", "dir2/", "documents/", "downloads/"}
 	}
 
-	return []string{}
+	if len(result) > 0 {
+		candidates := make([]CompletionCandidate, len(result))
+		for i, s := range result {
+			candidates[i] = CompletionCandidate{Value: s}
+		}
+		return candidates
+	}
+
+	return []CompletionCandidate{}
 }
 
 func (r *realCompletionProvider) GetHelpInfo(line string, pos int) string {
@@ -88,7 +99,7 @@ func (f *fileSystemCompletionProvider) GetHelpInfo(line string, pos int) string 
 	return f.baseProvider.GetHelpInfo(line, pos)
 }
 
-func (f *fileSystemCompletionProvider) GetCompletions(line string, pos int) []string {
+func (f *fileSystemCompletionProvider) GetCompletions(line string, pos int) []CompletionCandidate {
 	inputLine := line[:pos]
 
 	// Handle cd commands with real directory listing
@@ -100,7 +111,7 @@ func (f *fileSystemCompletionProvider) GetCompletions(line string, pos int) []st
 
 		entries, err := os.ReadDir(f.tmpDir)
 		if err != nil {
-			return []string{}
+			return []CompletionCandidate{}
 		}
 
 		var completions []string
@@ -109,7 +120,12 @@ func (f *fileSystemCompletionProvider) GetCompletions(line string, pos int) []st
 				completions = append(completions, entry.Name()+"/")
 			}
 		}
-		return completions
+
+		candidates := make([]CompletionCandidate, len(completions))
+		for i, s := range completions {
+			candidates[i] = CompletionCandidate{Value: s}
+		}
+		return candidates
 	}
 
 	// Handle file completions for other commands
@@ -132,7 +148,7 @@ func (f *fileSystemCompletionProvider) GetCompletions(line string, pos int) []st
 
 		entries, err := os.ReadDir(f.tmpDir)
 		if err != nil {
-			return []string{}
+			return []CompletionCandidate{}
 		}
 
 		var completions []string
@@ -146,7 +162,12 @@ func (f *fileSystemCompletionProvider) GetCompletions(line string, pos int) []st
 				}
 			}
 		}
-		return completions
+
+		candidates := make([]CompletionCandidate, len(completions))
+		for i, s := range completions {
+			candidates[i] = CompletionCandidate{Value: s}
+		}
+		return candidates
 	}
 
 	// Fall back to base provider for non-file completions

@@ -890,6 +890,7 @@ func (m Model) completionView(offset int) string {
 }
 
 // CompletionBoxView renders the completion info box with all available completions
+// CompletionBoxView renders the completion info box with all available completions
 func (m Model) CompletionBoxView(height int, width int) string {
 	if !m.completion.shouldShowInfoBox() {
 		return ""
@@ -904,11 +905,25 @@ func (m Model) CompletionBoxView(height int, width int) string {
 		return ""
 	}
 
-	// Calculate max width of items to determine columns
+	// Check if we need to show descriptions (Zsh style)
+	hasDescriptions := false
+	maxCandidateWidth := 0
 	maxItemWidth := 0
 	for _, s := range m.completion.suggestions {
+		if s.Description != "" {
+			hasDescriptions = true
+		}
+
+		displayWidth := uniseg.StringWidth(s.Display)
+		if displayWidth == 0 {
+			displayWidth = uniseg.StringWidth(s.Value)
+		}
+		if displayWidth > maxCandidateWidth {
+			maxCandidateWidth = displayWidth
+		}
+
 		// Length + prefix ("> ") + spacing ("  ")
-		l := uniseg.StringWidth(s) + 4
+		l := displayWidth + 4
 		if l > maxItemWidth {
 			maxItemWidth = l
 		}
@@ -919,21 +934,14 @@ func (m Model) CompletionBoxView(height int, width int) string {
 		maxItemWidth = 10
 	}
 
-	// Calculate columns
+	// Calculate columns - single column when showing descriptions for alignment
 	numColumns := 1
-	if width > 0 {
+	if !hasDescriptions && width > 0 {
 		numColumns = width / maxItemWidth
 		if numColumns < 1 {
 			numColumns = 1
 		}
 	}
-
-	// Only use multiple columns if we actually have enough items to fill them
-	// This prevents spreading sparse items across too many columns
-	// But the requirement says "allow any number of columns... until horizontal space is used up"
-	// and "When choices scroll off the end... displayed in second column".
-	// This implies we fill columns vertically first.
-	// So we need enough capacity.
 
 	// If items <= height, we stick to 1 column regardless of width (looks cleaner)
 	if totalItems <= height {
@@ -970,7 +978,12 @@ func (m Model) CompletionBoxView(height int, width int) string {
 				continue
 			}
 
-			suggestion := m.completion.suggestions[idx]
+			candidate := m.completion.suggestions[idx]
+			displayText := candidate.Display
+			if displayText == "" {
+				displayText = candidate.Value
+			}
+
 			var prefix string
 
 			// Regular line with spacing
@@ -983,28 +996,28 @@ func (m Model) CompletionBoxView(height int, width int) string {
 				prefix += "  "
 			}
 
-			itemStr := prefix + suggestion
+			itemStr := prefix + displayText
 
-			// Pad the column (except the last one)
-			if c < numColumns-1 {
-				width := uniseg.StringWidth(itemStr)
-				if width < maxItemWidth {
-					itemStr += strings.Repeat(" ", maxItemWidth-width)
-				} else {
-					itemStr += "  "
+			if hasDescriptions {
+				// Render as two columns: Candidate | Description
+				// Pad the candidate to align descriptions
+				padding := maxCandidateWidth - uniseg.StringWidth(displayText) + 2
+				itemStr += strings.Repeat(" ", padding)
+				itemStr += lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(candidate.Description)
+			} else {
+				// Pad the column (except the last one)
+				if c < numColumns-1 {
+					itemWidth := uniseg.StringWidth(itemStr)
+					if itemWidth < maxItemWidth {
+						itemStr += strings.Repeat(" ", maxItemWidth-itemWidth)
+					} else {
+						itemStr += "  "
+					}
 				}
 			}
 
 			lineContent += itemStr
 		}
-
-		// If line is empty but we need to maintain fixed height, add empty line
-		// But only if we haven't reached the end of items logic above which continues
-		// Actually, we iterate r < height. If lineContent is empty, it means no items for this row.
-		// To maintain fixed height visuals, we might want to output empty lines.
-		// However, the loop `idx >= totalItems` continue might cause empty lines at the end.
-
-		// If we want strict fixed height output:
 
 		if lineContent != "" {
 			content.WriteString(lineContent)
@@ -1018,7 +1031,6 @@ func (m Model) CompletionBoxView(height int, width int) string {
 	return content.String()
 }
 
-// HelpBoxView renders the help info box for special commands
 func (m Model) HelpBoxView() string {
 	if !m.completion.shouldShowHelpBox() {
 		return ""

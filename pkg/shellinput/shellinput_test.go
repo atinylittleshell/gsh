@@ -12,16 +12,23 @@ import (
 type mockCompletionProvider struct {
 }
 
-func (m *mockCompletionProvider) GetCompletions(line string, pos int) []string {
+func (m *mockCompletionProvider) GetCompletions(line string, pos int) []CompletionCandidate {
 	// Check for exact prefix matches first
 	if strings.HasPrefix(line, "git ch") {
-		return []string{"git checkout", "git cherry-pick"}
+		return []CompletionCandidate{
+			{Value: "git checkout"},
+			{Value: "git cherry-pick"},
+		}
 	}
 	if strings.HasPrefix(line, "gi") {
-		return []string{"git", "gist", "give"}
+		return []CompletionCandidate{
+			{Value: "git"},
+			{Value: "gist"},
+			{Value: "give"},
+		}
 	}
 	// Return empty slice for no completions
-	return []string{}
+	return []CompletionCandidate{}
 }
 
 func (m *mockCompletionProvider) GetHelpInfo(line string, pos int) string {

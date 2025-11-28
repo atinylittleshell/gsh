@@ -58,7 +58,7 @@ func (m *Model) handleCompletion() {
 		// If suggestions contain spaces, it might be a full phrase completion
 		isMultiWord := false
 		for _, suggestion := range suggestions {
-			if strings.Contains(suggestion, " ") {
+			if strings.Contains(suggestion.Value, " ") {
 				isMultiWord = true
 				break
 			}
@@ -84,7 +84,7 @@ func (m *Model) handleCompletion() {
 					prevWordStart--
 				}
 				// If the suggestion starts with the same prefix as the current command, use the full command
-				if len(suggestions) > 0 && strings.HasPrefix(suggestions[0], line[prevWordStart:commandStart]) {
+				if len(suggestions) > 0 && strings.HasPrefix(suggestions[0].Value, line[prevWordStart:commandStart]) {
 					start = prevWordStart
 				}
 			}
@@ -126,7 +126,7 @@ func (m *Model) handleCompletion() {
 		// Check if this is a multi-word completion by examining the suggestions
 		isMultiWord := false
 		for _, suggestion := range m.completion.suggestions {
-			if strings.Contains(suggestion, " ") {
+			if strings.Contains(suggestion.Value, " ") {
 				isMultiWord = true
 				break
 			}
@@ -152,7 +152,7 @@ func (m *Model) handleCompletion() {
 					prevWordStart--
 				}
 				// If the suggestion starts with the same prefix as the current command, use the full command
-				if len(m.completion.suggestions) > 0 && strings.HasPrefix(m.completion.suggestions[m.completion.selected], line[prevWordStart:commandStart]) {
+				if len(m.completion.suggestions) > 0 && strings.HasPrefix(m.completion.suggestions[m.completion.selected].Value, line[prevWordStart:commandStart]) {
 					start = prevWordStart
 				}
 			}
@@ -230,7 +230,7 @@ func (m *Model) updateHelpInfo() {
 
 	// If completion is active and a suggestion is selected, show help for the selected suggestion
 	if m.completion.active && m.completion.selected >= 0 && m.completion.selected < len(m.completion.suggestions) {
-		selectedSuggestion := m.completion.suggestions[m.completion.selected]
+		selectedSuggestion := m.completion.suggestions[m.completion.selected].Value
 		// For help purposes, we want to get help for the selected suggestion
 		// We'll use the length of the suggestion as the position to ensure we get the full command
 		helpInfo = m.CompletionProvider.GetHelpInfo(selectedSuggestion, len(selectedSuggestion))

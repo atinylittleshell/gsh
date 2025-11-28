@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/atinylittleshell/gsh/pkg/shellinput"
 	"github.com/stretchr/testify/assert"
 	"mvdan.cc/sh/v3/interp"
 	"mvdan.cc/sh/v3/syntax"
@@ -46,7 +47,9 @@ func TestCompletionManager(t *testing.T) {
 			name    string
 			spec    CompletionSpec
 			args    []string
-			want    []string
+			line    string
+			pos     int
+			want    []shellinput.CompletionCandidate
 			wantErr bool
 		}{
 			{
@@ -56,7 +59,13 @@ func TestCompletionManager(t *testing.T) {
 					Value: "apple banana cherry",
 				},
 				args: []string{},
-				want: []string{"apple", "banana", "cherry"},
+				line: "",
+				pos:  0,
+				want: []shellinput.CompletionCandidate{
+					{Value: "apple"},
+					{Value: "banana"},
+					{Value: "cherry"},
+				},
 			},
 			{
 				name: "word list completion - with filter",
@@ -65,7 +74,11 @@ func TestCompletionManager(t *testing.T) {
 					Value: "apple banana cherry",
 				},
 				args: []string{"command", "b"},
-				want: []string{"banana"},
+				line: "command b",
+				pos:  9,
+				want: []shellinput.CompletionCandidate{
+					{Value: "banana"},
+				},
 			},
 			{
 				name: "word list completion - no matches",
@@ -74,7 +87,9 @@ func TestCompletionManager(t *testing.T) {
 					Value: "apple banana cherry",
 				},
 				args: []string{"command", "x"},
-				want: []string{},
+				line: "command x",
+				pos:  9,
+				want: []shellinput.CompletionCandidate{},
 			},
 			{
 				name: "function completion - basic",
@@ -83,7 +98,13 @@ func TestCompletionManager(t *testing.T) {
 					Value: "my_completion",
 				},
 				args: []string{"command", "arg"},
-				want: []string{"foo", "bar", "baz"},
+				line: "command arg",
+				pos:  11,
+				want: []shellinput.CompletionCandidate{
+					{Value: "foo"},
+					{Value: "bar"},
+					{Value: "baz"},
+				},
 			},
 			{
 				name: "function completion - with prefix handling",
@@ -92,7 +113,12 @@ func TestCompletionManager(t *testing.T) {
 					Value: "prefix_completion",
 				},
 				args: []string{"command", "b"},
-				want: []string{"bar", "baz"},
+				line: "command b",
+				pos:  9,
+				want: []shellinput.CompletionCandidate{
+					{Value: "bar"},
+					{Value: "baz"},
+				},
 			},
 			{
 				name: "function completion - empty args",
@@ -101,7 +127,13 @@ func TestCompletionManager(t *testing.T) {
 					Value: "my_completion",
 				},
 				args: []string{},
-				want: []string{"foo", "bar", "baz"},
+				line: "",
+				pos:  0,
+				want: []shellinput.CompletionCandidate{
+					{Value: "foo"},
+					{Value: "bar"},
+					{Value: "baz"},
+				},
 			},
 			{
 				name: "invalid completion type",
@@ -110,13 +142,15 @@ func TestCompletionManager(t *testing.T) {
 					Value: "something",
 				},
 				args:    []string{"command", "arg"},
+				line:    "command arg",
+				pos:     11,
 				wantErr: true,
 			},
 		}
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				got, err := manager.ExecuteCompletion(context.Background(), runner, tt.spec, tt.args)
+				got, err := manager.ExecuteCompletion(context.Background(), runner, tt.spec, tt.args, tt.line, tt.pos)
 
 				if tt.wantErr {
 					assert.Error(t, err)
@@ -204,12 +238,23 @@ func TestCompleteCommandHandler(t *testing.T) {
 		assert.Equal(t, FunctionCompletion, spec.Type)
 		assert.Equal(t, "_mycmd_completion", spec.Value)
 
+		// Test command completion
+		err = wrappedHandler(context.Background(), []string{"complete", "-C", "mock_completer", "mycmd3"})
+		assert.NoError(t, err)
+
+		// Verify the command spec was added correctly
+		spec, exists = manager.GetSpec("mycmd3")
+		assert.True(t, exists)
+		assert.Equal(t, CommandCompletion, spec.Type)
+		assert.Equal(t, "mock_completer", spec.Value)
+
 		// Test complete -p
 		captured = []string{}
 		err = wrappedHandler(context.Background(), []string{"complete", "-p"})
 		assert.NoError(t, err)
 		assert.Contains(t, captured, "complete -W \"foo bar\" mycmd\n")
 		assert.Contains(t, captured, "complete -F _mycmd_completion mycmd2\n")
+		assert.Contains(t, captured, "complete -C \"mock_completer\" mycmd3\n")
 
 		// Test complete -p mycmd
 		captured = []string{}

@@ -75,7 +75,6 @@ var getFileCompletions fileCompleter = func(prefix string, currentDirectory stri
 		// Relative path
 		pathType = "rel"
 		fullPath := filepath.Join(currentDirectory, prefix)
-		dir = filepath.Dir(fullPath)
 		filePrefix = filepath.Base(prefix)
 		prefixDir = filepath.Dir(prefix)
 
@@ -84,6 +83,12 @@ var getFileCompletions fileCompleter = func(prefix string, currentDirectory stri
 			dir = fullPath
 			filePrefix = ""
 			prefixDir = prefix
+		} else if prefix == "." || prefix == ".." {
+			// Special case: "." means current directory, ".." means parent directory
+			dir = fullPath
+		} else {
+			// For other relative paths, get the directory part
+			dir = filepath.Dir(fullPath)
 		}
 	}
 
@@ -116,7 +121,12 @@ var getFileCompletions fileCompleter = func(prefix string, currentDirectory stri
 		} else {
 			// For relative paths, keep them relative
 			if prefixDir == "." {
-				completionPath = name
+				// Check if the original prefix started with "./"
+				if strings.HasPrefix(prefix, "./") {
+					completionPath = "./" + name
+				} else {
+					completionPath = name
+				}
 			} else {
 				completionPath = filepath.Join(prefixDir, name)
 			}

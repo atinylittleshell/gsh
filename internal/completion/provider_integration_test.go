@@ -2,10 +2,12 @@ package completion
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
-	"testing"
 	"runtime"
+	"testing"
 
+	"github.com/atinylittleshell/gsh/pkg/shellinput"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"mvdan.cc/sh/v3/expand"
@@ -56,7 +58,7 @@ func TestShellCompletionProvider_FileCompletion_Integration(t *testing.T) {
 	}
 
 	manager := &mockCompletionManager{}
-	provider := NewShellCompletionProvider(manager, runner, nil, nil)
+	provider := NewShellCompletionProvider(manager, runner)
 
 	norm := func(p string) string {
 		return filepath.FromSlash(p)
@@ -139,8 +141,14 @@ func TestShellCompletionProvider_FileCompletion_Integration(t *testing.T) {
 
 			// Verify all expected items are present
 			for _, expected := range tt.shouldContain {
-				assert.Contains(t, completions, expected,
-					"Should contain %s in completions: %v", expected, completions)
+				found := false
+				for _, c := range completions {
+					if c.Value == expected {
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "Should contain %s in completions", expected)
 			}
 
 			manager.AssertExpectations(t)
@@ -165,7 +173,7 @@ func TestShellCompletionProvider_MacroCompletion_Integration(t *testing.T) {
 	}
 
 	manager := &mockCompletionManager{}
-	provider := NewShellCompletionProvider(manager, runner, nil, nil)
+	provider := NewShellCompletionProvider(manager, runner)
 
 	tests := []struct {
 		name             string
@@ -215,13 +223,25 @@ func TestShellCompletionProvider_MacroCompletion_Integration(t *testing.T) {
 				tt.expectedCount, len(completions), completions)
 
 			for _, expected := range tt.shouldContain {
-				assert.Contains(t, completions, expected,
-					"Should contain %s in completions: %v", expected, completions)
+				found := false
+				for _, c := range completions {
+					if c.Value == expected {
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "Should contain %s in completions", expected)
 			}
 
 			for _, notExpected := range tt.shouldNotContain {
-				assert.NotContains(t, completions, notExpected,
-					"Should not contain %s in completions: %v", notExpected, completions)
+				found := false
+				for _, c := range completions {
+					if c.Value == notExpected {
+						found = true
+						break
+					}
+				}
+				assert.False(t, found, "Should not contain %s in completions", notExpected)
 			}
 		})
 	}
@@ -232,7 +252,7 @@ func TestShellCompletionProvider_BuiltinCompletion_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	manager := &mockCompletionManager{}
-	provider := NewShellCompletionProvider(manager, runner, nil, nil)
+	provider := NewShellCompletionProvider(manager, runner)
 
 	tests := []struct {
 		name             string
@@ -282,13 +302,25 @@ func TestShellCompletionProvider_BuiltinCompletion_Integration(t *testing.T) {
 				tt.expectedCount, len(completions), completions)
 
 			for _, expected := range tt.shouldContain {
-				assert.Contains(t, completions, expected,
-					"Should contain %s in completions: %v", expected, completions)
+				found := false
+				for _, c := range completions {
+					if c.Value == expected {
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "Should contain %s in completions", expected)
 			}
 
 			for _, notExpected := range tt.shouldNotContain {
-				assert.NotContains(t, completions, notExpected,
-					"Should not contain %s in completions: %v", notExpected, completions)
+				found := false
+				for _, c := range completions {
+					if c.Value == notExpected {
+						found = true
+						break
+					}
+				}
+				assert.False(t, found, "Should not contain %s in completions", notExpected)
 			}
 		})
 	}
@@ -321,7 +353,7 @@ func TestShellCompletionProvider_ExecutableCompletion_Integration(t *testing.T) 
 	require.NoError(t, err)
 
 	manager := &mockCompletionManager{}
-	provider := NewShellCompletionProvider(manager, runner, nil, nil)
+	provider := NewShellCompletionProvider(manager, runner)
 
 	norm := func(p string) string {
 		return filepath.FromSlash(p)
@@ -390,13 +422,25 @@ func TestShellCompletionProvider_ExecutableCompletion_Integration(t *testing.T) 
 				tt.expectedMin, len(completions), completions)
 
 			for _, expected := range tt.shouldContain {
-				assert.Contains(t, completions, expected,
-					"Should contain %s in completions: %v", expected, completions)
+				found := false
+				for _, c := range completions {
+					if c.Value == expected {
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "Should contain %s in completions", expected)
 			}
 
 			for _, notExpected := range tt.shouldNotContain {
-				assert.NotContains(t, completions, notExpected,
-					"Should not contain %s in completions: %v", notExpected, completions)
+				found := false
+				for _, c := range completions {
+					if c.Value == notExpected {
+						found = true
+						break
+					}
+				}
+				assert.False(t, found, "Should not contain %s in completions", notExpected)
 			}
 
 			manager.AssertExpectations(t)
@@ -419,7 +463,7 @@ func TestShellCompletionProvider_HelpInfo_Integration(t *testing.T) {
 	}
 
 	manager := NewCompletionManager()
-	provider := NewShellCompletionProvider(manager, runner, nil, nil)
+	provider := NewShellCompletionProvider(manager, runner)
 
 	tests := []struct {
 		name     string
@@ -431,7 +475,7 @@ func TestShellCompletionProvider_HelpInfo_Integration(t *testing.T) {
 			name:     "help for @! prefix",
 			line:     "@!",
 			pos:      2,
-			expected: "**@!Agent Controls** - Manage the agent\n'@!new' - Start a new session\n'@!subagents' - List available subagents",
+			expected: "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents** - List available subagents\n• **@!reload-subagents** - Reload subagent configurations\n• **@!subagent-info <name>** - Show subagent details",
 		},
 		{
 			name:     "help for @!new command",
@@ -482,7 +526,7 @@ func TestShellCompletionProvider_CompletionSpec_Integration(t *testing.T) {
 	}
 	manager.specs["git"] = gitSpec
 
-	provider := NewShellCompletionProvider(manager, runner, nil, nil)
+	provider := NewShellCompletionProvider(manager, runner)
 
 	tests := []struct {
 		name          string
@@ -525,8 +569,8 @@ func TestShellCompletionProvider_CompletionSpec_Integration(t *testing.T) {
 			for _, expected := range tt.shouldContain {
 				found := false
 				for _, completion := range completions {
-					if completion == expected ||
-						completion == "git "+expected {
+					if completion.Value == expected ||
+						completion.Value == "git "+expected {
 						found = true
 						break
 					}
@@ -534,6 +578,82 @@ func TestShellCompletionProvider_CompletionSpec_Integration(t *testing.T) {
 				assert.True(t, found,
 					"Should contain %s (or git %s) in completions: %v",
 					expected, expected, completions)
+			}
+		})
+	}
+}
+
+func TestShellCompletionProvider_GlobalCompletion_Integration(t *testing.T) {
+	// Skip on Windows as shell script execution is not reliable
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows: shell script execution not supported")
+	}
+
+	// Skip on CI if needed, or ensure sh is available
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skip("sh not found")
+	}
+
+	runner, err := interp.New()
+	require.NoError(t, err)
+
+	manager := NewCompletionManager()
+	provider := NewShellCompletionProvider(manager, runner)
+
+	// Create a script that ignores arguments and prints completions
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "completer.sh")
+	scriptContent := `#!/bin/sh
+echo "global-option1"
+echo "global-option2\tdescription2"
+echo '{"Value":"global-option3","Description":"json desc"}'
+`
+	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	require.NoError(t, err)
+
+	os.Setenv("GSH_COMPLETION_COMMAND", scriptPath)
+	defer os.Unsetenv("GSH_COMPLETION_COMMAND")
+
+	tests := []struct {
+		name          string
+		line          string
+		pos           int
+		expectedMin   int
+		shouldContain []shellinput.CompletionCandidate
+	}{
+		{
+			name:        "global completion fallback",
+			line:        "unknown-cmd ",
+			pos:         12,
+			expectedMin: 2,
+			shouldContain: []shellinput.CompletionCandidate{
+				{Value: "global-option1"},
+				{Value: "global-option2", Description: "description2"},
+				// JSON handling might need to be careful about mixed output, but let's test the plain text first
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			completions := provider.GetCompletions(tt.line, tt.pos)
+
+			assert.GreaterOrEqual(t, len(completions), tt.expectedMin,
+				"Should have at least %d completions, got %d: %v",
+				tt.expectedMin, len(completions), completions)
+
+			for _, expected := range tt.shouldContain {
+				found := false
+				for _, c := range completions {
+					if c.Value == expected.Value {
+						if expected.Description != "" {
+							assert.Equal(t, expected.Description, c.Description)
+						}
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "Should contain %s", expected.Value)
 			}
 		})
 	}

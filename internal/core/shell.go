@@ -54,7 +54,7 @@ func RunInteractiveShell(
 	subagentIntegration := subagent.NewSubagentIntegration(runner, historyManager, logger)
 
 	// Set up completion
-	completionProvider := completion.NewShellCompletionProvider(completionManager, runner, historyManager, logger)
+	completionProvider := completion.NewShellCompletionProvider(completionManager, runner)
 	completionProvider.SetSubagentProvider(subagentIntegration.GetCompletionProvider())
 
 	chanSIGINT := make(chan os.Signal, 1)
@@ -77,7 +77,6 @@ func RunInteractiveShell(
 		predictor.UpdateContext(ragContext)
 		explainer.UpdateContext(ragContext)
 		agent.UpdateContext(ragContext)
-		completionProvider.UpdateContext(ragContext)
 
 		historyEntries, err := historyManager.GetRecentEntries(environment.GetPwd(runner), 1024)
 		if err != nil {

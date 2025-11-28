@@ -1,10 +1,17 @@
 package shellinput
 
+// CompletionCandidate represents a single completion suggestion
+type CompletionCandidate struct {
+	Value       string // The actual value to insert
+	Display     string // What to show in the list (if different from Value)
+	Description string // The description to show in the right column
+}
+
 // CompletionProvider is the interface that provides completion suggestions
 type CompletionProvider interface {
 	// GetCompletions returns a list of completion suggestions for the current input
 	// line and cursor position
-	GetCompletions(line string, pos int) []string
+	GetCompletions(line string, pos int) []CompletionCandidate
 
 	// GetHelpInfo returns help information for special commands like #! and #/
 	// Returns empty string if no help is available
@@ -14,7 +21,7 @@ type CompletionProvider interface {
 // completionState tracks the state of completion suggestions
 type completionState struct {
 	active       bool
-	suggestions  []string
+	suggestions  []CompletionCandidate
 	selected     int
 	prefix       string // the part of the word being completed
 	startPos     int    // where in the input the completion should be inserted
@@ -43,7 +50,7 @@ func (cs *completionState) nextSuggestion() string {
 		return ""
 	}
 	cs.selected = (cs.selected + 1) % len(cs.suggestions)
-	return cs.suggestions[cs.selected]
+	return cs.suggestions[cs.selected].Value
 }
 
 func (cs *completionState) prevSuggestion() string {
@@ -54,14 +61,14 @@ func (cs *completionState) prevSuggestion() string {
 	if cs.selected < 0 {
 		cs.selected = len(cs.suggestions) - 1
 	}
-	return cs.suggestions[cs.selected]
+	return cs.suggestions[cs.selected].Value
 }
 
 func (cs *completionState) currentSuggestion() string {
 	if !cs.active || cs.selected < 0 || cs.selected >= len(cs.suggestions) {
 		return ""
 	}
-	return cs.suggestions[cs.selected]
+	return cs.suggestions[cs.selected].Value
 }
 
 // hasMultipleCompletions returns true if there are multiple completion options

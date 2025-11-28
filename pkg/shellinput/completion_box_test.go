@@ -11,7 +11,12 @@ func setupCompletionModel(items []string) Model {
 	m := New()
 	m.ShowSuggestions = true
 	m.completion.active = true
-	m.completion.suggestions = items
+	// Convert strings to CompletionCandidate
+	candidates := make([]CompletionCandidate, len(items))
+	for i, item := range items {
+		candidates[i] = CompletionCandidate{Value: item, Display: item}
+	}
+	m.completion.suggestions = candidates
 	m.completion.showInfoBox = true
 	m.completion.selected = 0
 	// Also set suggestions field for consistency, though logic mostly uses completion.suggestions
