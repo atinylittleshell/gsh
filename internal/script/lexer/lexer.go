@@ -163,7 +163,7 @@ func (l *Lexer) NextToken() Token {
 		}
 		return tok
 	case '`':
-		tok.Type = STRING
+		tok.Type = TEMPLATE_LITERAL
 		tok.Literal = l.readTemplateString()
 		return tok
 	case '#':
@@ -369,6 +369,10 @@ func (l *Lexer) readTemplateString() string {
 				result.WriteByte('\\')
 			case '`':
 				result.WriteByte('`')
+			case '$':
+				// Use a placeholder that won't be confused with real interpolation
+				// The interpreter will convert this back to a literal $
+				result.WriteString("\x00ESCAPED_DOLLAR\x00")
 			default:
 				result.WriteByte('\\')
 				result.WriteByte(l.ch)

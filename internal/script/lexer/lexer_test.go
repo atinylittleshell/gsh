@@ -195,7 +195,7 @@ result = !a
 		// template = `Hello ${name}`
 		{IDENT, "template"},
 		{OP_ASSIGN, "="},
-		{STRING, "Hello ${name}"},
+		{TEMPLATE_LITERAL, "Hello ${name}"},
 
 		// if (x > 5) {
 		{KW_IF, "if"},
@@ -359,9 +359,10 @@ result = !a
 
 func TestStringLiterals(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		expected string
+		name       string
+		input      string
+		expected   string
+		isTemplate bool
 	}{
 		{
 			name:     "double quotes",
@@ -374,9 +375,10 @@ func TestStringLiterals(t *testing.T) {
 			expected: "hello world",
 		},
 		{
-			name:     "template literal",
-			input:    "`hello ${name}`",
-			expected: "hello ${name}",
+			name:       "template literal",
+			input:      "`hello ${name}`",
+			expected:   "hello ${name}",
+			isTemplate: true,
 		},
 		{
 			name:     "escaped characters in double quotes",
@@ -427,8 +429,13 @@ func TestStringLiterals(t *testing.T) {
 			l := New(tt.input)
 			tok := l.NextToken()
 
-			if tok.Type != STRING {
-				t.Fatalf("token type wrong. expected=STRING, got=%q", tok.Type)
+			expectedType := STRING
+			if tt.isTemplate {
+				expectedType = TEMPLATE_LITERAL
+			}
+
+			if tok.Type != expectedType {
+				t.Fatalf("token type wrong. expected=%v, got=%q", expectedType, tok.Type)
 			}
 
 			if tok.Literal != tt.expected {

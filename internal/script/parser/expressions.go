@@ -68,7 +68,11 @@ func (p *Parser) parseNumberLiteral() Expression {
 
 // parseStringLiteral parses a string literal
 func (p *Parser) parseStringLiteral() Expression {
-	return &StringLiteral{Token: p.curToken, Value: p.curToken.Literal}
+	return &StringLiteral{Token: p.curToken, Value: p.curToken.Literal, IsTemplate: false}
+}
+
+func (p *Parser) parseTemplateLiteral() Expression {
+	return &StringLiteral{Token: p.curToken, Value: p.curToken.Literal, IsTemplate: true}
 }
 
 // parseUnaryExpression parses unary expressions (!, -)
