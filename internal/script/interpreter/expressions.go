@@ -261,6 +261,21 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 		return stringMethod.Impl(stringMethod.Str, args)
 	}
 
+	// Check if it's an object method
+	if objectMethod, ok := function.(*ObjectMethodValue); ok {
+		// Evaluate arguments
+		args := make([]Value, len(node.Arguments))
+		for idx, argExpr := range node.Arguments {
+			val, err := i.evalExpression(argExpr)
+			if err != nil {
+				return nil, err
+			}
+			args[idx] = val
+		}
+		// Call the object method with the bound object instance
+		return objectMethod.Impl(objectMethod.Obj, args)
+	}
+
 	// Check if it's an MCP tool
 	if mcpTool, ok := function.(*MCPToolValue); ok {
 		return i.callMCPTool(mcpTool, node.Arguments)
@@ -414,10 +429,7 @@ func (i *Interpreter) evalMemberExpression(node *parser.MemberExpression) (Value
 
 	// Handle regular objects
 	if objVal, ok := object.(*ObjectValue); ok {
-		if prop, exists := objVal.Properties[propertyName]; exists {
-			return prop, nil
-		}
-		return nil, fmt.Errorf("property '%s' not found on object", propertyName)
+		return i.getObjectProperty(objVal, propertyName)
 	}
 
 	return nil, fmt.Errorf("cannot access property '%s' on type %s", propertyName, object.Type())
@@ -463,6 +475,28 @@ func (i *Interpreter) getStringProperty(str *StringValue, property string) (Valu
 	default:
 		return nil, fmt.Errorf("string property '%s' not found", property)
 	}
+}
+
+// getObjectProperty returns object properties and methods
+func (i *Interpreter) getObjectProperty(obj *ObjectValue, property string) (Value, error) {
+	// Check for built-in methods first
+	switch property {
+	case "keys":
+		return &ObjectMethodValue{Name: "keys", Impl: objectKeysImpl, Obj: obj}, nil
+	case "values":
+		return &ObjectMethodValue{Name: "values", Impl: objectValuesImpl, Obj: obj}, nil
+	case "entries":
+		return &ObjectMethodValue{Name: "entries", Impl: objectEntriesImpl, Obj: obj}, nil
+	case "hasOwnProperty":
+		return &ObjectMethodValue{Name: "hasOwnProperty", Impl: objectHasOwnPropertyImpl, Obj: obj}, nil
+	}
+
+	// Check for user-defined properties
+	if prop, exists := obj.Properties[property]; exists {
+		return prop, nil
+	}
+
+	return nil, fmt.Errorf("property '%s' not found on object", property)
 }
 
 // evalIndexExpression evaluates an index expression (array[index] or object[key])
