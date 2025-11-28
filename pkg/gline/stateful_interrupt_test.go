@@ -1,8 +1,11 @@
 package gline
 
 import (
+	"io"
 	"testing"
+	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"go.uber.org/zap"
 )
 
@@ -63,14 +66,103 @@ func TestStatefulInterruptBehavior(t *testing.T) {
 // TestMultipleGlineCallsWithInterruption tests the actual Gline function
 // to see if interrupted state persists across calls
 func TestMultipleGlineCallsWithInterruption(t *testing.T) {
-	// This test would require more complex setup to actually trigger the bug
-	// since it involves the full tea.Program lifecycle. The bug likely occurs
-	// when there's some shared state or when the same model instance is reused.
+	logger, _ := zap.NewDevelopment()
+	options := NewOptions()
 
-	t.Skip("This test requires complex setup with tea.Program mocking")
+	type testRun struct {
+		name string
+		msg  tea.Msg
+	}
 
-	// The actual bug reproduction would look something like:
-	// 1. Call Gline() normally - should work
-	// 2. Call Gline() and simulate Ctrl+C - should return ErrInterrupted
-	// 3. Call Gline() again normally - BUG: might incorrectly return ErrInterrupted
+	cases := []testRun{
+		{name: "normal run", msg: tea.KeyMsg{Type: tea.KeyCtrlD}},
+		{name: "interrupted run", msg: tea.KeyMsg{Type: tea.KeyCtrlC}},
+		{name: "subsequent normal run", msg: tea.KeyMsg{Type: tea.KeyCtrlD}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Each run should start from a clean, active model state.
+			initial := initialModel("test> ", []string{}, "", nil, nil, nil, logger, options)
+			if initial.appState != Active {
+				t.Fatalf("expected initial model to be Active, got %v", initial.appState)
+			}
+
+			model, err := runProgramWithMessage(initial, tc.msg)
+			if err != nil {
+				t.Fatalf("program returned error: %v", err)
+			}
+
+			if model.appState != Terminated {
+				t.Fatalf("expected program to terminate, got state %v", model.appState)
+			}
+
+			switch tc.msg.(type) {
+			case tea.KeyMsg:
+				km := tc.msg.(tea.KeyMsg)
+				if km.Type == tea.KeyCtrlC {
+					if !model.interrupted {
+						t.Fatalf("expected interrupted state after Ctrl+C")
+					}
+				} else {
+					if model.interrupted {
+						t.Fatalf("unexpected interrupted state for %v run", tc.name)
+					}
+				}
+			default:
+				if model.interrupted {
+					t.Fatalf("unexpected interrupted state for %v run", tc.name)
+				}
+			}
+		})
+	}
+}
+
+// runProgramWithMessage executes a Bubble Tea program using the provided initial model and
+// sends a single message to drive it to completion.
+func runProgramWithMessage(initial appModel, msg tea.Msg) (appModel, error) {
+	p := tea.NewProgram(
+		initial,
+		tea.WithoutRenderer(),
+		tea.WithoutSignalHandler(),
+		// Disable Bubble Tea's attempt to acquire a TTY for stdin.
+		// Using nil keeps the input type "custom" and bypasses the
+		// /dev/tty fallback that doesn't exist in CI.
+		tea.WithInput(nil),
+		tea.WithOutput(io.Discard),
+	)
+
+	var (
+		model tea.Model
+		err   error
+	)
+
+	done := make(chan struct{})
+	go func() {
+		model, err = p.Run()
+		close(done)
+	}()
+
+	// Give the program a moment to initialize before sending the message.
+	time.Sleep(10 * time.Millisecond)
+	p.Send(msg)
+
+	select {
+	case <-done:
+	case <-time.After(500 * time.Millisecond):
+		// Ensure the program exits even if the message was not processed.
+		p.Quit()
+		select {
+		case <-done:
+		case <-time.After(500 * time.Millisecond):
+			return appModel{}, err
+		}
+	}
+
+	resultModel, ok := model.(appModel)
+	if !ok {
+		return appModel{}, err
+	}
+
+	return resultModel, err
 }
