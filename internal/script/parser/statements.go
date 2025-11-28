@@ -37,6 +37,11 @@ func (p *Parser) parseStatement() Statement {
 		if p.peekTokenIs(lexer.OP_ASSIGN) || p.peekTokenIs(lexer.COLON) {
 			return p.parseAssignmentStatement()
 		}
+		// Check for index assignment: identifier[...] = value
+		// We need to parse as expression and check if it's followed by '='
+		if p.peekTokenIs(lexer.LBRACKET) {
+			return p.parseAssignmentOrExpressionStatement()
+		}
 	}
 
 	// Otherwise, treat as expression statement
@@ -86,6 +91,33 @@ func (p *Parser) parseAssignmentStatement() Statement {
 	stmt.Value = p.parseExpression(LOWEST)
 
 	return stmt
+}
+
+// parseAssignmentOrExpressionStatement handles cases like arr[0] = value
+func (p *Parser) parseAssignmentOrExpressionStatement() Statement {
+	// Store the current token for potential expression statement
+	tok := p.curToken
+
+	// Parse the left side as an expression
+	expr := p.parseExpression(LOWEST)
+
+	// Check if this is an assignment
+	if p.peekTokenIs(lexer.OP_ASSIGN) {
+		p.nextToken() // consume the expression, now on '='
+		stmt := &AssignmentStatement{
+			Token: p.curToken,
+			Left:  expr,
+		}
+		p.nextToken() // consume '=', now on value expression
+		stmt.Value = p.parseExpression(LOWEST)
+		return stmt
+	}
+
+	// Not an assignment, return as expression statement
+	return &ExpressionStatement{
+		Token:      tok,
+		Expression: expr,
+	}
 }
 
 // parseExpressionStatement parses an expression statement

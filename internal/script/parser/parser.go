@@ -53,6 +53,7 @@ var precedences = map[lexer.TokenType]int{
 	lexer.OP_ASTERISK: PRODUCT,
 	lexer.OP_PERCENT:  PRODUCT,
 	lexer.LPAREN:      CALL,
+	lexer.LBRACKET:    CALL, // Index has same precedence as call
 	lexer.DOT:         MEMBER,
 }
 
@@ -97,6 +98,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(lexer.OP_NULLCOAL, p.parseBinaryExpression)
 	p.registerInfix(lexer.OP_PIPE, p.parsePipeExpression)
 	p.registerInfix(lexer.LPAREN, p.parseCallExpression)
+	p.registerInfix(lexer.LBRACKET, p.parseIndexExpression)
 	p.registerInfix(lexer.DOT, p.parseMemberExpression)
 
 	// Read two tokens to set both curToken and peekToken

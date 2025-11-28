@@ -31,6 +31,8 @@ func (i *Interpreter) evalExpression(expr parser.Expression) (Value, error) {
 		return i.evalCallExpression(node)
 	case *parser.MemberExpression:
 		return i.evalMemberExpression(node)
+	case *parser.IndexExpression:
+		return i.evalIndexExpression(node)
 	case *parser.PipeExpression:
 		return i.evalPipeExpression(node)
 	default:
@@ -229,6 +231,36 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 		return builtin.Fn(args)
 	}
 
+	// Check if it's an array method
+	if arrayMethod, ok := function.(*ArrayMethodValue); ok {
+		// Evaluate arguments
+		args := make([]Value, len(node.Arguments))
+		for idx, argExpr := range node.Arguments {
+			val, err := i.evalExpression(argExpr)
+			if err != nil {
+				return nil, err
+			}
+			args[idx] = val
+		}
+		// Call the array method with the bound array instance
+		return arrayMethod.Impl(arrayMethod.Arr, args)
+	}
+
+	// Check if it's a string method
+	if stringMethod, ok := function.(*StringMethodValue); ok {
+		// Evaluate arguments
+		args := make([]Value, len(node.Arguments))
+		for idx, argExpr := range node.Arguments {
+			val, err := i.evalExpression(argExpr)
+			if err != nil {
+				return nil, err
+			}
+			args[idx] = val
+		}
+		// Call the string method with the bound string instance
+		return stringMethod.Impl(stringMethod.Str, args)
+	}
+
 	// Check if it's an MCP tool
 	if mcpTool, ok := function.(*MCPToolValue); ok {
 		return i.callMCPTool(mcpTool, node.Arguments)
@@ -370,6 +402,16 @@ func (i *Interpreter) evalMemberExpression(node *parser.MemberExpression) (Value
 		return mcpProxy.GetProperty(propertyName)
 	}
 
+	// Handle array properties/methods
+	if arrVal, ok := object.(*ArrayValue); ok {
+		return i.getArrayProperty(arrVal, propertyName)
+	}
+
+	// Handle string properties/methods
+	if strVal, ok := object.(*StringValue); ok {
+		return i.getStringProperty(strVal, propertyName)
+	}
+
 	// Handle regular objects
 	if objVal, ok := object.(*ObjectValue); ok {
 		if prop, exists := objVal.Properties[propertyName]; exists {
@@ -379,4 +421,85 @@ func (i *Interpreter) evalMemberExpression(node *parser.MemberExpression) (Value
 	}
 
 	return nil, fmt.Errorf("cannot access property '%s' on type %s", propertyName, object.Type())
+}
+
+// getArrayProperty returns array properties and methods
+func (i *Interpreter) getArrayProperty(arr *ArrayValue, property string) (Value, error) {
+	switch property {
+	case "length":
+		return &NumberValue{Value: float64(len(arr.Elements))}, nil
+	case "push":
+		return &ArrayMethodValue{Name: "push", Impl: arrayPushImpl, Arr: arr}, nil
+	case "pop":
+		return &ArrayMethodValue{Name: "pop", Impl: arrayPopImpl, Arr: arr}, nil
+	case "shift":
+		return &ArrayMethodValue{Name: "shift", Impl: arrayShiftImpl, Arr: arr}, nil
+	case "unshift":
+		return &ArrayMethodValue{Name: "unshift", Impl: arrayUnshiftImpl, Arr: arr}, nil
+	case "join":
+		return &ArrayMethodValue{Name: "join", Impl: arrayJoinImpl, Arr: arr}, nil
+	case "slice":
+		return &ArrayMethodValue{Name: "slice", Impl: arraySliceImpl, Arr: arr}, nil
+	case "reverse":
+		return &ArrayMethodValue{Name: "reverse", Impl: arrayReverseImpl, Arr: arr}, nil
+	default:
+		return nil, fmt.Errorf("array property '%s' not found", property)
+	}
+}
+
+// getStringProperty returns string properties and methods
+func (i *Interpreter) getStringProperty(str *StringValue, property string) (Value, error) {
+	switch property {
+	case "length":
+		return &NumberValue{Value: float64(len([]rune(str.Value)))}, nil
+	case "toUpperCase":
+		return &StringMethodValue{Name: "toUpperCase", Impl: stringToUpperImpl, Str: str}, nil
+	case "toLowerCase":
+		return &StringMethodValue{Name: "toLowerCase", Impl: stringToLowerImpl, Str: str}, nil
+	case "split":
+		return &StringMethodValue{Name: "split", Impl: stringSplitImpl, Str: str}, nil
+	case "trim":
+		return &StringMethodValue{Name: "trim", Impl: stringTrimImpl, Str: str}, nil
+	default:
+		return nil, fmt.Errorf("string property '%s' not found", property)
+	}
+}
+
+// evalIndexExpression evaluates an index expression (array[index] or object[key])
+func (i *Interpreter) evalIndexExpression(node *parser.IndexExpression) (Value, error) {
+	left, err := i.evalExpression(node.Left)
+	if err != nil {
+		return nil, err
+	}
+
+	index, err := i.evalExpression(node.Index)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle array indexing
+	if arrVal, ok := left.(*ArrayValue); ok {
+		if index.Type() != ValueTypeNumber {
+			return nil, fmt.Errorf("array index must be a number, got %s", index.Type())
+		}
+		idx := int(index.(*NumberValue).Value)
+		if idx < 0 || idx >= len(arrVal.Elements) {
+			return nil, fmt.Errorf("array index out of bounds: %d (length: %d)", idx, len(arrVal.Elements))
+		}
+		return arrVal.Elements[idx], nil
+	}
+
+	// Handle object indexing with string keys
+	if objVal, ok := left.(*ObjectValue); ok {
+		if index.Type() != ValueTypeString {
+			return nil, fmt.Errorf("object index must be a string, got %s", index.Type())
+		}
+		key := index.(*StringValue).Value
+		if prop, exists := objVal.Properties[key]; exists {
+			return prop, nil
+		}
+		return nil, fmt.Errorf("property '%s' not found on object", key)
+	}
+
+	return nil, fmt.Errorf("cannot index type %s", left.Type())
 }

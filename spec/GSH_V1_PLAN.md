@@ -238,12 +238,13 @@ gsh/
 
 ### Phase 6.1: Type System & Collections
 
-- [ ] Runtime type validation for tool parameters
-- [ ] Type checking for tool return values
-- [ ] Array operations (indexing, methods)
+- [x] Array operations (indexing, methods)
 - [ ] Object operations (member access, methods)
+- [ ] String operations
 - [ ] Map and Set support
 - [ ] Template literal interpolation
+- [ ] Runtime type validation for tool parameters
+- [ ] Type checking for tool return values
 
 ### Phase 6.2: Error Messages & Documentation
 
@@ -310,7 +311,6 @@ gsh/
 - [ ] HTTP client
 - [ ] JSON/CSV parsing
 - [ ] Date/time utilities
-- [ ] String manipulation
 - [ ] File I/O helpers
 
 ### v1.3 - Developer Experience

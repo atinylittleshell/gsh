@@ -15,10 +15,10 @@ import (
 func skipIfOllamaNotAvailable(t *testing.T) {
 	client := &http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get("http://localhost:11434/api/tags")
-	defer resp.Body.Close()
 	if err != nil {
 		t.Skip("Ollama not available at localhost:11434, skipping E2E test")
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Skip("Ollama not responding correctly, skipping E2E test")
 	}

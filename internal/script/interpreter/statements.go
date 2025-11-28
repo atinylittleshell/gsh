@@ -83,23 +83,83 @@ func (i *Interpreter) evalAssignmentStatement(stmt *parser.AssignmentStatement) 
 		return nil, err
 	}
 
-	// Check if variable already exists
-	varName := stmt.Name.Value
-	if i.env.Has(varName) {
-		// Variable exists, update it
-		err := i.env.Update(varName, value)
-		if err != nil {
-			return nil, err
-		}
+	// Determine the target (Left or legacy Name field)
+	var target parser.Expression
+	if stmt.Left != nil {
+		target = stmt.Left
+	} else if stmt.Name != nil {
+		target = stmt.Name
 	} else {
-		// Variable doesn't exist, define it
-		err := i.env.Define(varName, value)
-		if err != nil {
-			return nil, err
-		}
+		return nil, fmt.Errorf("invalid assignment: no target specified")
 	}
 
-	return value, nil
+	// Handle different assignment targets
+	switch t := target.(type) {
+	case *parser.Identifier:
+		// Simple variable assignment
+		varName := t.Value
+		if i.env.Has(varName) {
+			// Variable exists, update it
+			err := i.env.Update(varName, value)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			// Variable doesn't exist, define it
+			err := i.env.Define(varName, value)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return value, nil
+
+	case *parser.IndexExpression:
+		// Index assignment (arr[0] = value or obj["key"] = value)
+		return i.evalIndexAssignment(t, value)
+
+	default:
+		return nil, fmt.Errorf("invalid assignment target: %T", target)
+	}
+}
+
+// evalIndexAssignment handles assignments to array/object indices
+func (i *Interpreter) evalIndexAssignment(indexExpr *parser.IndexExpression, value Value) (Value, error) {
+	// Evaluate the left side (the array or object)
+	left, err := i.evalExpression(indexExpr.Left)
+	if err != nil {
+		return nil, err
+	}
+
+	// Evaluate the index
+	index, err := i.evalExpression(indexExpr.Index)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle array index assignment
+	if arrVal, ok := left.(*ArrayValue); ok {
+		if index.Type() != ValueTypeNumber {
+			return nil, fmt.Errorf("array index must be a number, got %s", index.Type())
+		}
+		idx := int(index.(*NumberValue).Value)
+		if idx < 0 || idx >= len(arrVal.Elements) {
+			return nil, fmt.Errorf("array index out of bounds: %d (length: %d)", idx, len(arrVal.Elements))
+		}
+		arrVal.Elements[idx] = value
+		return value, nil
+	}
+
+	// Handle object index assignment
+	if objVal, ok := left.(*ObjectValue); ok {
+		if index.Type() != ValueTypeString {
+			return nil, fmt.Errorf("object index must be a string, got %s", index.Type())
+		}
+		key := index.(*StringValue).Value
+		objVal.Properties[key] = value
+		return value, nil
+	}
+
+	return nil, fmt.Errorf("cannot assign to index of type %s", left.Type())
 }
 
 // evalIfStatement evaluates an if statement
