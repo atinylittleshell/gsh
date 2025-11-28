@@ -189,6 +189,8 @@ func runGshScript(ctx context.Context, filePath string, logger *zap.Logger) erro
 	// Execute the script
 	_, err = interp.Eval(program)
 	if err != nil {
+		// Print the error to stderr for better user experience
+		fmt.Fprintf(os.Stderr, "Runtime error: %v\n", err)
 		return fmt.Errorf("runtime error: %w", err)
 	}
 

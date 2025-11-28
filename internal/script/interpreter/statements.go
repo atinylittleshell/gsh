@@ -3,6 +3,7 @@ package interpreter
 import (
 	"fmt"
 
+	"github.com/atinylittleshell/gsh/internal/script/lexer"
 	"github.com/atinylittleshell/gsh/internal/script/parser"
 )
 
@@ -23,17 +24,18 @@ const (
 // ControlFlowError represents a control flow interruption
 type ControlFlowError struct {
 	Signal ControlFlowSignal
-	Value  Value // For return statements
+	Value  Value       // For return statements
+	Token  lexer.Token // Token for location information
 }
 
 func (c *ControlFlowError) Error() string {
 	switch c.Signal {
 	case SignalBreak:
-		return "break statement outside of loop"
+		return fmt.Sprintf("break statement outside of loop (line %d, column %d)", c.Token.Line, c.Token.Column)
 	case SignalContinue:
-		return "continue statement outside of loop"
+		return fmt.Sprintf("continue statement outside of loop (line %d, column %d)", c.Token.Line, c.Token.Column)
 	case SignalReturn:
-		return "return statement outside of tool"
+		return fmt.Sprintf("return statement outside of tool (line %d, column %d)", c.Token.Line, c.Token.Column)
 	default:
 		return "unknown control flow signal"
 	}
@@ -53,9 +55,9 @@ func (i *Interpreter) evalStatement(stmt parser.Statement) (Value, error) {
 	case *parser.ForOfStatement:
 		return i.evalForOfStatement(node)
 	case *parser.BreakStatement:
-		return nil, &ControlFlowError{Signal: SignalBreak}
+		return nil, &ControlFlowError{Signal: SignalBreak, Token: node.Token}
 	case *parser.ContinueStatement:
-		return nil, &ControlFlowError{Signal: SignalContinue}
+		return nil, &ControlFlowError{Signal: SignalContinue, Token: node.Token}
 	case *parser.ReturnStatement:
 		return i.evalReturnStatement(node)
 	case *parser.ToolDeclaration:
@@ -243,7 +245,8 @@ func (i *Interpreter) evalForOfStatement(node *parser.ForOfStatement) (Value, er
 			elements[i] = &StringValue{Value: string(r)}
 		}
 	default:
-		return nil, fmt.Errorf("for-of requires an iterable (array or string), got %s", iterable.Type())
+		return nil, NewRuntimeError("for-of requires an iterable (array or string), got %s (line %d, column %d)",
+			iterable.Type(), node.Token.Line, node.Token.Column)
 	}
 
 	var result Value = &NullValue{}
@@ -314,6 +317,7 @@ func (i *Interpreter) evalReturnStatement(node *parser.ReturnStatement) (Value, 
 	return nil, &ControlFlowError{
 		Signal: SignalReturn,
 		Value:  returnValue,
+		Token:  node.Token,
 	}
 }
 

@@ -414,3 +414,359 @@ func TestShebangSupport(t *testing.T) {
 		})
 	}
 }
+
+// captureStderr captures stderr during the execution of fn and returns the captured output
+func captureStderr(fn func()) string {
+	oldStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	fn()
+
+	w.Close()
+	os.Stderr = oldStderr
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	return buf.String()
+}
+
+// TestErrorMessagesE2E tests that error messages are clear and helpful when executing .gsh scripts
+func TestErrorMessagesE2E(t *testing.T) {
+	// Create a temporary directory for test files
+	tmpDir, err := os.MkdirTemp("", "gsh-error-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create a simple logger for testing
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		t.Fatalf("Failed to create logger: %v", err)
+	}
+
+	tests := []struct {
+		name               string
+		script             string
+		expectError        bool
+		errorShouldContain []string // Multiple strings that should appear in error output
+		description        string
+	}{
+		{
+			name: "undefined variable",
+			script: `x = 5
+result = undefinedVar
+print(result)`,
+			expectError:        true,
+			errorShouldContain: []string{"undefined variable", "undefinedVar", "line 2", "column"},
+			description:        "Should report undefined variable with clear message and location",
+		},
+		{
+			name: "syntax error - missing expression",
+			script: `x = 
+y = 10`,
+			expectError:        true,
+			errorShouldContain: []string{"Parse error", "expected"},
+			description:        "Should report parse error with line information",
+		},
+		{
+			name: "syntax error - unexpected token",
+			script: `x = 5
+y = @ 10`,
+			expectError:        true,
+			errorShouldContain: []string{"Parse error"},
+			description:        "Should report unexpected token error",
+		},
+		{
+			name: "type error - calling non-function",
+			script: `x = 5
+result = x()`,
+			expectError:        true,
+			errorShouldContain: []string{"cannot call", "non-tool", "number", "line 2", "column"},
+			description:        "Should report type error when calling non-function with location",
+		},
+		{
+			name: "type error - indexing non-array",
+			script: `x = 5
+result = x[0]`,
+			expectError:        true,
+			errorShouldContain: []string{"cannot index", "number", "line 2", "column"},
+			description:        "Should report error when indexing non-indexable value with location",
+		},
+		{
+			name: "type error - member access on non-object",
+			script: `x = 5
+result = x.property`,
+			expectError:        true,
+			errorShouldContain: []string{"cannot access property", "property", "number", "line 2", "column"},
+			description:        "Should report error when accessing member on non-object with location",
+		},
+		{
+			name: "division by zero",
+			script: `x = 10
+y = 0
+result = x / y`,
+			expectError:        true,
+			errorShouldContain: []string{"division by zero"},
+			description:        "Should report division by zero error",
+		},
+		{
+			name: "tool call - wrong argument count",
+			script: `tool add(a, b) {
+    return a + b
+}
+result = add(5)`,
+			expectError:        true,
+			errorShouldContain: []string{"expects 2 arguments", "got 1", "line 4", "column"},
+			description:        "Should report argument count mismatch with location",
+		},
+		{
+			name: "array index out of bounds",
+			script: `arr = [1, 2, 3]
+result = arr[10]`,
+			expectError:        true,
+			errorShouldContain: []string{"index out of bounds", "10", "length", "line 2", "column"},
+			description:        "Should report index out of bounds error with location",
+		},
+		{
+			name: "object property not found",
+			script: `obj = {name: "Alice", age: 30}
+result = obj.nonexistent`,
+			expectError:        true,
+			errorShouldContain: []string{"property", "nonexistent", "not found", "line 2", "column"},
+			description:        "Should report property not found error with location",
+		},
+		{
+			name:               "invalid JSON parse",
+			script:             `data = JSON.parse("{invalid json}")`,
+			expectError:        true,
+			errorShouldContain: []string{"JSON", "parse"},
+			description:        "Should report JSON parse error",
+		},
+		{
+			name: "break outside loop",
+			script: `x = 5
+break`,
+			expectError:        true,
+			errorShouldContain: []string{"break", "outside", "loop", "line 2", "column"},
+			description:        "Should report break outside loop error with location",
+		},
+		{
+			name: "continue outside loop",
+			script: `x = 5
+continue`,
+			expectError:        true,
+			errorShouldContain: []string{"continue", "outside", "loop", "line 2", "column"},
+			description:        "Should report continue outside loop error with location",
+		},
+		{
+			name: "invalid for-of - non-iterable",
+			script: `for (item of 42) {
+    print(item)
+}`,
+			expectError:        true,
+			errorShouldContain: []string{"requires an iterable", "number", "line 1", "column"},
+			description:        "Should report error when iterating over non-iterable with location",
+		},
+		{
+			name: "return outside tool",
+			script: `x = 5
+return x`,
+			expectError:        true,
+			errorShouldContain: []string{"return", "outside", "line 2", "column"},
+			description:        "Should report return outside function error with location",
+		},
+		{
+			name: "syntax error - unclosed string",
+			script: `x = "unclosed string
+y = 10`,
+			expectError:        true,
+			errorShouldContain: []string{"Parse error"},
+			description:        "Should report unclosed string error",
+		},
+		{
+			name: "syntax error - unclosed brace",
+			script: `if (true) {
+    x = 5
+# Missing closing brace`,
+			expectError:        true,
+			errorShouldContain: []string{"Parse error"},
+			description:        "Should report unclosed brace error",
+		},
+		{
+			name: "invalid operator",
+			script: `x = 5
+y = 10
+result = x % y`,
+			expectError:        false, // Modulo is actually supported, changed to expect success
+			errorShouldContain: []string{},
+			description:        "Modulo operator should work",
+		},
+		{
+			name: "type error in binary operation",
+			script: `x = "hello"
+y = 5
+result = x - y`,
+			expectError:        true,
+			errorShouldContain: []string{"operator", "-"},
+			description:        "Should report type error in binary operation",
+		},
+		{
+			name: "nested error with stack trace",
+			script: `tool inner() {
+    return undefinedVar
+}
+tool outer() {
+    return inner()
+}
+result = outer()`,
+			expectError:        true,
+			errorShouldContain: []string{"undefinedVar", "undefined variable", "line 2", "column"},
+			description:        "Should show error with proper context and location for nested calls",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scriptPath := filepath.Join(tmpDir, tt.name+".gsh")
+			if err := os.WriteFile(scriptPath, []byte(tt.script), 0644); err != nil {
+				t.Fatalf("Failed to write test script: %v", err)
+			}
+
+			ctx := context.Background()
+			var execErr error
+			stderr := captureStderr(func() {
+				execErr = runGshScript(ctx, scriptPath, logger)
+			})
+
+			if tt.expectError && execErr == nil {
+				t.Errorf("%s: Expected error but got none", tt.description)
+				return
+			}
+
+			if !tt.expectError && execErr != nil {
+				t.Errorf("%s: Unexpected error: %v", tt.description, execErr)
+				return
+			}
+
+			if tt.expectError {
+				// Combine error message and stderr for checking
+				errorOutput := execErr.Error() + "\n" + stderr
+
+				// Check that all expected strings appear in the error output
+				for _, expected := range tt.errorShouldContain {
+					if !strings.Contains(strings.ToLower(errorOutput), strings.ToLower(expected)) {
+						t.Errorf("%s: Error message should contain '%s'\nGot error: %v\nStderr: %s",
+							tt.description, expected, execErr, stderr)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestErrorMessageQuality tests the overall quality and formatting of error messages
+func TestErrorMessageQuality(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "gsh-error-quality-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		t.Fatalf("Failed to create logger: %v", err)
+	}
+
+	t.Run("parse error shows line number", func(t *testing.T) {
+		script := `x = 5
+y = 10
+z =
+w = 20`
+		scriptPath := filepath.Join(tmpDir, "line_number.gsh")
+		if err := os.WriteFile(scriptPath, []byte(script), 0644); err != nil {
+			t.Fatalf("Failed to write test script: %v", err)
+		}
+
+		ctx := context.Background()
+		var execErr error
+		stderr := captureStderr(func() {
+			execErr = runGshScript(ctx, scriptPath, logger)
+		})
+
+		if execErr == nil {
+			t.Error("Expected parse error")
+			return
+		}
+
+		errorOutput := execErr.Error() + "\n" + stderr
+		// Should mention line 3 where the error occurs
+		if !strings.Contains(errorOutput, "3") && !strings.Contains(errorOutput, "line") {
+			t.Errorf("Error should reference line number. Got: %v\nStderr: %s", execErr, stderr)
+		}
+	})
+
+	t.Run("runtime error is distinguishable from parse error", func(t *testing.T) {
+		parseErrorScript := `x = `
+		parseErrorPath := filepath.Join(tmpDir, "parse_err.gsh")
+		if err := os.WriteFile(parseErrorPath, []byte(parseErrorScript), 0644); err != nil {
+			t.Fatalf("Failed to write test script: %v", err)
+		}
+
+		runtimeErrorScript := `x = undefinedVariable`
+		runtimeErrorPath := filepath.Join(tmpDir, "runtime_err.gsh")
+		if err := os.WriteFile(runtimeErrorPath, []byte(runtimeErrorScript), 0644); err != nil {
+			t.Fatalf("Failed to write test script: %v", err)
+		}
+
+		ctx := context.Background()
+
+		// Parse error
+		var parseErr error
+		parseStderr := captureStderr(func() {
+			parseErr = runGshScript(ctx, parseErrorPath, logger)
+		})
+
+		// Runtime error
+		var runtimeErr error
+		runtimeStderr := captureStderr(func() {
+			runtimeErr = runGshScript(ctx, runtimeErrorPath, logger)
+		})
+
+		if parseErr == nil || runtimeErr == nil {
+			t.Fatal("Expected both errors to occur")
+		}
+
+		parseOutput := parseErr.Error() + "\n" + parseStderr
+		runtimeOutput := runtimeErr.Error() + "\n" + runtimeStderr
+
+		// Parse error should mention "Parse error"
+		if !strings.Contains(parseOutput, "Parse error") && !strings.Contains(parseOutput, "parse") {
+			t.Errorf("Parse error should be clearly labeled. Got: %v\nStderr: %s", parseErr, parseStderr)
+		}
+
+		// Runtime error should mention "runtime"
+		if !strings.Contains(runtimeOutput, "runtime") && !strings.Contains(runtimeOutput, "Runtime") {
+			t.Errorf("Runtime error should be clearly labeled. Got: %v\nStderr: %s", runtimeErr, runtimeStderr)
+		}
+	})
+
+	t.Run("file read error is clear", func(t *testing.T) {
+		nonExistentPath := filepath.Join(tmpDir, "does_not_exist.gsh")
+
+		ctx := context.Background()
+		err := runGshScript(ctx, nonExistentPath, logger)
+
+		if err == nil {
+			t.Error("Expected file read error")
+			return
+		}
+
+		errorMsg := err.Error()
+		// Should mention file and that it failed to read
+		if !strings.Contains(errorMsg, "read") && !strings.Contains(errorMsg, "file") {
+			t.Errorf("File read error should be clear. Got: %v", err)
+		}
+	})
+}
