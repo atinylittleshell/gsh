@@ -213,12 +213,13 @@ gsh/
 
 ### Phase 5.2: Pipe Operator & Conversations
 
-- [ ] Implement pipe operator evaluation
-- [ ] Implement conversation state management
-- [ ] Handle `String | Agent` (create conversation)
-- [ ] Handle `Conversation | String` (add user message)
-- [ ] Handle `Conversation | Agent` (execute with context)
-- [ ] Tool calling from agents (MCP + user-defined tools)
+- [x] Implement Conversation object
+- [x] Implement pipe operator evaluation
+- [x] Implement conversation state management
+- [x] Handle `String | Agent` (create conversation)
+- [x] Handle `Conversation | String` (add user message)
+- [x] Handle `Conversation | Agent` (execute with context)
+- [x] Tool calling from agents (MCP + user-defined tools)
 
 ### Phase 5.3: Testing
 

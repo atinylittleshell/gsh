@@ -245,6 +245,39 @@ func (m *Manager) GetTool(serverName, toolName string) (*mcp.Tool, error) {
 	return tool, nil
 }
 
+// ToolInfo contains information about a tool
+type ToolInfo struct {
+	Name        string
+	Description string
+	InputSchema map[string]interface{}
+}
+
+// GetToolInfo retrieves information about a tool
+func (m *Manager) GetToolInfo(serverName, toolName string) (*ToolInfo, error) {
+	tool, err := m.GetTool(serverName, toolName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert InputSchema to map[string]interface{}
+	var inputSchema map[string]interface{}
+	if tool.InputSchema != nil {
+		if schema, ok := tool.InputSchema.(map[string]interface{}); ok {
+			inputSchema = schema
+		} else {
+			inputSchema = make(map[string]interface{})
+		}
+	} else {
+		inputSchema = make(map[string]interface{})
+	}
+
+	return &ToolInfo{
+		Name:        tool.Name,
+		Description: tool.Description,
+		InputSchema: inputSchema,
+	}, nil
+}
+
 // CallTool invokes an MCP tool
 func (m *Manager) CallTool(serverName, toolName string, arguments map[string]interface{}) (*mcp.CallToolResult, error) {
 	server, err := m.GetServer(serverName)
