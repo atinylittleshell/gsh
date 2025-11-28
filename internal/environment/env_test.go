@@ -3,9 +3,9 @@ package environment
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
-	"runtime"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
@@ -765,4 +765,87 @@ func TestTestingHelperFunctions(t *testing.T) {
 
 	// Clean up
 	ResetCacheForTesting()
+}
+
+func TestSyncVariablesToEnvExportsGSHVariables(t *testing.T) {
+	// Create a test runner with custom environment values
+	env := expand.ListEnviron(os.Environ()...)
+	runner, err := interp.New(interp.Env(env))
+	assert.NoError(t, err)
+
+	if runner.Vars == nil {
+		runner.Vars = make(map[string]expand.Variable)
+	}
+
+	expected := map[string]string{
+		"GSH_PROMPT":                                      "sync> ",
+		"GSH_APROMPT":                                     "agent> ",
+		"GSH_BUILD_VERSION":                               "dev",
+		"GSH_LOG_LEVEL":                                   "debug",
+		"GSH_CLEAN_LOG_FILE":                              "true",
+		"GSH_MINIMUM_HEIGHT":                              "8",
+		"GSH_ASSISTANT_HEIGHT":                            "4",
+		"GSH_AGENT_NAME":                                  "helper",
+		"GSH_FAST_MODEL_API_KEY":                          "fast-key",
+		"GSH_FAST_MODEL_BASE_URL":                         "https://fast.example.com",
+		"GSH_FAST_MODEL_ID":                               "fast-model",
+		"GSH_SLOW_MODEL_API_KEY":                          "slow-key",
+		"GSH_SLOW_MODEL_BASE_URL":                         "https://slow.example.com",
+		"GSH_SLOW_MODEL_ID":                               "slow-model",
+		"GSH_AGENT_CONTEXT_WINDOW_TOKENS":                 "2048",
+		"GSH_PAST_COMMANDS_CONTEXT_LIMIT":                 "25",
+		"GSH_CONTEXT_TYPES_FOR_AGENT":                     "history,files",
+		"GSH_CONTEXT_TYPES_FOR_PREDICTION_WITH_PREFIX":    "history",
+		"GSH_CONTEXT_TYPES_FOR_PREDICTION_WITHOUT_PREFIX": "files",
+		"GSH_CONTEXT_TYPES_FOR_EXPLANATION":               "commands",
+		"GSH_CONTEXT_NUM_HISTORY_CONCISE":                 "5",
+		"GSH_CONTEXT_NUM_HISTORY_VERBOSE":                 "7",
+		"GSH_AGENT_APPROVED_BASH_COMMAND_REGEX":           "[\"^ls.*\"]",
+		"GSH_AGENT_MACROS":                                "{\"m\":\"cmd\"}",
+	}
+
+	assert.Equal(t, len(gshVariableNames), len(expected))
+
+	for name, value := range expected {
+		runner.Vars[name] = expand.Variable{Kind: expand.String, Str: value}
+		t.Setenv(name, "")
+	}
+
+	SyncVariablesToEnv(runner)
+
+	dynamicEnv, ok := runner.Env.(*DynamicEnviron)
+	assert.True(t, ok, "runner.Env should be a DynamicEnviron")
+
+	for name, value := range expected {
+		assert.Equal(t, value, os.Getenv(name), "environment should include %s", name)
+		assert.Equal(t, value, dynamicEnv.gshVars[name], "dynamic environment should include %s", name)
+	}
+}
+
+func TestSyncVariablesToEnvRemovesUnsetVariables(t *testing.T) {
+	env := expand.ListEnviron(os.Environ()...)
+	runner, err := interp.New(interp.Env(env))
+	assert.NoError(t, err)
+
+	if runner.Vars == nil {
+		runner.Vars = make(map[string]expand.Variable)
+	}
+
+	runner.Vars["GSH_PROMPT"] = expand.Variable{Kind: expand.String, Str: "sync> "}
+	t.Setenv("GSH_PROMPT", "stale")
+
+	SyncVariablesToEnv(runner)
+
+	dynamicEnv, ok := runner.Env.(*DynamicEnviron)
+	assert.True(t, ok, "runner.Env should be a DynamicEnviron")
+	assert.Equal(t, "sync> ", os.Getenv("GSH_PROMPT"))
+	assert.Equal(t, "sync> ", dynamicEnv.gshVars["GSH_PROMPT"])
+
+	delete(runner.Vars, "GSH_PROMPT")
+	SyncVariablesToEnv(runner)
+
+	_, exists := os.LookupEnv("GSH_PROMPT")
+	assert.False(t, exists, "GSH_PROMPT should be removed from system environment")
+	_, exists = dynamicEnv.gshVars["GSH_PROMPT"]
+	assert.False(t, exists, "GSH_PROMPT should be removed from dynamic environment")
 }
