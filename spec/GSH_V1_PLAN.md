@@ -256,12 +256,11 @@ gsh/
 
 ### Phase 7.1: Integration
 
-- [ ] Shebang support for `.gsh` files
-- [ ] Add `.gsh` file execution to gsh CLI
+- [x] Add `.gsh` file execution to gsh CLI
+- [x] Shebang support for `.gsh` files
 - [ ] Add tests for clear error messages E2E through gsh CLI executing `.gsh` scripts
 - [ ] Add inline help in CLI
-- [ ] Integrate interpreter into gsh binary
-- [ ] Integrate log.\* functions with zap logger (currently outputs to stderr)
+- [ ] Integrate log.\\* functions with zap logger (currently outputs to stderr)
 - [ ] Pass logger context to interpreter for proper log file integration
 
 ### Phase 7.2: Polish

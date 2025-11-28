@@ -19,6 +19,9 @@ import (
 	"github.com/atinylittleshell/gsh/internal/evaluate"
 	"github.com/atinylittleshell/gsh/internal/filesystem"
 	"github.com/atinylittleshell/gsh/internal/history"
+	"github.com/atinylittleshell/gsh/internal/script/interpreter"
+	"github.com/atinylittleshell/gsh/internal/script/lexer"
+	"github.com/atinylittleshell/gsh/internal/script/parser"
 	"go.uber.org/zap"
 	"golang.org/x/term"
 	"mvdan.cc/sh/v3/expand"
@@ -127,11 +130,66 @@ func run(
 		return bash.RunBashScriptFromReader(ctx, runner, os.Stdin, "gsh")
 	}
 
-	// gsh script.sh
+	// gsh script.sh or gsh script.gsh
 	for _, filePath := range flag.Args() {
-		if err := bash.RunBashScriptFromFile(ctx, runner, filePath); err != nil {
-			return err
+		if isGshScript(filePath) {
+			if err := runGshScript(ctx, filePath, logger); err != nil {
+				return err
+			}
+		} else {
+			if err := bash.RunBashScriptFromFile(ctx, runner, filePath); err != nil {
+				return err
+			}
 		}
+	}
+
+	return nil
+}
+
+// isGshScript checks if a file is a .gsh script
+func isGshScript(filePath string) bool {
+	return strings.HasSuffix(filePath, ".gsh")
+}
+
+// runGshScript executes a .gsh script file
+func runGshScript(ctx context.Context, filePath string, logger *zap.Logger) error {
+	// Read the script file
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read script file: %w", err)
+	}
+
+	// Skip shebang line if present
+	script := string(content)
+	if strings.HasPrefix(script, "#!") {
+		if idx := strings.Index(script, "\n"); idx >= 0 {
+			script = script[idx+1:]
+		}
+	}
+
+	// Lex the script
+	l := lexer.New(script)
+
+	// Parse the script
+	p := parser.New(l)
+	program := p.ParseProgram()
+
+	// Check for parsing errors
+	if len(p.Errors()) > 0 {
+		for _, err := range p.Errors() {
+			fmt.Fprintf(os.Stderr, "Parse error: %s\n", err)
+		}
+		return fmt.Errorf("failed to parse script")
+	}
+
+	// Create interpreter
+	interp := interpreter.New()
+	defer interp.Close()
+
+	// Execute the script
+	_, err = interp.Eval(program)
+	if err != nil {
+		return fmt.Errorf("runtime error: %w", err)
 	}
 
 	return nil
