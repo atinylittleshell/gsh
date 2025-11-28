@@ -92,6 +92,6 @@ Familiar, ergonomic defaults for navigation and editing:
 - Configure gsh_prime: see ./CONFIGURATION.md
 - Explore features and workflows: see ./FEATURES.md
 - Learn about the Agent: see ./AGENT.md
-- Use specialized Subagents: see ../SUBAGENTS.md
+- Use specialized Subagents: see ./SUBAGENTS.md
 
 If you run into issues, open an issue at https://github.com/robottwo/gsh_prime/issues.
