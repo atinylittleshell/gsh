@@ -31,6 +31,8 @@ func (i *Interpreter) evalExpression(expr parser.Expression) (Value, error) {
 		return i.evalCallExpression(node)
 	case *parser.MemberExpression:
 		return i.evalMemberExpression(node)
+	case *parser.PipeExpression:
+		return i.evalPipeExpression(node)
 	default:
 		return nil, fmt.Errorf("unsupported expression type: %T", expr)
 	}

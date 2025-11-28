@@ -7,8 +7,9 @@ import (
 
 // Interpreter represents the gsh script interpreter
 type Interpreter struct {
-	env        *Environment
-	mcpManager *mcp.Manager
+	env              *Environment
+	mcpManager       *mcp.Manager
+	providerRegistry *ProviderRegistry
 }
 
 // EvalResult represents the result of evaluating a program
@@ -41,9 +42,13 @@ func (r *EvalResult) Variables() map[string]Value {
 
 // New creates a new interpreter instance
 func New() *Interpreter {
+	registry := NewProviderRegistry()
+	registry.Register(NewOpenAIProvider())
+
 	interp := &Interpreter{
-		env:        NewEnvironment(),
-		mcpManager: mcp.NewManager(),
+		env:              NewEnvironment(),
+		mcpManager:       mcp.NewManager(),
+		providerRegistry: registry,
 	}
 	interp.registerBuiltins()
 	return interp
@@ -51,9 +56,13 @@ func New() *Interpreter {
 
 // NewWithEnvironment creates a new interpreter with a custom environment
 func NewWithEnvironment(env *Environment) *Interpreter {
+	registry := NewProviderRegistry()
+	registry.Register(NewOpenAIProvider())
+
 	interp := &Interpreter{
-		env:        env,
-		mcpManager: mcp.NewManager(),
+		env:              env,
+		mcpManager:       mcp.NewManager(),
+		providerRegistry: registry,
 	}
 	interp.registerBuiltins()
 	return interp

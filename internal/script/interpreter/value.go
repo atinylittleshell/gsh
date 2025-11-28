@@ -30,6 +30,8 @@ const (
 	ValueTypeModel
 	// ValueTypeAgent represents an agent configuration
 	ValueTypeAgent
+	// ValueTypeConversation represents a conversation state
+	ValueTypeConversation
 )
 
 // String returns the string representation of the value type
@@ -55,6 +57,8 @@ func (vt ValueType) String() string {
 		return "model"
 	case ValueTypeAgent:
 		return "agent"
+	case ValueTypeConversation:
+		return "conversation"
 	default:
 		return "unknown"
 	}
@@ -296,6 +300,24 @@ func (a *AgentValue) IsTruthy() bool { return true }
 func (a *AgentValue) Equals(other Value) bool {
 	if otherAgent, ok := other.(*AgentValue); ok {
 		return a.Name == otherAgent.Name
+	}
+	return false
+}
+
+// ConversationValue represents a conversation state
+type ConversationValue struct {
+	// Messages in the conversation history
+	Messages []ChatMessage
+}
+
+func (c *ConversationValue) Type() ValueType { return ValueTypeConversation }
+func (c *ConversationValue) String() string {
+	return fmt.Sprintf("<conversation with %d messages>", len(c.Messages))
+}
+func (c *ConversationValue) IsTruthy() bool { return len(c.Messages) > 0 }
+func (c *ConversationValue) Equals(other Value) bool {
+	if otherConv, ok := other.(*ConversationValue); ok {
+		return len(c.Messages) == len(otherConv.Messages)
 	}
 	return false
 }
