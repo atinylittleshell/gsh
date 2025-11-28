@@ -472,6 +472,32 @@ func (i *Interpreter) getStringProperty(str *StringValue, property string) (Valu
 		return &StringMethodValue{Name: "split", Impl: stringSplitImpl, Str: str}, nil
 	case "trim":
 		return &StringMethodValue{Name: "trim", Impl: stringTrimImpl, Str: str}, nil
+	case "indexOf":
+		return &StringMethodValue{Name: "indexOf", Impl: stringIndexOfImpl, Str: str}, nil
+	case "lastIndexOf":
+		return &StringMethodValue{Name: "lastIndexOf", Impl: stringLastIndexOfImpl, Str: str}, nil
+	case "substring":
+		return &StringMethodValue{Name: "substring", Impl: stringSubstringImpl, Str: str}, nil
+	case "slice":
+		return &StringMethodValue{Name: "slice", Impl: stringSliceImpl, Str: str}, nil
+	case "startsWith":
+		return &StringMethodValue{Name: "startsWith", Impl: stringStartsWithImpl, Str: str}, nil
+	case "endsWith":
+		return &StringMethodValue{Name: "endsWith", Impl: stringEndsWithImpl, Str: str}, nil
+	case "includes":
+		return &StringMethodValue{Name: "includes", Impl: stringIncludesImpl, Str: str}, nil
+	case "replace":
+		return &StringMethodValue{Name: "replace", Impl: stringReplaceImpl, Str: str}, nil
+	case "replaceAll":
+		return &StringMethodValue{Name: "replaceAll", Impl: stringReplaceAllImpl, Str: str}, nil
+	case "repeat":
+		return &StringMethodValue{Name: "repeat", Impl: stringRepeatImpl, Str: str}, nil
+	case "padStart":
+		return &StringMethodValue{Name: "padStart", Impl: stringPadStartImpl, Str: str}, nil
+	case "padEnd":
+		return &StringMethodValue{Name: "padEnd", Impl: stringPadEndImpl, Str: str}, nil
+	case "charAt":
+		return &StringMethodValue{Name: "charAt", Impl: stringCharAtImpl, Str: str}, nil
 	default:
 		return nil, fmt.Errorf("string property '%s' not found", property)
 	}
