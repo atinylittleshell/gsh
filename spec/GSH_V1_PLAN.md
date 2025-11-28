@@ -221,15 +221,14 @@ gsh/
 - [x] Handle `Conversation | Agent` (execute with context)
 - [x] Tool calling from agents (MCP + user-defined tools)
 
-### Phase 5.3: Testing
+### Phase 5.3: Create E2E Test
 
-- [ ] Declare models (OpenAI, Anthropic, Ollama)
-- [ ] Declare agents with tools
-- [ ] Basic pipe: `"prompt" | Agent`
-- [ ] Multi-turn: `conv | "message" | Agent`
-- [ ] Agent handoff: `conv | Agent1 | "message" | Agent2`
-- [ ] Agents calling MCP tools
-- [ ] Agents calling user-defined tools
+- [x] Declare models (use OpenAI provider but through local ollama endpoint)
+- [x] Declare agents with tools
+- [x] Basic pipe: `"prompt" | Agent`
+- [x] Multi-turn: `conv | "message" | Agent`
+- [x] Agent handoff: `conv | Agent1 | "message" | Agent2`
+- [x] Agents calling user-defined tools
 
 ---
 
