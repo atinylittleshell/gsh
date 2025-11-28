@@ -11,6 +11,103 @@ import (
 	"go.uber.org/zap"
 )
 
+// TestHelpText tests that the help text contains all essential information
+func TestHelpText(t *testing.T) {
+	tests := []struct {
+		name     string
+		contains string
+		desc     string
+	}{
+		// Header and usage
+		{"has title", "gsh - An AI-powered shell", "Should have descriptive title"},
+		{"has usage section", "USAGE:", "Should have usage section"},
+		{"has modes section", "MODES:", "Should have modes section"},
+
+		// Modes
+		{"has interactive mode", "interactive POSIX-compatible shell", "Should document interactive mode"},
+		{"has gsh script example", "gsh script.gsh", "Should show .gsh script execution"},
+		{"has bash script example", "gsh script.sh", "Should show bash script execution"},
+		{"has command mode", "-c \"command\"", "Should document -c flag"},
+		{"has login shell", "-l", "Should document login shell flag"},
+
+		// Scripting section
+		{"has scripting section", "SCRIPTING:", "Should have scripting section"},
+		{"has gsh extension info", ".gsh extension", "Should mention .gsh extension"},
+		{"has agentic workflows", "agentic", "Should mention agentic workflows"},
+		{"has MCP mention", "MCP", "Should mention MCP servers"},
+		{"has AI models mention", "AI models", "Should mention AI models"},
+		{"has agents mention", "agents", "Should mention agents"},
+
+		// Documentation link
+		{"has docs link", "https://github.com/atinylittleshell/gsh", "Should have documentation link"},
+
+		// Options section
+		{"has options section", "OPTIONS:", "Should have options section header"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !strings.Contains(helpText, tt.contains) {
+				t.Errorf("%s: helpText should contain %q", tt.desc, tt.contains)
+			}
+		})
+	}
+}
+
+// TestHelpTextStructure tests the overall structure and formatting of help text
+func TestHelpTextStructure(t *testing.T) {
+	t.Run("sections are in logical order", func(t *testing.T) {
+		usageIdx := strings.Index(helpText, "USAGE:")
+		modesIdx := strings.Index(helpText, "MODES:")
+		scriptingIdx := strings.Index(helpText, "SCRIPTING:")
+		optionsIdx := strings.Index(helpText, "OPTIONS:")
+
+		if usageIdx == -1 || modesIdx == -1 || scriptingIdx == -1 || optionsIdx == -1 {
+			t.Fatal("Missing required sections")
+		}
+
+		if usageIdx > modesIdx {
+			t.Error("USAGE should come before MODES")
+		}
+		if modesIdx > scriptingIdx {
+			t.Error("MODES should come before SCRIPTING")
+		}
+		if scriptingIdx > optionsIdx {
+			t.Error("SCRIPTING should come before OPTIONS")
+		}
+	})
+
+	t.Run("help text is not empty", func(t *testing.T) {
+		if len(helpText) < 100 {
+			t.Error("Help text seems too short")
+		}
+	})
+
+	t.Run("help text ends properly", func(t *testing.T) {
+		// Should end with OPTIONS: followed by newline (flag.PrintDefaults adds the options)
+		if !strings.HasSuffix(helpText, "OPTIONS:\n") {
+			t.Error("Help text should end with OPTIONS: section header")
+		}
+	})
+
+	t.Run("no trailing whitespace issues", func(t *testing.T) {
+		lines := strings.Split(helpText, "\n")
+		for i, line := range lines {
+			if strings.HasSuffix(line, " ") || strings.HasSuffix(line, "\t") {
+				t.Errorf("Line %d has trailing whitespace: %q", i+1, line)
+			}
+		}
+	})
+
+	t.Run("help text is concise", func(t *testing.T) {
+		// Help text should be reasonably short - under 50 lines
+		lines := strings.Split(helpText, "\n")
+		if len(lines) > 50 {
+			t.Errorf("Help text should be concise, got %d lines", len(lines))
+		}
+	})
+}
+
 // captureStdout captures stdout during the execution of fn and returns the captured output
 func captureStdout(fn func()) string {
 	oldStdout := os.Stdout

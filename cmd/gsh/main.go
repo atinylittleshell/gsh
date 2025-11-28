@@ -39,6 +39,27 @@ var loginShell = flag.Bool("l", false, "run as a login shell")
 var helpFlag = flag.Bool("h", false, "display help information")
 var versionFlag = flag.Bool("ver", false, "display build version")
 
+const helpText = `gsh - An AI-powered shell with native scripting language
+
+USAGE:
+  gsh [options] [script.gsh] [args...]
+
+MODES:
+  gsh                     Start an interactive POSIX-compatible shell
+  gsh -l                  Start as a login shell
+  gsh script.gsh          Execute a .gsh script file
+  gsh script.sh           Execute a bash script file
+  gsh -c "command"        Execute a shell command
+
+SCRIPTING:
+  Files with .gsh extension use the gsh scripting language for agentic
+  workflows with MCP servers, AI models, and agents.
+
+  For documentation and examples, see: https://github.com/atinylittleshell/gsh
+
+OPTIONS:
+`
+
 func main() {
 	flag.Parse()
 
@@ -48,7 +69,7 @@ func main() {
 	}
 
 	if *helpFlag {
-		fmt.Println("Usage of gsh:")
+		fmt.Print(helpText)
 		flag.PrintDefaults()
 		return
 	}
