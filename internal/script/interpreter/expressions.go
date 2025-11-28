@@ -276,6 +276,36 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 		return objectMethod.Impl(objectMethod.Obj, args)
 	}
 
+	// Check if it's a map method
+	if mapMethod, ok := function.(*MapMethodValue); ok {
+		// Evaluate arguments
+		args := make([]Value, len(node.Arguments))
+		for idx, argExpr := range node.Arguments {
+			val, err := i.evalExpression(argExpr)
+			if err != nil {
+				return nil, err
+			}
+			args[idx] = val
+		}
+		// Call the map method with the bound map instance
+		return mapMethod.Impl(mapMethod.Map, args)
+	}
+
+	// Check if it's a set method
+	if setMethod, ok := function.(*SetMethodValue); ok {
+		// Evaluate arguments
+		args := make([]Value, len(node.Arguments))
+		for idx, argExpr := range node.Arguments {
+			val, err := i.evalExpression(argExpr)
+			if err != nil {
+				return nil, err
+			}
+			args[idx] = val
+		}
+		// Call the set method with the bound set instance
+		return setMethod.Impl(setMethod.Set, args)
+	}
+
 	// Check if it's an MCP tool
 	if mcpTool, ok := function.(*MCPToolValue); ok {
 		return i.callMCPTool(mcpTool, node.Arguments)
@@ -427,6 +457,16 @@ func (i *Interpreter) evalMemberExpression(node *parser.MemberExpression) (Value
 		return i.getStringProperty(strVal, propertyName)
 	}
 
+	// Handle map properties/methods
+	if mapVal, ok := object.(*MapValue); ok {
+		return i.getMapProperty(mapVal, propertyName)
+	}
+
+	// Handle set properties/methods
+	if setVal, ok := object.(*SetValue); ok {
+		return i.getSetProperty(setVal, propertyName)
+	}
+
 	// Handle regular objects
 	if objVal, ok := object.(*ObjectValue); ok {
 		return i.getObjectProperty(objVal, propertyName)
@@ -523,6 +563,46 @@ func (i *Interpreter) getObjectProperty(obj *ObjectValue, property string) (Valu
 	}
 
 	return nil, fmt.Errorf("property '%s' not found on object", property)
+}
+
+// getMapProperty returns map properties and methods
+func (i *Interpreter) getMapProperty(m *MapValue, property string) (Value, error) {
+	switch property {
+	case "get":
+		return &MapMethodValue{Name: "get", Impl: mapGetImpl, Map: m}, nil
+	case "set":
+		return &MapMethodValue{Name: "set", Impl: mapSetImpl, Map: m}, nil
+	case "has":
+		return &MapMethodValue{Name: "has", Impl: mapHasImpl, Map: m}, nil
+	case "delete":
+		return &MapMethodValue{Name: "delete", Impl: mapDeleteImpl, Map: m}, nil
+	case "keys":
+		return &MapMethodValue{Name: "keys", Impl: mapKeysImpl, Map: m}, nil
+	case "values":
+		return &MapMethodValue{Name: "values", Impl: mapValuesImpl, Map: m}, nil
+	case "entries":
+		return &MapMethodValue{Name: "entries", Impl: mapEntriesImpl, Map: m}, nil
+	case "size":
+		return mapSizeImpl(m, nil)
+	default:
+		return nil, fmt.Errorf("map property '%s' not found", property)
+	}
+}
+
+// getSetProperty returns set properties and methods
+func (i *Interpreter) getSetProperty(s *SetValue, property string) (Value, error) {
+	switch property {
+	case "add":
+		return &SetMethodValue{Name: "add", Impl: setAddImpl, Set: s}, nil
+	case "has":
+		return &SetMethodValue{Name: "has", Impl: setHasImpl, Set: s}, nil
+	case "delete":
+		return &SetMethodValue{Name: "delete", Impl: setDeleteImpl, Set: s}, nil
+	case "size":
+		return setSizeImpl(s, nil)
+	default:
+		return nil, fmt.Errorf("set property '%s' not found", property)
+	}
 }
 
 // evalIndexExpression evaluates an index expression (array[index] or object[key])
