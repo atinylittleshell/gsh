@@ -3,9 +3,9 @@ package appupdate
 import (
 	"bytes"
 	"context"
-	"os"
 	"github.com/atinylittleshell/gsh/internal/filesystem"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
@@ -23,6 +23,8 @@ func HandleSelfUpdate(
 	prompter core.UserPrompter,
 	updater Updater,
 ) chan string {
+	const repoSlug = "robottwo/gsh_prime"
+
 	resultChannel := make(chan string)
 
 	// Trim any whitespace or newlines from version strings
@@ -36,10 +38,10 @@ func HandleSelfUpdate(
 	}
 
 	// Check if we have previously detected a newer version
-	updateToLatestVersion(currentSemVer, logger, fs, prompter, updater)
+	updateToLatestVersion(repoSlug, currentSemVer, logger, fs, prompter, updater)
 
 	// Check for newer versions from remote repository
-	go fetchAndSaveLatestVersion(resultChannel, logger, fs, updater)
+	go fetchAndSaveLatestVersion(repoSlug, resultChannel, logger, fs, updater)
 
 	return resultChannel
 }
@@ -62,7 +64,7 @@ func readLatestVersion(fs filesystem.FileSystem) string {
 	return strings.TrimSpace(buf.String())
 }
 
-func updateToLatestVersion(currentSemVer *semver.Version, logger *zap.Logger, fs filesystem.FileSystem, prompter core.UserPrompter, updater Updater) {
+func updateToLatestVersion(repoSlug string, currentSemVer *semver.Version, logger *zap.Logger, fs filesystem.FileSystem, prompter core.UserPrompter, updater Updater) {
 	latestVersion := readLatestVersion(fs)
 	if latestVersion == "" {
 		return
@@ -94,7 +96,7 @@ func updateToLatestVersion(currentSemVer *semver.Version, logger *zap.Logger, fs
 
 	latest, found, err := updater.DetectLatest(
 		context.Background(),
-		"atinylittleshell/gsh",
+		repoSlug,
 	)
 	if err != nil {
 		logger.Warn("error occurred while detecting latest version", zap.Error(err))
@@ -118,12 +120,12 @@ func updateToLatestVersion(currentSemVer *semver.Version, logger *zap.Logger, fs
 	logger.Info("successfully updated to latest version", zap.String("version", latest.Version()))
 }
 
-func fetchAndSaveLatestVersion(resultChannel chan string, logger *zap.Logger, fs filesystem.FileSystem, updater Updater) {
+func fetchAndSaveLatestVersion(repoSlug string, resultChannel chan string, logger *zap.Logger, fs filesystem.FileSystem, updater Updater) {
 	defer close(resultChannel)
 
 	latest, found, err := updater.DetectLatest(
 		context.Background(),
-		"atinylittleshell/gsh",
+		repoSlug,
 	)
 	if err != nil {
 		logger.Warn("error occurred while getting latest version from remote", zap.Error(err))

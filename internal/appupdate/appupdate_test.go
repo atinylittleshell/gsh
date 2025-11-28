@@ -138,7 +138,7 @@ func TestHandleSelfUpdate_UpdateNeeded(t *testing.T) {
 	mockRemoteRelease.On("AssetURL").Return("https://github.com/test/url")
 	mockRemoteRelease.On("AssetName").Return("test")
 
-	mockUpdater.On("DetectLatest", mock.Anything, "atinylittleshell/gsh").Return(mockRemoteRelease, true, nil)
+        mockUpdater.On("DetectLatest", mock.Anything, "robottwo/gsh_prime").Return(mockRemoteRelease, true, nil)
 	mockUpdater.On("UpdateTo", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	mockPrompter.
@@ -179,7 +179,7 @@ func TestHandleSelfUpdate_NoUpdateNeeded(t *testing.T) {
 	mockFS.On("OpenFile", core.LatestVersionFile(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.FileMode(0600)).Return(mockFileForWrite, nil)
 
 	mockRemoteRelease.On("Version").Return("1.2.4")
-	mockUpdater.On("DetectLatest", mock.Anything, "atinylittleshell/gsh").Return(mockRemoteRelease, true, nil)
+        mockUpdater.On("DetectLatest", mock.Anything, "robottwo/gsh_prime").Return(mockRemoteRelease, true, nil)
 
 	resultChannel := HandleSelfUpdate("2.0.0", logger, mockFS, mockPrompter, mockUpdater)
 

@@ -48,27 +48,27 @@ func TestValidateAndExtractParams(t *testing.T) {
 				"old_str": "old content",
 				"new_str": "new content",
 			},
-			expectedParams: nil,
-			expectedError:  "The create_file tool failed to parse parameter 'path'",
-		},
+                        expectedParams: nil,
+                        expectedError:  "The edit_file tool failed to parse parameter 'path'",
+                },
 		{
 			name: "missing old_str",
 			params: map[string]any{
 				"path":    p("/test/path"),
 				"new_str": "new content",
 			},
-			expectedParams: nil,
-			expectedError:  "The create_file tool failed to parse parameter 'old_str'",
-		},
+                        expectedParams: nil,
+                        expectedError:  "The edit_file tool failed to parse parameter 'old_str'",
+                },
 		{
 			name: "missing new_str",
 			params: map[string]any{
 				"path":    p("/test/path"),
 				"old_str": "old content",
 			},
-			expectedParams: nil,
-			expectedError:  "The create_file tool failed to parse parameter 'new_str'",
-		},
+                        expectedParams: nil,
+                        expectedError:  "The edit_file tool failed to parse parameter 'new_str'",
+                },
 	}
 
 	for _, tt := range tests {

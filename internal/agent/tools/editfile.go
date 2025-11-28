@@ -37,8 +37,8 @@ type editFileParams struct {
 func validateAndExtractParams(runner *interp.Runner, logger *zap.Logger, params map[string]any) (*editFileParams, string) {
 	path, ok := params["path"].(string)
 	if !ok {
-		logger.Error("The create_file tool failed to parse parameter 'path'")
-		return nil, "The create_file tool failed to parse parameter 'path'"
+		logger.Error("The edit_file tool failed to parse parameter 'path'")
+		return nil, "The edit_file tool failed to parse parameter 'path'"
 	}
 
 	if !filepath.IsAbs(path) {
@@ -47,14 +47,14 @@ func validateAndExtractParams(runner *interp.Runner, logger *zap.Logger, params 
 
 	oldStr, ok := params["old_str"].(string)
 	if !ok {
-		logger.Error("The create_file tool failed to parse parameter 'old_str'")
-		return nil, "The create_file tool failed to parse parameter 'old_str'"
+		logger.Error("The edit_file tool failed to parse parameter 'old_str'")
+		return nil, "The edit_file tool failed to parse parameter 'old_str'"
 	}
 
 	newStr, ok := params["new_str"].(string)
 	if !ok {
-		logger.Error("The create_file tool failed to parse parameter 'new_str'")
-		return nil, "The create_file tool failed to parse parameter 'new_str'"
+		logger.Error("The edit_file tool failed to parse parameter 'new_str'")
+		return nil, "The edit_file tool failed to parse parameter 'new_str'"
 	}
 
 	return &editFileParams{
