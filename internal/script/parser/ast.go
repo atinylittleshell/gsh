@@ -136,19 +136,25 @@ func (u *UnaryExpression) String() string {
 	return out.String()
 }
 
-// AssignmentStatement represents a variable assignment
+// AssignmentStatement represents a variable assignment or index assignment
 type AssignmentStatement struct {
 	Token          lexer.Token // the '=' token or identifier token
-	Name           *Identifier
+	Left           Expression  // can be Identifier or IndexExpression
 	TypeAnnotation *Identifier // optional type annotation (e.g., ": string")
 	Value          Expression
+	// Legacy field for backward compatibility
+	Name *Identifier
 }
 
 func (a *AssignmentStatement) statementNode()       {}
 func (a *AssignmentStatement) TokenLiteral() string { return a.Token.Literal }
 func (a *AssignmentStatement) String() string {
 	var out strings.Builder
-	out.WriteString(a.Name.String())
+	if a.Left != nil {
+		out.WriteString(a.Left.String())
+	} else if a.Name != nil {
+		out.WriteString(a.Name.String())
+	}
 	if a.TypeAnnotation != nil {
 		out.WriteString(": ")
 		out.WriteString(a.TypeAnnotation.String())
@@ -252,6 +258,25 @@ func (p *PipeExpression) String() string {
 	out.WriteString(" | ")
 	out.WriteString(p.Right.String())
 	out.WriteString(")")
+	return out.String()
+}
+
+// IndexExpression represents array/object indexing (e.g., arr[0], obj["key"])
+type IndexExpression struct {
+	Token lexer.Token // the '[' token
+	Left  Expression  // the array or object being indexed
+	Index Expression  // the index expression
+}
+
+func (i *IndexExpression) expressionNode()      {}
+func (i *IndexExpression) TokenLiteral() string { return i.Token.Literal }
+func (i *IndexExpression) String() string {
+	var out strings.Builder
+	out.WriteString("(")
+	out.WriteString(i.Left.String())
+	out.WriteString("[")
+	out.WriteString(i.Index.String())
+	out.WriteString("])")
 	return out.String()
 }
 

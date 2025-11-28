@@ -234,3 +234,17 @@ func (p *Parser) parsePipeExpression(left Expression) Expression {
 
 	return expression
 }
+
+// parseIndexExpression parses array/object index expressions
+func (p *Parser) parseIndexExpression(left Expression) Expression {
+	exp := &IndexExpression{Token: p.curToken, Left: left}
+
+	p.nextToken()
+	exp.Index = p.parseExpression(LOWEST)
+
+	if !p.expectPeek(lexer.RBRACKET) {
+		return nil
+	}
+
+	return exp
+}
