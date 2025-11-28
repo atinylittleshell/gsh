@@ -84,14 +84,15 @@ func (s *SubagentSelector) buildSubagentContext(subagents map[string]*Subagent) 
 	context.WriteString("Available subagents:\n")
 
 	for id, subagent := range subagents {
-		context.WriteString(fmt.Sprintf("- ID: %s\n", id))
-		context.WriteString(fmt.Sprintf("  Name: %s\n", subagent.Name))
-		context.WriteString(fmt.Sprintf("  Description: %s\n", subagent.Description))
-		context.WriteString(fmt.Sprintf("  Tools: %s\n", strings.Join(subagent.AllowedTools, ", ")))
+		// Use fmt.Fprintf instead of manual WriteString formatting to avoid linter issues
+		fmt.Fprintf(&context, "- ID: %s\n", id)
+		fmt.Fprintf(&context, "  Name: %s\n", subagent.Name)
+		fmt.Fprintf(&context, "  Description: %s\n", subagent.Description)
+		fmt.Fprintf(&context, "  Tools: %s\n", strings.Join(subagent.AllowedTools, ", "))
 		if subagent.Type == RooType {
-			context.WriteString(fmt.Sprintf("  Type: Roo mode\n"))
+			context.WriteString("  Type: Roo mode\n")
 		} else {
-			context.WriteString(fmt.Sprintf("  Type: Claude agent\n"))
+			context.WriteString("  Type: Claude agent\n")
 		}
 		context.WriteString("\n")
 	}

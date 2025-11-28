@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"runtime"
+	"path/filepath"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -56,8 +58,9 @@ func (m *mockCompletionManager) ExecuteCompletion(ctx context.Context, runner *i
 
 // Mock osReadDir for testing
 var mockOsReadDir = func(name string) ([]os.DirEntry, error) {
-	switch name {
-	case "/bin", "/bin/":
+	// On Windows, /bin paths don't exist natively, so we mock them specifically
+	// On Unix, we also mock them to ensure test stability
+	if name == "/bin" || name == "/bin/" || name == "\\bin" || name == "\\bin\\" {
 		// Return mock directory entries for /bin
 		return []os.DirEntry{
 			&mockDirEntry{name: "bash", isDir: false, mode: 0755},
@@ -65,10 +68,10 @@ var mockOsReadDir = func(name string) ([]os.DirEntry, error) {
 			&mockDirEntry{name: "ls", isDir: false, mode: 0755},
 			&mockDirEntry{name: "sh", isDir: false, mode: 0755},
 		}, nil
-	default:
-		// For PATH directories that might contain "test" commands, return empty to avoid system dependencies
-		return []os.DirEntry{}, nil
 	}
+
+	// For other paths, return empty to avoid system dependencies
+	return []os.DirEntry{}, nil
 }
 
 // mockDirEntry implements os.DirEntry for testing
@@ -126,6 +129,21 @@ func TestGetCompletions(t *testing.T) {
 
 	manager := &mockCompletionManager{}
 	provider := NewShellCompletionProvider(manager, runner, nil, nil)
+
+	// Helper to determine expected /bin/ completions based on OS
+	var binCompletions []string
+	if runtime.GOOS == "windows" {
+		// On Windows, paths will be normalized with backslashes
+		// Using filepath.Join to construct expected Windows paths
+		binCompletions = []string{
+			filepath.Join("\\bin", "bash"),
+			filepath.Join("\\bin", "cat"),
+			filepath.Join("\\bin", "ls"),
+			filepath.Join("\\bin", "sh"),
+		}
+	} else {
+		binCompletions = []string{"/bin/bash", "/bin/cat", "/bin/ls", "/bin/sh"}
+	}
 
 	tests := []struct {
 		name     string
@@ -319,7 +337,7 @@ func TestGetCompletions(t *testing.T) {
 				// Mock GetSpec to return no completion spec for path-based commands
 				manager.On("GetSpec", "/bin/").Return(CompletionSpec{}, false)
 			},
-			expected: []string{"/bin/bash", "/bin/cat", "/bin/ls", "/bin/sh"}, // Mocked executables, independent of actual system
+			expected: binCompletions, // Mocked executables
 		},
 		{
 			name: "alias completion with matching prefix",
@@ -393,7 +411,7 @@ func setupTestAliases(runner *interp.Runner) {
 		}
 
 		// Execute the alias command to set up the alias in the runner
-		runner.Run(context.Background(), prog)
+		_ = runner.Run(context.Background(), prog)
 	}
 }
 

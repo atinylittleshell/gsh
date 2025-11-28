@@ -12,7 +12,7 @@ import (
 
 func TestResetChat(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	runner, _ := interp.New(
 		interp.StdIO(nil, nil, nil),
@@ -123,7 +123,7 @@ func TestPruneMessages(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger, _ := zap.NewDevelopment()
-			defer logger.Sync()
+			defer func() { _ = logger.Sync() }()
 
 			runner, _ := interp.New(
 				interp.StdIO(nil, nil, nil),

@@ -8,7 +8,6 @@ import (
 	"github.com/atinylittleshell/gsh/internal/environment"
 	"github.com/atinylittleshell/gsh/internal/styles"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"go.uber.org/zap"
 	"mvdan.cc/sh/v3/syntax"
 )
@@ -250,7 +249,6 @@ type simplePermissionsModel struct {
 	state  *PermissionsMenuState
 	logger *zap.Logger
 	result string
-	style  lipgloss.Style
 }
 
 // Init initializes the simple permissions model

@@ -34,7 +34,7 @@ func NewAnalyticsManager(dbFilePath string) (*AnalyticsManager, error) {
 		return nil, err
 	}
 
-	db.AutoMigrate(&AnalyticsEntry{})
+	if err := db.AutoMigrate(&AnalyticsEntry{}); err != nil { return nil, err }
 
 	return &AnalyticsManager{
 		db: db,

@@ -156,10 +156,4 @@ func TestNoExitAgentBehavior(t *testing.T) {
 }
 
 // Helper type for testing key messages
-type keyMsg struct {
-	string string
-}
 
-func (k keyMsg) String() string {
-	return k.string
-}

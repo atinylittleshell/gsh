@@ -10,16 +10,29 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go: ['1.24', 'stable']
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
-          go-version: "1.x"
+          go-version: ${{ matrix.go }}
+
+      - name: Verify go mod tidy
+        run: |
+          go mod tidy
+          git diff --exit-code
+        if: runner.os == 'Linux' && matrix.go == 'stable'
+
+      - name: Go Vet
+        run: go vet ./...
 
       - name: Build
         run: make build
@@ -29,5 +42,6 @@ jobs:
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
+        if: runner.os == 'Linux' && matrix.go == 'stable'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

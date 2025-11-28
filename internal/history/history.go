@@ -32,7 +32,7 @@ func NewHistoryManager(dbFilePath string) (*HistoryManager, error) {
 		return nil, err
 	}
 
-	db.AutoMigrate(&HistoryEntry{})
+	if err := db.AutoMigrate(&HistoryEntry{}); err != nil { return nil, err }
 
 	return &HistoryManager{
 		db: db,

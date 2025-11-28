@@ -78,7 +78,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer logger.Sync() // Flush any buffered log entries
+	defer func() {
+		_ = logger.Sync() // Flush any buffered log entries
+	}()
 
 	analyticsManager.Logger = logger
 
@@ -146,7 +148,7 @@ func initializeLogger(runner *interp.Runner) (*zap.Logger, error) {
 	}
 
 	if environment.ShouldCleanLogFile(runner) {
-		os.Remove(core.LogFile())
+		_ = os.Remove(core.LogFile())
 	}
 
 	// Initialize the logger

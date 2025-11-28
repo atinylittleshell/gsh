@@ -319,8 +319,8 @@ func TestModel_FileCompletion_Integration(t *testing.T) {
 
 	// Change to the temporary directory
 	originalDir, _ := os.Getwd()
-	defer os.Chdir(originalDir)
-	os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(originalDir) }()
+	_ = os.Chdir(tmpDir)
 
 	tests := []struct {
 		name           string

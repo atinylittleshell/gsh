@@ -122,8 +122,8 @@ func printCompletionSpecs(manager *CompletionManager, command string) error {
 func printCompletionSpec(spec CompletionSpec) {
 	switch spec.Type {
 	case WordListCompletion:
-		printf("complete -W %q %s\n", spec.Value, spec.Command)
+		_, _ = printf("complete -W %q %s\n", spec.Value, spec.Command)
 	case FunctionCompletion:
-		printf("complete -F %s %s\n", spec.Value, spec.Command)
+		_, _ = printf("complete -F %s %s\n", spec.Value, spec.Command)
 	}
 }

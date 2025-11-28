@@ -102,7 +102,10 @@ func preprocessWithParsing(input string) string {
 		// Check if we're at a command position (start of line or after delimiter)
 		if pos > 0 {
 			prev := input[pos-1]
-			if !(prev == '\n' || prev == ';' || prev == '|' || prev == '&' || prev == '(' || prev == '{' || isWhitespace(prev)) {
+			// Simplified De Morgan's Law logic:
+			// Original: !(prev == '\n' || ... || isWhitespace(prev))
+			// Equivalent: prev != '\n' && ... && !isWhitespace(prev)
+			if prev != '\n' && prev != ';' && prev != '|' && prev != '&' && prev != '(' && prev != '{' && !isWhitespace(prev) {
 				return false
 			}
 		}
@@ -225,7 +228,7 @@ func preprocessWithParsing(input string) string {
 
 				// Extract the delimiter - read until whitespace or newline
 				// But don't consume the delimiter characters, just note where it starts
-				delimiterStart := i
+				delimiterStart := i; _ = delimiterStart
 				tempI := i
 
 				// Skip any leading whitespace in the delimiter
@@ -243,6 +246,7 @@ func preprocessWithParsing(input string) string {
 				}
 
 				// Now extract the actual delimiter
+				// Re-assigning to tempI is sufficient, delimiterStart was just a placeholder
 				delimiterStart = tempI
 				for tempI < len(input) && !isWhitespace(input[tempI]) && input[tempI] != '\n' {
 					tempI++
@@ -257,7 +261,9 @@ func preprocessWithParsing(input string) string {
 			}
 
 			// Track parentheses for command substitution and arrays, but not function definitions
-			if ch == '(' {
+			// Use tagged switch for better readability
+			switch ch {
+			case '(':
 				// Only track parentheses if we're in command substitution or array state
 				if state == StateCommandSubstitution || state == StateArray {
 					parenDepth++
@@ -271,7 +277,7 @@ func preprocessWithParsing(input string) string {
 					state = StateArray
 					parenDepth = 1
 				}
-			} else if ch == ')' {
+			case ')':
 				if parenDepth > 0 && (state == StateCommandSubstitution || state == StateArray) {
 					parenDepth--
 					if parenDepth == 0 {
@@ -316,9 +322,10 @@ func preprocessWithParsing(input string) string {
 		case StateCommandSubstitution:
 			// In command substitution, track parentheses nesting
 			result.WriteByte(ch)
-			if ch == '(' {
+			switch ch {
+			case '(':
 				parenDepth++
-			} else if ch == ')' {
+			case ')':
 				parenDepth--
 				if parenDepth == 0 {
 					// Exit command substitution state
@@ -330,9 +337,10 @@ func preprocessWithParsing(input string) string {
 		case StateArray:
 			// In array, track parentheses nesting
 			result.WriteByte(ch)
-			if ch == '(' {
+			switch ch {
+			case '(':
 				parenDepth++
-			} else if ch == ')' {
+			case ')':
 				parenDepth--
 				if parenDepth == 0 {
 					// Exit array state
@@ -381,14 +389,6 @@ func isWhitespace(ch byte) bool {
 	return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'
 }
 
-// min returns the minimum of two integers
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func RunBashScriptFromReader(ctx context.Context, runner *interp.Runner, reader io.Reader, name string) error {
 	// Read all input first
 	content, err := io.ReadAll(reader)
@@ -411,7 +411,9 @@ func RunBashScriptFromFile(ctx context.Context, runner *interp.Runner, filePath 
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 	return RunBashScriptFromReader(ctx, runner, f, filePath)
 }
 
@@ -422,7 +424,7 @@ func RunBashCommandInSubShell(ctx context.Context, runner *interp.Runner, comman
 	outWriter := io.Writer(outBuf)
 	errBuf := &threadSafeBuffer{}
 	errWriter := io.Writer(errBuf)
-	interp.StdIO(nil, outWriter, errWriter)(subShell)
+	_ = interp.StdIO(nil, outWriter, errWriter)(subShell)
 
 	var prog *syntax.Stmt
 	err := syntax.NewParser().Stmts(strings.NewReader(command), func(stmt *syntax.Stmt) bool {
@@ -446,8 +448,10 @@ func RunBashCommand(ctx context.Context, runner *interp.Runner, command string) 
 	outWriter := io.Writer(outBuf)
 	errBuf := &threadSafeBuffer{}
 	errWriter := io.Writer(errBuf)
-	interp.StdIO(nil, outWriter, errWriter)(runner)
-	defer interp.StdIO(os.Stdin, os.Stdout, os.Stderr)(runner)
+	_ = interp.StdIO(nil, outWriter, errWriter)(runner)
+	defer func() {
+		_ = interp.StdIO(os.Stdin, os.Stdout, os.Stderr)(runner)
+	}()
 
 	var prog *syntax.Stmt
 	err := syntax.NewParser().Stmts(strings.NewReader(command), func(stmt *syntax.Stmt) bool {

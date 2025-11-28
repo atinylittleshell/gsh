@@ -207,6 +207,7 @@ func GetAgentMacros(runner *interp.Runner, logger *zap.Logger) map[string]string
 // AppendToAuthorizedCommands appends a command regex to the authorized_commands file
 func AppendToAuthorizedCommands(commandRegex string) error {
 	// Create config directory if it doesn't exist with secure permissions (owner only)
+	// Explicitly set to 0700 for secure directory permissions
 	if err := os.MkdirAll(configDir, 0700); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
@@ -222,12 +223,14 @@ func AppendToAuthorizedCommands(commandRegex string) error {
 		fileExists = false
 	}
 
-	// Open file in append mode, create if doesn't exist with secure permissions (owner only)
+	// Open file in append mode, create if doesn't exist with secure permissions (owner only - 0600)
 	file, err := os.OpenFile(authorizedCommandsFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to open authorized_commands file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	// If file already existed, ensure it has secure permissions
 	if fileExists {
@@ -279,6 +282,7 @@ func LoadAuthorizedCommandsFromFile() ([]string, error) {
 // This replaces the entire file content and deduplicates entries
 func WriteAuthorizedCommandsToFile(patterns []string) error {
 	// Create config directory if it doesn't exist with secure permissions (owner only)
+	// Explicitly set to 0700 for secure directory permissions
 	if err := os.MkdirAll(configDir, 0700); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
@@ -299,12 +303,14 @@ func WriteAuthorizedCommandsToFile(patterns []string) error {
 		}
 	}
 
-	// Create file with secure permissions (owner only)
+	// Create file with secure permissions (owner only - 0600)
 	file, err := os.OpenFile(authorizedCommandsFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to open authorized_commands file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	// Write all patterns
 	for _, pattern := range uniquePatterns {

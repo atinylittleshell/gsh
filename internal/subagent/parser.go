@@ -60,12 +60,21 @@ func parseClaudeConfig(filePath string, content []byte, modTime time.Time) (*Sub
 	contentStr := string(content)
 
 	// Check if file has YAML frontmatter
-	if !strings.HasPrefix(contentStr, "---\n") {
-		return nil, fmt.Errorf("Claude configuration file must start with YAML frontmatter: %s", filePath)
+	// Handle both Unix and Windows line endings
+	if !strings.HasPrefix(contentStr, "---\n") && !strings.HasPrefix(contentStr, "---\r\n") {
+		return nil, fmt.Errorf("claude configuration file must start with YAML frontmatter: %s", filePath)
 	}
 
 	// Find end of frontmatter
+	// Handle both Unix and Windows line endings for the delimiter
 	endIdx := strings.Index(contentStr[4:], "\n---\n")
+	delimiterLength := 5 // \n---\n
+	if endIdx == -1 {
+		// Try Windows style line endings
+		endIdx = strings.Index(contentStr[4:], "\r\n---\r\n")
+		delimiterLength = 7 // \r\n---\r\n
+	}
+
 	if endIdx == -1 {
 		return nil, fmt.Errorf("invalid YAML frontmatter in file: %s", filePath)
 	}
@@ -73,7 +82,7 @@ func parseClaudeConfig(filePath string, content []byte, modTime time.Time) (*Sub
 
 	// Extract frontmatter and content
 	frontmatter := contentStr[4:endIdx]
-	systemPrompt := strings.TrimSpace(contentStr[endIdx+5:]) // Skip "\n---\n"
+	systemPrompt := strings.TrimSpace(contentStr[endIdx+delimiterLength:])
 
 	// Parse YAML frontmatter
 	var config ClaudeConfig

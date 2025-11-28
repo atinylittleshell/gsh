@@ -11,7 +11,9 @@ import (
 )
 
 // For testing purposes
-var typesetPrintf = fmt.Printf
+var typesetPrintf = func(format string, a ...any) (int, error) {
+	return fmt.Printf(format, a...)
+}
 
 // Global runner reference that can be set after initialization
 // NOTE: This global variable pattern is intentionally used here due to the constraints
@@ -133,12 +135,12 @@ func printFunctionDefinitions(runner *interp.Runner) error {
 		}
 
 		// Format: function_name () { body }
-		typesetPrintf("%s () {\n", name)
+		_, _ = typesetPrintf("%s () {\n", name)
 
 		// Print the function body
 		printFunctionBody(fn)
 
-		typesetPrintf("}\n")
+		_, _ = typesetPrintf("}\n")
 	}
 
 	return nil
@@ -153,13 +155,13 @@ func printFunctionBody(fn *syntax.Stmt) {
 	// Use the syntax printer to format the function body
 	// This will give us a bash-compatible representation
 	var buf strings.Builder
-	syntax.NewPrinter().Print(&buf, fn)
+	_ = syntax.NewPrinter().Print(&buf, fn)
 
 	// Indent each line of the body
 	lines := strings.Split(buf.String(), "\n")
 	for _, line := range lines {
 		if line != "" {
-			typesetPrintf("    %s\n", line)
+			_, _ = typesetPrintf("    %s\n", line)
 		}
 	}
 }
@@ -179,7 +181,7 @@ func printFunctionNames(runner *interp.Runner) error {
 
 	// Print each function name
 	for _, name := range names {
-		typesetPrintf("declare -f %s\n", name)
+		_, _ = typesetPrintf("declare -f %s\n", name)
 	}
 
 	return nil
@@ -212,9 +214,9 @@ func printVariables(runner *interp.Runner) error {
 
 		// Format the output
 		if exported {
-			typesetPrintf("declare -x %s=%q\n", name, value)
+			_, _ = typesetPrintf("declare -x %s=%q\n", name, value)
 		} else {
-			typesetPrintf("declare -- %s=%q\n", name, value)
+			_, _ = typesetPrintf("declare -- %s=%q\n", name, value)
 		}
 	}
 

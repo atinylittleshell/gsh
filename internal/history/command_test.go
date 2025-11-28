@@ -30,7 +30,7 @@ func captureOutput(f func() error) (string, error) {
 
 	// Read the output from the pipe
 	var buf strings.Builder
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	return buf.String(), err
 }
 
@@ -61,11 +61,11 @@ func TestHistoryCommand(t *testing.T) {
 			args:          []string{"history", "--help"},
 			expectedError: false,
 			setupFn: func() uint {
-				historyManager.ResetHistory()
+				_ = historyManager.ResetHistory()
 				entry1, _ := historyManager.StartCommand("test1", "")
-				historyManager.FinishCommand(entry1, 0)
+				_, _ = historyManager.FinishCommand(entry1, 0)
 				entry2, _ := historyManager.StartCommand("test2", "")
-				historyManager.FinishCommand(entry2, 0)
+				_, _ = historyManager.FinishCommand(entry2, 0)
 				return 0
 			},
 			verify: func(t *testing.T, hm *HistoryManager) {
@@ -94,13 +94,13 @@ func TestHistoryCommand(t *testing.T) {
 			args:          []string{"history"},
 			expectedError: false,
 			setupFn: func() uint {
-				historyManager.ResetHistory()
+				_ = historyManager.ResetHistory()
 				entry1, _ := historyManager.StartCommand("test1", "")
-				historyManager.FinishCommand(entry1, 0)
+				_, _ = historyManager.FinishCommand(entry1, 0)
 				entry2, _ := historyManager.StartCommand("test2", "")
-				historyManager.FinishCommand(entry2, 0)
+				_, _ = historyManager.FinishCommand(entry2, 0)
 				entry3, _ := historyManager.StartCommand("test3", "")
-				historyManager.FinishCommand(entry3, 0)
+				_, _ = historyManager.FinishCommand(entry3, 0)
 				return 0
 			},
 			verify: func(t *testing.T, hm *HistoryManager) {
@@ -121,13 +121,13 @@ func TestHistoryCommand(t *testing.T) {
 			args:          []string{"history", "2"},
 			expectedError: false,
 			setupFn: func() uint {
-				historyManager.ResetHistory()
+				_ = historyManager.ResetHistory()
 				entry1, _ := historyManager.StartCommand("test1", "")
-				historyManager.FinishCommand(entry1, 0)
+				_, _ = historyManager.FinishCommand(entry1, 0)
 				entry2, _ := historyManager.StartCommand("test2", "")
-				historyManager.FinishCommand(entry2, 0)
+				_, _ = historyManager.FinishCommand(entry2, 0)
 				entry3, _ := historyManager.StartCommand("test3", "")
-				historyManager.FinishCommand(entry3, 0)
+				_, _ = historyManager.FinishCommand(entry3, 0)
 				return 0
 			},
 			verify: func(t *testing.T, hm *HistoryManager) {
@@ -149,11 +149,11 @@ func TestHistoryCommand(t *testing.T) {
 			args:          []string{"history", "-c"},
 			expectedError: false,
 			setupFn: func() uint {
-				historyManager.ResetHistory()
+				_ = historyManager.ResetHistory()
 				entry1, _ := historyManager.StartCommand("test1", "")
-				historyManager.FinishCommand(entry1, 0)
+				_, _ = historyManager.FinishCommand(entry1, 0)
 				entry2, _ := historyManager.StartCommand("test2", "")
-				historyManager.FinishCommand(entry2, 0)
+				_, _ = historyManager.FinishCommand(entry2, 0)
 				return 0
 			},
 			verify: func(t *testing.T, hm *HistoryManager) {
@@ -170,13 +170,13 @@ func TestHistoryCommand(t *testing.T) {
 			args:          []string{"history", "-d", "%d"},
 			expectedError: false,
 			setupFn: func() uint {
-				historyManager.ResetHistory()
+				_ = historyManager.ResetHistory()
 				entry1, _ := historyManager.StartCommand("test1", "")
-				historyManager.FinishCommand(entry1, 0)
+				_, _ = historyManager.FinishCommand(entry1, 0)
 				entry2, _ := historyManager.StartCommand("test2", "")
-				historyManager.FinishCommand(entry2, 0)
+				_, _ = historyManager.FinishCommand(entry2, 0)
 				entry3, _ := historyManager.StartCommand("test3", "")
-				historyManager.FinishCommand(entry3, 0)
+				_, _ = historyManager.FinishCommand(entry3, 0)
 				entries, _ := historyManager.GetRecentEntries("", 10)
 				return entries[0].ID
 			},
@@ -194,9 +194,9 @@ func TestHistoryCommand(t *testing.T) {
 			args:          []string{"history", "-d"},
 			expectedError: true,
 			setupFn: func() uint {
-				historyManager.ResetHistory()
+				_ = historyManager.ResetHistory()
 				entry1, _ := historyManager.StartCommand("test1", "")
-				historyManager.FinishCommand(entry1, 0)
+				_, _ = historyManager.FinishCommand(entry1, 0)
 				return 0
 			},
 			verify: func(t *testing.T, hm *HistoryManager) {
@@ -213,9 +213,9 @@ func TestHistoryCommand(t *testing.T) {
 			args:          []string{"history", "-d", "invalid"},
 			expectedError: true,
 			setupFn: func() uint {
-				historyManager.ResetHistory()
+				_ = historyManager.ResetHistory()
 				entry1, _ := historyManager.StartCommand("test1", "")
-				historyManager.FinishCommand(entry1, 0)
+				_, _ = historyManager.FinishCommand(entry1, 0)
 				return 0
 			},
 			verify: func(t *testing.T, hm *HistoryManager) {

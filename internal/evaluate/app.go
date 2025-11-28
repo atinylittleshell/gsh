@@ -42,7 +42,6 @@ type model struct {
 	totalIterations  int
 	progress         progress.Model
 	spinner          spinner.Model
-	evaluating       bool
 	llmClient        *openai.Client
 	modelId          string
 	temperature      *float64

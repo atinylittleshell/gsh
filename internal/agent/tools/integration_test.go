@@ -86,7 +86,7 @@ func TestPreApproval(t *testing.T) {
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Create a test runner
 	env := expand.ListEnviron(os.Environ()...)
@@ -163,7 +163,7 @@ func TestFileOperations(t *testing.T) {
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	t.Run("directory and file creation", func(t *testing.T) {
 		// Ensure directory and file don't exist initially
@@ -267,7 +267,7 @@ func TestGetApprovedBashCommandRegexIntegration(t *testing.T) {
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Create a test runner
 	env := expand.ListEnviron(os.Environ()...)
@@ -363,7 +363,7 @@ func TestInvalidRegexHandling(t *testing.T) {
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Create a test runner
 	env := expand.ListEnviron(os.Environ()...)
@@ -435,7 +435,7 @@ func TestBashToolWithPreApprovedCommands(t *testing.T) {
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// This test is no longer relevant since we removed the "always" feature
 	// Commands must now be pre-approved through the permissions menu (manage option)
@@ -520,14 +520,14 @@ func TestFilePermissionIssues(t *testing.T) {
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Create directory with no write permissions
 	err := os.MkdirAll(tempConfigDir, 0444) // Read-only permissions
 	assert.NoError(t, err)
 
 	// Try to append to authorized commands - this might succeed or fail depending on the system
-	err = environment.AppendToAuthorizedCommands("test.*")
+	_ = environment.AppendToAuthorizedCommands("test.*")
 	// The important thing is that it doesn't panic
 
 	// Try to load authorized commands - should handle permission issues gracefully
@@ -559,7 +559,7 @@ func TestEdgeCases(t *testing.T) {
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Create a test runner
 	env := expand.ListEnviron(os.Environ()...)

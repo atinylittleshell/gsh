@@ -39,10 +39,9 @@ func (m *MultilineState) AddLine(line string) (complete bool, prompt string) {
 	// Validate input assumptions - AddLine should receive single lines without embedded newlines
 	// If embedded newlines are detected, this indicates the method is being used for
 	// string literal testing rather than simulating real interactive shell usage
-	if strings.Contains(line, "\n") {
-		// This is acceptable for testing string parsing edge cases, but it's important
-		// to understand this doesn't represent actual user interaction patterns
-	}
+	//
+	// Note: We intentionally don't do anything with this check other than acknowledge it
+	// because stripping newlines would break paste functionality.
 
 	// Defer panic recovery to prevent shell crashes
 	defer func() {
@@ -118,6 +117,7 @@ func (m *MultilineState) GetCompleteCommand() string {
 	defer func() {
 		if r := recover(); r != nil {
 			// Silently handle panic and reset state
+			m.Reset()
 		}
 	}()
 
@@ -245,11 +245,9 @@ func hasIncompleteConstructs(input string) bool {
 	// Now check for unmatched parentheses in the cleaned input
 	openParens := strings.Count(cleanInput, "(")
 	closeParens := strings.Count(cleanInput, ")")
-	if openParens > closeParens {
-		return true
-	}
 
-	return false
+	// Simplify return boolean logic (S1008)
+	return openParens > closeParens
 }
 
 // findMatchingParen finds the matching closing parenthesis for an opening one
@@ -282,11 +280,7 @@ func hasIncompleteFunctionDef(input string) bool {
 	}
 
 	// Also check if the last non-whitespace character is an opening brace
-	if strings.HasSuffix(input, "{") {
-		return true
-	}
-
-	return false
+	return strings.HasSuffix(input, "{")
 }
 
 // isIncompleteSyntaxError checks if the error indicates incomplete input
@@ -311,5 +305,6 @@ func isIncompleteSyntaxError(err error) bool {
 			return true
 		}
 	}
+
 	return false
 }

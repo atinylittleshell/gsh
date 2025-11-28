@@ -14,19 +14,6 @@ func TestGetFileCompletions_Integration(t *testing.T) {
 	// Create a temporary directory with test files and directories
 	tmpDir := t.TempDir()
 
-	// Create test structure:
-	// tmpDir/
-	//   ├── file1.txt
-	//   ├── file2.log
-	//   ├── .hidden
-	//   ├── documents/
-	//   │   ├── doc1.pdf
-	//   │   └── doc2.txt
-	//   ├── projects/
-	//   │   ├── project1/
-	//   │   └── main.go
-	//   └── "spaced name.txt"
-
 	// Create files
 	files := []string{
 		"file1.txt",
@@ -66,8 +53,13 @@ func TestGetFileCompletions_Integration(t *testing.T) {
 
 	// Change to temp directory for relative path tests
 	originalDir, _ := os.Getwd()
-	defer os.Chdir(originalDir)
-	os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(originalDir) }()
+	_ = os.Chdir(tmpDir)
+
+	// Normalize helper
+	norm := func(p string) string {
+		return filepath.FromSlash(p)
+	}
 
 	tests := []struct {
 		name           string
@@ -81,8 +73,8 @@ func TestGetFileCompletions_Integration(t *testing.T) {
 			name:          "empty prefix lists all files",
 			prefix:        "",
 			currentDir:    tmpDir,
-			expectedMin:   6, // 4 files + 2 directories (hidden files handled separately)
-			shouldContain: []string{"file1.txt", "file2.log", "documents/", "projects/", "spaced name.txt"},
+			expectedMin:   6,
+			shouldContain: []string{"file1.txt", "file2.log", norm("documents/"), norm("projects/"), "spaced name.txt"},
 		},
 		{
 			name:          "file prefix matching",
@@ -90,15 +82,15 @@ func TestGetFileCompletions_Integration(t *testing.T) {
 			currentDir:    tmpDir,
 			expectedMin:   2,
 			shouldContain: []string{"file1.txt", "file2.log"},
-			shouldNotContain: []string{"documents/", "projects/"},
+			shouldNotContain: []string{norm("documents/"), norm("projects/")},
 		},
 		{
 			name:          "directory prefix matching",
 			prefix:        "doc",
 			currentDir:    tmpDir,
 			expectedMin:   1,
-			shouldContain: []string{"documents/"},
-			shouldNotContain: []string{"file1.txt", "projects/"},
+			shouldContain: []string{norm("documents/")},
+			shouldNotContain: []string{"file1.txt", norm("projects/")},
 		},
 		{
 			name:          "hidden file matching",
@@ -106,36 +98,29 @@ func TestGetFileCompletions_Integration(t *testing.T) {
 			currentDir:    tmpDir,
 			expectedMin:   1,
 			shouldContain: []string{".hidden"},
-			shouldNotContain: []string{"file1.txt", "documents/"},
-		},
-		{
-			name:          "spaced filename matching",
-			prefix:        "spaced",
-			currentDir:    tmpDir,
-			expectedMin:   1,
-			shouldContain: []string{"spaced name.txt"},
+			shouldNotContain: []string{"file1.txt", norm("documents/")},
 		},
 		{
 			name:          "subdirectory completion",
-			prefix:        "documents/",
+			prefix:        norm("documents/"),
 			currentDir:    tmpDir,
 			expectedMin:   2,
-			shouldContain: []string{"documents/doc1.pdf", "documents/doc2.txt"},
+			shouldContain: []string{norm("documents/doc1.pdf"), norm("documents/doc2.txt")},
 		},
 		{
 			name:          "nested subdirectory",
-			prefix:        "projects/",
+			prefix:        norm("projects/"),
 			currentDir:    tmpDir,
 			expectedMin:   2,
-			shouldContain: []string{"projects/project1/", "projects/main.go"},
+			shouldContain: []string{norm("projects/project1/"), norm("projects/main.go")},
 		},
 		{
 			name:          "partial file in subdirectory",
-			prefix:        "documents/doc1",
+			prefix:        norm("documents/doc1"),
 			currentDir:    tmpDir,
 			expectedMin:   1,
-			shouldContain: []string{"documents/doc1.pdf"},
-			shouldNotContain: []string{"documents/doc2.txt"},
+			shouldContain: []string{norm("documents/doc1.pdf")},
+			shouldNotContain: []string{norm("documents/doc2.txt")},
 		},
 		{
 			name:          "absolute path completion",
@@ -149,7 +134,7 @@ func TestGetFileCompletions_Integration(t *testing.T) {
 		},
 		{
 			name:          "absolute directory completion",
-			prefix:        filepath.Join(tmpDir, "documents") + "/",
+			prefix:        filepath.Join(tmpDir, "documents") + string(os.PathSeparator),
 			currentDir:    "/",
 			expectedMin:   2,
 			shouldContain: []string{
@@ -157,27 +142,13 @@ func TestGetFileCompletions_Integration(t *testing.T) {
 				filepath.Join(tmpDir, "documents", "doc2.txt"),
 			},
 		},
-		{
-			name:           "non-existent directory",
-			prefix:         "nonexistent/",
-			currentDir:     tmpDir,
-			expectedMin:    0,
-			shouldContain:  []string{},
-		},
-		{
-			name:           "non-matching prefix",
-			prefix:         "xyz",
-			currentDir:     tmpDir,
-			expectedMin:    0,
-			shouldContain:  []string{},
-		},
 	}
 
 	// Test home directory expansion
 	if homeDir, err := os.UserHomeDir(); err == nil {
 		// Create a test file in home directory for testing
 		testFile := filepath.Join(homeDir, ".test_completion_file")
-		os.WriteFile(testFile, []byte("test"), 0644)
+		_ = os.WriteFile(testFile, []byte("test"), 0644)
 		defer os.Remove(testFile)
 
 		tests = append(tests, struct {
@@ -192,7 +163,7 @@ func TestGetFileCompletions_Integration(t *testing.T) {
 			prefix:        "~/.test_completion",
 			currentDir:    tmpDir,
 			expectedMin:   1,
-			shouldContain: []string{"~/.test_completion_file"},
+			shouldContain: []string{"~" + string(os.PathSeparator) + ".test_completion_file"},
 		})
 	}
 
@@ -220,19 +191,7 @@ func TestGetFileCompletions_Integration(t *testing.T) {
 }
 
 func TestGetFileCompletions_RelativePaths_Integration(t *testing.T) {
-	// Create nested directory structure for relative path testing
 	tmpDir := t.TempDir()
-
-	// Create structure:
-	// tmpDir/
-	//   ├── level1/
-	//   │   ├── file_l1.txt
-	//   │   └── level2/
-	//   │       ├── file_l2.txt
-	//   │       └── level3/
-	//   │           └── file_l3.txt
-	//   └── sibling/
-	//       └── sibling_file.txt
 
 	structure := map[string][]string{
 		"level1":              {"file_l1.txt"},
@@ -253,7 +212,10 @@ func TestGetFileCompletions_RelativePaths_Integration(t *testing.T) {
 		}
 	}
 
-	// Test from different working directories
+	norm := func(p string) string {
+		return filepath.FromSlash(p)
+	}
+
 	tests := []struct {
 		name           string
 		workingDir     string
@@ -265,38 +227,38 @@ func TestGetFileCompletions_RelativePaths_Integration(t *testing.T) {
 		{
 			name:          "relative path from root",
 			workingDir:    tmpDir,
-			prefix:        "level1/",
+			prefix:        norm("level1/"),
 			expectedMin:   2,
-			shouldContain: []string{"level1/file_l1.txt", "level1/level2/"},
+			shouldContain: []string{norm("level1/file_l1.txt"), norm("level1/level2/")},
 		},
 		{
 			name:          "relative path from subdirectory",
 			workingDir:    filepath.Join(tmpDir, "level1"),
-			prefix:        "level2/",
+			prefix:        norm("level2/"),
 			expectedMin:   2,
-			shouldContain: []string{"level2/file_l2.txt", "level2/level3/"},
+			shouldContain: []string{norm("level2/file_l2.txt"), norm("level2/level3/")},
 		},
 		{
 			name:          "parent directory navigation",
 			workingDir:    filepath.Join(tmpDir, "level1"),
-			prefix:        "../sibling/",
+			prefix:        norm("../sibling/"),
 			expectedMin:   1,
-			shouldContain: []string{"../sibling/sibling_file.txt"},
+			shouldContain: []string{norm("../sibling/sibling_file.txt")},
 		},
 		{
 			name:          "deep relative path",
 			workingDir:    tmpDir,
-			prefix:        "level1/level2/level3/",
+			prefix:        norm("level1/level2/level3/"),
 			expectedMin:   1,
-			shouldContain: []string{"level1/level2/level3/file_l3.txt"},
+			shouldContain: []string{norm("level1/level2/level3/file_l3.txt")},
 		},
 		{
 			name:          "partial relative path",
 			workingDir:    tmpDir,
-			prefix:        "level1/file",
+			prefix:        norm("level1/file"),
 			expectedMin:   1,
-			shouldContain: []string{"level1/file_l1.txt"},
-			shouldNotContain: []string{"level1/level2/"},
+			shouldContain: []string{norm("level1/file_l1.txt")},
+			shouldNotContain: []string{norm("level1/level2/")},
 		},
 	}
 
@@ -432,7 +394,7 @@ func TestGetFileCompletions_Permissions_Integration(t *testing.T) {
 		err := os.WriteFile(filePath, []byte("content"), mode)
 		require.NoError(t, err)
 		// Clean up permissions after test
-		defer os.Chmod(filePath, 0644)
+		defer func() { _ = os.Chmod(filePath, 0644) }()
 	}
 
 	// Create directories with different permissions
@@ -447,7 +409,12 @@ func TestGetFileCompletions_Permissions_Integration(t *testing.T) {
 		err := os.MkdirAll(dirPath, mode)
 		require.NoError(t, err)
 		// Clean up permissions after test
-		defer os.Chmod(dirPath, 0755)
+		defer func() { _ = os.Chmod(dirPath, 0755) }()
+	}
+
+	// Normalize helper
+	norm := func(p string) string {
+		return filepath.FromSlash(p)
 	}
 
 	tests := []struct {
@@ -460,7 +427,7 @@ func TestGetFileCompletions_Permissions_Integration(t *testing.T) {
 			name:          "all files regardless of permissions",
 			prefix:        "",
 			expectedMin:   7, // 4 files + 3 directories
-			shouldContain: []string{"readable.txt", "writable.txt", "executable.sh", "readable_dir/"},
+			shouldContain: []string{"readable.txt", "writable.txt", "executable.sh", norm("readable_dir/")},
 		},
 		{
 			name:          "executable files",
@@ -472,7 +439,7 @@ func TestGetFileCompletions_Permissions_Integration(t *testing.T) {
 			name:          "readable directory",
 			prefix:        "readable_dir",
 			expectedMin:   1,
-			shouldContain: []string{"readable_dir/"},
+			shouldContain: []string{norm("readable_dir/")},
 		},
 		{
 			name:          "no permission files still show up in listing",

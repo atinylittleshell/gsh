@@ -47,7 +47,7 @@ func CreateFileTool(runner *interp.Runner, logger *zap.Logger, params map[string
 		logger.Error("create_file tool failed to create temporary file", zap.Error(err))
 		return failedToolResponse(fmt.Sprintf("Error creating temporary file: %s", err))
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
 
 	_, err = tmpFile.WriteString(content)
 	if err != nil {
@@ -84,7 +84,7 @@ func CreateFileTool(runner *interp.Runner, logger *zap.Logger, params map[string
 		logger.Error("create_file tool failed to create file", zap.Error(err))
 		return failedToolResponse(fmt.Sprintf("Error creating file: %s", err))
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	_, err = file.WriteString(content)
 	if err != nil {

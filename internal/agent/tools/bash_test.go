@@ -270,7 +270,7 @@ func TestBashToolWithPreApprovedCommand(t *testing.T) {
 
 	// Read captured output
 	outBuf := &bytes.Buffer{}
-	outBuf.ReadFrom(r)
+	_, _ = outBuf.ReadFrom(r)
 	r.Close()
 
 	// Verify successful execution

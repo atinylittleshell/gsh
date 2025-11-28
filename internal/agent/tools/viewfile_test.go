@@ -42,7 +42,7 @@ func TestViewFileTool(t *testing.T) {
 	content := "Line 1\nLine 2\nLine 3\nLine 4\nLine 5"
 	_, err = tempFile.WriteString(content)
 	assert.NoError(t, err)
-	tempFile.Close()
+	_ = tempFile.Close()
 
 	runner, _ := interp.New()
 	logger := zap.NewNop()
@@ -85,7 +85,7 @@ func TestViewFileTool(t *testing.T) {
 
 		_, err = tempLargeFile.Write(largeContent)
 		assert.NoError(t, err)
-		tempLargeFile.Close()
+		_ = tempLargeFile.Close()
 
 		params := map[string]any{"path": tempLargeFile.Name()}
 		result := ViewFileTool(runner, logger, params)

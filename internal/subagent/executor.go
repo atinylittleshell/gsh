@@ -210,7 +210,9 @@ func (e *SubagentExecutor) Chat(prompt string) (<-chan string, error) {
 			cmd := fmt.Sprintf("%s=%s", name, quotedValue)
 			p, err := syntax.NewParser().Parse(strings.NewReader(cmd), "")
 			if err == nil {
-				e.runner.Run(ctx, p)
+				if err := e.runner.Run(ctx, p); err != nil {
+					e.logger.Warn("Failed to set subagent prompt variable", zap.String("variable", name), zap.Error(err))
+				}
 			} else {
 				// Fallback to direct assignment if parsing fails (unlikely)
 				e.runner.Vars[name] = expand.Variable{Kind: expand.String, Str: value}

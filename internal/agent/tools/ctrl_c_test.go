@@ -212,7 +212,7 @@ func TestPermissionsMenuCtrlCHandling(t *testing.T) {
 	// Test Esc handling (should return "n", not "exit_agent")
 	model.result = "" // Reset
 	escMsg := tea.KeyMsg{Type: tea.KeyEsc}
-	updatedModel, cmd = model.Update(escMsg)
+	updatedModel, _ = model.Update(escMsg)
 
 	if result, ok := updatedModel.(*simplePermissionsModel); ok {
 		if result.result != "n" {

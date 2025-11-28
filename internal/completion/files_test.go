@@ -57,6 +57,15 @@ func TestFileCompletions(t *testing.T) {
 	}
 	defer os.Remove(testFileInHome)
 
+	// Helper to normalize path separators
+	norm := func(path string) string {
+		if strings.HasSuffix(path, "/") {
+			// For directories, we expect OS separator at the end
+			return filepath.FromSlash(strings.TrimSuffix(path, "/")) + string(os.PathSeparator)
+		}
+		return filepath.FromSlash(path)
+	}
+
 	tests := []struct {
 		name        string
 		prefix      string
@@ -69,7 +78,7 @@ func TestFileCompletions(t *testing.T) {
 			name:        "empty prefix lists all files",
 			prefix:      "",
 			currentDir:  tmpDir,
-			expected:    []string{"file1.txt", "file2.txt", "folder1/", "folder2/"},
+			expected:    []string{"file1.txt", "file2.txt", norm("folder1/"), norm("folder2/")},
 			shouldMatch: true,
 		},
 		{
@@ -83,14 +92,14 @@ func TestFileCompletions(t *testing.T) {
 			name:        "prefix matches directories",
 			prefix:      "folder",
 			currentDir:  tmpDir,
-			expected:    []string{"folder1/", "folder2/"},
+			expected:    []string{norm("folder1/"), norm("folder2/")},
 			shouldMatch: true,
 		},
 		{
 			name:        "absolute path prefix",
-			prefix:      filepath.Join(tmpDir, "folder1") + "/",
+			prefix:      filepath.Join(tmpDir, "folder1") + string(os.PathSeparator),
 			currentDir:  "/some/other/dir",
-			expected:    []string{filepath.Join(tmpDir, "folder1/inside.txt")},
+			expected:    []string{filepath.Join(tmpDir, "folder1", "inside.txt")},
 			shouldMatch: true,
 			verify: func(t *testing.T, results []string) {
 				// All results should be absolute paths
@@ -101,9 +110,9 @@ func TestFileCompletions(t *testing.T) {
 		},
 		{
 			name:        "relative path in subdirectory",
-			prefix:      "folder1/i",
+			prefix:      "folder1/i", // Input uses forward slash usually, but let's make it robust
 			currentDir:  tmpDir,
-			expected:    []string{"folder1/inside.txt"},
+			expected:    []string{filepath.Join("folder1", "inside.txt")},
 			shouldMatch: true,
 			verify: func(t *testing.T, results []string) {
 				// All results should be relative paths
@@ -119,10 +128,12 @@ func TestFileCompletions(t *testing.T) {
 			expected:    []string{},
 			shouldMatch: false,
 			verify: func(t *testing.T, results []string) {
-				// All results should start with "~/"
+				// All results should start with "~/" or "~\", depending on OS input handling but usually output has ~
 				assert.Greater(t, len(results), 0, "Expected some results")
 				for _, result := range results {
-					assert.True(t, strings.HasPrefix(result, "~/"), "Expected path starting with ~/, got: %s", result)
+					// On Windows, completions might use backslash but still start with ~
+					// Check if it starts with ~ and path separator
+					assert.True(t, strings.HasPrefix(result, "~"+string(os.PathSeparator)), "Expected path starting with ~%s, got: %s", string(os.PathSeparator), result)
 					assert.False(t, strings.Contains(result, homeDir), "Path should not contain actual home directory")
 				}
 			},
@@ -131,12 +142,12 @@ func TestFileCompletions(t *testing.T) {
 			name:        "home directory with partial filename",
 			prefix:      "~/gsh_test",
 			currentDir:  "/some/other/dir",
-			expected:    []string{"~/gsh_test_file.txt"},
+			expected:    []string{"~" + string(os.PathSeparator) + "gsh_test_file.txt"},
 			shouldMatch: true,
 			verify: func(t *testing.T, results []string) {
 				// All results should start with "~/"
 				for _, result := range results {
-					assert.True(t, strings.HasPrefix(result, "~/"), "Expected path starting with ~/, got: %s", result)
+					assert.True(t, strings.HasPrefix(result, "~"+string(os.PathSeparator)), "Expected path starting with ~%s, got: %s", string(os.PathSeparator), result)
 				}
 			},
 		},
@@ -144,6 +155,12 @@ func TestFileCompletions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Ensure prefix uses correct separator for the test env if needed, though input usually uses typed separator.
+			// The test cases use hardcoded forward slashes in prefix for some.
+			// Let's just run as is, assuming the completion logic handles mixed separators or expects normalized ones.
+			// Actually, "folder1/i" might need to be "folder1\i" on windows for strict matching if not normalized.
+			// But the completion provider should handle it.
+
 			results := getFileCompletions(tt.prefix, tt.currentDir)
 			if tt.verify != nil {
 				tt.verify(t, results)
@@ -165,4 +182,3 @@ func TestFileCompletions(t *testing.T) {
 		})
 	}
 }
-

@@ -72,10 +72,12 @@ func TestVersionFileFormat(t *testing.T) {
 		// Trim and check that trimmed version matches when one newline is added
 		trimmed := strings.TrimSpace(string(content))
 		expected := trimmed + "\n"
+		expectedCRLF := trimmed + "\r\n"
 		
-		// Allow either no newline or single newline
-		assert.True(t, string(content) == trimmed || string(content) == expected,
-			"VERSION file should have either no newline or single trailing newline")
+		// Allow either no newline, single newline (LF), or single newline (CRLF)
+		contentStr := string(content)
+		assert.True(t, contentStr == trimmed || contentStr == expected || contentStr == expectedCRLF,
+			"VERSION file should have either no newline or single trailing newline (LF or CRLF)")
 	})
 
 	t.Run("VERSION is reasonable", func(t *testing.T) {

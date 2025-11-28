@@ -74,7 +74,7 @@ func generateWordListCompletions(word string, wordList string) error {
 	words := strings.Fields(wordList)
 	for _, w := range words {
 		if word == "" || strings.HasPrefix(w, word) {
-			printf("%s\n", w)
+			_, _ = printf("%s\n", w)
 		}
 	}
 	return nil
@@ -93,7 +93,7 @@ func generateFunctionCompletions(ctx context.Context, runner *interp.Runner, fun
 	// Print the completions
 	for _, completion := range completions {
 		if word == "" || strings.HasPrefix(completion, word) {
-			printf("%s\n", completion)
+			_, _ = printf("%s\n", completion)
 		}
 	}
 	return nil

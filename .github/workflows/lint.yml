@@ -1,0 +1,27 @@
+name: Lint
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  golangci:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          # Go 1.25+ is required by go.mod (go 1.24.9) and not yet the default
+          # "stable" version on GitHub-hosted runners, so pin an explicit
+          # version to ensure golangci-lint has a supported toolchain.
+          go-version: '1.25'
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest

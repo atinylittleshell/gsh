@@ -18,7 +18,7 @@ func TestBasicOperations(t *testing.T) {
 	assert.False(t, entry.CreatedAt.IsZero(), "Expected CreatedAt to be set")
 	assert.False(t, entry.UpdatedAt.IsZero(), "Expected UpdatedAt to be set")
 
-	entry, err = historyManager.FinishCommand(entry, 0)
+	_, _ = historyManager.FinishCommand(entry, 0)
 	if err != nil {
 		t.Errorf("Failed to finish command: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestBasicOperations(t *testing.T) {
 		t.Errorf("Failed to start command: %v", err)
 	}
 
-	entry, err = historyManager.FinishCommand(entry, 0)
+	_, _ = historyManager.FinishCommand(entry, 0)
 	if err != nil {
 		t.Errorf("Failed to finish command: %v", err)
 	}
@@ -42,10 +42,10 @@ func TestBasicOperations(t *testing.T) {
 
 	assert.Equal(t, "echo hello", allEntries[0].Command, "Expected most recent command to be 'echo hello'")
 
-	targetEntries, err := historyManager.GetRecentEntries("/", 3)
+	targetEntries, _ := historyManager.GetRecentEntries("/", 3)
 	assert.Len(t, targetEntries, 2, "Expected 2 entries")
 
-	nonTargetEntries, err := historyManager.GetRecentEntries("/tmp", 3)
+	nonTargetEntries, _ := historyManager.GetRecentEntries("/tmp", 3)
 	assert.Len(t, nonTargetEntries, 0, "Expected 0 entries")
 }
 
@@ -56,7 +56,7 @@ func TestDeleteEntry(t *testing.T) {
 	// Create some test entries
 	entry1, err := historyManager.StartCommand("command1", "/")
 	assert.NoError(t, err)
-	entry1, err = historyManager.FinishCommand(entry1, 0)
+	_, _ = historyManager.FinishCommand(entry1, 0)
 	assert.NoError(t, err)
 
 	entry2, err := historyManager.StartCommand("command2", "/")
@@ -66,7 +66,7 @@ func TestDeleteEntry(t *testing.T) {
 
 	entry3, err := historyManager.StartCommand("command3", "/")
 	assert.NoError(t, err)
-	entry3, err = historyManager.FinishCommand(entry3, 0)
+	_, _ = historyManager.FinishCommand(entry3, 0)
 	assert.NoError(t, err)
 
 	// Test cases

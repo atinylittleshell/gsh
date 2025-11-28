@@ -28,6 +28,11 @@ func (m *MockFileSystem) Create(name string) (*os.File, error) {
 	return args.Get(0).(*os.File), args.Error(1)
 }
 
+func (m *MockFileSystem) OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) {
+	args := m.Called(name, flag, perm)
+	return args.Get(0).(*os.File), args.Error(1)
+}
+
 func (m *MockFileSystem) ReadFile(name string) (string, error) {
 	args := m.Called(name)
 	return args.String(0), args.Error(1)
@@ -99,8 +104,8 @@ func TestReadLatestVersion(t *testing.T) {
 	mockFile, _ := os.CreateTemp("", "test-latest-version")
 	defer os.Remove(mockFile.Name())
 
-	mockFile.Write([]byte("1.2.3"))
-	mockFile.Seek(0, 0)
+	_, _ = mockFile.Write([]byte("1.2.3"))
+	_, _ = mockFile.Seek(0, 0)
 	mockFS.On("Open", core.LatestVersionFile()).Return(mockFile, nil)
 
 	result := readLatestVersion(mockFS)
@@ -118,14 +123,16 @@ func TestHandleSelfUpdate_UpdateNeeded(t *testing.T) {
 
 	mockFileForRead, _ := os.CreateTemp("", "test-latest-version-read")
 	defer os.Remove(mockFileForRead.Name())
-	mockFileForRead.Write([]byte("1.0.0"))
-	mockFileForRead.Seek(0, 0)
+	_, _ = mockFileForRead.Write([]byte("1.0.0"))
+	_, _ = mockFileForRead.Seek(0, 0)
 
 	mockFileForWrite, _ := os.CreateTemp("", "test-latest-version-write")
 	defer os.Remove(mockFileForWrite.Name())
 
 	mockFS.On("Open", core.LatestVersionFile()).Return(mockFileForRead, nil)
-	mockFS.On("Create", core.LatestVersionFile()).Return(mockFileForWrite, nil)
+
+	// Update to expect OpenFile instead of Create
+	mockFS.On("OpenFile", core.LatestVersionFile(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.FileMode(0600)).Return(mockFileForWrite, nil)
 
 	mockRemoteRelease.On("Version").Return("2.0.0")
 	mockRemoteRelease.On("AssetURL").Return("https://github.com/test/url")
@@ -160,14 +167,16 @@ func TestHandleSelfUpdate_NoUpdateNeeded(t *testing.T) {
 
 	mockFileForRead, _ := os.CreateTemp("", "test-latest-version-read")
 	defer os.Remove(mockFileForRead.Name())
-	mockFileForRead.Write([]byte("1.2.3"))
-	mockFileForRead.Seek(0, 0)
+	_, _ = mockFileForRead.Write([]byte("1.2.3"))
+	_, _ = mockFileForRead.Seek(0, 0)
 
 	mockFileForWrite, _ := os.CreateTemp("", "test-latest-version-write")
 	defer os.Remove(mockFileForWrite.Name())
 
 	mockFS.On("Open", core.LatestVersionFile()).Return(mockFileForRead, nil)
-	mockFS.On("Create", core.LatestVersionFile()).Return(mockFileForWrite, nil)
+
+	// Update to expect OpenFile instead of Create
+	mockFS.On("OpenFile", core.LatestVersionFile(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.FileMode(0600)).Return(mockFileForWrite, nil)
 
 	mockRemoteRelease.On("Version").Return("1.2.4")
 	mockUpdater.On("DetectLatest", mock.Anything, "atinylittleshell/gsh").Return(mockRemoteRelease, true, nil)

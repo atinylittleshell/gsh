@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"runtime"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -57,6 +58,10 @@ func TestShellCompletionProvider_FileCompletion_Integration(t *testing.T) {
 	manager := &mockCompletionManager{}
 	provider := NewShellCompletionProvider(manager, runner, nil, nil)
 
+	norm := func(p string) string {
+		return filepath.FromSlash(p)
+	}
+
 	tests := []struct {
 		name          string
 		line          string
@@ -93,7 +98,7 @@ func TestShellCompletionProvider_FileCompletion_Integration(t *testing.T) {
 				manager.On("GetSpec", "less").Return(CompletionSpec{}, false)
 			},
 			expectedMin:   2,
-			shouldContain: []string{"test_script.sh", "testdir/"},
+			shouldContain: []string{"test_script.sh", norm("testdir/")},
 		},
 		{
 			name: "directory completion",
@@ -103,17 +108,17 @@ func TestShellCompletionProvider_FileCompletion_Integration(t *testing.T) {
 				manager.On("GetSpec", "cd").Return(CompletionSpec{}, false)
 			},
 			expectedMin:   1,
-			shouldContain: []string{"src/"},
+			shouldContain: []string{norm("src/")},
 		},
 		{
 			name: "nested file completion",
-			line: "cat src/",
-			pos:  8,
+			line: "cat " + norm("src/"),
+			pos:  4 + len(norm("src/")),
 			setup: func() {
 				manager.On("GetSpec", "cat").Return(CompletionSpec{}, false)
 			},
 			expectedMin:   1,
-			shouldContain: []string{"src/main.go"},
+			shouldContain: []string{norm("src/main.go")},
 		},
 	}
 
@@ -300,6 +305,9 @@ func TestShellCompletionProvider_ExecutableCompletion_Integration(t *testing.T) 
 	executables := []string{"myapp", "mycli", "mytool"}
 	for _, exec := range executables {
 		execPath := filepath.Join(binDir, exec)
+		if runtime.GOOS == "windows" {
+			execPath += ".exe"
+		}
 		err := os.WriteFile(execPath, []byte("#!/bin/bash\necho test"), 0755)
 		require.NoError(t, err)
 	}
@@ -315,6 +323,18 @@ func TestShellCompletionProvider_ExecutableCompletion_Integration(t *testing.T) 
 	manager := &mockCompletionManager{}
 	provider := NewShellCompletionProvider(manager, runner, nil, nil)
 
+	norm := func(p string) string {
+		return filepath.FromSlash(p)
+	}
+
+	// Helper to add extension on windows for expected values if needed
+	ext := func(name string) string {
+		if runtime.GOOS == "windows" {
+			return name + ".exe"
+		}
+		return name
+	}
+
 	tests := []struct {
 		name             string
 		line             string
@@ -326,33 +346,33 @@ func TestShellCompletionProvider_ExecutableCompletion_Integration(t *testing.T) 
 	}{
 		{
 			name: "path-based executable completion",
-			line: binDir + "/my",
-			pos:  len(binDir + "/my"),
+			line: norm(binDir + "/my"),
+			pos:  len(norm(binDir + "/my")),
 			setup: func() {
-				manager.On("GetSpec", binDir+"/my").Return(CompletionSpec{}, false)
+				manager.On("GetSpec", norm(binDir+"/my")).Return(CompletionSpec{}, false)
 			},
 			expectedMin: 3,
 			shouldContain: []string{
-				binDir + "/myapp",
-				binDir + "/mycli",
-				binDir + "/mytool",
+				norm(filepath.Join(binDir, ext("myapp"))),
+				norm(filepath.Join(binDir, ext("mycli"))),
+				norm(filepath.Join(binDir, ext("mytool"))),
 			},
-			shouldNotContain: []string{binDir + "/readme.txt"},
+			shouldNotContain: []string{norm(filepath.Join(binDir, "readme.txt"))},
 		},
 		{
 			name: "path-based completion with directory slash",
-			line: binDir + "/",
-			pos:  len(binDir + "/"),
+			line: norm(binDir) + string(os.PathSeparator),
+			pos:  len(norm(binDir) + string(os.PathSeparator)),
 			setup: func() {
-				manager.On("GetSpec", binDir+"/").Return(CompletionSpec{}, false)
+				manager.On("GetSpec", norm(binDir)+string(os.PathSeparator)).Return(CompletionSpec{}, false)
 			},
 			expectedMin: 3,
 			shouldContain: []string{
-				binDir + "/myapp",
-				binDir + "/mycli",
-				binDir + "/mytool",
+				norm(filepath.Join(binDir, ext("myapp"))),
+				norm(filepath.Join(binDir, ext("mycli"))),
+				norm(filepath.Join(binDir, ext("mytool"))),
 			},
-			shouldNotContain: []string{binDir + "/readme.txt"},
+			shouldNotContain: []string{norm(filepath.Join(binDir, "readme.txt"))},
 		},
 	}
 

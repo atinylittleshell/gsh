@@ -1005,15 +1005,6 @@ func (m Model) CompletionBoxView(height int, width int) string {
 		// However, the loop `idx >= totalItems` continue might cause empty lines at the end.
 
 		// If we want strict fixed height output:
-		if lineContent == "" {
-			// Fill with empty space or just newline?
-			// Just newline is sufficient if container handles width, but for TUI usually we want
-			// to be explicit or just let the container fill background.
-			// Here we return string.
-			// If we don't add anything, the height will be less than `height`.
-			// To ensure fixed height semantics:
-			// We should add newlines up to height.
-		}
 
 		if lineContent != "" {
 			content.WriteString(lineContent)
@@ -1203,7 +1194,6 @@ func (m *Model) performReverseSearch() {
 
 	// Search history starting from the determined index
 	// values[0] is current input, history starts at values[1]
-	found := false
 	for i := startSearchIndex; i < len(m.values); i++ {
 		if regex.MatchString(string(m.values[i])) {
 			// Check if this match is a duplicate of a previously found match
@@ -1223,17 +1213,10 @@ func (m *Model) performReverseSearch() {
 			// Append to the list of matches
 			m.reverseSearchMatches = append(m.reverseSearchMatches, i)
 			m.reverseSearchMatchIndex = len(m.reverseSearchMatches) - 1
-			found = true
 			break
 		}
 	}
 
-	if !found && len(m.reverseSearchMatches) == 0 {
-		// If no matches found at all, try searching from the beginning again (wrap around not implemented yet, just standard behavior)
-		// Standard bash behavior: if no match found with new character, it beeps/fails.
-		// If ctrl+R again and no more matches, it stays on the last one or rings bell.
-		// For now, let's just keep the state as is.
-	}
 }
 
 // acceptReverseSearch accepts the current match and exits reverse search mode.

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"runtime"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
@@ -39,7 +40,9 @@ func TestAppendToAuthorizedCommands(t *testing.T) {
 	// Check file contents
 	content, err := os.ReadFile(authorizedCommandsFile)
 	assert.NoError(t, err)
-	assert.Equal(t, "fakecommand.*\n", string(content))
+	// Check content with platform-agnostic newline handling
+	expected := "fakecommand.*\n"
+	assert.Equal(t, expected, strings.ReplaceAll(string(content), "\r\n", "\n"))
 
 	// Test appending another command
 	err = AppendToAuthorizedCommands("anotherfake.*")
@@ -48,7 +51,9 @@ func TestAppendToAuthorizedCommands(t *testing.T) {
 	// Check file contents again
 	content, err = os.ReadFile(authorizedCommandsFile)
 	assert.NoError(t, err)
-	assert.Equal(t, "fakecommand.*\nanotherfake.*\n", string(content))
+	// Check content with platform-agnostic newline handling
+	expected = "fakecommand.*\nanotherfake.*\n"
+	assert.Equal(t, expected, strings.ReplaceAll(string(content), "\r\n", "\n"))
 }
 
 func TestAppendToAuthorizedCommandsSecurePermissions(t *testing.T) {
@@ -72,18 +77,21 @@ func TestAppendToAuthorizedCommandsSecurePermissions(t *testing.T) {
 		err := AppendToAuthorizedCommands("fakecommand.*")
 		assert.NoError(t, err)
 
-		// Check directory permissions
-		dirInfo, err := os.Stat(configDir)
-		assert.NoError(t, err)
-		assert.Equal(t, os.FileMode(0700), dirInfo.Mode()&0777, "Directory should have 0700 permissions")
+		// Skip permission checks on Windows as they work differently
+		if runtime.GOOS != "windows" {
+			// Check directory permissions
+			dirInfo, err := os.Stat(configDir)
+			assert.NoError(t, err)
+			assert.Equal(t, os.FileMode(0700), dirInfo.Mode()&0777, "Directory should have 0700 permissions")
 
-		// Check file permissions
-		fileInfo, err := os.Stat(authorizedCommandsFile)
-		assert.NoError(t, err)
-		assert.Equal(t, os.FileMode(0600), fileInfo.Mode()&0777, "File should have 0600 permissions")
+			// Check file permissions
+			fileInfo, err := os.Stat(authorizedCommandsFile)
+			assert.NoError(t, err)
+			assert.Equal(t, os.FileMode(0600), fileInfo.Mode()&0777, "File should have 0600 permissions")
 
-		// Verify no group or other access
-		assert.Equal(t, os.FileMode(0), fileInfo.Mode()&0077, "File should not be accessible by group or others")
+			// Verify no group or other access
+			assert.Equal(t, os.FileMode(0), fileInfo.Mode()&0077, "File should not be accessible by group or others")
+		}
 	})
 
 	t.Run("Existing insecure files get permissions fixed", func(t *testing.T) {
@@ -97,37 +105,46 @@ func TestAppendToAuthorizedCommandsSecurePermissions(t *testing.T) {
 		err = os.WriteFile(tempAuthorizedFile, []byte("existing.*\n"), 0644) // Insecure file permissions
 		assert.NoError(t, err)
 
-		// Verify they start with insecure permissions
-		dirInfo, err := os.Stat(tempConfigDir)
-		assert.NoError(t, err)
-		assert.Equal(t, os.FileMode(0755), dirInfo.Mode()&0777, "Directory should start with 0755 permissions")
+		// Verify they start with insecure permissions (skip on Windows)
+		if runtime.GOOS != "windows" {
+			dirInfo, err := os.Stat(tempConfigDir)
+			assert.NoError(t, err)
+			assert.Equal(t, os.FileMode(0755), dirInfo.Mode()&0777, "Directory should start with 0755 permissions")
 
-		fileInfo, err := os.Stat(tempAuthorizedFile)
-		assert.NoError(t, err)
-		assert.Equal(t, os.FileMode(0644), fileInfo.Mode()&0777, "File should start with 0644 permissions")
+			fileInfo, err := os.Stat(tempAuthorizedFile)
+			assert.NoError(t, err)
+			assert.Equal(t, os.FileMode(0644), fileInfo.Mode()&0777, "File should start with 0644 permissions")
+		}
 
 		// Append to the existing file - this should fix permissions
 		err = AppendToAuthorizedCommands("new.*")
 		assert.NoError(t, err)
 
-		// Check that permissions were fixed
-		dirInfo, err = os.Stat(tempConfigDir)
-		assert.NoError(t, err)
-		assert.Equal(t, os.FileMode(0700), dirInfo.Mode()&0777, "Directory permissions should be fixed to 0700")
+		// Check that permissions were fixed (skip on Windows)
+		if runtime.GOOS != "windows" {
+			dirInfo, err := os.Stat(tempConfigDir)
+			assert.NoError(t, err)
+			assert.Equal(t, os.FileMode(0700), dirInfo.Mode()&0777, "Directory permissions should be fixed to 0700")
 
-		fileInfo, err = os.Stat(tempAuthorizedFile)
-		assert.NoError(t, err)
-		assert.Equal(t, os.FileMode(0600), fileInfo.Mode()&0777, "File permissions should be fixed to 0600")
+			fileInfo, err := os.Stat(tempAuthorizedFile)
+			assert.NoError(t, err)
+			assert.Equal(t, os.FileMode(0600), fileInfo.Mode()&0777, "File permissions should be fixed to 0600")
+		}
 
 		// Verify content is correct
 		content, err := os.ReadFile(tempAuthorizedFile)
 		assert.NoError(t, err)
-		assert.Equal(t, "existing.*\nnew.*\n", string(content))
+		// Check content with platform-agnostic newline handling
+		expected := "existing.*\nnew.*\n"
+		assert.Equal(t, expected, strings.ReplaceAll(string(content), "\r\n", "\n"))
 	})
 
 	t.Run("Permission errors are handled gracefully", func(t *testing.T) {
 		if os.Geteuid() == 0 {
 			t.Skip("Skipping permission error test when running as root")
+		}
+		if runtime.GOOS == "windows" {
+			t.Skip("Skipping permission error test on Windows")
 		}
 
 		// Clean up from previous test
@@ -209,7 +226,7 @@ func TestGetApprovedBashCommandRegex(t *testing.T) {
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Create a test runner
 	env := expand.ListEnviron(os.Environ()...)
@@ -254,7 +271,7 @@ func TestGetApprovedBashCommandRegexWithEnvironmentPatterns(t *testing.T) {
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Create a test runner with environment patterns
 	env := expand.ListEnviron(os.Environ()...)
@@ -336,7 +353,7 @@ func TestFilterDangerousPatterns(t *testing.T) {
 func TestGetApprovedBashCommandRegexInvalidJSON(t *testing.T) {
 	// Create logger
 	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Create a test runner with invalid JSON
 	env := expand.ListEnviron(os.Environ()...)
@@ -380,7 +397,7 @@ func TestGetApprovedBashCommandRegexCaching(t *testing.T) {
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Create a test runner with isolated environment (no system env vars)
 	runner, err := interp.New()
@@ -439,12 +456,15 @@ func TestWriteAuthorizedCommandsToFile(t *testing.T) {
 	content, err := os.ReadFile(authorizedCommandsFile)
 	assert.NoError(t, err)
 	expected := "fakecommand.*\nanotherfake.*\nthirdfake.*\n" // Duplicates should be removed
-	assert.Equal(t, expected, string(content))
+	// Check content with platform-agnostic newline handling
+	assert.Equal(t, expected, strings.ReplaceAll(string(content), "\r\n", "\n"))
 
-	// Verify file permissions
-	fileInfo, err := os.Stat(authorizedCommandsFile)
-	assert.NoError(t, err)
-	assert.Equal(t, os.FileMode(0600), fileInfo.Mode()&0777)
+	// Verify file permissions (skip on Windows)
+	if runtime.GOOS != "windows" {
+		fileInfo, err := os.Stat(authorizedCommandsFile)
+		assert.NoError(t, err)
+		assert.Equal(t, os.FileMode(0600), fileInfo.Mode()&0777)
+	}
 
 	// Test writing empty patterns
 	err = WriteAuthorizedCommandsToFile([]string{})
@@ -464,7 +484,8 @@ func TestWriteAuthorizedCommandsToFile(t *testing.T) {
 	content, err = os.ReadFile(authorizedCommandsFile)
 	assert.NoError(t, err)
 	expected = "fakecommand.*\nanotherfake.*\nthirdfake.*\n"
-	assert.Equal(t, expected, string(content))
+	// Check content with platform-agnostic newline handling
+	assert.Equal(t, expected, strings.ReplaceAll(string(content), "\r\n", "\n"))
 }
 
 func TestIsCommandAuthorized(t *testing.T) {

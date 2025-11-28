@@ -46,7 +46,7 @@ func TestMultilineState_IncompleteQuotes(t *testing.T) {
 	assert.Equal(t, ">", prompt, "Should show continuation prompt")
 
 	// Complete the quotes
-	complete, prompt = state.AddLine(`world"`)
+	complete, _ = state.AddLine(`world"`)
 	assert.True(t, complete, "Should have complete command with quotes")
 
 	result := state.GetCompleteCommand()
@@ -62,7 +62,7 @@ func TestMultilineState_BackslashInQuotes(t *testing.T) {
 	assert.Equal(t, ">", prompt, "Should show continuation prompt")
 
 	// Complete the quotes - the backslash is part of the string content
-	complete, prompt = state.AddLine(`world"`)
+	complete, _ = state.AddLine(`world"`)
 	assert.True(t, complete, "Should have complete command")
 
 	result := state.GetCompleteCommand()

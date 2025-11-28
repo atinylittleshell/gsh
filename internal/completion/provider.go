@@ -409,16 +409,19 @@ func (p *ShellCompletionProvider) isPathBasedCommand(command string) bool {
 		strings.HasPrefix(command, "./") || // Relative path: ./script
 		strings.HasPrefix(command, "../") || // Parent directory: ../script
 		strings.HasPrefix(command, "~/") || // Home directory: ~/bin/script
-		strings.Contains(command, "/") // Any path with directory separator
+		strings.Contains(command, string(os.PathSeparator)) // Any path with directory separator
 }
 
 // getExecutableCompletions returns executable files that match the given path prefix
 func (p *ShellCompletionProvider) getExecutableCompletions(pathPrefix string) []string {
+	// Normalize path separators for cross-platform compatibility
+	pathPrefix = filepath.FromSlash(pathPrefix)
+
 	// Determine the directory to search and the filename prefix
 	var searchDir, filePrefix string
 
-	if strings.HasSuffix(pathPrefix, "/") {
-		// Path ends with /, so we want all executables in that directory
+	if strings.HasSuffix(pathPrefix, string(os.PathSeparator)) {
+		// Path ends with separator, so we want all executables in that directory
 		searchDir = pathPrefix
 		filePrefix = ""
 	} else {
@@ -427,7 +430,7 @@ func (p *ShellCompletionProvider) getExecutableCompletions(pathPrefix string) []
 		filePrefix = filepath.Base(pathPrefix)
 
 		// Handle special case where pathPrefix doesn't contain a directory separator
-		if searchDir == "." && !strings.Contains(pathPrefix, "/") {
+		if searchDir == "." && !strings.Contains(pathPrefix, string(os.PathSeparator)) {
 			return []string{} // This shouldn't be a path-based command
 		}
 	}
@@ -465,9 +468,10 @@ func (p *ShellCompletionProvider) getExecutableCompletions(pathPrefix string) []
 		// In a more complete implementation, we'd check file permissions
 		if info, err := entry.Info(); err == nil {
 			// On Unix-like systems, check if any execute bit is set
-			if info.Mode()&0111 != 0 {
+			// On Windows, we might check file extension (e.g., .exe, .bat)
+			if info.Mode()&0111 != 0 || strings.HasSuffix(strings.ToLower(entry.Name()), ".exe") || strings.HasSuffix(strings.ToLower(entry.Name()), ".bat") {
 				// Build the completion preserving the original path structure
-				if strings.HasSuffix(pathPrefix, "/") {
+				if strings.HasSuffix(pathPrefix, string(os.PathSeparator)) {
 					completions = append(completions, pathPrefix+entry.Name())
 				} else {
 					// Replace the filename part with the matched file

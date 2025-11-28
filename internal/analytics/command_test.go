@@ -34,9 +34,9 @@ func TestAnalyticsCommand(t *testing.T) {
 			args:          []string{"gsh_analytics", "--help"},
 			expectedError: false,
 			setupFn: func() {
-				analyticsManager.ResetAnalytics()
-				analyticsManager.NewEntry("test1", "test1", "test1")
-				analyticsManager.NewEntry("test2", "test2", "test2")
+				_ = analyticsManager.ResetAnalytics()
+				_ = analyticsManager.NewEntry("test1", "test1", "test1")
+				_ = analyticsManager.NewEntry("test2", "test2", "test2")
 			},
 			verify: func(t *testing.T, am *AnalyticsManager) {
 				// Help message is printed to stdout, we can't easily verify it
@@ -51,10 +51,10 @@ func TestAnalyticsCommand(t *testing.T) {
 			args:          []string{"gsh_analytics"},
 			expectedError: false,
 			setupFn: func() {
-				analyticsManager.ResetAnalytics()
-				analyticsManager.NewEntry("test1", "test1", "test1")
-				analyticsManager.NewEntry("test2", "test2", "test2")
-				analyticsManager.NewEntry("test3", "test3", "test3")
+				_ = analyticsManager.ResetAnalytics()
+				_ = analyticsManager.NewEntry("test1", "test1", "test1")
+				_ = analyticsManager.NewEntry("test2", "test2", "test2")
+				_ = analyticsManager.NewEntry("test3", "test3", "test3")
 			},
 			verify: func(t *testing.T, am *AnalyticsManager) {
 				entries, err := am.GetRecentEntries(20)
@@ -67,10 +67,10 @@ func TestAnalyticsCommand(t *testing.T) {
 			args:          []string{"gsh_analytics", "2"},
 			expectedError: false,
 			setupFn: func() {
-				analyticsManager.ResetAnalytics()
-				analyticsManager.NewEntry("test1", "test1", "test1")
-				analyticsManager.NewEntry("test2", "test2", "test2")
-				analyticsManager.NewEntry("test3", "test3", "test3")
+				_ = analyticsManager.ResetAnalytics()
+				_ = analyticsManager.NewEntry("test1", "test1", "test1")
+				_ = analyticsManager.NewEntry("test2", "test2", "test2")
+				_ = analyticsManager.NewEntry("test3", "test3", "test3")
 			},
 			verify: func(t *testing.T, am *AnalyticsManager) {
 				entries, err := am.GetRecentEntries(2)
@@ -83,9 +83,9 @@ func TestAnalyticsCommand(t *testing.T) {
 			args:          []string{"gsh_analytics", "-c"},
 			expectedError: false,
 			setupFn: func() {
-				analyticsManager.ResetAnalytics()
-				analyticsManager.NewEntry("test1", "test1", "test1")
-				analyticsManager.NewEntry("test2", "test2", "test2")
+				_ = analyticsManager.ResetAnalytics()
+				_ = analyticsManager.NewEntry("test1", "test1", "test1")
+				_ = analyticsManager.NewEntry("test2", "test2", "test2")
 			},
 			verify: func(t *testing.T, am *AnalyticsManager) {
 				entries, err := am.GetRecentEntries(10)
@@ -98,9 +98,9 @@ func TestAnalyticsCommand(t *testing.T) {
 			args:          []string{"gsh_analytics", "-n"},
 			expectedError: false,
 			setupFn: func() {
-				analyticsManager.ResetAnalytics()
-				analyticsManager.NewEntry("test1", "test1", "test1")
-				analyticsManager.NewEntry("test2", "test2", "test2")
+				_ = analyticsManager.ResetAnalytics()
+				_ = analyticsManager.NewEntry("test1", "test1", "test1")
+				_ = analyticsManager.NewEntry("test2", "test2", "test2")
 			},
 			verify: func(t *testing.T, am *AnalyticsManager) {
 				count, err := am.GetTotalCount()
@@ -113,10 +113,10 @@ func TestAnalyticsCommand(t *testing.T) {
 			args:          []string{"gsh_analytics", "--count"},
 			expectedError: false,
 			setupFn: func() {
-				analyticsManager.ResetAnalytics()
-				analyticsManager.NewEntry("test1", "test1", "test1")
-				analyticsManager.NewEntry("test2", "test2", "test2")
-				analyticsManager.NewEntry("test3", "test3", "test3")
+				_ = analyticsManager.ResetAnalytics()
+				_ = analyticsManager.NewEntry("test1", "test1", "test1")
+				_ = analyticsManager.NewEntry("test2", "test2", "test2")
+				_ = analyticsManager.NewEntry("test3", "test3", "test3")
 			},
 			verify: func(t *testing.T, am *AnalyticsManager) {
 				count, err := am.GetTotalCount()
@@ -166,7 +166,7 @@ func TestAnalyticsCommandDelete(t *testing.T) {
 			args:          []string{"gsh_analytics", "--delete"},
 			expectedError: true,
 			setupFn: func() uint {
-				analyticsManager.ResetAnalytics()
+				_ = analyticsManager.ResetAnalytics()
 				return 0
 			},
 		},
@@ -175,7 +175,7 @@ func TestAnalyticsCommandDelete(t *testing.T) {
 			args:          []string{"gsh_analytics", "--delete", "invalid"},
 			expectedError: true,
 			setupFn: func() uint {
-				analyticsManager.ResetAnalytics()
+				_ = analyticsManager.ResetAnalytics()
 				return 0
 			},
 		},
@@ -184,7 +184,7 @@ func TestAnalyticsCommandDelete(t *testing.T) {
 			args:          []string{"gsh_analytics", "--delete", "999"},
 			expectedError: true,
 			setupFn: func() uint {
-				analyticsManager.ResetAnalytics()
+				_ = analyticsManager.ResetAnalytics()
 				return 0
 			},
 		},
@@ -193,9 +193,9 @@ func TestAnalyticsCommandDelete(t *testing.T) {
 			args:          []string{"gsh_analytics", "--delete", "%d"},
 			expectedError: false,
 			setupFn: func() uint {
-				analyticsManager.ResetAnalytics()
-				analyticsManager.NewEntry("test1", "test1", "test1")
-				analyticsManager.NewEntry("test2", "test2", "test2")
+				_ = analyticsManager.ResetAnalytics()
+				_ = analyticsManager.NewEntry("test1", "test1", "test1")
+				_ = analyticsManager.NewEntry("test2", "test2", "test2")
 				entries, _ := analyticsManager.GetRecentEntries(10)
 				return entries[0].ID
 			},
@@ -254,9 +254,9 @@ func TestAnalyticsCommandEdgeCases(t *testing.T) {
 	assert.NoError(t, err) // Should default to 20
 
 	// Test count after clearing analytics
-	analyticsManager.ResetAnalytics()
-	analyticsManager.NewEntry("test1", "test1", "test1")
-	analyticsManager.NewEntry("test2", "test2", "test2")
+	_ = analyticsManager.ResetAnalytics()
+	_ = analyticsManager.NewEntry("test1", "test1", "test1")
+	_ = analyticsManager.NewEntry("test2", "test2", "test2")
 	err = wrappedHandler(context.Background(), []string{"gsh_analytics", "-c"})
 	assert.NoError(t, err)
 	err = wrappedHandler(context.Background(), []string{"gsh_analytics", "--count"})

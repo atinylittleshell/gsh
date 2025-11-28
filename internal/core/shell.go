@@ -257,7 +257,7 @@ func executeCommand(ctx context.Context, input string, historyManager *history.H
 	endTime := time.Now()
 
 	durationMs := endTime.Sub(startTime).Milliseconds()
-	bash.RunBashCommand(ctx, runner, fmt.Sprintf("GSH_LAST_COMMAND_DURATION_MS=%d", durationMs))
+	_, _, _ = bash.RunBashCommand(ctx, runner, fmt.Sprintf("GSH_LAST_COMMAND_DURATION_MS=%d", durationMs))
 
 	var exitCode int
 	if err != nil {
@@ -271,8 +271,8 @@ func executeCommand(ctx context.Context, input string, historyManager *history.H
 		exitCode = 0
 	}
 
-	historyManager.FinishCommand(historyEntry, exitCode)
-	bash.RunBashCommand(ctx, runner, fmt.Sprintf("GSH_LAST_COMMAND_EXIT_CODE=%d", exitCode))
+	_, _ = historyManager.FinishCommand(historyEntry, exitCode)
+	_, _, _ = bash.RunBashCommand(ctx, runner, fmt.Sprintf("GSH_LAST_COMMAND_EXIT_CODE=%d", exitCode))
 
 	return exited, nil
 }

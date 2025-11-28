@@ -17,6 +17,11 @@ func TestValidateAndExtractParams(t *testing.T) {
 	logger := zap.NewNop()
 	runner, _ := interp.New()
 
+	// Helper to normalize paths for the current OS
+	p := func(path string) string {
+		return filepath.FromSlash(path)
+	}
+
 	tests := []struct {
 		name           string
 		params         map[string]any
@@ -26,12 +31,12 @@ func TestValidateAndExtractParams(t *testing.T) {
 		{
 			name: "valid parameters",
 			params: map[string]any{
-				"path":    "/test/path",
+				"path":    p("/test/path"),
 				"old_str": "old content",
 				"new_str": "new content",
 			},
 			expectedParams: &editFileParams{
-				path:   "/test/path",
+				path:   p("/test/path"),
 				oldStr: "old content",
 				newStr: "new content",
 			},
@@ -49,7 +54,7 @@ func TestValidateAndExtractParams(t *testing.T) {
 		{
 			name: "missing old_str",
 			params: map[string]any{
-				"path":    "/test/path",
+				"path":    p("/test/path"),
 				"new_str": "new content",
 			},
 			expectedParams: nil,
@@ -58,7 +63,7 @@ func TestValidateAndExtractParams(t *testing.T) {
 		{
 			name: "missing new_str",
 			params: map[string]any{
-				"path":    "/test/path",
+				"path":    p("/test/path"),
 				"old_str": "old content",
 			},
 			expectedParams: nil,
@@ -217,6 +222,7 @@ func TestPreviewAndConfirmUserDeclines(t *testing.T) {
 	// Create a temporary file to simulate the existing file
 	tempFile, err := os.CreateTemp("", "test_preview")
 	assert.NoError(t, err)
+	_ = tempFile.Close()
 	defer os.Remove(tempFile.Name())
 
 	// Write some content to it
@@ -241,6 +247,7 @@ func TestPreviewAndConfirmManageResponse(t *testing.T) {
 	// Create a temporary file to simulate the existing file
 	tempFile, err := os.CreateTemp("", "test_preview_manage")
 	assert.NoError(t, err)
+	_ = tempFile.Close()
 	defer os.Remove(tempFile.Name())
 
 	// Write some content to it
@@ -271,6 +278,7 @@ func TestPreviewAndConfirmFreeformResponse(t *testing.T) {
 	// Create a temporary file to simulate the existing file
 	tempFile, err := os.CreateTemp("", "test_preview_freeform")
 	assert.NoError(t, err)
+	_ = tempFile.Close()
 	defer os.Remove(tempFile.Name())
 
 	// Write some content to it
@@ -288,6 +296,7 @@ func TestEditFileToolIntegration(t *testing.T) {
 	// Create a temporary file for testing
 	tempFile, err := os.CreateTemp("", "test_edit_integration")
 	assert.NoError(t, err)
+	_ = tempFile.Close()
 	defer os.Remove(tempFile.Name())
 
 	originalContent := "Hello world!\nThis is a test file.\nEnd of file."
@@ -327,7 +336,7 @@ func TestEditFileToolWithRelativePath(t *testing.T) {
 	// Create a temporary file for testing
 	tempFile, err := os.CreateTemp("", "test_edit_relative")
 	assert.NoError(t, err)
-	tempFile.Close() // Close the file handle
+	_ = tempFile.Close() // Close the file handle
 	defer os.Remove(tempFile.Name())
 
 	originalContent := "Test content for relative path"

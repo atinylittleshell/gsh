@@ -3,6 +3,7 @@ package tools
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -40,10 +41,12 @@ func TestViewDirectoryTool(t *testing.T) {
 
 	file1 := filepath.Join(tempDir, "file1.txt")
 	file2 := filepath.Join(nestedDir, "file2.txt")
-	_, err = os.Create(file1)
+	f1, err := os.Create(file1)
 	assert.NoError(t, err)
-	_, err = os.Create(file2)
+	_ = f1.Close()
+	f2, err := os.Create(file2)
 	assert.NoError(t, err)
+	_ = f2.Close()
 
 	runner, _ := interp.New()
 	logger := zap.NewNop()
@@ -52,7 +55,12 @@ func TestViewDirectoryTool(t *testing.T) {
 		params := map[string]any{"path": tempDir}
 		result := ViewDirectoryTool(runner, logger, params)
 		assert.Contains(t, result, "file1.txt")
-		assert.Contains(t, result, "nested/")
+
+		// Check for nested directory with path separator
+		// On Unix it will be nested/, on Windows it might be nested\
+		assert.True(t,
+			strings.Contains(result, "nested/") || strings.Contains(result, "nested\\"),
+			"Result should contain nested directory")
 	})
 
 	t.Run("Directory path with nested directories", func(t *testing.T) {
