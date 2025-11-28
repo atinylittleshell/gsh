@@ -12,9 +12,10 @@ const (
 	COMMENT
 
 	// Identifiers and literals
-	IDENT  // variable names, function names
-	NUMBER // 123, 45.67
-	STRING // "hello", 'world', `template`, """multiline"""
+	IDENT            // variable names, function names
+	NUMBER           // 123, 45.67
+	STRING           // "hello", 'world', """multiline"""
+	TEMPLATE_LITERAL // `template ${expr}`
 
 	// Keywords
 	KW_MCP

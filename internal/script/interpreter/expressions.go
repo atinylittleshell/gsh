@@ -2,7 +2,9 @@ package interpreter
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/atinylittleshell/gsh/internal/script/lexer"
 	"github.com/atinylittleshell/gsh/internal/script/parser"
 )
 
@@ -53,7 +55,123 @@ func (i *Interpreter) evalNumberLiteral(node *parser.NumberLiteral) (Value, erro
 
 // evalStringLiteral evaluates a string literal
 func (i *Interpreter) evalStringLiteral(node *parser.StringLiteral) (Value, error) {
-	return &StringValue{Value: node.Value}, nil
+	// Only process interpolation for template literals (backtick strings)
+	if !node.IsTemplate {
+		return &StringValue{Value: node.Value}, nil
+	}
+
+	// Check if the template string contains interpolations
+	str := node.Value
+
+	// First, process interpolations if present
+	var result string
+	var err error
+	if containsInterpolation(str) {
+		result, err = i.interpolateString(str)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		result = str
+	}
+
+	// Then, convert escaped dollar placeholders back to literal dollars
+	result = strings.Replace(result, "\x00ESCAPED_DOLLAR\x00", "$", -1)
+
+	return &StringValue{Value: result}, nil
+}
+
+// containsInterpolation checks if a string contains ${...} expressions
+func containsInterpolation(s string) bool {
+	for i := 0; i < len(s)-1; i++ {
+		if s[i] == '$' && s[i+1] == '{' {
+			return true
+		}
+	}
+	return false
+}
+
+// interpolateString processes template literal interpolations
+func (i *Interpreter) interpolateString(template string) (string, error) {
+	var result []rune
+	runes := []rune(template)
+	pos := 0
+
+	for pos < len(runes) {
+		// Look for ${
+		if pos < len(runes)-1 && runes[pos] == '$' && runes[pos+1] == '{' {
+			// Find the matching closing brace
+			braceCount := 1
+			start := pos + 2
+			end := start
+
+			for end < len(runes) && braceCount > 0 {
+				if runes[end] == '{' {
+					braceCount++
+				} else if runes[end] == '}' {
+					braceCount--
+				}
+				if braceCount > 0 {
+					end++
+				}
+			}
+
+			if braceCount != 0 {
+				return "", fmt.Errorf("unclosed template literal interpolation")
+			}
+
+			// Extract the expression string
+			exprStr := string(runes[start:end])
+
+			// Parse and evaluate the expression
+			value, err := i.evalInterpolationExpression(exprStr)
+			if err != nil {
+				return "", fmt.Errorf("error in template literal interpolation: %w", err)
+			}
+
+			// Convert value to string and append
+			result = append(result, []rune(value.String())...)
+
+			// Move past the closing brace
+			pos = end + 1
+		} else {
+			// Regular character
+			result = append(result, runes[pos])
+			pos++
+		}
+	}
+
+	return string(result), nil
+}
+
+// evalInterpolationExpression parses and evaluates an expression from a template literal
+func (i *Interpreter) evalInterpolationExpression(exprStr string) (Value, error) {
+	// Use the existing lexer and parser to parse the expression
+	// We wrap it in a simple expression statement to use the parser
+	l := lexer.New(exprStr)
+	p := parser.New(l)
+	
+	// Parse as a program (which will parse the expression as an expression statement)
+	program := p.ParseProgram()
+	
+	// Check for parse errors
+	if len(p.Errors()) > 0 {
+		return nil, fmt.Errorf("error parsing template literal expression: %s", p.Errors()[0])
+	}
+	
+	// The program should have exactly one expression statement
+	if len(program.Statements) != 1 {
+		return nil, fmt.Errorf("template literal expression must be a single expression")
+	}
+	
+	// Extract the expression from the expression statement
+	exprStmt, ok := program.Statements[0].(*parser.ExpressionStatement)
+	if !ok {
+		return nil, fmt.Errorf("template literal must contain an expression, not a statement")
+	}
+	
+	// Evaluate the expression using existing evaluation logic
+	return i.evalExpression(exprStmt.Expression)
 }
 
 // evalBooleanLiteral evaluates a boolean literal

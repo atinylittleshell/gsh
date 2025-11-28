@@ -66,8 +66,9 @@ func (n *NumberLiteral) String() string       { return n.Value }
 
 // StringLiteral represents a string literal
 type StringLiteral struct {
-	Token lexer.Token // the token.STRING token
-	Value string
+	Token      lexer.Token // the token.STRING token
+	Value      string
+	IsTemplate bool // true if this is a template literal (backtick string)
 }
 
 func (s *StringLiteral) expressionNode()      {}

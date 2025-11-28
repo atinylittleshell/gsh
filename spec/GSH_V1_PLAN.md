@@ -242,7 +242,7 @@ gsh/
 - [x] Object operations (member access, methods)
 - [x] String operations
 - [x] Map and Set support
-- [ ] Template literal interpolation
+- [x] Template literal interpolation
 - [ ] Runtime type validation for tool parameters
 - [ ] Type checking for tool return values
 
