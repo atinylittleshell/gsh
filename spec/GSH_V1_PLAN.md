@@ -262,24 +262,19 @@ gsh/
 - [x] Add help info in CLI for executing `.gsh` scripts
 - [x] Integrate log.\* functions with zap logger (currently outputs to stderr)
 - [x] Pass logger context to interpreter for proper log file integration
+- [ ] Support `.gshrc.gsh` for user configuration that can fully replicate what the existing `.gshrc` can do
+  - This should utilize the new scripting language features natively
+  - We should then use the new implementation to support existing `.gshrc` features by mapping env vars there to a script that gets executed
 
 ### Phase 7.2: Polish
 
 - [ ] Write comprehensive documentation
 - [ ] Create example scripts (10+ examples)
 - [ ] End-to-end testing with real workflows
-- [ ] Performance optimization
-- [ ] Memory leak detection and fixing
-- [ ] Binary size optimization
-- [ ] Cross-platform testing (Linux, macOS, Windows)
 
 ### Phase 7.3: Release Preparation
 
 - [ ] Update README with gsh scripting features
-- [ ] Write migration guide (bash → gsh scripts)
-- [ ] Create tutorial/quickstart
-- [ ] Update CHANGELOG
-- [ ] Tag release: v1.0.0
 
 ---
 
