@@ -164,10 +164,6 @@ type Config struct {
     Tools      map[string]*interpreter.ToolValue   // from `tool` declarations
 }
 
-// Reserved model names (looked up in Models map):
-//   - "GSH_FAST_MODEL" - used for predictions, explanations
-//   - "GSH_SLOW_MODEL" - used for agent mode
-//
 // Reserved tool names (looked up in Tools map):
 //   - "GSH_UPDATE_PROMPT" - called before each prompt, signature: (exitCode: number, durationMs: number): string
 ```
@@ -206,7 +202,7 @@ type Executor interface {
 **Goal:** Create the basic REPL structure with configuration loading
 
 - [x] Create `internal/repl/` directory structure
-- [ ] Implement `config.Config` struct with all configuration fields
+- [x] Implement `config.Config` struct with all configuration fields
 - [ ] Implement `config.Loader` to load `.gshrc.gsh` files
   - Parse and execute `.gshrc.gsh` using the gsh interpreter
   - Extract `config` object and map to `Config` struct
@@ -380,24 +376,6 @@ script language uses MCP for tool integration. This needs further investigation.
 # ~/.gshrc.gsh
 
 # Define models using the gsh language syntax
-# Reserved names: GSH_FAST_MODEL (for predictions), GSH_SLOW_MODEL (for agent mode)
-model GSH_FAST_MODEL {
-    provider: "openai",
-    apiKey: env.OPENAI_API_KEY,
-    baseUrl: "https://api.openai.com/v1/",
-    model: "gpt-4o-mini",
-    temperature: 0.1,
-}
-
-model GSH_SLOW_MODEL {
-    provider: "openai",
-    apiKey: env.OPENAI_API_KEY,
-    baseUrl: "https://api.openai.com/v1/",
-    model: "gpt-4o",
-    temperature: 0.1,
-}
-
-# Optional: Define additional models
 model claude {
     provider: "anthropic",
     apiKey: env.ANTHROPIC_API_KEY,
@@ -486,11 +464,6 @@ For users who prefer bash-style configuration, we maintain full backward compati
 | --------------------------------------- | ------------------------------------------- |
 | `GSH_PROMPT`                            | `GSH_CONFIG.prompt`                         |
 | `GSH_LOG_LEVEL`                         | `GSH_CONFIG.logLevel`                       |
-| `GSH_FAST_MODEL_API_KEY`                | `model GSH_FAST_MODEL { apiKey: ... }`      |
-| `GSH_FAST_MODEL_BASE_URL`               | `model GSH_FAST_MODEL { baseUrl: ... }`     |
-| `GSH_FAST_MODEL_ID`                     | `model GSH_FAST_MODEL { model: ... }`       |
-| `GSH_FAST_MODEL_TEMPERATURE`            | `model GSH_FAST_MODEL { temperature: ... }` |
-| `GSH_SLOW_MODEL_*`                      | `model GSH_SLOW_MODEL { ... }`              |
 | `GSH_AGENT_APPROVED_BASH_COMMAND_REGEX` | `GSH_CONFIG.agent.approvedBashCommands`     |
 | `GSH_AGENT_MACROS`                      | `GSH_CONFIG.agent.macros`                   |
 | `GSH_UPDATE_PROMPT()`                   | `tool GSH_UPDATE_PROMPT(...) { ... }`       |
