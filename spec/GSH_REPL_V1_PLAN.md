@@ -205,7 +205,7 @@ type Executor interface {
 
 **Goal:** Create the basic REPL structure with configuration loading
 
-- [ ] Create `internal/repl/` directory structure
+- [x] Create `internal/repl/` directory structure
 - [ ] Implement `config.Config` struct with all configuration fields
 - [ ] Implement `config.Loader` to load `.gshrc.gsh` files
   - Parse and execute `.gshrc.gsh` using the gsh interpreter
