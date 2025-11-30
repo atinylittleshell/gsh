@@ -225,7 +225,7 @@ be merged into a single cohesive component.
 
 **Implementation:**
 
-- [ ] Create `internal/repl/input/buffer.go` - text buffer and cursor management
+- [x] Create `internal/repl/input/buffer.go` - text buffer and cursor management
   - Rune-based text storage
   - Cursor position tracking
   - Word boundary detection
