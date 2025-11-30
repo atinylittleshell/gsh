@@ -29,7 +29,6 @@ package shellinput
 import (
 	"fmt"
 	"reflect"
-	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -228,6 +227,10 @@ type Model struct {
 	reverseSearchQuery      string
 	reverseSearchMatches    []int
 	reverseSearchMatchIndex int
+
+	// Rich history search
+	historyItems       []HistoryItem
+	historySearchState historySearchState
 }
 
 // New creates a new model with default settings.
@@ -287,6 +290,11 @@ func (m Model) Value() string {
 func (m Model) InReverseSearch() bool {
 	return m.inReverseSearch
 }
+
+// HistorySearchBoxView returns the rendered history search box if active.
+// Note: This is a wrapper to allow the method to be called from the interface/package level if needed,
+// but the actual implementation is in history_search.go.
+// Go allows methods to be in different files of the same package.
 
 // Position returns the cursor position.
 func (m Model) Position() int {
@@ -706,39 +714,46 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		if m.inReverseSearch {
 			switch {
 			case key.Matches(msg, m.KeyMap.ReverseSearch):
-				m.cycleNextMatch()
+				// Toggle or exit? Standard Bash Ctrl+R cycles if there are matches,
+				// but here we have a list. We can just keep focus or toggle off?
+				// For now let's say Ctrl+R again toggles off or does nothing special if we just show a list.
+				// Or maybe it cycles selection?
+				// Let's make it toggle off for now, or maybe act as "Next" if we want.
+				// The requirement says "Typing filters... Selection inserts...".
+				// Let's allow Ctrl+R to exit if pressed again, or maybe cycle filters later.
+				// For now: cancel.
+				m.cancelReverseSearch()
 				return m, nil
-			case key.Matches(msg, m.KeyMap.PrevValue):
-				m.cycleNextMatch() // Up arrow -> older
+			case key.Matches(msg, m.KeyMap.PrevValue): // Up
+				m.historySearchUp()
 				return m, nil
-			case key.Matches(msg, m.KeyMap.NextValue):
-				m.cyclePrevMatch() // Down arrow -> newer
+			case key.Matches(msg, m.KeyMap.NextValue): // Down
+				m.historySearchDown()
 				return m, nil
+			// Toggle Filter with Ctrl+F
+			case msg.String() == "ctrl+f":
+				m.toggleHistoryFilter()
+				return m, nil
+			// Left/Right: Accept and edit?
 			case key.Matches(msg, m.KeyMap.CharacterBackward), key.Matches(msg, m.KeyMap.CharacterForward):
-				m.acceptReverseSearch() // Left/Right -> accept and edit
+				m.acceptRichReverseSearch()
 				return m, nil
 			case msg.String() == "enter":
-				m.acceptReverseSearch()
+				m.acceptRichReverseSearch()
 				return m, nil
-			case msg.String() == "ctrl+g" || msg.String() == "ctrl+c" || msg.String() == "escape":
+			case msg.String() == "ctrl+g" || msg.String() == "ctrl+c" || msg.String() == "escape" || msg.String() == "esc":
 				m.cancelReverseSearch()
 				return m, nil
 			case key.Matches(msg, m.KeyMap.DeleteCharacterBackward):
 				if len(m.reverseSearchQuery) > 0 {
 					runes := []rune(m.reverseSearchQuery)
 					m.reverseSearchQuery = string(runes[:len(runes)-1])
-					// Reset matches because we changed the query
-					m.reverseSearchMatches = []int{}
-					m.reverseSearchMatchIndex = 0
-					m.performReverseSearch()
+					m.updateHistorySearch()
 				}
 				return m, nil
 			case len(msg.Runes) > 0 && unicode.IsPrint(msg.Runes[0]):
 				m.reverseSearchQuery += string(msg.Runes)
-				// Reset matches because we changed the query
-				m.reverseSearchMatches = []int{}
-				m.reverseSearchMatchIndex = 0
-				m.performReverseSearch()
+				m.updateHistorySearch()
 				return m, nil
 			default:
 				// Ignore other keys in reverse search mode
@@ -1344,93 +1359,26 @@ func cloneConcatRunes(r1, r2 []rune) []rune {
 // toggleReverseSearch toggles the reverse search mode.
 func (m *Model) toggleReverseSearch() {
 	if m.inReverseSearch {
-		// If we are already in reverse search, cycle to next match
-		m.cycleNextMatch()
+		m.inReverseSearch = false
 	} else {
 		m.inReverseSearch = true
 		m.reverseSearchQuery = ""
-		m.reverseSearchMatches = []int{}
-		m.reverseSearchMatchIndex = 0
+		m.updateHistorySearch()
 	}
 }
 
-// cycleNextMatch moves to the next match (older in history).
-func (m *Model) cycleNextMatch() {
-	// If we can move forward in the existing matches list, do so
-	if len(m.reverseSearchMatches) > 0 && m.reverseSearchMatchIndex < len(m.reverseSearchMatches)-1 {
-		m.reverseSearchMatchIndex++
-		return
-	}
-	// Otherwise, search for a new match
-	m.performReverseSearch()
-}
-
-// cyclePrevMatch moves to the previous match (newer in history).
-func (m *Model) cyclePrevMatch() {
-	if m.reverseSearchMatchIndex > 0 {
-		m.reverseSearchMatchIndex--
-	}
-}
-
-// performReverseSearch searches the history for the query.
-func (m *Model) performReverseSearch() {
-	if m.reverseSearchQuery == "" {
-		return
-	}
-
-	// Compile regex for searching
-	// We want to find matches that contain the query
-	regex, err := regexp.Compile("(?i)" + regexp.QuoteMeta(m.reverseSearchQuery))
-	if err != nil {
-		return
-	}
-
-	// If we are continuing a search (Ctrl+R pressed again), look for the next match
-	startSearchIndex := 1
-	if len(m.reverseSearchMatches) > 0 {
-		// Always search relative to the LAST found match, to find the next new one
-		// This allows us to find subsequent matches even if we navigated back to an earlier one
-		lastMatchIndex := m.reverseSearchMatches[len(m.reverseSearchMatches)-1]
-		startSearchIndex = lastMatchIndex + 1
-	} else {
-		// Reset matches if we're starting a new search
-		m.reverseSearchMatches = []int{}
-		m.reverseSearchMatchIndex = 0
-	}
-
-	// Search history starting from the determined index
-	// values[0] is current input, history starts at values[1]
-	for i := startSearchIndex; i < len(m.values); i++ {
-		if regex.MatchString(string(m.values[i])) {
-			// Check if this match is a duplicate of a previously found match
-			isDuplicate := false
-			currentVal := string(m.values[i])
-			for _, matchIdx := range m.reverseSearchMatches {
-				if string(m.values[matchIdx]) == currentVal {
-					isDuplicate = true
-					break
-				}
+// acceptRichReverseSearch accepts the currently selected history item.
+func (m *Model) acceptRichReverseSearch() {
+	if len(m.historySearchState.filteredIndices) > 0 {
+		idx := m.historySearchState.selected
+		if idx >= 0 && idx < len(m.historySearchState.filteredIndices) {
+			originalIdx := m.historySearchState.filteredIndices[idx]
+			if originalIdx >= 0 && originalIdx < len(m.historyItems) {
+				// Use SetValue to properly handle sanitation and cursor positioning
+				m.SetValue(m.historyItems[originalIdx].Command)
+				m.CursorEnd()
 			}
-			if isDuplicate {
-				continue
-			}
-
-			// Found a match
-			// Append to the list of matches
-			m.reverseSearchMatches = append(m.reverseSearchMatches, i)
-			m.reverseSearchMatchIndex = len(m.reverseSearchMatches) - 1
-			break
 		}
-	}
-
-}
-
-// acceptReverseSearch accepts the current match and exits reverse search mode.
-func (m *Model) acceptReverseSearch() {
-	if len(m.reverseSearchMatches) > 0 {
-		matchIndex := m.reverseSearchMatches[m.reverseSearchMatchIndex]
-		m.selectedValueIndex = matchIndex
-		m.SetCursor(len(m.values[matchIndex]))
 	}
 	m.inReverseSearch = false
 }

@@ -110,6 +110,10 @@ func initialModel(
 	textInput := shellinput.New()
 	textInput.Prompt = prompt
 	textInput.SetHistoryValues(historyValues)
+	// Initialize rich history if available
+	if len(options.RichHistory) > 0 {
+		textInput.SetRichHistory(options.RichHistory)
+	}
 	textInput.Cursor.SetMode(cursor.CursorStatic)
 	textInput.ShowSuggestions = true
 	textInput.CompletionProvider = options.CompletionProvider
@@ -315,7 +319,12 @@ func (m appModel) View() string {
 	var assistantContent string
 
 	// We need to handle truncation manually because lipgloss Height doesn't truncate automatically
+	// Use expanded height when in reverse search mode (close to full screen)
 	availableHeight := m.options.AssistantHeight
+	if m.textInput.InReverseSearch() && m.height > 0 {
+		// Use most of terminal height, leaving room for prompt line (2) and borders (2)
+		availableHeight = max(m.options.AssistantHeight, m.height-4)
+	}
 
 	// Display error if present
 	if m.lastError != nil {
@@ -332,8 +341,11 @@ func (m appModel) View() string {
 		}
 
 		completionBox := m.textInput.CompletionBoxView(availableHeight, completionWidth)
+		historyBox := m.textInput.HistorySearchBoxView(availableHeight, max(0, m.textInput.Width-2))
 
-		if completionBox != "" && helpBox != "" {
+		if historyBox != "" {
+			assistantContent = historyBox
+		} else if completionBox != "" && helpBox != "" {
 			// Clean up help box text to avoid redundancy
 			// Remove headers like "**@name** - " or "**name** - " using regex
 			// This covers patterns like "**@debug-assistant** - " or "**@!new** - "

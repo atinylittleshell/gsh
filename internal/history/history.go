@@ -90,6 +90,16 @@ func (historyManager *HistoryManager) GetRecentEntries(directory string, limit i
 	return entries, nil
 }
 
+// GetAllEntries returns all history entries ordered by creation time (newest first)
+func (historyManager *HistoryManager) GetAllEntries() ([]HistoryEntry, error) {
+	var entries []HistoryEntry
+	result := historyManager.db.Order("created_at desc").Find(&entries)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return entries, nil
+}
+
 func (historyManager *HistoryManager) DeleteEntry(id uint) error {
 	result := historyManager.db.Delete(&HistoryEntry{}, id)
 	if result.Error != nil {

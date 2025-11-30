@@ -88,8 +88,22 @@ Familiar, ergonomic defaults for navigation and editing:
 - Paste: Ctrl+V
 - Yank (Paste Last Cut Text): Ctrl+Y
 - Yank-Pop (Cycle Previous Cuts): Alt+Y
+- History Previous: Up Arrow, Ctrl+P
+- History Next: Down Arrow, Ctrl+N
+- History Search: Ctrl+R
+- Tab Completion: Tab, Shift+Tab
 
 Bash- and zsh-style kill ring shortcuts are supported: Ctrl+K (cut to end of line), Ctrl+U (cut to start of line), and Ctrl+W (cut the previous word) store the removed text so it can be yanked back with Ctrl+Y. Sequential kills in the same direction append to the latest entry, and Alt+Y yank-pop cycles through earlier kills.
+
+### History Search
+
+Press Ctrl+R to open an interactive history search with fuzzy matching. While in history search:
+
+- Type to filter commands
+- Up/Down arrows to navigate results
+- Ctrl+F to toggle between "All" and "Directory" filter modes
+- Enter to select a command
+- Esc to cancel
 
 ## Next Steps
 

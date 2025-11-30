@@ -7,6 +7,7 @@ type Options struct {
 	MinHeight          int
 	AssistantHeight    int
 	CompletionProvider shellinput.CompletionProvider
+	RichHistory        []shellinput.HistoryItem
 }
 
 func NewOptions() Options {
