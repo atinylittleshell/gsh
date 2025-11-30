@@ -204,8 +204,8 @@ type Executor interface {
 - [x] Create `internal/repl/` directory structure
 - [x] Implement `config.Config` struct with all configuration fields
 - [x] Implement `config.Loader` to load `.gshrc.gsh` files
-- [ ] Create `executor.Executor` interface and implementations
-- [ ] Write comprehensive tests
+- [x] Create `executor.Executor` interface and implementations
+- [x] Write comprehensive tests
 
 ### Phase 2: Input System
 
@@ -301,15 +301,6 @@ The REPL agent module should be a **minimal adapter** that:
 - Handles interactive I/O (streaming responses, user confirmations)
 - Manages the agent session lifecycle in REPL context
 
-- [ ] Create `internal/repl/agent/adapter.go` - thin wrapper around `interpreter.Agent`
-  - Initialize agent with REPL-specific system prompt
-  - Handle streaming output to terminal
-  - Manage conversation persistence across REPL commands
-- [ ] Integrate with .gshrc.gsh defined MCP servers (pass to interpreter)
-- [ ] Integrate with .gshrc.gsh defined agents (allow selection)
-- [ ] Support macros from configuration
-- [ ] Write comprehensive tests
-
 **NOTE:** REPL-specific agent tools (bash execution with permissions, file operations
 with confirmations, done signal, permissions menu) - implementation approach TBD.
 These may be better implemented as MCP servers rather than Go code, since the gsh
@@ -322,14 +313,15 @@ script language uses MCP for tool integration. This needs further investigation.
 - [ ] Implement `REPL.Run()` main loop
   - Prompt display with update function support
   - Input handling
-  - Command execution (bash vs agent mode)
+  - Command execution (bash for now)
   - History recording
   - Signal handling (Ctrl+C, Ctrl+D)
-- [ ] Implement command routing
-  - Regular bash commands
-  - Agent chat (`# message`)
   - Control commands (`:clear`, `:exit`, etc.)
-  - Macros
+- [ ] Create `internal/repl/agent/adapter.go` - thin wrapper around `interpreter.Agent`
+  - Extract GSH_DEFAULT_AGENT from config - use that for REPL
+  - Manage a Conversation instance
+  - Hook it up to REPL - "#" is agent mode
+- [ ] Handle agent streaming output to terminal (this may need changes in the core model provider and agent logic)
 - [ ] Integrate all subsystems
 - [ ] Write integration tests
 
@@ -457,13 +449,11 @@ The loader will:
 
 For users who prefer bash-style configuration, we maintain full backward compatibility:
 
-| Env Variable                            | .gshrc.gsh Equivalent                       |
-| --------------------------------------- | ------------------------------------------- |
-| `GSH_PROMPT`                            | `GSH_CONFIG.prompt`                         |
-| `GSH_LOG_LEVEL`                         | `GSH_CONFIG.logLevel`                       |
-| `GSH_AGENT_APPROVED_BASH_COMMAND_REGEX` | `GSH_CONFIG.agent.approvedBashCommands`     |
-| `GSH_AGENT_MACROS`                      | `GSH_CONFIG.agent.macros`                   |
-| `GSH_UPDATE_PROMPT()`                   | `tool GSH_UPDATE_PROMPT(...) { ... }`       |
+| Env Variable          | .gshrc.gsh Equivalent                 |
+| --------------------- | ------------------------------------- |
+| `GSH_PROMPT`          | `GSH_CONFIG.prompt`                   |
+| `GSH_LOG_LEVEL`       | `GSH_CONFIG.logLevel`                 |
+| `GSH_UPDATE_PROMPT()` | `tool GSH_UPDATE_PROMPT(...) { ... }` |
 
 ### Migration Path
 
