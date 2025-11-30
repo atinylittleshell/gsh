@@ -203,10 +203,7 @@ type Executor interface {
 
 - [x] Create `internal/repl/` directory structure
 - [x] Implement `config.Config` struct with all configuration fields
-- [ ] Implement `config.Loader` to load `.gshrc.gsh` files
-  - Parse and execute `.gshrc.gsh` using the gsh interpreter
-  - Extract `config` object and map to `Config` struct
-  - Store MCP servers, models, agents for later use
+- [x] Implement `config.Loader` to load `.gshrc.gsh` files
 - [ ] Create `executor.Executor` interface and implementations
 - [ ] Write comprehensive tests
 
