@@ -236,7 +236,7 @@ be merged into a single cohesive component.
   - History navigation (Up/Down)
   - Completion triggers (Tab/Shift+Tab)
   - Special keys (Ctrl+C/D/L, Enter)
-- [ ] Create `internal/repl/input/completion.go` - tab completion
+- [x] Create `internal/repl/input/completion.go` - tab completion
   - Completion provider interface
   - Multi-suggestion cycling
   - Completion info/help box state
