@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/atinylittleshell/gsh/pkg/shellinput"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,7 +16,7 @@ func TestFileCompletions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create some test files and directories
 	files := []string{
@@ -55,7 +56,7 @@ func TestFileCompletions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(testFileInHome)
+	defer func() { _ = os.Remove(testFileInHome) }()
 
 	// Helper to normalize path separators
 	norm := func(path string) string {
@@ -71,8 +72,8 @@ func TestFileCompletions(t *testing.T) {
 		prefix      string
 		currentDir  string
 		expected    []string
-		shouldMatch bool // true for exact match, false for contains
-		verify      func(t *testing.T, results []string) // optional additional verification
+		shouldMatch bool                                                         // true for exact match, false for contains
+		verify      func(t *testing.T, results []shellinput.CompletionCandidate) // optional additional verification
 	}{
 		{
 			name:        "empty prefix lists all files",
@@ -101,10 +102,10 @@ func TestFileCompletions(t *testing.T) {
 			currentDir:  "/some/other/dir",
 			expected:    []string{filepath.Join(tmpDir, "folder1", "inside.txt")},
 			shouldMatch: true,
-			verify: func(t *testing.T, results []string) {
+			verify: func(t *testing.T, results []shellinput.CompletionCandidate) {
 				// All results should be absolute paths
 				for _, result := range results {
-					assert.True(t, filepath.IsAbs(result), "Expected absolute path, got: %s", result)
+					assert.True(t, filepath.IsAbs(result.Value), "Expected absolute path, got: %s", result.Value)
 				}
 			},
 		},
@@ -114,10 +115,10 @@ func TestFileCompletions(t *testing.T) {
 			currentDir:  tmpDir,
 			expected:    []string{filepath.Join("folder1", "inside.txt")},
 			shouldMatch: true,
-			verify: func(t *testing.T, results []string) {
+			verify: func(t *testing.T, results []shellinput.CompletionCandidate) {
 				// All results should be relative paths
 				for _, result := range results {
-					assert.False(t, filepath.IsAbs(result), "Expected relative path, got: %s", result)
+					assert.False(t, filepath.IsAbs(result.Value), "Expected relative path, got: %s", result.Value)
 				}
 			},
 		},
@@ -127,14 +128,14 @@ func TestFileCompletions(t *testing.T) {
 			currentDir:  "/some/other/dir",
 			expected:    []string{},
 			shouldMatch: false,
-			verify: func(t *testing.T, results []string) {
+			verify: func(t *testing.T, results []shellinput.CompletionCandidate) {
 				// All results should start with "~/" or "~\", depending on OS input handling but usually output has ~
 				assert.Greater(t, len(results), 0, "Expected some results")
 				for _, result := range results {
 					// On Windows, completions might use backslash but still start with ~
 					// Check if it starts with ~ and path separator
-					assert.True(t, strings.HasPrefix(result, "~"+string(os.PathSeparator)), "Expected path starting with ~%s, got: %s", string(os.PathSeparator), result)
-					assert.False(t, strings.Contains(result, homeDir), "Path should not contain actual home directory")
+					assert.True(t, strings.HasPrefix(result.Value, "~"+string(os.PathSeparator)), "Expected path starting with ~%s, got: %s", string(os.PathSeparator), result.Value)
+					assert.False(t, strings.Contains(result.Value, homeDir), "Path should not contain actual home directory")
 				}
 			},
 		},
@@ -144,10 +145,10 @@ func TestFileCompletions(t *testing.T) {
 			currentDir:  "/some/other/dir",
 			expected:    []string{"~" + string(os.PathSeparator) + "gsh_test_file.txt"},
 			shouldMatch: true,
-			verify: func(t *testing.T, results []string) {
+			verify: func(t *testing.T, results []shellinput.CompletionCandidate) {
 				// All results should start with "~/"
 				for _, result := range results {
-					assert.True(t, strings.HasPrefix(result, "~"+string(os.PathSeparator)), "Expected path starting with ~%s, got: %s", string(os.PathSeparator), result)
+					assert.True(t, strings.HasPrefix(result.Value, "~"+string(os.PathSeparator)), "Expected path starting with ~%s, got: %s", string(os.PathSeparator), result.Value)
 				}
 			},
 		},
@@ -166,17 +167,23 @@ func TestFileCompletions(t *testing.T) {
 				tt.verify(t, results)
 			}
 			if tt.shouldMatch {
-				assert.ElementsMatch(t, tt.expected, results)
+				// Convert CompletionCandidate to strings for comparison
+				resultStrings := make([]string, len(results))
+				for i, r := range results {
+					// Combine Value and Suffix for comparison with expected
+					resultStrings[i] = r.Value + r.Suffix
+				}
+				assert.ElementsMatch(t, tt.expected, resultStrings)
 			} else {
 				for _, exp := range tt.expected {
 					found := false
 					for _, res := range results {
-						if filepath.Base(res) == exp {
+						if filepath.Base(res.Value+res.Suffix) == exp {
 							found = true
 							break
 						}
 					}
-					assert.True(t, found, "Expected to find %s in results, but got %s", exp, results)
+					assert.True(t, found, "Expected to find %s in results, but got %v", exp, results)
 				}
 			}
 		})

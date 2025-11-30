@@ -14,7 +14,7 @@ func TestPermissionPreselectionFix(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "gsh_permission_preselection_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Set up the authorized commands file path
 	authorizedFile := filepath.Join(tempDir, "authorized_commands")
@@ -25,7 +25,7 @@ func TestPermissionPreselectionFix(t *testing.T) {
 	environment.SetAuthorizedCommandsFileForTesting(authorizedFile)
 
 	// Ensure we start with a clean file - remove any existing file first
-	os.Remove(authorizedFile)
+	_ = os.Remove(authorizedFile)
 
 	// Write the runtime pattern to the file: "^awk.*" (what GenerateCommandRegex("awk") would generate)
 	// This is the actual pattern that gets saved when a user selects "awk" in the permissions menu

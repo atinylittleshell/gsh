@@ -51,11 +51,13 @@ func (p *LLMPrefixPredictor) UpdateContext(context *map[string]string) {
 func (p *LLMPrefixPredictor) Predict(input string) (string, string, error) {
 	if strings.HasPrefix(input, "#") {
 		// Don't do prediction for agent chat messages
+		p.logger.Debug("skipping prediction for agent chat message")
 		return "", "", nil
 	}
 
 	schema, err := PREDICTED_COMMAND_SCHEMA.MarshalJSON()
 	if err != nil {
+		p.logger.Error("failed to marshal schema", zap.Error(err))
 		return "", "", err
 	}
 
@@ -126,16 +128,15 @@ You are asked to predict what the complete bash command is.
 	chatCompletion, err := p.llmClient.CreateChatCompletion(context.TODO(), request)
 
 	if err != nil {
+		p.logger.Error("LLM API call failed", zap.Error(err))
 		return "", "", err
 	}
 
 	prediction := PredictedCommand{}
-	_ = json.Unmarshal([]byte(chatCompletion.Choices[0].Message.Content), &prediction)
-
-	p.logger.Debug(
-		"LLM prediction response",
-		zap.Any("response", prediction),
-	)
+	err = json.Unmarshal([]byte(chatCompletion.Choices[0].Message.Content), &prediction)
+	if err != nil {
+		p.logger.Error("failed to unmarshal prediction", zap.Error(err), zap.String("content", chatCompletion.Choices[0].Message.Content))
+	}
 
 	return prediction.PredictedCommand, userMessage, nil
 }

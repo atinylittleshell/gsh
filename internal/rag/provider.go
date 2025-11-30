@@ -12,7 +12,7 @@ type ContextProvider struct {
 }
 
 func (p *ContextProvider) GetContext() *map[string]string {
-	var result map[string]string = make(map[string]string)
+	result := make(map[string]string)
 
 	for _, retriever := range p.Retrievers {
 		output, err := retriever.GetContext()

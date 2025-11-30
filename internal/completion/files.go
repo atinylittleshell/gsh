@@ -4,29 +4,79 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/atinylittleshell/gsh/pkg/shellinput"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // fileCompleter is the function type for file completion
-type fileCompleter func(prefix string, currentDirectory string) []string
+type fileCompleter func(prefix string, currentDirectory string) []shellinput.CompletionCandidate
 
 // commandCompleter is the function type for command completion
 
+// formatFileDisplay formats a file name with colors and indicators similar to ls --color -F
+func formatFileDisplay(name string, entry os.DirEntry) string {
+	var style lipgloss.Style
+	var indicator string
+
+	if entry.IsDir() {
+		// Directories: blue/bold with trailing /
+		style = lipgloss.NewStyle().Foreground(lipgloss.Color("33")).Bold(true) // Blue
+		indicator = "/"
+	} else {
+		// Check if executable
+		info, err := entry.Info()
+		if err == nil && info.Mode()&0111 != 0 {
+			// Executable files: green/bold with trailing *
+			style = lipgloss.NewStyle().Foreground(lipgloss.Color("34")).Bold(true) // Green
+			indicator = "*"
+		} else {
+			// Check file extension for special types
+			ext := filepath.Ext(name)
+			switch ext {
+			case ".tar", ".gz", ".zip", ".7z", ".bz2", ".xz", ".rar":
+				// Archives: red/bold
+				style = lipgloss.NewStyle().Foreground(lipgloss.Color("31")).Bold(true) // Red
+			case ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".ico":
+				// Images: magenta/bold
+				style = lipgloss.NewStyle().Foreground(lipgloss.Color("35")).Bold(true) // Magenta
+			case ".mp3", ".wav", ".flac", ".ogg", ".m4a":
+				// Audio: cyan/bold
+				style = lipgloss.NewStyle().Foreground(lipgloss.Color("36")).Bold(true) // Cyan
+			case ".mp4", ".avi", ".mkv", ".mov", ".wmv":
+				// Video: magenta/bold
+				style = lipgloss.NewStyle().Foreground(lipgloss.Color("35")).Bold(true) // Magenta
+			default:
+				// Regular files: default color
+				style = lipgloss.NewStyle()
+			}
+		}
+	}
+
+	return style.Render(name) + indicator
+}
+
 // getFileCompletions is the default implementation of file completion
-var getFileCompletions fileCompleter = func(prefix string, currentDirectory string) []string {
+var getFileCompletions fileCompleter = func(prefix string, currentDirectory string) []shellinput.CompletionCandidate {
 	if prefix == "" {
 		// If prefix is empty, use current directory
 		entries, err := os.ReadDir(currentDirectory)
 		if err != nil {
-			return []string{}
+			return []shellinput.CompletionCandidate{}
 		}
 
-		matches := make([]string, 0, len(entries))
+		matches := make([]shellinput.CompletionCandidate, 0, len(entries))
 		for _, entry := range entries {
 			name := entry.Name()
-			if entry.IsDir() {
-				name += string(os.PathSeparator)
+			candidate := shellinput.CompletionCandidate{
+				Value:   name,
+				Display: formatFileDisplay(name, entry),
 			}
-			matches = append(matches, name)
+			// Add trailing slash as suffix for directories
+			if entry.IsDir() {
+				candidate.Suffix = string(os.PathSeparator)
+			}
+			matches = append(matches, candidate)
 		}
 		return matches
 	}
@@ -44,7 +94,7 @@ var getFileCompletions fileCompleter = func(prefix string, currentDirectory stri
 		var err error
 		homeDir, err = os.UserHomeDir()
 		if err != nil {
-			return []string{}
+			return []shellinput.CompletionCandidate{}
 		}
 		// Replace "~" with actual home directory for searching
 		searchPath := filepath.Join(homeDir, prefix[1:])
@@ -95,11 +145,11 @@ var getFileCompletions fileCompleter = func(prefix string, currentDirectory stri
 	// Read directory contents
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return []string{}
+		return []shellinput.CompletionCandidate{}
 	}
 
 	// Filter and format matches
-	matches := make([]string, 0, len(entries))
+	matches := make([]shellinput.CompletionCandidate, 0, len(entries))
 	for _, entry := range entries {
 		name := entry.Name()
 		if !strings.HasPrefix(name, filePrefix) {
@@ -108,17 +158,18 @@ var getFileCompletions fileCompleter = func(prefix string, currentDirectory stri
 
 		// Build path based on type
 		var completionPath string
-		if pathType == "home" {
+		switch pathType {
+		case "home":
 			// For home directory paths, keep the "~" prefix
 			if prefixDir == "~" || prefixDir == "." {
 				completionPath = "~" + string(os.PathSeparator) + name
 			} else {
 				completionPath = filepath.Join(prefixDir, name)
 			}
-		} else if pathType == "abs" {
+		case "abs":
 			// For absolute paths, keep the full path
 			completionPath = filepath.Join(prefixDir, name)
-		} else {
+		default: // "rel"
 			// For relative paths, keep them relative
 			if prefixDir == "." {
 				// Check if the original prefix started with "./"
@@ -132,12 +183,18 @@ var getFileCompletions fileCompleter = func(prefix string, currentDirectory stri
 			}
 		}
 
-		// Add trailing slash for directories
-		if entry.IsDir() {
-			completionPath += string(os.PathSeparator)
+		// Create completion candidate
+		candidate := shellinput.CompletionCandidate{
+			Value:   completionPath,
+			Display: formatFileDisplay(name, entry),
 		}
 
-		matches = append(matches, completionPath)
+		// Add trailing slash as suffix for directories (not in Value)
+		if entry.IsDir() {
+			candidate.Suffix = string(os.PathSeparator)
+		}
+
+		matches = append(matches, candidate)
 	}
 
 	return matches

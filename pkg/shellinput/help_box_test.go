@@ -111,8 +111,8 @@ func TestHelpBoxIntegration(t *testing.T) {
 
 func TestHelpBoxWithMacroEnvironment(t *testing.T) {
 	// Set up test environment with macros
-	os.Setenv("GSH_AGENT_MACROS", `{"test": "This is a test macro", "help": "Show help information"}`)
-	defer os.Unsetenv("GSH_AGENT_MACROS")
+	_ = os.Setenv("GSH_AGENT_MACROS", `{"test": "This is a test macro", "help": "Show help information"}`)
+	defer func() { _ = os.Unsetenv("GSH_AGENT_MACROS") }()
 
 	model := New()
 	model.Focus()
@@ -194,8 +194,8 @@ func TestHelpBoxSpecificCommandsAndMacros(t *testing.T) {
 
 func TestHelpBoxUpdatesOnCompletionNavigation(t *testing.T) {
 	// Set up test environment with macros
-	os.Setenv("GSH_AGENT_MACROS", `{"test": "This is a test macro"}`)
-	defer os.Unsetenv("GSH_AGENT_MACROS")
+	_ = os.Setenv("GSH_AGENT_MACROS", `{"test": "This is a test macro"}`)
+	defer func() { _ = os.Unsetenv("GSH_AGENT_MACROS") }()
 
 	model := New()
 	model.Focus()

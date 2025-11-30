@@ -226,7 +226,7 @@ func TestBashToolWithPreApprovedCommand(t *testing.T) {
 	environment.SetConfigDirForTesting(tempConfigDir)
 	environment.SetAuthorizedCommandsFileForTesting(tempAuthorizedFile)
 	defer func() {
-		os.RemoveAll(tempConfigDir)
+		_ = os.RemoveAll(tempConfigDir)
 		environment.ResetCacheForTesting()
 	}()
 
@@ -246,7 +246,9 @@ func TestBashToolWithPreApprovedCommand(t *testing.T) {
 	// Create temporary database for testing
 	tempDB, err := os.CreateTemp("", "test_history.db")
 	require.NoError(t, err)
-	defer os.Remove(tempDB.Name())
+	defer func() {
+		_ = os.Remove(tempDB.Name())
+	}()
 
 	historyManager, err := history.NewHistoryManager(tempDB.Name())
 	require.NoError(t, err)
@@ -265,13 +267,13 @@ func TestBashToolWithPreApprovedCommand(t *testing.T) {
 	result := BashTool(runner, historyManager, logger, params)
 
 	// Restore stdout
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	// Read captured output
 	outBuf := &bytes.Buffer{}
 	_, _ = outBuf.ReadFrom(r)
-	r.Close()
+	_ = r.Close()
 
 	// Verify successful execution
 	var response map[string]any

@@ -115,7 +115,7 @@ func TestCreateFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
 
 	tests := []struct {
 		name          string
@@ -164,7 +164,7 @@ func TestCreateFileToolWithRelativePath(t *testing.T) {
 	// Set PWD to temp directory
 	tempDir, err := os.MkdirTemp("", "gsh_createfile_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Initialize Vars map
 	if runner.Vars == nil {
@@ -319,7 +319,7 @@ func TestCreateFileToolWithExistingFile(t *testing.T) {
 	// Create a temporary file with existing content
 	tempFile, err := os.CreateTemp("", "gsh_test_existing")
 	require.NoError(t, err)
-	defer os.Remove(tempFile.Name())
+	defer func() { _ = os.Remove(tempFile.Name()) }()
 
 	// Write some initial content
 	initialContent := "initial content"
@@ -385,7 +385,7 @@ func TestCreateFileToolContentVariations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tempFile, err := os.CreateTemp("", "gsh_test_content")
 			require.NoError(t, err)
-			defer os.Remove(tempFile.Name())
+			defer func() { _ = os.Remove(tempFile.Name()) }()
 
 			params := map[string]any{
 				"path":    tempFile.Name(),

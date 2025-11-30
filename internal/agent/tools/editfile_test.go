@@ -48,27 +48,27 @@ func TestValidateAndExtractParams(t *testing.T) {
 				"old_str": "old content",
 				"new_str": "new content",
 			},
-                        expectedParams: nil,
-                        expectedError:  "The edit_file tool failed to parse parameter 'path'",
-                },
+			expectedParams: nil,
+			expectedError:  "The edit_file tool failed to parse parameter 'path'",
+		},
 		{
 			name: "missing old_str",
 			params: map[string]any{
 				"path":    p("/test/path"),
 				"new_str": "new content",
 			},
-                        expectedParams: nil,
-                        expectedError:  "The edit_file tool failed to parse parameter 'old_str'",
-                },
+			expectedParams: nil,
+			expectedError:  "The edit_file tool failed to parse parameter 'old_str'",
+		},
 		{
 			name: "missing new_str",
 			params: map[string]any{
 				"path":    p("/test/path"),
 				"old_str": "old content",
 			},
-                        expectedParams: nil,
-                        expectedError:  "The edit_file tool failed to parse parameter 'new_str'",
-                },
+			expectedParams: nil,
+			expectedError:  "The edit_file tool failed to parse parameter 'new_str'",
+		},
 	}
 
 	for _, tt := range tests {
@@ -223,7 +223,7 @@ func TestPreviewAndConfirmUserDeclines(t *testing.T) {
 	tempFile, err := os.CreateTemp("", "test_preview")
 	assert.NoError(t, err)
 	_ = tempFile.Close()
-	defer os.Remove(tempFile.Name())
+	defer func() { _ = os.Remove(tempFile.Name()) }()
 
 	// Write some content to it
 	err = os.WriteFile(tempFile.Name(), []byte("original content"), 0644)
@@ -248,7 +248,7 @@ func TestPreviewAndConfirmManageResponse(t *testing.T) {
 	tempFile, err := os.CreateTemp("", "test_preview_manage")
 	assert.NoError(t, err)
 	_ = tempFile.Close()
-	defer os.Remove(tempFile.Name())
+	defer func() { _ = os.Remove(tempFile.Name()) }()
 
 	// Write some content to it
 	err = os.WriteFile(tempFile.Name(), []byte("original content"), 0644)
@@ -279,7 +279,7 @@ func TestPreviewAndConfirmFreeformResponse(t *testing.T) {
 	tempFile, err := os.CreateTemp("", "test_preview_freeform")
 	assert.NoError(t, err)
 	_ = tempFile.Close()
-	defer os.Remove(tempFile.Name())
+	defer func() { _ = os.Remove(tempFile.Name()) }()
 
 	// Write some content to it
 	err = os.WriteFile(tempFile.Name(), []byte("original content"), 0644)
@@ -297,7 +297,7 @@ func TestEditFileToolIntegration(t *testing.T) {
 	tempFile, err := os.CreateTemp("", "test_edit_integration")
 	assert.NoError(t, err)
 	_ = tempFile.Close()
-	defer os.Remove(tempFile.Name())
+	defer func() { _ = os.Remove(tempFile.Name()) }()
 
 	originalContent := "Hello world!\nThis is a test file.\nEnd of file."
 	err = os.WriteFile(tempFile.Name(), []byte(originalContent), 0644)
@@ -337,7 +337,7 @@ func TestEditFileToolWithRelativePath(t *testing.T) {
 	tempFile, err := os.CreateTemp("", "test_edit_relative")
 	assert.NoError(t, err)
 	_ = tempFile.Close() // Close the file handle
-	defer os.Remove(tempFile.Name())
+	defer func() { _ = os.Remove(tempFile.Name()) }()
 
 	originalContent := "Test content for relative path"
 	err = os.WriteFile(tempFile.Name(), []byte(originalContent), 0644)

@@ -57,7 +57,7 @@ func (r VerboseHistoryContextRetriever) GetContext() (string, error) {
 		return "", err
 	}
 
-	var commandHistory string = "#sequence,exit_code,command\n"
+	commandHistory := "#sequence,exit_code,command\n"
 	var lastDirectory string
 	for _, entry := range historyEntries {
 		if entry.Directory != lastDirectory {

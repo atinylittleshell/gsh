@@ -88,7 +88,7 @@ func previewAndConfirm(runner *interp.Runner, logger *zap.Logger, path string, n
 		logger.Error("edit_file tool failed to create temporary file", zap.Error(err))
 		return fmt.Sprintf("Error creating temporary file: %s", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
 
 	_, err = tmpFile.WriteString(newContent)
 	if err != nil {

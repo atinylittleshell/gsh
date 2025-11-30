@@ -18,27 +18,53 @@ import (
 )
 
 // Mock getFileCompletions for testing
-var mockGetFileCompletions fileCompleter = func(prefix, currentDirectory string) []string {
+var mockGetFileCompletions fileCompleter = func(prefix, currentDirectory string) []shellinput.CompletionCandidate {
 	switch prefix {
 	case "some/pa":
-		return []string{"some/path.txt", "some/path2.txt"}
+		return []shellinput.CompletionCandidate{
+			{Value: "some/path.txt"},
+			{Value: "some/path2.txt"},
+		}
 	case "/usr/local/b":
-		return []string{"/usr/local/bin", "/usr/local/bin/"}
+		return []shellinput.CompletionCandidate{
+			{Value: "/usr/local/bin", Suffix: "/"},
+			{Value: "/usr/local/bin/"},
+		}
 	case "'my documents/som":
-		return []string{"my documents/something.txt", "my documents/somefile.txt"}
+		return []shellinput.CompletionCandidate{
+			{Value: "my documents/something.txt"},
+			{Value: "my documents/somefile.txt"},
+		}
 	case "":
 		// Empty prefix means list everything in current directory
-		return []string{"folder1/", "folder2/", "file1.txt", "file2.txt"}
+		// Note: On Windows, os.PathSeparator is '\', on Unix it's '/'
+		return []shellinput.CompletionCandidate{
+			{Value: "folder1", Suffix: string(os.PathSeparator)},
+			{Value: "folder2", Suffix: string(os.PathSeparator)},
+			{Value: "file1.txt"},
+			{Value: "file2.txt"},
+		}
 	case "foo/bar/b":
-		return []string{"foo/bar/baz", "foo/bar/bin"}
+		return []shellinput.CompletionCandidate{
+			{Value: "foo/bar/baz"},
+			{Value: "foo/bar/bin"},
+		}
 	case "other/path/te":
-		return []string{"other/path/test.txt", "other/path/temp.txt"}
+		return []shellinput.CompletionCandidate{
+			{Value: "other/path/test.txt"},
+			{Value: "other/path/temp.txt"},
+		}
 	case "/bin/":
 		// Mock some common executables for testing, independent of actual system
-		return []string{"/bin/bash", "/bin/cat", "/bin/ls", "/bin/sh"}
+		return []shellinput.CompletionCandidate{
+			{Value: "/bin/bash"},
+			{Value: "/bin/cat"},
+			{Value: "/bin/ls"},
+			{Value: "/bin/sh"},
+		}
 	default:
 		// No match found
-		return []string{}
+		return []shellinput.CompletionCandidate{}
 	}
 }
 
@@ -117,9 +143,9 @@ func TestGetCompletions(t *testing.T) {
 
 	// Set up environment for macro testing
 	origMacrosEnv := os.Getenv("GSH_AGENT_MACROS")
-	os.Setenv("GSH_AGENT_MACROS", `{"macro1": {}, "macro2": {}, "macro3": {}}`)
+	_ = os.Setenv("GSH_AGENT_MACROS", `{"macro1": {}, "macro2": {}, "macro3": {}}`)
 	defer func() {
-		os.Setenv("GSH_AGENT_MACROS", origMacrosEnv)
+		_ = os.Setenv("GSH_AGENT_MACROS", origMacrosEnv)
 	}()
 
 	// Create a proper runner with the macros variable
@@ -235,7 +261,7 @@ func TestGetCompletions(t *testing.T) {
 				manager.On("GetSpec", "vim").Return(CompletionSpec{}, false)
 			},
 			expected: []shellinput.CompletionCandidate{
-				{Value: "/usr/local/bin"},
+				{Value: "/usr/local/bin", Suffix: "/"},
 				{Value: "/usr/local/bin/"},
 			},
 		},
@@ -259,8 +285,8 @@ func TestGetCompletions(t *testing.T) {
 				manager.On("GetSpec", "cd").Return(CompletionSpec{}, false)
 			},
 			expected: []shellinput.CompletionCandidate{
-				{Value: "folder1/", Description: "Directory"},
-				{Value: "folder2/", Description: "Directory"},
+				{Value: "folder1", Suffix: string(os.PathSeparator), Description: "Directory"},
+				{Value: "folder2", Suffix: string(os.PathSeparator), Description: "Directory"},
 			},
 		},
 		{
@@ -271,8 +297,8 @@ func TestGetCompletions(t *testing.T) {
 				manager.On("GetSpec", "cd").Return(CompletionSpec{}, false)
 			},
 			expected: []shellinput.CompletionCandidate{
-				{Value: "folder1/", Description: "Directory"},
-				{Value: "folder2/", Description: "Directory"},
+				{Value: "folder1", Suffix: string(os.PathSeparator), Description: "Directory"},
+				{Value: "folder2", Suffix: string(os.PathSeparator), Description: "Directory"},
 			},
 		},
 		{
@@ -560,8 +586,8 @@ func TestGetHelpInfo(t *testing.T) {
 
 func TestGetHelpInfoWithMacros(t *testing.T) {
 	// Set up test macros using environment variable since runner is nil in provider
-	os.Setenv("GSH_AGENT_MACROS", `{"test": "This is a test macro", "help": "Show help information"}`)
-	defer os.Unsetenv("GSH_AGENT_MACROS")
+	_ = os.Setenv("GSH_AGENT_MACROS", `{"test": "This is a test macro", "help": "Show help information"}`)
+	defer func() { _ = os.Unsetenv("GSH_AGENT_MACROS") }()
 
 	// Use nil runner to force fallback to environment variable
 	manager := NewCompletionManager()

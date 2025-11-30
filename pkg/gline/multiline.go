@@ -254,9 +254,10 @@ func hasIncompleteConstructs(input string) bool {
 func findMatchingParen(s string, openChar, closeChar rune) int {
 	count := 0
 	for i, ch := range s {
-		if ch == openChar {
+		switch ch {
+		case openChar:
 			count++
-		} else if ch == closeChar {
+		case closeChar:
 			count--
 			if count == 0 {
 				return i

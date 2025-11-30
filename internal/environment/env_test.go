@@ -26,7 +26,7 @@ func TestAppendToAuthorizedCommands(t *testing.T) {
 	defer func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		os.RemoveAll(tempConfigDir)
+		_ = os.RemoveAll(tempConfigDir)
 	}()
 
 	// Test appending a command
@@ -69,7 +69,7 @@ func TestAppendToAuthorizedCommandsSecurePermissions(t *testing.T) {
 	defer func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		os.RemoveAll(tempConfigDir)
+		_ = os.RemoveAll(tempConfigDir)
 	}()
 
 	t.Run("New directory and file have secure permissions", func(t *testing.T) {
@@ -96,7 +96,7 @@ func TestAppendToAuthorizedCommandsSecurePermissions(t *testing.T) {
 
 	t.Run("Existing insecure files get permissions fixed", func(t *testing.T) {
 		// Clean up from previous test
-		os.RemoveAll(tempConfigDir)
+		_ = os.RemoveAll(tempConfigDir)
 
 		// Create directory and file with insecure permissions
 		err := os.MkdirAll(tempConfigDir, 0755) // Insecure directory permissions
@@ -148,7 +148,7 @@ func TestAppendToAuthorizedCommandsSecurePermissions(t *testing.T) {
 		}
 
 		// Clean up from previous test
-		os.RemoveAll(tempConfigDir)
+		_ = os.RemoveAll(tempConfigDir)
 
 		// Create a directory we can't write to
 		err := os.MkdirAll(tempConfigDir, 0555) // Read and execute only
@@ -183,7 +183,7 @@ func TestLoadAuthorizedCommandsFromFile(t *testing.T) {
 	defer func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		os.RemoveAll(tempConfigDir)
+		_ = os.RemoveAll(tempConfigDir)
 	}()
 
 	// Test with non-existent file
@@ -220,7 +220,7 @@ func TestGetApprovedBashCommandRegex(t *testing.T) {
 	defer func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		os.RemoveAll(tempConfigDir)
+		_ = os.RemoveAll(tempConfigDir)
 		ResetCacheForTesting()
 	}()
 
@@ -265,7 +265,7 @@ func TestGetApprovedBashCommandRegexWithEnvironmentPatterns(t *testing.T) {
 	defer func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		os.RemoveAll(tempConfigDir)
+		_ = os.RemoveAll(tempConfigDir)
 		ResetCacheForTesting()
 	}()
 
@@ -391,7 +391,7 @@ func TestGetApprovedBashCommandRegexCaching(t *testing.T) {
 	defer func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		os.RemoveAll(tempConfigDir)
+		_ = os.RemoveAll(tempConfigDir)
 		ResetCacheForTesting()
 	}()
 
@@ -444,7 +444,7 @@ func TestWriteAuthorizedCommandsToFile(t *testing.T) {
 	defer func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		os.RemoveAll(tempConfigDir)
+		_ = os.RemoveAll(tempConfigDir)
 	}()
 
 	// Test writing patterns
@@ -501,7 +501,7 @@ func TestIsCommandAuthorized(t *testing.T) {
 	defer func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		os.RemoveAll(tempConfigDir)
+		_ = os.RemoveAll(tempConfigDir)
 	}()
 
 	// Test with no authorized commands file
@@ -553,7 +553,7 @@ func TestIsCommandAuthorizedInvalidRegex(t *testing.T) {
 	defer func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		os.RemoveAll(tempConfigDir)
+		_ = os.RemoveAll(tempConfigDir)
 	}()
 
 	// Create file with invalid regex pattern
@@ -588,7 +588,7 @@ func TestIsCommandPatternAuthorized(t *testing.T) {
 	defer func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		os.RemoveAll(tempConfigDir)
+		_ = os.RemoveAll(tempConfigDir)
 	}()
 
 	// Test with no authorized commands file

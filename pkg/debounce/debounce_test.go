@@ -1,10 +1,11 @@
 package debounce
 
 import (
-	"github.com/stretchr/testify/assert"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // TestDebounce ensures that multiple rapid calls to the debounced function
@@ -53,21 +54,21 @@ func TestConsecutiveDebounce(t *testing.T) {
 		mu.Unlock()
 	}
 
-	debouncedFn := Debounce(50*time.Millisecond, fn)
+	debouncedFn := Debounce(100*time.Millisecond, fn)
 
 	// Call once
 	debouncedFn()
 
 	// Wait less than the debounce period, call again
-	time.Sleep(30 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 	debouncedFn()
 
 	// Wait again less than the debounce period, call again
-	time.Sleep(30 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 	debouncedFn()
 
 	// Now wait long enough for the debounce to trigger
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	mu.Lock()
 	defer mu.Unlock()

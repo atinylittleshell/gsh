@@ -95,7 +95,7 @@ func hasSubcommand(baseCommand, s string) bool {
 	// Arguments should be primarily alphabetic (allow hyphens for commands like "cache-clean")
 	// but not contain special shell characters or path separators
 	for _, ch := range s {
-		if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '-' || ch == '_' || (ch >= '0' && ch <= '9')) {
+		if (ch < 'a' || ch > 'z') && (ch < 'A' || ch > 'Z') && ch != '-' && ch != '_' && (ch < '0' || ch > '9') {
 			return false
 		}
 	}

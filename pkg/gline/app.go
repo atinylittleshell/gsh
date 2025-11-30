@@ -241,7 +241,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			fmt.Printf("%s^C\n", currentInput)
 
 			// Flush output to ensure it's displayed before framework cleanup
-			os.Stdout.Sync()
+			_ = os.Stdout.Sync()
 
 			// Set result to empty string so shell doesn't try to execute it
 			m.result = ""

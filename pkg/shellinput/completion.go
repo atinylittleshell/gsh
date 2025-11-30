@@ -5,6 +5,7 @@ type CompletionCandidate struct {
 	Value       string // The actual value to insert
 	Display     string // What to show in the list (if different from Value)
 	Description string // The description to show in the right column
+	Suffix      string // Optional suffix to show as greyed-out inline suggestion (e.g., "/" for directories)
 }
 
 // CompletionProvider is the interface that provides completion suggestions

@@ -60,7 +60,7 @@ func ViewFileTool(runner *interp.Runner, logger *zap.Logger, params map[string]a
 		logger.Error("view_file tool received invalid path", zap.Error(err))
 		return failedToolResponse(fmt.Sprintf("Error opening file: %s", err))
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	agentName := environment.GetAgentName(runner)
 	printToolMessage(fmt.Sprintf("%s: I'm reading the following file:", agentName))

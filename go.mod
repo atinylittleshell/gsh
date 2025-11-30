@@ -1,6 +1,6 @@
 module github.com/atinylittleshell/gsh
 
-go 1.24.9
+go 1.23.0
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.0
@@ -11,6 +11,7 @@ require (
 	github.com/creativeprojects/go-selfupdate v1.4.0
 	github.com/glebarez/sqlite v1.11.0
 	github.com/golangci/golangci-lint v1.64.8
+	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6
 	github.com/muesli/reflow v0.3.0
 	github.com/muesli/termenv v0.15.2
 	github.com/rivo/uniseg v0.4.7
@@ -150,7 +151,6 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/moricho/tparallel v0.3.2 // indirect
-	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/nakabonne/nestif v0.3.1 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect

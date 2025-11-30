@@ -186,12 +186,12 @@ func (p *ShellCompletionProvider) GetCompletions(line string, pos int) []shellin
 	// Quote completions that contain spaces, but don't add command prefix
 	// The completion handler will replace only the current word (file path)
 	for i, completion := range completions {
-		if strings.Contains(completion, " ") {
+		if strings.Contains(completion.Value, " ") {
 			// Quote completions that contain spaces
-			completions[i] = "\"" + completion + "\""
+			completions[i].Value = "\"" + completion.Value + "\""
 		}
 	}
-	return toCandidates(completions)
+	return completions
 }
 
 // toCandidates converts a list of strings to CompletionCandidate list
@@ -219,7 +219,7 @@ func (p *ShellCompletionProvider) checkSpecialPrefixes(line string, pos int) []s
 		if len(completions) == 0 {
 			// No macro matches found, fall back to path completion
 			pathPrefix := strings.TrimPrefix(currentWord, "@/")
-			completions := getFileCompletions(pathPrefix, environment.GetPwd(p.Runner))
+			fileCompletions := getFileCompletions(pathPrefix, environment.GetPwd(p.Runner))
 
 			// Build the proper prefix for the current line context
 			var linePrefix string
@@ -228,10 +228,10 @@ func (p *ShellCompletionProvider) checkSpecialPrefixes(line string, pos int) []s
 			}
 
 			// Add completions with proper prefix
-			for i, completion := range completions {
-				completions[i] = linePrefix + completion
+			for i := range fileCompletions {
+				fileCompletions[i].Value = linePrefix + fileCompletions[i].Value
 			}
-			return toCandidates(completions)
+			return fileCompletions
 		}
 		return toCandidates(completions)
 	} else if strings.HasPrefix(currentWord, "@!") {
@@ -239,7 +239,7 @@ func (p *ShellCompletionProvider) checkSpecialPrefixes(line string, pos int) []s
 		if len(completions) == 0 {
 			// No builtin command matches found, fall back to path completion
 			pathPrefix := strings.TrimPrefix(currentWord, "@!")
-			completions := getFileCompletions(pathPrefix, environment.GetPwd(p.Runner))
+			fileCompletions := getFileCompletions(pathPrefix, environment.GetPwd(p.Runner))
 
 			// Build the proper prefix for the current line context
 			var linePrefix string
@@ -248,10 +248,10 @@ func (p *ShellCompletionProvider) checkSpecialPrefixes(line string, pos int) []s
 			}
 
 			// Add completions with proper prefix
-			for i, completion := range completions {
-				completions[i] = linePrefix + completion
+			for i := range fileCompletions {
+				fileCompletions[i].Value = linePrefix + fileCompletions[i].Value
 			}
-			return toCandidates(completions)
+			return fileCompletions
 		}
 		return toCandidates(completions)
 	} else if strings.HasPrefix(currentWord, "@") && !strings.HasPrefix(currentWord, "@/") && !strings.HasPrefix(currentWord, "@!") {
@@ -271,13 +271,13 @@ func (p *ShellCompletionProvider) checkSpecialPrefixes(line string, pos int) []s
 		if len(completions) == 0 {
 			// No subagent matches found, fall back to path completion
 			pathPrefix := strings.TrimPrefix(currentWord, "@")
-			completions := getFileCompletions(pathPrefix, environment.GetPwd(p.Runner))
+			fileCompletions := getFileCompletions(pathPrefix, environment.GetPwd(p.Runner))
 
 			// Add completions with proper prefix and suffix
-			for i, completion := range completions {
-				completions[i] = linePrefix + completion + lineSuffix
+			for i := range fileCompletions {
+				fileCompletions[i].Value = linePrefix + fileCompletions[i].Value + lineSuffix
 			}
-			return toCandidates(completions)
+			return fileCompletions
 		}
 
 		// Add completions with proper prefix and suffix
@@ -302,7 +302,7 @@ func (p *ShellCompletionProvider) checkSpecialPrefixes(line string, pos int) []s
 			if len(completions) == 0 {
 				// No macro matches found, fall back to path completion
 				pathPrefix := strings.TrimPrefix(potentialWord, "@/")
-				completions := getFileCompletions(pathPrefix, environment.GetPwd(p.Runner))
+				fileCompletions := getFileCompletions(pathPrefix, environment.GetPwd(p.Runner))
 
 				// Build the proper prefix for the current line context
 				var linePrefix string
@@ -311,10 +311,10 @@ func (p *ShellCompletionProvider) checkSpecialPrefixes(line string, pos int) []s
 				}
 
 				// Add completions with proper prefix
-				for i, completion := range completions {
-					completions[i] = linePrefix + completion
+				for i := range fileCompletions {
+					fileCompletions[i].Value = linePrefix + fileCompletions[i].Value
 				}
-				return toCandidates(completions)
+				return fileCompletions
 			}
 			return toCandidates(completions)
 		} else if strings.HasPrefix(potentialWord, "@!") {
@@ -322,7 +322,7 @@ func (p *ShellCompletionProvider) checkSpecialPrefixes(line string, pos int) []s
 			if len(completions) == 0 {
 				// No builtin command matches found, fall back to path completion
 				pathPrefix := strings.TrimPrefix(potentialWord, "@!")
-				completions := getFileCompletions(pathPrefix, environment.GetPwd(p.Runner))
+				fileCompletions := getFileCompletions(pathPrefix, environment.GetPwd(p.Runner))
 
 				// Build the proper prefix for the current line context
 				var linePrefix string
@@ -331,10 +331,10 @@ func (p *ShellCompletionProvider) checkSpecialPrefixes(line string, pos int) []s
 				}
 
 				// Add completions with proper prefix
-				for i, completion := range completions {
-					completions[i] = linePrefix + completion
+				for i := range fileCompletions {
+					fileCompletions[i].Value = linePrefix + fileCompletions[i].Value
 				}
-				return toCandidates(completions)
+				return fileCompletions
 			}
 			return toCandidates(completions)
 		} else if strings.HasPrefix(potentialWord, "@") && !strings.HasPrefix(potentialWord, "@/") && !strings.HasPrefix(potentialWord, "@!") {
@@ -357,13 +357,13 @@ func (p *ShellCompletionProvider) checkSpecialPrefixes(line string, pos int) []s
 			if len(completions) == 0 {
 				// No subagent matches found, fall back to path completion
 				pathPrefix := strings.TrimPrefix(potentialWord, "@")
-				completions := getFileCompletions(pathPrefix, environment.GetPwd(p.Runner))
+				fileCompletions := getFileCompletions(pathPrefix, environment.GetPwd(p.Runner))
 
 				// Add completions with proper prefix and suffix
-				for i, completion := range completions {
-					completions[i] = linePrefix + completion + lineSuffix
+				for i := range fileCompletions {
+					fileCompletions[i].Value = linePrefix + fileCompletions[i].Value + lineSuffix
 				}
-				return toCandidates(completions)
+				return fileCompletions
 			}
 
 			// Add completions with proper prefix and suffix

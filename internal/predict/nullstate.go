@@ -44,11 +44,13 @@ func (p *LLMNullStatePredictor) UpdateContext(context *map[string]string) {
 func (p *LLMNullStatePredictor) Predict(input string) (string, string, error) {
 	if input != "" {
 		// this predictor is only for null state
+		p.logger.Debug("skipping null-state prediction for non-empty input")
 		return "", "", nil
 	}
 
 	schema, err := PREDICTED_COMMAND_SCHEMA.MarshalJSON()
 	if err != nil {
+		p.logger.Error("failed to marshal schema", zap.Error(err))
 		return "", "", err
 	}
 
@@ -98,16 +100,15 @@ Now predict what my next command should be.`,
 	chatCompletion, err := p.llmClient.CreateChatCompletion(context.TODO(), request)
 
 	if err != nil {
+		p.logger.Error("LLM API call failed", zap.Error(err))
 		return "", "", err
 	}
 
 	prediction := PredictedCommand{}
-	_ = json.Unmarshal([]byte(chatCompletion.Choices[0].Message.Content), &prediction)
-
-	p.logger.Debug(
-		"LLM prediction response",
-		zap.Any("response", prediction),
-	)
+	err = json.Unmarshal([]byte(chatCompletion.Choices[0].Message.Content), &prediction)
+	if err != nil {
+		p.logger.Error("failed to unmarshal prediction", zap.Error(err), zap.String("content", chatCompletion.Choices[0].Message.Content))
+	}
 
 	return prediction.PredictedCommand, userMessage, nil
 }

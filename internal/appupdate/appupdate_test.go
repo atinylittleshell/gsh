@@ -102,7 +102,7 @@ func (m *MockRelease) AssetName() string {
 func TestReadLatestVersion(t *testing.T) {
 	mockFS := new(MockFileSystem)
 	mockFile, _ := os.CreateTemp("", "test-latest-version")
-	defer os.Remove(mockFile.Name())
+	defer func() { _ = os.Remove(mockFile.Name()) }()
 
 	_, _ = mockFile.Write([]byte("1.2.3"))
 	_, _ = mockFile.Seek(0, 0)
@@ -122,12 +122,12 @@ func TestHandleSelfUpdate_UpdateNeeded(t *testing.T) {
 	logger := zap.NewNop()
 
 	mockFileForRead, _ := os.CreateTemp("", "test-latest-version-read")
-	defer os.Remove(mockFileForRead.Name())
+	defer func() { _ = os.Remove(mockFileForRead.Name()) }()
 	_, _ = mockFileForRead.Write([]byte("1.0.0"))
 	_, _ = mockFileForRead.Seek(0, 0)
 
 	mockFileForWrite, _ := os.CreateTemp("", "test-latest-version-write")
-	defer os.Remove(mockFileForWrite.Name())
+	defer func() { _ = os.Remove(mockFileForWrite.Name()) }()
 
 	mockFS.On("Open", core.LatestVersionFile()).Return(mockFileForRead, nil)
 
@@ -138,7 +138,7 @@ func TestHandleSelfUpdate_UpdateNeeded(t *testing.T) {
 	mockRemoteRelease.On("AssetURL").Return("https://github.com/test/url")
 	mockRemoteRelease.On("AssetName").Return("test")
 
-        mockUpdater.On("DetectLatest", mock.Anything, "robottwo/gsh_prime").Return(mockRemoteRelease, true, nil)
+	mockUpdater.On("DetectLatest", mock.Anything, "robottwo/gsh_prime").Return(mockRemoteRelease, true, nil)
 	mockUpdater.On("UpdateTo", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	mockPrompter.
@@ -166,12 +166,12 @@ func TestHandleSelfUpdate_NoUpdateNeeded(t *testing.T) {
 	logger := zap.NewNop()
 
 	mockFileForRead, _ := os.CreateTemp("", "test-latest-version-read")
-	defer os.Remove(mockFileForRead.Name())
+	defer func() { _ = os.Remove(mockFileForRead.Name()) }()
 	_, _ = mockFileForRead.Write([]byte("1.2.3"))
 	_, _ = mockFileForRead.Seek(0, 0)
 
 	mockFileForWrite, _ := os.CreateTemp("", "test-latest-version-write")
-	defer os.Remove(mockFileForWrite.Name())
+	defer func() { _ = os.Remove(mockFileForWrite.Name()) }()
 
 	mockFS.On("Open", core.LatestVersionFile()).Return(mockFileForRead, nil)
 
@@ -179,7 +179,7 @@ func TestHandleSelfUpdate_NoUpdateNeeded(t *testing.T) {
 	mockFS.On("OpenFile", core.LatestVersionFile(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.FileMode(0600)).Return(mockFileForWrite, nil)
 
 	mockRemoteRelease.On("Version").Return("1.2.4")
-        mockUpdater.On("DetectLatest", mock.Anything, "robottwo/gsh_prime").Return(mockRemoteRelease, true, nil)
+	mockUpdater.On("DetectLatest", mock.Anything, "robottwo/gsh_prime").Return(mockRemoteRelease, true, nil)
 
 	resultChannel := HandleSelfUpdate("2.0.0", logger, mockFS, mockPrompter, mockUpdater)
 
