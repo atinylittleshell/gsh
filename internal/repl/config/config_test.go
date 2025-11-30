@@ -15,10 +15,6 @@ func TestDefaultConfig(t *testing.T) {
 	require.NotNil(t, cfg)
 	assert.Equal(t, "gsh> ", cfg.Prompt)
 	assert.Equal(t, "info", cfg.LogLevel)
-	assert.NotNil(t, cfg.ApprovedBashCommands)
-	assert.Empty(t, cfg.ApprovedBashCommands)
-	assert.NotNil(t, cfg.Macros)
-	assert.Empty(t, cfg.Macros)
 	assert.NotNil(t, cfg.MCPServers)
 	assert.Empty(t, cfg.MCPServers)
 	assert.NotNil(t, cfg.Models)
@@ -155,51 +151,6 @@ func TestConfig_GetMCPServer(t *testing.T) {
 	})
 }
 
-func TestConfig_HasMacro(t *testing.T) {
-	t.Run("returns false for nil Macros map", func(t *testing.T) {
-		cfg := &Config{Macros: nil}
-		assert.False(t, cfg.HasMacro("test"))
-	})
-
-	t.Run("returns false for non-existent macro", func(t *testing.T) {
-		cfg := DefaultConfig()
-		assert.False(t, cfg.HasMacro("non-existent"))
-	})
-
-	t.Run("returns true when macro exists", func(t *testing.T) {
-		cfg := DefaultConfig()
-		cfg.Macros["gitdiff"] = "Review all staged and unstaged changes"
-
-		assert.True(t, cfg.HasMacro("gitdiff"))
-	})
-
-	t.Run("returns true for empty macro value", func(t *testing.T) {
-		cfg := DefaultConfig()
-		cfg.Macros["empty"] = ""
-
-		assert.True(t, cfg.HasMacro("empty"))
-	})
-}
-
-func TestConfig_GetMacro(t *testing.T) {
-	t.Run("returns empty string for nil Macros map", func(t *testing.T) {
-		cfg := &Config{Macros: nil}
-		assert.Equal(t, "", cfg.GetMacro("test"))
-	})
-
-	t.Run("returns empty string for non-existent macro", func(t *testing.T) {
-		cfg := DefaultConfig()
-		assert.Equal(t, "", cfg.GetMacro("non-existent"))
-	})
-
-	t.Run("returns macro expansion when exists", func(t *testing.T) {
-		cfg := DefaultConfig()
-		cfg.Macros["gitdiff"] = "Review all staged and unstaged changes"
-
-		assert.Equal(t, "Review all staged and unstaged changes", cfg.GetMacro("gitdiff"))
-	})
-}
-
 func TestConfig_FullConfiguration(t *testing.T) {
 	// Test a fully configured Config object
 	cfg := DefaultConfig()
@@ -207,17 +158,6 @@ func TestConfig_FullConfiguration(t *testing.T) {
 	// Set prompt and log level
 	cfg.Prompt = "custom> "
 	cfg.LogLevel = "debug"
-
-	// Add approved bash commands
-	cfg.ApprovedBashCommands = []string{
-		"^ls.*$",
-		"^pwd$",
-		"^git\\s+status.*$",
-	}
-
-	// Add macros
-	cfg.Macros["gitdiff"] = "Review all staged and unstaged changes"
-	cfg.Macros["gitpush"] = "Review changes, create a commit, and push"
 
 	// Add models
 	cfg.Models["myModel"] = &interpreter.ModelValue{
@@ -256,9 +196,6 @@ func TestConfig_FullConfiguration(t *testing.T) {
 	// Verify all values
 	assert.Equal(t, "custom> ", cfg.Prompt)
 	assert.Equal(t, "debug", cfg.LogLevel)
-	assert.Len(t, cfg.ApprovedBashCommands, 3)
-	assert.True(t, cfg.HasMacro("gitdiff"))
-	assert.True(t, cfg.HasMacro("gitpush"))
 	assert.NotNil(t, cfg.GetModel("myModel"))
 	assert.NotNil(t, cfg.GetAgent("coder"))
 	assert.NotNil(t, cfg.GetUpdatePromptTool())
@@ -274,6 +211,4 @@ func TestConfig_ZeroValueBehavior(t *testing.T) {
 	assert.Nil(t, cfg.GetTool("test"))
 	assert.Nil(t, cfg.GetUpdatePromptTool())
 	assert.Nil(t, cfg.GetMCPServer("test"))
-	assert.False(t, cfg.HasMacro("test"))
-	assert.Equal(t, "", cfg.GetMacro("test"))
 }

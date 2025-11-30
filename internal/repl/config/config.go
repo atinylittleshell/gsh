@@ -19,13 +19,6 @@ type Config struct {
 	// LogLevel controls logging verbosity (from GSH_CONFIG.logLevel)
 	LogLevel string
 
-	// Agent configuration (from GSH_CONFIG.agent)
-	// ApprovedBashCommands contains regex patterns for commands that don't require confirmation
-	ApprovedBashCommands []string
-
-	// Macros maps macro names to their expansion text
-	Macros map[string]string
-
 	// All declarations from .gshrc.gsh (using gsh language syntax)
 	// These are available for use in scripts and agent mode
 
@@ -47,14 +40,12 @@ type Config struct {
 // DefaultConfig returns a Config with default values.
 func DefaultConfig() *Config {
 	return &Config{
-		Prompt:               "gsh> ",
-		LogLevel:             "info",
-		ApprovedBashCommands: []string{},
-		Macros:               make(map[string]string),
-		MCPServers:           make(map[string]*mcp.MCPServer),
-		Models:               make(map[string]*interpreter.ModelValue),
-		Agents:               make(map[string]*interpreter.AgentValue),
-		Tools:                make(map[string]*interpreter.ToolValue),
+		Prompt:     "gsh> ",
+		LogLevel:   "info",
+		MCPServers: make(map[string]*mcp.MCPServer),
+		Models:     make(map[string]*interpreter.ModelValue),
+		Agents:     make(map[string]*interpreter.AgentValue),
+		Tools:      make(map[string]*interpreter.ToolValue),
 	}
 }
 
@@ -94,21 +85,4 @@ func (c *Config) GetMCPServer(name string) *mcp.MCPServer {
 		return nil
 	}
 	return c.MCPServers[name]
-}
-
-// HasMacro returns true if a macro with the given name exists.
-func (c *Config) HasMacro(name string) bool {
-	if c.Macros == nil {
-		return false
-	}
-	_, exists := c.Macros[name]
-	return exists
-}
-
-// GetMacro returns the expansion text for a macro, or empty string if not found.
-func (c *Config) GetMacro(name string) string {
-	if c.Macros == nil {
-		return ""
-	}
-	return c.Macros[name]
 }
