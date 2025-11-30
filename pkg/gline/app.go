@@ -26,6 +26,7 @@ type appModel struct {
 	dirty               bool
 	prediction          string
 	explanation         string
+	lastError           error
 	lastPredictionInput string
 	lastPrediction      string
 	predictionStateId   int
@@ -37,6 +38,7 @@ type appModel struct {
 
 	explanationStyle lipgloss.Style
 	completionStyle  lipgloss.Style
+	errorStyle       lipgloss.Style
 
 	// Multiline support
 	multilineState *MultilineState
@@ -57,6 +59,12 @@ type setPredictionMsg struct {
 type attemptExplanationMsg struct {
 	stateId    int
 	prediction string
+}
+
+// errorMsg wraps an error that occurred during prediction or explanation
+type errorMsg struct {
+	stateId int
+	err     error
 }
 
 // helpHeaderRegex matches redundant help headers like "**@name** - "
@@ -131,6 +139,8 @@ func initialModel(
 		completionStyle: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("10")),
+		errorStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("9")), // Red
 
 		// Initialize multiline state
 		multilineState: NewMultilineState(),
@@ -176,6 +186,17 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case setExplanationMsg:
 		return m.setExplanation(msg)
+
+	case errorMsg:
+		// Only show errors for the current prediction state
+		if msg.stateId == m.predictionStateId {
+			m.lastError = msg.err
+			// Clear any partial prediction/explanation since we have an error
+			m.prediction = ""
+			m.explanation = ""
+			m.textInput.SetSuggestions([]string{})
+		}
+		return m, nil
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -296,47 +317,54 @@ func (m appModel) View() string {
 	// We need to handle truncation manually because lipgloss Height doesn't truncate automatically
 	availableHeight := m.options.AssistantHeight
 
-	helpBox := m.textInput.HelpBoxView()
-
-	// Determine available width for completion box
-	completionWidth := max(0, m.textInput.Width-4)
-	if helpBox != "" {
-		completionWidth = completionWidth / 2
-	}
-
-	completionBox := m.textInput.CompletionBoxView(availableHeight, completionWidth)
-
-	if completionBox != "" && helpBox != "" {
-		// Clean up help box text to avoid redundancy
-		// Remove headers like "**@name** - " or "**name** - " using regex
-		// This covers patterns like "**@debug-assistant** - " or "**@!new** - "
-		helpBox = helpHeaderRegex.ReplaceAllString(helpBox, "")
-
-		// Render side-by-side
-		halfWidth := completionWidth // Already calculated
-
-		leftStyle := lipgloss.NewStyle().
-			Width(halfWidth).
-			Height(availableHeight).
-			MaxHeight(availableHeight)
-
-		rightStyle := lipgloss.NewStyle().
-			Width(halfWidth).
-			Height(availableHeight).
-			MaxHeight(availableHeight).
-			PaddingLeft(1) // Add some spacing between columns
-
-		// Render completion on left, help on right
-		assistantContent = lipgloss.JoinHorizontal(lipgloss.Top,
-			leftStyle.Render(completionBox),
-			rightStyle.Render(helpBox))
-
-	} else if completionBox != "" {
-		assistantContent = completionBox
-	} else if helpBox != "" {
-		assistantContent = helpBox
+	// Display error if present
+	if m.lastError != nil {
+		errorContent := fmt.Sprintf("LLM Inference Error: %s", m.lastError.Error())
+		assistantContent = m.errorStyle.Render(errorContent)
 	} else {
-		assistantContent = m.explanation
+		// Normal assistant content logic
+		helpBox := m.textInput.HelpBoxView()
+
+		// Determine available width for completion box
+		completionWidth := max(0, m.textInput.Width-4)
+		if helpBox != "" {
+			completionWidth = completionWidth / 2
+		}
+
+		completionBox := m.textInput.CompletionBoxView(availableHeight, completionWidth)
+
+		if completionBox != "" && helpBox != "" {
+			// Clean up help box text to avoid redundancy
+			// Remove headers like "**@name** - " or "**name** - " using regex
+			// This covers patterns like "**@debug-assistant** - " or "**@!new** - "
+			helpBox = helpHeaderRegex.ReplaceAllString(helpBox, "")
+
+			// Render side-by-side
+			halfWidth := completionWidth // Already calculated
+
+			leftStyle := lipgloss.NewStyle().
+				Width(halfWidth).
+				Height(availableHeight).
+				MaxHeight(availableHeight)
+
+			rightStyle := lipgloss.NewStyle().
+				Width(halfWidth).
+				Height(availableHeight).
+				MaxHeight(availableHeight).
+				PaddingLeft(1) // Add some spacing between columns
+
+			// Render completion on left, help on right
+			assistantContent = lipgloss.JoinHorizontal(lipgloss.Top,
+				leftStyle.Render(completionBox),
+				rightStyle.Render(helpBox))
+
+		} else if completionBox != "" {
+			assistantContent = completionBox
+		} else if helpBox != "" {
+			assistantContent = helpBox
+		} else {
+			assistantContent = m.explanation
+		}
 	}
 
 	// Render Assistant Box
@@ -383,6 +411,9 @@ func (m appModel) updateTextInput(msg tea.Msg) (appModel, tea.Cmd) {
 	if textUpdated && m.predictor != nil {
 		m.predictionStateId++
 
+		// Clear any existing error when user types
+		m.lastError = nil
+
 		userInput := updatedTextInput.Value()
 
 		// whenever the user has typed something, mark the model as dirty
@@ -415,6 +446,7 @@ func (m appModel) updateTextInput(msg tea.Msg) (appModel, tea.Cmd) {
 func (m *appModel) clearPrediction() {
 	m.prediction = ""
 	m.explanation = ""
+	m.lastError = nil
 	m.textInput.SetSuggestions([]string{})
 }
 
@@ -450,7 +482,7 @@ func (m appModel) attemptPrediction(msg attemptPredictionMsg) (tea.Model, tea.Cm
 		prediction, inputContext, err := m.predictor.Predict(m.textInput.Value())
 		if err != nil {
 			m.logger.Error("gline prediction failed", zap.Error(err))
-			return nil
+			return errorMsg{stateId: msg.stateId, err: err}
 		}
 
 		m.logger.Debug(
@@ -475,7 +507,7 @@ func (m appModel) attemptExplanation(msg attemptExplanationMsg) (tea.Model, tea.
 		explanation, err := m.explainer.Explain(msg.prediction)
 		if err != nil {
 			m.logger.Error("gline explanation failed", zap.Error(err))
-			return nil
+			return errorMsg{stateId: msg.stateId, err: err}
 		}
 
 		m.logger.Debug(
