@@ -230,7 +230,8 @@ be merged into a single cohesive component.
   - Cursor position tracking
   - Word boundary detection
   - Insert/delete operations
-- [ ] Create `internal/repl/input/keymap.go` - key bindings
+- [x] Create `internal/repl/input/keymap.go` - key bindings
+  - Create a configurable key binding system via `Config`
   - Emacs-style navigation (Ctrl+A/E/F/B/K/U/W etc.)
   - History navigation (Up/Down)
   - Completion triggers (Tab/Shift+Tab)
