@@ -680,8 +680,13 @@ func (p *ShellCompletionProvider) GetHelpInfo(line string, pos int) string {
 		return p.getMacroHelp(macroName)
 	}
 
+	// Check if the current word is @? (magic fix)
+	if currentWord == "@?" {
+		return "**@?** - Magic fix for failed commands\n\nAnalyzes the last failed command and suggests a fix. If a fix is found, you can run it immediately with a single keypress."
+	}
+
 	// Check if the current word starts with @ (subagents)
-	if strings.HasPrefix(currentWord, "@") && !strings.HasPrefix(currentWord, "@/") && !strings.HasPrefix(currentWord, "@!") {
+	if strings.HasPrefix(currentWord, "@") && !strings.HasPrefix(currentWord, "@/") && !strings.HasPrefix(currentWord, "@!") && currentWord != "@?" {
 		subagentName := strings.TrimPrefix(currentWord, "@")
 		return p.getSubagentHelp(subagentName)
 	}
@@ -701,7 +706,9 @@ func (p *ShellCompletionProvider) GetHelpInfo(line string, pos int) string {
 		} else if strings.HasPrefix(potentialWord, "@/") {
 			macroName := strings.TrimPrefix(potentialWord, "@/")
 			return p.getMacroHelp(macroName)
-		} else if strings.HasPrefix(potentialWord, "@") && !strings.HasPrefix(potentialWord, "@/") && !strings.HasPrefix(potentialWord, "@!") {
+		} else if potentialWord == "@?" {
+			return "**@?** - Magic fix for failed commands\n\nAnalyzes the last failed command and suggests a fix. If a fix is found, you can run it immediately with a single keypress."
+		} else if strings.HasPrefix(potentialWord, "@") && !strings.HasPrefix(potentialWord, "@/") && !strings.HasPrefix(potentialWord, "@!") && potentialWord != "@?" {
 			subagentName := strings.TrimPrefix(potentialWord, "@")
 			return p.getSubagentHelp(subagentName)
 		}

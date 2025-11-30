@@ -74,6 +74,11 @@ GSH_CONTEXT_NUM_HISTORY_VERBOSE=30
 # -------- Agent Configuration --------
 # Options below control behaviors of the chat agent.
 
+# Whether confirmation prompts default to "yes" when Enter is pressed.
+# When set to 1 or true, prompts display [Y/n] and Enter confirms.
+# When set to 0 or false (default), prompts display [y/N] and Enter denies.
+GSH_DEFAULT_TO_YES=0
+
 # Size of the agent chat context window in LLM tokens.
 # When the chat session exceeds this limit, only the most recent messages that 
 # can fit in the window are kept.

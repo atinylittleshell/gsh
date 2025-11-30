@@ -108,7 +108,7 @@ func TestPreApproval(t *testing.T) {
 	}
 
 	oldUserConfirmation := userConfirmation
-	userConfirmation = func(logger *zap.Logger, question string, explanation string) string {
+	userConfirmation = func(logger *zap.Logger, runner *interp.Runner, question string, explanation string) string {
 		response, _ := mockPrompter.Prompt("", []string{}, explanation, nil, nil, nil, logger, gline.NewOptions())
 		return response
 	}
@@ -387,7 +387,7 @@ func TestInvalidRegexHandling(t *testing.T) {
 	}
 
 	oldUserConfirmation := userConfirmation
-	userConfirmation = func(logger *zap.Logger, question string, explanation string) string {
+	userConfirmation = func(logger *zap.Logger, runner *interp.Runner, question string, explanation string) string {
 		response, _ := mockPrompter.Prompt("", []string{}, explanation, nil, nil, nil, logger, gline.NewOptions())
 		return response
 	}
@@ -597,7 +597,7 @@ func TestEdgeCases(t *testing.T) {
 		responses: []string{"always"},
 	}
 	oldUserConfirmation := userConfirmation
-	userConfirmation = func(logger *zap.Logger, question string, explanation string) string {
+	userConfirmation = func(logger *zap.Logger, runner *interp.Runner, question string, explanation string) string {
 		response, _ := mockPrompter.Prompt("", []string{}, explanation, nil, nil, nil, logger, gline.NewOptions())
 		return response
 	}

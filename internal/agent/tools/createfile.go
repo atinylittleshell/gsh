@@ -70,6 +70,7 @@ func CreateFileTool(runner *interp.Runner, logger *zap.Logger, params map[string
 	agentName := environment.GetAgentName(runner)
 	confirmResponse := userConfirmation(
 		logger,
+		runner,
 		fmt.Sprintf("%s: Do I have your permission to create the file with the content shown above?", agentName),
 		"",
 	)

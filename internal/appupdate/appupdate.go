@@ -79,8 +79,17 @@ func updateToLatestVersion(repoSlug string, currentSemVer *semver.Version, logge
 		return
 	}
 
+	// Check GSH_DEFAULT_TO_YES environment variable
+	defaultToYes := strings.ToLower(os.Getenv("GSH_DEFAULT_TO_YES"))
+	isDefaultYes := defaultToYes == "1" || defaultToYes == "true"
+
+	promptText := "New version of gsh available. Update now? (y/N) "
+	if isDefaultYes {
+		promptText = "New version of gsh available. Update now? (Y/n) "
+	}
+
 	confirm, _ := prompter.Prompt(
-		styles.AGENT_QUESTION("New version of gsh available. Update now? (Y/n) "),
+		styles.AGENT_QUESTION(promptText),
 		[]string{},
 		latestVersion,
 		nil,
@@ -90,8 +99,16 @@ func updateToLatestVersion(repoSlug string, currentSemVer *semver.Version, logge
 		gline.NewOptions(),
 	)
 
-	if strings.ToLower(confirm) == "n" {
-		return
+	confirmLower := strings.ToLower(strings.TrimSpace(confirm))
+	// If default is yes, only "n" or "no" declines. If default is no, only "y" or "yes" confirms.
+	if isDefaultYes {
+		if confirmLower == "n" || confirmLower == "no" {
+			return
+		}
+	} else {
+		if confirmLower != "y" && confirmLower != "yes" {
+			return
+		}
 	}
 
 	latest, found, err := updater.DetectLatest(

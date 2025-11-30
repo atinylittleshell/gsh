@@ -802,6 +802,7 @@ func TestSyncVariablesToEnvExportsGSHVariables(t *testing.T) {
 		"GSH_CONTEXT_NUM_HISTORY_VERBOSE":                 "7",
 		"GSH_AGENT_APPROVED_BASH_COMMAND_REGEX":           "[\"^ls.*\"]",
 		"GSH_AGENT_MACROS":                                "{\"m\":\"cmd\"}",
+		"GSH_DEFAULT_TO_YES":                              "true",
 	}
 
 	assert.Equal(t, len(gshVariableNames), len(expected))

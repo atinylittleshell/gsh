@@ -69,6 +69,13 @@ func ShouldCleanLogFile(runner *interp.Runner) bool {
 	return cleanLogFile == "1" || cleanLogFile == "true"
 }
 
+// GetDefaultToYes returns whether prompts should default to "yes" when Enter is pressed.
+// When true, prompts display [Y/n] and Enter confirms. When false, prompts display [y/N] and Enter denies.
+func GetDefaultToYes(runner *interp.Runner) bool {
+	defaultToYes := strings.ToLower(runner.Vars["GSH_DEFAULT_TO_YES"].String())
+	return defaultToYes == "1" || defaultToYes == "true"
+}
+
 func GetPwd(runner *interp.Runner) string {
 	return runner.Vars["PWD"].String()
 }

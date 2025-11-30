@@ -215,6 +215,7 @@ func BashTool(runner *interp.Runner, historyManager *history.HistoryManager, log
 	} else {
 		confirmResponse = userConfirmation(
 			logger,
+			runner,
 			"gsh: Do I have your permission to run this command?",
 			reason, // Only pass reason, not command (already displayed)
 		)

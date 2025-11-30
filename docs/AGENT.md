@@ -179,3 +179,33 @@ gsh> @!new
 # Show token usage statistics for the current chat session
 gsh> @!tokens
 ```
+
+## Magic Fix
+
+When a command fails, you can use `@?` to ask the agent to analyze the error and suggest a fix.
+
+```bash
+gsh> ls nonexistent_file
+ls: nonexistent_file: No such file or directory
+
+gsh> @?
+gsh: The command failed because...
+
+Command: ls "nonexistent_file"
+Run this fix? [y/N]
+```
+
+The agent will:
+1. Analyze the last failed command and its error output
+2. Explain why it failed
+3. Suggest a fixed command
+
+If a fix is found, you can run it immediately with a single keypress (`y` to confirm, any other key to cancel).
+
+## Default Confirmation Behavior
+
+By default, confirmation prompts (including Magic Fix, command permissions, and app updates) default to "no" when Enter is pressed, displaying `[y/N]`.
+
+You can change this behavior by setting `GSH_DEFAULT_TO_YES=1` in your `.gshrc` file. When enabled:
+- Prompts will display `[Y/n]` instead of `[y/N]`
+- Pressing Enter will confirm instead of cancel

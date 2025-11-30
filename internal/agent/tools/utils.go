@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/atinylittleshell/gsh/internal/environment"
 	"github.com/atinylittleshell/gsh/internal/styles"
 	"github.com/atinylittleshell/gsh/pkg/gline"
 	"go.uber.org/zap"
+	"mvdan.cc/sh/v3/interp"
 )
 
 func failedToolResponse(errorMessage string) string {
@@ -19,9 +21,17 @@ func printToolMessage(message string) {
 }
 
 // defaultUserConfirmation is the default implementation that calls gline.Gline
-var defaultUserConfirmation = func(logger *zap.Logger, question string, explanation string) string {
-	prompt :=
-		styles.AGENT_QUESTION(question + " (y/N/manage/freeform) ")
+var defaultUserConfirmation = func(logger *zap.Logger, runner *interp.Runner, question string, explanation string) string {
+	defaultToYes := false
+	if runner != nil {
+		defaultToYes = environment.GetDefaultToYes(runner)
+	}
+
+	promptSuffix := " (y/N/manage/freeform) "
+	if defaultToYes {
+		promptSuffix = " (Y/n/manage/freeform) "
+	}
+	prompt := styles.AGENT_QUESTION(question + promptSuffix)
 
 	line, err := gline.Gline(prompt, []string{}, explanation, nil, nil, nil, logger, gline.NewOptions())
 	if err != nil {
@@ -31,15 +41,21 @@ var defaultUserConfirmation = func(logger *zap.Logger, question string, explanat
 			return "n"
 		}
 
-		// Log the error and return default "n" response
+		// Log the error and return default response based on setting
 		logger.Error("gline.Gline returned error during user confirmation",
 			zap.Error(err),
 			zap.String("question", question))
+		if defaultToYes {
+			return "y"
+		}
 		return "n"
 	}
 
-	// Handle empty input as default "no" response
+	// Handle empty input based on default setting
 	if strings.TrimSpace(line) == "" {
+		if defaultToYes {
+			return "y"
+		}
 		return "n"
 	}
 
@@ -61,7 +77,7 @@ var defaultUserConfirmation = func(logger *zap.Logger, question string, explanat
 }
 
 // userConfirmation is a wrapper that checks for test mode before calling the real implementation
-var userConfirmation = func(logger *zap.Logger, question string, explanation string) string {
+var userConfirmation = func(logger *zap.Logger, runner *interp.Runner, question string, explanation string) string {
 	// Check if we're in test mode and this function hasn't been mocked
 	// We detect if it's been mocked by checking if the function pointer has changed
 	if flag.Lookup("test.v") != nil {
@@ -73,5 +89,5 @@ var userConfirmation = func(logger *zap.Logger, question string, explanation str
 		return "n"
 	}
 
-	return defaultUserConfirmation(logger, question, explanation)
+	return defaultUserConfirmation(logger, runner, question, explanation)
 }

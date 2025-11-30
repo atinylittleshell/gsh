@@ -214,7 +214,7 @@ func TestPreviewAndConfirmUserDeclines(t *testing.T) {
 
 	// Mock userConfirmation to return "n"
 	origUserConfirmation := userConfirmation
-	userConfirmation = func(logger *zap.Logger, question string, explanation string) string {
+	userConfirmation = func(logger *zap.Logger, runner *interp.Runner, question string, explanation string) string {
 		return "n"
 	}
 	defer func() { userConfirmation = origUserConfirmation }()
@@ -239,7 +239,7 @@ func TestPreviewAndConfirmManageResponse(t *testing.T) {
 
 	// Mock userConfirmation to return "manage"
 	origUserConfirmation := userConfirmation
-	userConfirmation = func(logger *zap.Logger, question string, explanation string) string {
+	userConfirmation = func(logger *zap.Logger, runner *interp.Runner, question string, explanation string) string {
 		return "manage"
 	}
 	defer func() { userConfirmation = origUserConfirmation }()
@@ -269,7 +269,7 @@ func TestPreviewAndConfirmFreeformResponse(t *testing.T) {
 
 	// Mock userConfirmation to return custom response
 	origUserConfirmation := userConfirmation
-	userConfirmation = func(logger *zap.Logger, question string, explanation string) string {
+	userConfirmation = func(logger *zap.Logger, runner *interp.Runner, question string, explanation string) string {
 		return "custom response"
 	}
 	defer func() { userConfirmation = origUserConfirmation }()
@@ -302,7 +302,7 @@ func TestEditFileToolIntegration(t *testing.T) {
 
 	// Mock userConfirmation to return "y" (accept)
 	origUserConfirmation := userConfirmation
-	userConfirmation = func(logger *zap.Logger, question string, explanation string) string {
+	userConfirmation = func(logger *zap.Logger, runner *interp.Runner, question string, explanation string) string {
 		return "y"
 	}
 	defer func() { userConfirmation = origUserConfirmation }()
@@ -341,7 +341,7 @@ func TestEditFileToolWithRelativePath(t *testing.T) {
 
 	// Mock userConfirmation to return "y" (accept)
 	origUserConfirmation := userConfirmation
-	userConfirmation = func(logger *zap.Logger, question string, explanation string) string {
+	userConfirmation = func(logger *zap.Logger, runner *interp.Runner, question string, explanation string) string {
 		return "y"
 	}
 	defer func() { userConfirmation = origUserConfirmation }()

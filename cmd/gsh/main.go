@@ -67,8 +67,11 @@ func main() {
 	// Initialize the completion manager
 	completionManager := initializeCompletionManager()
 
+	// Initialize the stderr capturer
+	stderrCapturer := core.NewStderrCapturer(os.Stderr)
+
 	// Initialize the shell interpreter
-	runner, err := initializeRunner(analyticsManager, historyManager, completionManager)
+	runner, err := initializeRunner(analyticsManager, historyManager, completionManager, stderrCapturer)
 	if err != nil {
 		panic(err)
 	}
@@ -95,7 +98,7 @@ func main() {
 	)
 
 	// Start running
-	err = run(runner, historyManager, analyticsManager, completionManager, logger)
+	err = run(runner, historyManager, analyticsManager, completionManager, logger, stderrCapturer)
 
 	// Handle exit status
 	if code, ok := interp.IsExitStatus(err); ok {
@@ -114,6 +117,7 @@ func run(
 	analyticsManager *analytics.AnalyticsManager,
 	completionManager *completion.CompletionManager,
 	logger *zap.Logger,
+	stderrCapturer *core.StderrCapturer,
 ) error {
 	ctx := context.Background()
 
@@ -125,7 +129,7 @@ func run(
 	// gsh
 	if flag.NArg() == 0 {
 		if term.IsTerminal(int(os.Stdin.Fd())) {
-			return core.RunInteractiveShell(ctx, runner, historyManager, analyticsManager, completionManager, logger)
+			return core.RunInteractiveShell(ctx, runner, historyManager, analyticsManager, completionManager, logger, stderrCapturer)
 		}
 
 		return bash.RunBashScriptFromReader(ctx, runner, os.Stdin, "gsh")
@@ -188,7 +192,7 @@ func initializeCompletionManager() *completion.CompletionManager {
 }
 
 // initializeRunner loads the shell configuration files and sets up the interpreter.
-func initializeRunner(analyticsManager *analytics.AnalyticsManager, historyManager *history.HistoryManager, completionManager *completion.CompletionManager) (*interp.Runner, error) {
+func initializeRunner(analyticsManager *analytics.AnalyticsManager, historyManager *history.HistoryManager, completionManager *completion.CompletionManager, stderrCapturer *core.StderrCapturer) (*interp.Runner, error) {
 	shellPath, err := os.Executable()
 	if err != nil {
 		panic(err)
@@ -208,7 +212,7 @@ func initializeRunner(analyticsManager *analytics.AnalyticsManager, historyManag
 	runner, err = interp.New(
 		interp.Interactive(true),
 		interp.Env(env),
-		interp.StdIO(os.Stdin, os.Stdout, os.Stderr),
+		interp.StdIO(os.Stdin, os.Stdout, stderrCapturer),
 		interp.ExecHandlers(
 			bash.NewTypesetCommandHandler(),
 			bash.SetBuiltinHandler(),
