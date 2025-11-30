@@ -32,7 +32,9 @@ func TestViewDirectoryToolDefinition(t *testing.T) {
 func TestViewDirectoryTool(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "testdir*")
 	assert.NoError(t, err)
-	defer func() { _ = os.RemoveAll(tempDir) }()
+	t.Cleanup(func() {
+		assert.NoError(t, os.RemoveAll(tempDir))
+	})
 
 	// Create nested directories and files
 	nestedDir := filepath.Join(tempDir, "nested")
@@ -78,7 +80,9 @@ func TestViewDirectoryTool(t *testing.T) {
 	t.Run("Directory with no content", func(t *testing.T) {
 		emptyDir, err := os.MkdirTemp("", "emptydir*")
 		assert.NoError(t, err)
-		defer func() { _ = os.RemoveAll(emptyDir) }()
+		t.Cleanup(func() {
+			assert.NoError(t, os.RemoveAll(emptyDir))
+		})
 
 		params := map[string]any{"path": emptyDir}
 		result := ViewDirectoryTool(runner, logger, params)

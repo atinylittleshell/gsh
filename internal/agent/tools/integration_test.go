@@ -54,11 +54,11 @@ func TestIntegration(t *testing.T) {
 	// Override the global variables for testing
 	environment.SetConfigDirForTesting(tempConfigDir)
 	environment.SetAuthorizedCommandsFileForTesting(tempAuthorizedFile)
-	defer func() {
+	t.Cleanup(func() {
 		environment.SetConfigDirForTesting(oldConfigDir)
 		environment.SetAuthorizedCommandsFileForTesting(oldAuthorizedFile)
-		_ = os.RemoveAll(tempConfigDir)
-	}()
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
+	})
 
 	// This test is no longer relevant since we removed the "always" feature
 	// Commands must now be pre-approved through the permissions menu (manage option)
@@ -78,11 +78,11 @@ func TestPreApproval(t *testing.T) {
 	// Override the global variables for testing
 	environment.SetConfigDirForTesting(tempConfigDir)
 	environment.SetAuthorizedCommandsFileForTesting(tempAuthorizedFile)
-	defer func() {
+	t.Cleanup(func() {
 		environment.SetConfigDirForTesting(oldConfigDir)
 		environment.SetAuthorizedCommandsFileForTesting(oldAuthorizedFile)
-		_ = os.RemoveAll(tempConfigDir)
-	}()
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
+	})
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
@@ -155,11 +155,11 @@ func TestFileOperations(t *testing.T) {
 	// Override the global variables for testing
 	environment.SetConfigDirForTesting(tempConfigDir)
 	environment.SetAuthorizedCommandsFileForTesting(tempAuthorizedFile)
-	defer func() {
+	t.Cleanup(func() {
 		environment.SetConfigDirForTesting(oldConfigDir)
 		environment.SetAuthorizedCommandsFileForTesting(oldAuthorizedFile)
-		_ = os.RemoveAll(tempConfigDir)
-	}()
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
+	})
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
@@ -167,7 +167,7 @@ func TestFileOperations(t *testing.T) {
 
 	t.Run("directory and file creation", func(t *testing.T) {
 		// Ensure directory and file don't exist initially
-		_ = os.RemoveAll(tempConfigDir)
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
 
 		// Test appending creates directory and file
 		err := environment.AppendToAuthorizedCommands("test.*")
@@ -189,7 +189,7 @@ func TestFileOperations(t *testing.T) {
 
 	t.Run("multiple pattern appending", func(t *testing.T) {
 		// Reset the file
-		_ = os.RemoveAll(tempConfigDir)
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
 
 		// Append multiple patterns
 		err := environment.AppendToAuthorizedCommands("ls.*")
@@ -210,10 +210,10 @@ func TestFileOperations(t *testing.T) {
 		// Reset to a non-existent file
 		nonExistentFile := filepath.Join(os.TempDir(), fmt.Sprintf("gsh_test_nonexistent_%d", time.Now().UnixNano()))
 		environment.SetAuthorizedCommandsFileForTesting(nonExistentFile)
-		defer func() {
+		t.Cleanup(func() {
 			environment.SetAuthorizedCommandsFileForTesting(tempAuthorizedFile)
-			_ = os.RemoveAll(nonExistentFile)
-		}()
+			assert.NoError(t, os.RemoveAll(nonExistentFile))
+		})
 
 		// Should return empty slice without error
 		patterns, err := environment.LoadAuthorizedCommandsFromFile()
@@ -223,14 +223,14 @@ func TestFileOperations(t *testing.T) {
 
 	t.Run("loading from empty file", func(t *testing.T) {
 		// Reset the file
-		_ = os.RemoveAll(tempConfigDir)
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
 		err := os.MkdirAll(tempConfigDir, 0755)
 		assert.NoError(t, err)
 
 		// Create empty file
 		file, err := os.Create(tempAuthorizedFile)
 		assert.NoError(t, err)
-		_ = file.Close()
+		assert.NoError(t, file.Close())
 
 		// Should return empty slice without error
 		patterns, err := environment.LoadAuthorizedCommandsFromFile()
@@ -239,11 +239,11 @@ func TestFileOperations(t *testing.T) {
 	})
 
 	// Cleanup
-	defer func() {
+	t.Cleanup(func() {
 		environment.SetConfigDirForTesting(oldConfigDir)
 		environment.SetAuthorizedCommandsFileForTesting(oldAuthorizedFile)
-		_ = os.RemoveAll(tempConfigDir)
-	}()
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
+	})
 }
 
 // TestGetApprovedBashCommandRegex tests the integration of environment variable and file patterns
@@ -259,11 +259,11 @@ func TestGetApprovedBashCommandRegexIntegration(t *testing.T) {
 	// Override the global variables for testing
 	environment.SetConfigDirForTesting(tempConfigDir)
 	environment.SetAuthorizedCommandsFileForTesting(tempAuthorizedFile)
-	defer func() {
+	t.Cleanup(func() {
 		environment.SetConfigDirForTesting(oldConfigDir)
 		environment.SetAuthorizedCommandsFileForTesting(oldAuthorizedFile)
-		_ = os.RemoveAll(tempConfigDir)
-	}()
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
+	})
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
@@ -279,7 +279,7 @@ func TestGetApprovedBashCommandRegexIntegration(t *testing.T) {
 
 	t.Run("patterns from both env var and file", func(t *testing.T) {
 		// Reset the file and add some file patterns
-		_ = os.RemoveAll(tempConfigDir)
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
 		err := os.MkdirAll(tempConfigDir, 0755)
 		assert.NoError(t, err)
 		err = environment.AppendToAuthorizedCommands("file_pattern_1.*")
@@ -318,7 +318,7 @@ func TestGetApprovedBashCommandRegexIntegration(t *testing.T) {
 
 	t.Run("file changes trigger reload", func(t *testing.T) {
 		// Reset the file
-		_ = os.RemoveAll(tempConfigDir)
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
 		err := os.MkdirAll(tempConfigDir, 0755)
 		assert.NoError(t, err)
 
@@ -355,11 +355,11 @@ func TestInvalidRegexHandling(t *testing.T) {
 	// Override the global variables for testing
 	environment.SetConfigDirForTesting(tempConfigDir)
 	environment.SetAuthorizedCommandsFileForTesting(tempAuthorizedFile)
-	defer func() {
+	t.Cleanup(func() {
 		environment.SetConfigDirForTesting(oldConfigDir)
 		environment.SetAuthorizedCommandsFileForTesting(oldAuthorizedFile)
-		_ = os.RemoveAll(tempConfigDir)
-	}()
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
+	})
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
@@ -427,11 +427,11 @@ func TestBashToolWithPreApprovedCommands(t *testing.T) {
 	oldAuthorizedFile := environment.GetAuthorizedCommandsFileForTesting()
 	environment.SetConfigDirForTesting(tempConfigDir)
 	environment.SetAuthorizedCommandsFileForTesting(tempAuthorizedFile)
-	defer func() {
+	t.Cleanup(func() {
 		environment.SetConfigDirForTesting(oldConfigDir)
 		environment.SetAuthorizedCommandsFileForTesting(oldAuthorizedFile)
-		_ = os.RemoveAll(tempConfigDir)
-	}()
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
+	})
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
@@ -512,11 +512,11 @@ func TestFilePermissionIssues(t *testing.T) {
 	oldAuthorizedFile := environment.GetAuthorizedCommandsFileForTesting()
 	environment.SetConfigDirForTesting(tempConfigDir)
 	environment.SetAuthorizedCommandsFileForTesting(tempAuthorizedFile)
-	defer func() {
+	t.Cleanup(func() {
 		environment.SetConfigDirForTesting(oldConfigDir)
 		environment.SetAuthorizedCommandsFileForTesting(oldAuthorizedFile)
-		_ = os.RemoveAll(tempConfigDir)
-	}()
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
+	})
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
@@ -551,11 +551,11 @@ func TestEdgeCases(t *testing.T) {
 	oldAuthorizedFile := environment.GetAuthorizedCommandsFileForTesting()
 	environment.SetConfigDirForTesting(tempConfigDir)
 	environment.SetAuthorizedCommandsFileForTesting(tempAuthorizedFile)
-	defer func() {
+	t.Cleanup(func() {
 		environment.SetConfigDirForTesting(oldConfigDir)
 		environment.SetAuthorizedCommandsFileForTesting(oldAuthorizedFile)
-		_ = os.RemoveAll(tempConfigDir)
-	}()
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
+	})
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
@@ -576,7 +576,7 @@ func TestEdgeCases(t *testing.T) {
 	// Create empty file
 	file, err := os.Create(tempAuthorizedFile)
 	assert.NoError(t, err)
-	_ = file.Close()
+		assert.NoError(t, file.Close())
 
 	// Should load empty patterns without error
 	patterns := environment.GetApprovedBashCommandRegex(runner, logger)

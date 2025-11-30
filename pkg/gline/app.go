@@ -400,11 +400,15 @@ func (m appModel) getFinalOutput() string {
 }
 
 func (m appModel) updateTextInput(msg tea.Msg) (appModel, tea.Cmd) {
-	oldVal := m.textInput.Value()
-	updatedTextInput, cmd := m.textInput.Update(msg)
-	newVal := updatedTextInput.Value()
+        oldVal := m.textInput.Value()
+        oldMatchedSuggestions := m.textInput.MatchedSuggestions()
+        oldSuppression := m.textInput.SuggestionsSuppressedUntilInput()
+        updatedTextInput, cmd := m.textInput.Update(msg)
+        newVal := updatedTextInput.Value()
+        newMatchedSuggestions := updatedTextInput.MatchedSuggestions()
 
-	textUpdated := oldVal != newVal
+        textUpdated := oldVal != newVal
+	suggestionsCleared := len(oldMatchedSuggestions) > 0 && len(newMatchedSuggestions) == 0
 	m.textInput = updatedTextInput
 
 	// if the text input has changed, we want to attempt a prediction
@@ -417,26 +421,57 @@ func (m appModel) updateTextInput(msg tea.Msg) (appModel, tea.Cmd) {
 		userInput := updatedTextInput.Value()
 
 		// whenever the user has typed something, mark the model as dirty
-		if len(userInput) > 0 {
-			m.dirty = true
-		}
+                if len(userInput) > 0 {
+                        m.dirty = true
+                }
 
-		if len(userInput) == 0 && m.dirty {
-			// if the model was dirty earlier, but now the user has cleared the input,
-			// we should clear the prediction
-			m.clearPrediction()
-		} else if len(userInput) > 0 && strings.HasPrefix(m.prediction, userInput) {
-			// if the prediction already starts with the user input, we don't need to predict again
-			m.logger.Debug("gline existing predicted input already starts with user input", zap.String("userInput", userInput))
-		} else {
-			// in other cases, we should kick off a debounced prediction after clearing the current one
-			m.clearPrediction()
+                suppressionActive := updatedTextInput.SuggestionsSuppressedUntilInput()
+                suppressionLifted := !suppressionActive && oldSuppression
+
+                switch {
+                case len(userInput) == 0 && m.dirty:
+                        // if the model was dirty earlier, but now the user has cleared the input,
+                        // we should clear the prediction
+                        m.clearPrediction()
+		case suppressionActive:
+			// When suppression is active (e.g., after Ctrl+K), clear stale predictions but
+			// still recompute assistant help for the remaining buffer while keeping
+			// autocomplete hints hidden until new input arrives.
+                        m.clearPrediction()
+                        if len(userInput) > 0 {
+                                cmd = tea.Batch(cmd, tea.Tick(200*time.Millisecond, func(t time.Time) tea.Msg {
+                                        return attemptPredictionMsg{
+                                                stateId: m.predictionStateId,
+                                        }
+                                }))
+                        }
+                case len(userInput) > 0 && strings.HasPrefix(m.prediction, userInput) && !suggestionsCleared && !suppressionLifted:
+                        // if the prediction already starts with the user input, we don't need to predict again
+                        m.logger.Debug("gline existing predicted input already starts with user input", zap.String("userInput", userInput))
+                default:
+                        // in other cases, we should kick off a debounced prediction after clearing the current one
+                        m.clearPrediction()
 
 			cmd = tea.Batch(cmd, tea.Tick(200*time.Millisecond, func(t time.Time) tea.Msg {
 				return attemptPredictionMsg{
 					stateId: m.predictionStateId,
 				}
 			}))
+		}
+	} else if suggestionsCleared {
+		// User trimmed away ghost suggestions (e.g., via Ctrl+K) without changing
+		// the underlying input. Clear any pending prediction and explanation so the
+		// assistant box reflects the truncated command, and re-request a prediction
+		// for the remaining buffer so the assistant can refresh its help content.
+		m.clearPrediction()
+
+		if m.predictor != nil {
+			m.predictionStateId++
+			if len(m.textInput.Value()) > 0 {
+				cmd = tea.Batch(cmd, tea.Tick(200*time.Millisecond, func(t time.Time) tea.Msg {
+					return attemptPredictionMsg{stateId: m.predictionStateId}
+				}))
+			}
 		}
 	}
 
@@ -460,14 +495,20 @@ func (m appModel) setPrediction(stateId int, prediction string, inputContext str
 		return m, nil
 	}
 
-	m.prediction = prediction
-	m.lastPredictionInput = inputContext
-	m.lastPrediction = prediction
-	m.textInput.SetSuggestions([]string{prediction})
-	m.explanation = ""
-	return m, tea.Cmd(func() tea.Msg {
-		return attemptExplanationMsg{stateId: m.predictionStateId, prediction: prediction}
-	})
+        m.prediction = prediction
+        m.lastPredictionInput = inputContext
+        m.lastPrediction = prediction
+        m.textInput.SetSuggestions([]string{prediction})
+        m.textInput.UpdateHelpInfo()
+        m.explanation = ""
+        explanationTarget := prediction
+        if m.textInput.SuggestionsSuppressedUntilInput() {
+                explanationTarget = m.textInput.Value()
+        }
+
+        return m, tea.Cmd(func() tea.Msg {
+                return attemptExplanationMsg{stateId: m.predictionStateId, prediction: explanationTarget}
+        })
 }
 
 func (m appModel) attemptPrediction(msg attemptPredictionMsg) (tea.Model, tea.Cmd) {

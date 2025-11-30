@@ -23,11 +23,11 @@ func TestAppendToAuthorizedCommands(t *testing.T) {
 	oldAuthorizedFile := authorizedCommandsFile
 	configDir = tempConfigDir
 	authorizedCommandsFile = tempAuthorizedFile
-	defer func() {
+	t.Cleanup(func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		_ = os.RemoveAll(tempConfigDir)
-	}()
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
+	})
 
 	// Test appending a command
 	err := AppendToAuthorizedCommands("fakecommand.*")
@@ -66,11 +66,11 @@ func TestAppendToAuthorizedCommandsSecurePermissions(t *testing.T) {
 	oldAuthorizedFile := authorizedCommandsFile
 	configDir = tempConfigDir
 	authorizedCommandsFile = tempAuthorizedFile
-	defer func() {
+	t.Cleanup(func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		_ = os.RemoveAll(tempConfigDir)
-	}()
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
+	})
 
 	t.Run("New directory and file have secure permissions", func(t *testing.T) {
 		// Test appending a command to a new file
@@ -96,7 +96,7 @@ func TestAppendToAuthorizedCommandsSecurePermissions(t *testing.T) {
 
 	t.Run("Existing insecure files get permissions fixed", func(t *testing.T) {
 		// Clean up from previous test
-		_ = os.RemoveAll(tempConfigDir)
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
 
 		// Create directory and file with insecure permissions
 		err := os.MkdirAll(tempConfigDir, 0755) // Insecure directory permissions
@@ -148,7 +148,7 @@ func TestAppendToAuthorizedCommandsSecurePermissions(t *testing.T) {
 		}
 
 		// Clean up from previous test
-		_ = os.RemoveAll(tempConfigDir)
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
 
 		// Create a directory we can't write to
 		err := os.MkdirAll(tempConfigDir, 0555) // Read and execute only
@@ -180,11 +180,11 @@ func TestLoadAuthorizedCommandsFromFile(t *testing.T) {
 	oldAuthorizedFile := authorizedCommandsFile
 	configDir = tempConfigDir
 	authorizedCommandsFile = tempAuthorizedFile
-	defer func() {
+	t.Cleanup(func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		_ = os.RemoveAll(tempConfigDir)
-	}()
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
+	})
 
 	// Test with non-existent file
 	patterns, err := LoadAuthorizedCommandsFromFile()
@@ -217,12 +217,12 @@ func TestGetApprovedBashCommandRegex(t *testing.T) {
 	oldAuthorizedFile := authorizedCommandsFile
 	configDir = tempConfigDir
 	authorizedCommandsFile = tempAuthorizedFile
-	defer func() {
+	t.Cleanup(func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		_ = os.RemoveAll(tempConfigDir)
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
 		ResetCacheForTesting()
-	}()
+	})
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
@@ -262,12 +262,12 @@ func TestGetApprovedBashCommandRegexWithEnvironmentPatterns(t *testing.T) {
 	oldAuthorizedFile := authorizedCommandsFile
 	configDir = tempConfigDir
 	authorizedCommandsFile = tempAuthorizedFile
-	defer func() {
+	t.Cleanup(func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		_ = os.RemoveAll(tempConfigDir)
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
 		ResetCacheForTesting()
-	}()
+	})
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
@@ -388,12 +388,12 @@ func TestGetApprovedBashCommandRegexCaching(t *testing.T) {
 	oldAuthorizedFile := authorizedCommandsFile
 	configDir = tempConfigDir
 	authorizedCommandsFile = tempAuthorizedFile
-	defer func() {
+	t.Cleanup(func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		_ = os.RemoveAll(tempConfigDir)
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
 		ResetCacheForTesting()
-	}()
+	})
 
 	// Create logger
 	logger, _ := zap.NewDevelopment()
@@ -441,11 +441,11 @@ func TestWriteAuthorizedCommandsToFile(t *testing.T) {
 	oldAuthorizedFile := authorizedCommandsFile
 	configDir = tempConfigDir
 	authorizedCommandsFile = tempAuthorizedFile
-	defer func() {
+	t.Cleanup(func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		_ = os.RemoveAll(tempConfigDir)
-	}()
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
+	})
 
 	// Test writing patterns
 	patterns := []string{"fakecommand.*", "anotherfake.*", "fakecommand.*", "thirdfake.*"} // Include duplicate
@@ -498,11 +498,11 @@ func TestIsCommandAuthorized(t *testing.T) {
 	oldAuthorizedFile := authorizedCommandsFile
 	configDir = tempConfigDir
 	authorizedCommandsFile = tempAuthorizedFile
-	defer func() {
+	t.Cleanup(func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		_ = os.RemoveAll(tempConfigDir)
-	}()
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
+	})
 
 	// Test with no authorized commands file
 	authorized, err := IsCommandAuthorized("fakecommand -la")
@@ -550,11 +550,11 @@ func TestIsCommandAuthorizedInvalidRegex(t *testing.T) {
 	oldAuthorizedFile := authorizedCommandsFile
 	configDir = tempConfigDir
 	authorizedCommandsFile = tempAuthorizedFile
-	defer func() {
+	t.Cleanup(func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		_ = os.RemoveAll(tempConfigDir)
-	}()
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
+	})
 
 	// Create file with invalid regex pattern
 	err := os.MkdirAll(tempConfigDir, 0700)
@@ -585,11 +585,11 @@ func TestIsCommandPatternAuthorized(t *testing.T) {
 	oldAuthorizedFile := authorizedCommandsFile
 	configDir = tempConfigDir
 	authorizedCommandsFile = tempAuthorizedFile
-	defer func() {
+	t.Cleanup(func() {
 		configDir = oldConfigDir
 		authorizedCommandsFile = oldAuthorizedFile
-		_ = os.RemoveAll(tempConfigDir)
-	}()
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
+	})
 
 	// Test with no authorized commands file
 	authorized, err := IsCommandPatternAuthorized("^fakecommand.*")

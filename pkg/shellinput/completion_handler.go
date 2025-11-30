@@ -229,21 +229,28 @@ func (m *Model) updateHelpInfo() {
 
 	var helpInfo string
 
-	// If completion is active and a suggestion is selected, show help for the selected suggestion
-	if m.completion.active && m.completion.selected >= 0 && m.completion.selected < len(m.completion.suggestions) {
+	if m.suppressSuggestionsUntilInput {
+		helpInfo = m.CompletionProvider.GetHelpInfo(m.Value(), m.Position())
+	} else if m.completion.active && m.completion.selected >= 0 && m.completion.selected < len(m.completion.suggestions) {
+		// If completion is active and a suggestion is selected, show help for the selected suggestion
 		selectedSuggestion := m.completion.suggestions[m.completion.selected].Value
 		// For help purposes, we want to get help for the selected suggestion
 		// We'll use the length of the suggestion as the position to ensure we get the full command
 		helpInfo = m.CompletionProvider.GetHelpInfo(selectedSuggestion, len(selectedSuggestion))
-	}
-
-	// Always check for help info based on current input, even if no completion is active
-	// This allows help to be shown for special commands like @!, @/, and @ prefixes
-	if helpInfo == "" {
+	} else if len(m.matchedSuggestions) > 0 && m.currentSuggestionIndex < len(m.matchedSuggestions) {
+		selectedSuggestion := string(m.matchedSuggestions[m.currentSuggestionIndex])
+		helpInfo = m.CompletionProvider.GetHelpInfo(selectedSuggestion, len(selectedSuggestion))
+	} else {
+		// Normal case: use current input
 		helpInfo = m.CompletionProvider.GetHelpInfo(m.Value(), m.Position())
 	}
 
 	m.completion.setHelpInfo(helpInfo)
+}
+
+// UpdateHelpInfo is the exported wrapper for refreshes triggered outside the shellinput package.
+func (m *Model) UpdateHelpInfo() {
+	m.updateHelpInfo()
 }
 
 // cancelCompletion cancels the current completion and restores original text

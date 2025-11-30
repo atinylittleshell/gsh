@@ -169,7 +169,7 @@ var getFileCompletions fileCompleter = func(prefix string, currentDirectory stri
 		case "abs":
 			// For absolute paths, keep the full path
 			completionPath = filepath.Join(prefixDir, name)
-		default: // "rel"
+		default:
 			// For relative paths, keep them relative
 			if prefixDir == "." {
 				// Check if the original prefix started with "./"

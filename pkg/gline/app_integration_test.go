@@ -22,15 +22,19 @@ func newMockPredictor() *mockPredictor {
 	return &mockPredictor{
 		predictions: map[string]string{
 			"git":    "git status",
+			"git ":   "git status",
 			"docker": "docker ps",
 			"ls":     "ls -la",
+			"ls ":    "ls -la",
 			"cd":     "cd ~/",
 			"vim":    "vim .",
 		},
 		contexts: map[string]string{
 			"git":    "git command context",
+			"git ":   "git command context",
 			"docker": "docker command context",
 			"ls":     "list files context",
+			"ls ":    "list files context",
 			"cd":     "change directory context",
 			"vim":    "vim editor context",
 		},
@@ -63,15 +67,17 @@ type mockExplainer struct {
 }
 
 func newMockExplainer() *mockExplainer {
-	return &mockExplainer{
-		explanations: map[string]string{
-			"git status": "Shows the status of the working directory",
-			"docker ps":  "Lists running Docker containers",
-			"ls -la":     "Lists all files in long format including hidden files",
-			"cd ~/":      "Changes to the home directory",
-			"vim .":      "Opens vim editor in the current directory",
-		},
-		delay: 0, // No delay by default for faster tests
+        return &mockExplainer{
+                explanations: map[string]string{
+                        "git":       "General git command help",
+                        "git status": "Shows the status of the working directory",
+                        "docker ps":  "Lists running Docker containers",
+                        "ls":         "Lists files in the current directory",
+                        "ls -la":     "Lists all files in long format including hidden files",
+                        "cd ~/":      "Changes to the home directory",
+                        "vim .":      "Opens vim editor in the current directory",
+                },
+                delay: 0, // No delay by default for faster tests
 	}
 }
 
@@ -242,6 +248,262 @@ func TestApp_PredictionFlow_Integration(t *testing.T) {
 				"Expected explanation %q, got %q", tt.expectedExplanation, model.explanation)
 		})
 	}
+}
+
+func TestCtrlKClearsPredictionAndExplanation(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	predictor := newMockPredictor()
+	explainer := newMockExplainer()
+	options := NewOptions()
+
+	model := initialModel(
+		"test> ",
+		[]string{},
+		"",
+		predictor,
+		explainer,
+		nil,
+		logger,
+		options,
+	)
+
+	model.textInput.SetValue("git")
+	model.textInput.SetCursor(len("git"))
+
+	model, _ = model.setPrediction(model.predictionStateId, "git status", "git")
+	assert.NotEmpty(t, model.textInput.MatchedSuggestions())
+
+	updatedModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyCtrlK})
+	model = updatedModel.(appModel)
+
+	assert.Empty(t, model.textInput.MatchedSuggestions(), "Ctrl+K should clear prediction-backed suggestions")
+	assert.Empty(t, model.prediction, "Ctrl+K should clear the active prediction")
+	assert.Empty(t, model.explanation, "Ctrl+K should clear any pending explanation when trimming predictions")
+}
+
+func TestCtrlKRerequestsPredictionWhenTextRemains(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	predictor := newMockPredictor()
+	explainer := newMockExplainer()
+	options := NewOptions()
+
+	model := initialModel(
+		"test> ",
+		[]string{},
+		"",
+		predictor,
+		explainer,
+		nil,
+		logger,
+		options,
+	)
+
+	model.textInput.SetValue("git status")
+	model.textInput.SetCursor(len("git"))
+
+	model, _ = model.setPrediction(model.predictionStateId, "git status", "git")
+	assert.NotEmpty(t, model.textInput.MatchedSuggestions(), "Prediction-backed suggestions should be visible before trimming")
+
+	updatedModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyCtrlK})
+	model = updatedModel.(appModel)
+
+	require.Equal(t, "git", model.textInput.Value(), "Ctrl+K should trim text after the cursor")
+	assert.Empty(t, model.textInput.MatchedSuggestions(), "Matched suggestions should clear when trimming autocompletion text")
+
+	assert.Empty(t, model.prediction, "Prediction should remain cleared after Ctrl+K until new input arrives")
+	assert.Empty(t, model.explanation, "Explanation should clear after Ctrl+K until predictions resume")
+}
+
+func TestCtrlKRefreshesPredictionWhenTextUnchanged(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	predictor := newMockPredictor()
+	explainer := newMockExplainer()
+	options := NewOptions()
+
+	model := initialModel(
+		"test> ",
+		[]string{},
+		"",
+		predictor,
+		explainer,
+		nil,
+		logger,
+		options,
+	)
+
+	model.textInput.SetValue("git")
+	model.textInput.SetCursor(len("git"))
+
+	model, _ = model.setPrediction(model.predictionStateId, "git status", "git")
+	assert.NotEmpty(t, model.textInput.MatchedSuggestions(), "Prediction-backed suggestions should be visible before trimming")
+
+	updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlK})
+	model = updatedModel.(appModel)
+
+	require.Equal(t, "git", model.textInput.Value(), "Ctrl+K should leave the buffer unchanged when there's no text after the cursor")
+	assert.Empty(t, model.textInput.MatchedSuggestions(), "Matched suggestions should clear when trimming autocompletion text")
+
+	assert.True(t, model.textInput.SuggestionsSuppressedUntilInput(), "Suggestions should be suppressed after trimming ghost text")
+
+	if cmd != nil {
+		if attemptMsg, ok := cmd().(attemptPredictionMsg); ok {
+			predictionModel, predictionCmd := model.attemptPrediction(attemptMsg)
+			model = predictionModel.(appModel)
+
+			if predictionCmd != nil {
+				if predMsg, ok := predictionCmd().(setPredictionMsg); ok {
+					model, predictionCmd = model.setPrediction(predMsg.stateId, predMsg.prediction, predMsg.inputContext)
+
+					if predictionCmd != nil {
+						if attemptExplMsg, ok := predictionCmd().(attemptExplanationMsg); ok {
+							explanationModel, ecmd := model.attemptExplanation(attemptExplMsg)
+							model = explanationModel.(appModel)
+
+							if ecmd != nil {
+								if explMsg, ok := ecmd().(setExplanationMsg); ok {
+									explanationModel, _ = model.setExplanation(explMsg)
+									model = explanationModel.(appModel)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+        assert.Equal(t, "General git command help", model.explanation, "Assistant help should derive from the remaining buffer while suggestions are suppressed")
+        assert.Empty(t, model.textInput.MatchedSuggestions(), "Suggestions should stay hidden until the user types again")
+
+	// Resume predictions after the user provides more input
+	updatedModel, predictionCmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	model = updatedModel.(appModel)
+
+	if predictionCmd != nil {
+		if attemptMsg, ok := predictionCmd().(attemptPredictionMsg); ok {
+			predictionModel, pcmd := model.attemptPrediction(attemptMsg)
+			model = predictionModel.(appModel)
+
+			if pcmd != nil {
+				if predMsg, ok := pcmd().(setPredictionMsg); ok {
+					model, pcmd = model.setPrediction(predMsg.stateId, predMsg.prediction, predMsg.inputContext)
+					if pcmd != nil {
+						if attemptExplMsg, ok := pcmd().(attemptExplanationMsg); ok {
+							explanationModel, ecmd := model.attemptExplanation(attemptExplMsg)
+							model = explanationModel.(appModel)
+							if ecmd != nil {
+								if explMsg, ok := ecmd().(setExplanationMsg); ok {
+									explanationModel, _ = model.setExplanation(explMsg)
+									model = explanationModel.(appModel)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	assert.Equal(t, "git status", model.prediction, "Prediction should resume once the user enters new input")
+	assert.Equal(t, "Shows the status of the working directory", model.explanation, "Explanation should return after suppression lifts")
+}
+
+func TestCtrlKRestoresSuggestionsWithoutNewInput(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	predictor := newMockPredictor()
+	explainer := newMockExplainer()
+	options := NewOptions()
+
+	model := initialModel(
+		"test> ",
+		[]string{},
+		"",
+		predictor,
+		explainer,
+		nil,
+		logger,
+		options,
+	)
+
+	model.textInput.SetValue("ls -la")
+	model.textInput.SetCursor(len("ls"))
+
+	model, _ = model.setPrediction(model.predictionStateId, "ls -la", "ls")
+	assert.NotEmpty(t, model.textInput.MatchedSuggestions(), "Prediction-backed suggestions should be visible before trimming user text")
+
+	updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlK})
+	model = updatedModel.(appModel)
+
+	require.Equal(t, "ls", model.textInput.Value(), "Ctrl+K should trim text after the cursor while leaving the prefix intact")
+	assert.Empty(t, model.textInput.MatchedSuggestions(), "Matched suggestions should clear after trimming autocompletion text")
+
+	assert.True(t, model.textInput.SuggestionsSuppressedUntilInput(), "Suggestions should remain suppressed after Ctrl+K until new input")
+
+	if cmd != nil {
+		// Prediction attempts should refresh help text without re-enabling suggestions while suppression is active
+		if attemptMsg, ok := cmd().(attemptPredictionMsg); ok {
+			predictionModel, predictionCmd := model.attemptPrediction(attemptMsg)
+			model = predictionModel.(appModel)
+
+			if predictionCmd != nil {
+				if predMsg, ok := predictionCmd().(setPredictionMsg); ok {
+					model, predictionCmd = model.setPrediction(predMsg.stateId, predMsg.prediction, predMsg.inputContext)
+
+					if predictionCmd != nil {
+						if attemptExplMsg, ok := predictionCmd().(attemptExplanationMsg); ok {
+							explanationModel, ecmd := model.attemptExplanation(attemptExplMsg)
+							model = explanationModel.(appModel)
+
+							if ecmd != nil {
+								if explMsg, ok := ecmd().(setExplanationMsg); ok {
+									explanationModel, _ = model.setExplanation(explMsg)
+									model = explanationModel.(appModel)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	assert.NotEmpty(t, model.explanation, "Assistant help should refresh even while suggestions are suppressed")
+	assert.Empty(t, model.textInput.MatchedSuggestions(), "Suppressed suggestions should stay hidden until more input arrives")
+
+	// Once the user types again, suggestions and help should repopulate
+	updatedModel, predictionCmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	model = updatedModel.(appModel)
+
+	if predictionCmd != nil {
+		if attemptMsg, ok := predictionCmd().(attemptPredictionMsg); ok {
+			predictionModel, pcmd := model.attemptPrediction(attemptMsg)
+			model = predictionModel.(appModel)
+
+			if pcmd != nil {
+				if predMsg, ok := pcmd().(setPredictionMsg); ok {
+					model, pcmd = model.setPrediction(predMsg.stateId, predMsg.prediction, predMsg.inputContext)
+
+					if pcmd != nil {
+						if attemptExplMsg, ok := pcmd().(attemptExplanationMsg); ok {
+							explanationModel, ecmd := model.attemptExplanation(attemptExplMsg)
+							model = explanationModel.(appModel)
+
+							if ecmd != nil {
+								if explMsg, ok := ecmd().(setExplanationMsg); ok {
+									explanationModel, _ = model.setExplanation(explMsg)
+									model = explanationModel.(appModel)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	assert.Equal(t, "ls -la", model.prediction, "Prediction should repopulate after new input following Ctrl+K")
+	assert.NotEmpty(t, model.textInput.MatchedSuggestions(), "Suggestions should return once the user presses another key")
+	assert.Equal(t, "Lists all files in long format including hidden files", model.explanation, "Explanation should reflect the refreshed suggestion after new input")
 }
 
 func TestApp_KeyHandling_Integration(t *testing.T) {

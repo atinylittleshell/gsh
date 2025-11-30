@@ -95,7 +95,9 @@ func (d *DefaultCompleter) completeSSHHosts(args []string) []shellinput.Completi
 	if err == nil {
 		configPath := filepath.Join(home, ".ssh", "config")
 		if file, err := os.Open(configPath); err == nil {
-			defer func() { _ = file.Close() }()
+			defer func() {
+				_ = file.Close()
+			}()
 			scanner := bufio.NewScanner(file)
 			for scanner.Scan() {
 				line := strings.TrimSpace(scanner.Text())
@@ -144,7 +146,9 @@ func (d *DefaultCompleter) completeMakeTargets(args []string) []shellinput.Compl
 	for _, mk := range makefiles {
 		path := filepath.Join(cwd, mk)
 		if file, err := os.Open(path); err == nil {
-			defer func() { _ = file.Close() }()
+			defer func() {
+				_ = file.Close()
+			}()
 			scanner := bufio.NewScanner(file)
 			for scanner.Scan() {
 				line := scanner.Text()

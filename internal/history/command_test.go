@@ -16,14 +16,19 @@ func captureOutput(f func() error) (string, error) {
 	oldStdout := os.Stdout
 
 	// Create a pipe
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		return "", err
+	}
 	os.Stdout = w
 
 	// Run the function
-	err := f()
+	err = f()
 
 	// Close the write end of the pipe to flush it
-	_ = w.Close()
+	if err := w.Close(); err != nil {
+		return "", err
+	}
 
 	// Restore the original stdout
 	os.Stdout = oldStdout

@@ -85,6 +85,8 @@ type KeyMap struct {
 	LineStart               key.Binding
 	LineEnd                 key.Binding
 	Paste                   key.Binding
+	Yank                    key.Binding
+	YankPop                 key.Binding
 	NextValue               key.Binding
 	PrevValue               key.Binding
 	Complete                key.Binding
@@ -111,11 +113,25 @@ var DefaultKeyMap = KeyMap{
 	LineStart:               key.NewBinding(key.WithKeys("home", "ctrl+a")),
 	LineEnd:                 key.NewBinding(key.WithKeys("end", "ctrl+e")),
 	Paste:                   key.NewBinding(key.WithKeys("ctrl+v")),
+	Yank:                    key.NewBinding(key.WithKeys("ctrl+y")),
+	YankPop:                 key.NewBinding(key.WithKeys("alt+y")),
 	NextValue:               key.NewBinding(key.WithKeys("down", "ctrl+n")),
 	PrevValue:               key.NewBinding(key.WithKeys("up", "ctrl+p")),
 	ClearScreen:             key.NewBinding(key.WithKeys("ctrl+l")),
 	ReverseSearch:           key.NewBinding(key.WithKeys("ctrl+r")),
 }
+
+const (
+	killRingMax = 30
+)
+
+type killDirection int
+
+const (
+	killDirectionUnknown killDirection = iota
+	killDirectionForward
+	killDirectionBackward
+)
 
 // Model is the Bubble Tea model for this text input element.
 type Model struct {
@@ -165,6 +181,19 @@ type Model struct {
 	// Cursor position.
 	pos int
 
+	// killRing stores recently killed text for yank operations. The head is
+	// the most recent kill.
+	killRing [][]rune
+	// killRingIndex is used when cycling through the ring with yank-pop.
+	killRingIndex int
+	// lastKillDirection tracks the direction of the previous kill to
+	// support Bash/zsh-style kill ring appending semantics.
+	lastKillDirection  killDirection
+	lastCommandWasKill bool
+	lastYankActive     bool
+	lastYankStart      int
+	lastYankEnd        int
+
 	// Validate is a function that checks whether or not the text within the
 	// input is valid. If it is not valid, the `Err` field will be set to the
 	// error returned by the function. If the function is not defined, all
@@ -176,6 +205,12 @@ type Model struct {
 
 	// Should the input suggest to complete
 	ShowSuggestions bool
+
+	// suppressSuggestionsUntilInput temporarily disables autocomplete hints
+	// until the user enters more text. This is used, for example, when the
+	// user trims the line with Ctrl+K so that ghost text and help reflect
+	// the truncated command until new input arrives.
+	suppressSuggestionsUntilInput bool
 
 	// suggestions is a list of suggestions that may be used to complete the
 	// input.
@@ -227,6 +262,8 @@ func (m *Model) SetValue(s string) {
 
 func (m *Model) setValueInternal(runes []rune, err error) {
 	m.Err = err
+	m.lastCommandWasKill = false
+	m.lastYankActive = false
 
 	empty := len(m.values[m.selectedValueIndex]) == 0
 
@@ -300,6 +337,7 @@ func (m *Model) Reset() {
 
 // SetSuggestions sets the suggestions for the input.
 func (m *Model) SetSuggestions(suggestions []string) {
+
 	m.suggestions = make([][]rune, len(suggestions))
 	for i, s := range suggestions {
 		m.suggestions[i] = []rune(s)
@@ -334,6 +372,10 @@ func (m *Model) san() runeutil.Sanitizer {
 }
 
 func (m *Model) insertRunesFromUserInput(v []rune) {
+	m.suppressSuggestionsUntilInput = false
+	m.lastCommandWasKill = false
+	m.lastYankActive = false
+
 	// Clean up any special characters in the input provided by the
 	// clipboard. This avoids bugs due to e.g. tab characters and
 	// whatnot.
@@ -368,6 +410,9 @@ func (m *Model) insertRunesFromUserInput(v []rune) {
 
 // deleteBeforeCursor deletes all text before the cursor.
 func (m *Model) deleteBeforeCursor() {
+	killed := m.values[m.selectedValueIndex][:m.pos]
+	m.recordKill(killed, killDirectionBackward)
+
 	newValue := cloneRunes(m.values[m.selectedValueIndex][m.pos:])
 	m.Err = m.validate(newValue)
 	m.values[0] = newValue
@@ -379,11 +424,95 @@ func (m *Model) deleteBeforeCursor() {
 // delete everything after the cursor so as not to reveal word breaks in the
 // masked input.
 func (m *Model) deleteAfterCursor() {
+	killed := m.values[m.selectedValueIndex][m.pos:]
+	m.recordKill(killed, killDirectionForward)
+
 	newValue := cloneRunes(m.values[m.selectedValueIndex][:m.pos])
 	m.Err = m.validate(newValue)
 	m.values[0] = newValue
 	m.selectedValueIndex = 0
 	m.SetCursor(len(m.values[0]))
+}
+
+// recordKill captures killed text for yank operations and temporarily suppresses
+// autocomplete hints until the user provides new input.
+func (m *Model) recordKill(killed []rune, direction killDirection) {
+	if len(killed) > 0 {
+		cleaned := cloneRunes(killed)
+
+		if m.lastCommandWasKill && direction == m.lastKillDirection && len(m.killRing) > 0 {
+			if direction == killDirectionForward {
+				m.killRing[0] = append(m.killRing[0], cleaned...)
+			} else {
+				m.killRing[0] = append(cleaned, m.killRing[0]...)
+			}
+		} else {
+			m.killRing = append([][]rune{cleaned}, m.killRing...)
+			if len(m.killRing) > killRingMax {
+				m.killRing = m.killRing[:killRingMax]
+			}
+			m.killRingIndex = 0
+		}
+		m.lastCommandWasKill = true
+	} else {
+		m.lastCommandWasKill = false
+	}
+
+	m.lastKillDirection = direction
+	m.lastYankActive = false
+	m.suppressSuggestionsUntilInput = true
+	m.matchedSuggestions = [][]rune{}
+	m.currentSuggestionIndex = 0
+	m.resetCompletion()
+}
+
+// yankKillBuffer pastes the most recently killed text at the cursor position.
+func (m *Model) yankKillBuffer() {
+	if len(m.killRing) == 0 {
+		return
+	}
+
+	killed := cloneRunes(m.killRing[0])
+	m.insertRunesFromUserInput(killed)
+	m.lastYankStart = m.pos - len(killed)
+	m.lastYankEnd = m.pos
+	m.killRingIndex = 0
+	m.lastYankActive = true
+	m.lastCommandWasKill = false
+}
+
+// yankPop cycles through the kill ring after a yank, replacing the previously
+// yanked text with the next entry.
+func (m *Model) yankPop() {
+	if !m.lastYankActive || len(m.killRing) == 0 {
+		return
+	}
+
+	if len(m.killRing) == 1 {
+		return
+	}
+
+	m.killRingIndex = (m.killRingIndex + 1) % len(m.killRing)
+
+	value := m.values[m.selectedValueIndex]
+	start := clamp(m.lastYankStart, 0, len(value))
+	end := clamp(m.lastYankEnd, start, len(value))
+
+	replacement := cloneRunes(m.killRing[m.killRingIndex])
+	newValue := make([]rune, 0, len(value)-end+start+len(replacement))
+	newValue = append(newValue, value[:start]...)
+	newValue = append(newValue, replacement...)
+	newValue = append(newValue, value[end:]...)
+
+	m.Err = m.validate(newValue)
+	m.values[0] = newValue
+	m.selectedValueIndex = 0
+	m.SetCursor(start + len(replacement))
+
+	m.lastYankStart = start
+	m.lastYankEnd = start + len(replacement)
+	m.lastYankActive = true
+	m.lastCommandWasKill = false
 }
 
 // deleteWordBackward deletes the word left to the cursor.
@@ -429,6 +558,9 @@ func (m *Model) deleteWordBackward() {
 	} else {
 		newValue = cloneConcatRunes(m.values[m.selectedValueIndex][:m.pos], m.values[m.selectedValueIndex][oldPos:])
 	}
+
+	m.recordKill(m.values[m.selectedValueIndex][m.pos:oldPos], killDirectionBackward)
+
 	m.Err = m.validate(newValue)
 	m.values[0] = newValue
 	m.selectedValueIndex = 0
@@ -472,6 +604,9 @@ func (m *Model) deleteWordForward() {
 	} else {
 		newValue = cloneConcatRunes(m.values[m.selectedValueIndex][:oldPos], m.values[m.selectedValueIndex][m.pos:])
 	}
+
+	killEnd := min(m.pos, len(m.values[m.selectedValueIndex]))
+	m.recordKill(m.values[m.selectedValueIndex][oldPos:killEnd], killDirectionForward)
 	m.Err = m.validate(newValue)
 	m.values[0] = newValue
 	m.selectedValueIndex = 0
@@ -636,6 +771,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.resetCompletion()
 		}
 
+		killCommand := key.Matches(msg, m.KeyMap.DeleteBeforeCursor) || key.Matches(msg, m.KeyMap.DeleteAfterCursor) ||
+			key.Matches(msg, m.KeyMap.DeleteWordBackward) || key.Matches(msg, m.KeyMap.DeleteWordForward)
+		yankCommand := key.Matches(msg, m.KeyMap.Yank) || key.Matches(msg, m.KeyMap.YankPop)
+
+		if m.suppressSuggestionsUntilInput && !killCommand {
+			m.suppressSuggestionsUntilInput = false
+		}
+
 		switch {
 		case key.Matches(msg, m.KeyMap.ReverseSearch):
 			m.toggleReverseSearch()
@@ -697,6 +840,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.deleteBeforeCursor()
 		case key.Matches(msg, m.KeyMap.Paste):
 			return m, Paste
+		case key.Matches(msg, m.KeyMap.Yank):
+			m.yankKillBuffer()
+		case key.Matches(msg, m.KeyMap.YankPop):
+			m.yankPop()
 		case key.Matches(msg, m.KeyMap.DeleteWordForward):
 			m.deleteWordForward()
 		case key.Matches(msg, m.KeyMap.NextValue):
@@ -711,6 +858,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		default:
 			// Input one or more regular characters.
 			m.insertRunesFromUserInput(msg.Runes)
+		}
+
+		if !killCommand && !yankCommand {
+			m.lastCommandWasKill = false
+		}
+
+		if !yankCommand {
+			m.lastYankActive = false
 		}
 
 		// Check again if can be completed
@@ -1084,6 +1239,13 @@ func (m *Model) MatchedSuggestions() []string {
 	return m.getSuggestions(m.matchedSuggestions)
 }
 
+// SuggestionsSuppressedUntilInput reports whether autocomplete hints are
+// temporarily disabled until the user provides additional input (for example
+// after a kill command like Ctrl+K).
+func (m Model) SuggestionsSuppressedUntilInput() bool {
+	return m.suppressSuggestionsUntilInput
+}
+
 // CurrentSuggestion returns the currently selected suggestion index.
 func (m *Model) CurrentSuggestionIndex() int {
 	return m.currentSuggestionIndex
@@ -1107,6 +1269,11 @@ func (m *Model) canAcceptSuggestion() bool {
 // updateSuggestions refreshes the list of matching suggestions.
 func (m *Model) updateSuggestions() {
 	if !m.ShowSuggestions {
+		return
+	}
+
+	if m.suppressSuggestionsUntilInput {
+		m.matchedSuggestions = [][]rune{}
 		return
 	}
 

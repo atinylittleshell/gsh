@@ -160,7 +160,9 @@ func TestGetFileCompletions_Integration(t *testing.T) {
 		// Create a test file in home directory for testing
 		testFile := filepath.Join(homeDir, ".test_completion_file")
 		_ = os.WriteFile(testFile, []byte("test"), 0644)
-		defer func() { _ = os.Remove(testFile) }()
+		t.Cleanup(func() {
+			assert.NoError(t, os.Remove(testFile))
+		})
 
 		tests = append(tests, struct {
 			name             string

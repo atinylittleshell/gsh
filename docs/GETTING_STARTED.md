@@ -86,6 +86,10 @@ Familiar, ergonomic defaults for navigation and editing:
 - Line Start: Home, Ctrl+A
 - Line End: End, Ctrl+E
 - Paste: Ctrl+V
+- Yank (Paste Last Cut Text): Ctrl+Y
+- Yank-Pop (Cycle Previous Cuts): Alt+Y
+
+Bash- and zsh-style kill ring shortcuts are supported: Ctrl+K (cut to end of line), Ctrl+U (cut to start of line), and Ctrl+W (cut the previous word) store the removed text so it can be yanked back with Ctrl+Y. Sequential kills in the same direction append to the latest entry, and Alt+Y yank-pop cycles through earlier kills.
 
 ## Next Steps
 

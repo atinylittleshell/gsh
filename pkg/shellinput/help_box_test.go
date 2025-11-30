@@ -1,7 +1,7 @@
 package shellinput
 
 import (
-	"os"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -43,6 +43,27 @@ func (m *mockHelpCompletionProvider) GetHelpInfo(line string, pos int) string {
 		return "**@/test** - Chat macro\n\n**Expands to:**\nThis is a test macro"
 	case "@/t":
 		return "**Chat Macros** - Quick shortcuts for common agent messages"
+	default:
+		return ""
+	}
+}
+
+type mockSuggestionHelpProvider struct{}
+
+func (m *mockSuggestionHelpProvider) GetCompletions(line string, pos int) []CompletionCandidate {
+	if strings.HasPrefix(line, "ls") {
+		return []CompletionCandidate{{Value: "ls -la"}}
+	}
+
+	return []CompletionCandidate{}
+}
+
+func (m *mockSuggestionHelpProvider) GetHelpInfo(line string, pos int) string {
+	switch line {
+	case "ls -la":
+		return "**ls -la** - Lists all files in long format including hidden files"
+	case "ls":
+		return "**ls** - List directory contents"
 	default:
 		return ""
 	}
@@ -111,8 +132,7 @@ func TestHelpBoxIntegration(t *testing.T) {
 
 func TestHelpBoxWithMacroEnvironment(t *testing.T) {
 	// Set up test environment with macros
-	_ = os.Setenv("GSH_AGENT_MACROS", `{"test": "This is a test macro", "help": "Show help information"}`)
-	defer func() { _ = os.Unsetenv("GSH_AGENT_MACROS") }()
+	t.Setenv("GSH_AGENT_MACROS", `{"test": "This is a test macro", "help": "Show help information"}`)
 
 	model := New()
 	model.Focus()
@@ -194,8 +214,7 @@ func TestHelpBoxSpecificCommandsAndMacros(t *testing.T) {
 
 func TestHelpBoxUpdatesOnCompletionNavigation(t *testing.T) {
 	// Set up test environment with macros
-	_ = os.Setenv("GSH_AGENT_MACROS", `{"test": "This is a test macro"}`)
-	defer func() { _ = os.Unsetenv("GSH_AGENT_MACROS") }()
+	t.Setenv("GSH_AGENT_MACROS", `{"test": "This is a test macro"}`)
 
 	model := New()
 	model.Focus()
@@ -220,4 +239,55 @@ func TestHelpBoxUpdatesOnCompletionNavigation(t *testing.T) {
 	helpBox = model.HelpBoxView()
 	assert.Contains(t, helpBox, "**@!tokens**", "Should show specific help for @!tokens after second TAB")
 	assert.True(t, model.completion.shouldShowHelpBox(), "Help box should still be visible")
+}
+
+func TestHelpBoxFollowsMatchedSuggestions(t *testing.T) {
+	model := New()
+	model.Focus()
+	model.ShowSuggestions = true
+	model.CompletionProvider = &mockSuggestionHelpProvider{}
+
+	model.SetValue("ls")
+	model.SetCursor(len("ls"))
+
+	model.SetSuggestions([]string{"ls -la"})
+	model.UpdateHelpInfo()
+
+	helpBox := model.HelpBoxView()
+	assert.Equal(t, "**ls -la** - Lists all files in long format including hidden files", helpBox)
+	assert.True(t, model.completion.shouldShowHelpBox(), "Help box should be visible when suggestions provide help info")
+
+	model.SetSuggestions([]string{})
+	model.UpdateHelpInfo()
+
+	helpBox = model.HelpBoxView()
+	assert.Equal(t, "**ls** - List directory contents", helpBox)
+	assert.True(t, model.completion.shouldShowHelpBox(), "Help box should remain visible when falling back to buffer help")
+}
+
+func TestHelpBoxPrefersBufferHelpWhileSuggestionsSuppressed(t *testing.T) {
+	model := New()
+	model.Focus()
+	model.ShowSuggestions = true
+	model.CompletionProvider = &mockSuggestionHelpProvider{}
+
+	model.SetValue("ls -la")
+	model.SetCursor(len("ls"))
+
+	model.SetSuggestions([]string{"ls -la"})
+	model.UpdateHelpInfo()
+
+	helpBox := model.HelpBoxView()
+	assert.Equal(t, "**ls -la** - Lists all files in long format including hidden files", helpBox)
+
+	model.deleteAfterCursor()
+
+	// Simulate predictions arriving while suggestions are suppressed.
+	model.SetSuggestions([]string{"ls -la"})
+	model.matchedSuggestions = [][]rune{[]rune("ls -la")}
+	model.UpdateHelpInfo()
+
+	helpBox = model.HelpBoxView()
+	assert.Equal(t, "**ls** - List directory contents", helpBox)
+	assert.True(t, model.SuggestionsSuppressedUntilInput())
 }

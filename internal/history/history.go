@@ -39,6 +39,17 @@ func NewHistoryManager(dbFilePath string) (*HistoryManager, error) {
 	}, nil
 }
 
+// Close closes the database connection. This should be called when the
+// HistoryManager is no longer needed, especially in tests to allow cleanup
+// of temporary database files on Windows.
+func (historyManager *HistoryManager) Close() error {
+	sqlDB, err := historyManager.db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
+}
+
 func (historyManager *HistoryManager) StartCommand(command string, directory string) (*HistoryEntry, error) {
 	entry := HistoryEntry{
 		Command:   command,

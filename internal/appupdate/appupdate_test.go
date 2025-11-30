@@ -102,7 +102,9 @@ func (m *MockRelease) AssetName() string {
 func TestReadLatestVersion(t *testing.T) {
 	mockFS := new(MockFileSystem)
 	mockFile, _ := os.CreateTemp("", "test-latest-version")
-	defer func() { _ = os.Remove(mockFile.Name()) }()
+	t.Cleanup(func() {
+		assert.NoError(t, os.Remove(mockFile.Name()))
+	})
 
 	_, _ = mockFile.Write([]byte("1.2.3"))
 	_, _ = mockFile.Seek(0, 0)
@@ -122,12 +124,16 @@ func TestHandleSelfUpdate_UpdateNeeded(t *testing.T) {
 	logger := zap.NewNop()
 
 	mockFileForRead, _ := os.CreateTemp("", "test-latest-version-read")
-	defer func() { _ = os.Remove(mockFileForRead.Name()) }()
+	t.Cleanup(func() {
+		assert.NoError(t, os.Remove(mockFileForRead.Name()))
+	})
 	_, _ = mockFileForRead.Write([]byte("1.0.0"))
 	_, _ = mockFileForRead.Seek(0, 0)
 
 	mockFileForWrite, _ := os.CreateTemp("", "test-latest-version-write")
-	defer func() { _ = os.Remove(mockFileForWrite.Name()) }()
+	t.Cleanup(func() {
+		assert.NoError(t, os.Remove(mockFileForWrite.Name()))
+	})
 
 	mockFS.On("Open", core.LatestVersionFile()).Return(mockFileForRead, nil)
 
@@ -166,12 +172,16 @@ func TestHandleSelfUpdate_NoUpdateNeeded(t *testing.T) {
 	logger := zap.NewNop()
 
 	mockFileForRead, _ := os.CreateTemp("", "test-latest-version-read")
-	defer func() { _ = os.Remove(mockFileForRead.Name()) }()
+	t.Cleanup(func() {
+		assert.NoError(t, os.Remove(mockFileForRead.Name()))
+	})
 	_, _ = mockFileForRead.Write([]byte("1.2.3"))
 	_, _ = mockFileForRead.Seek(0, 0)
 
 	mockFileForWrite, _ := os.CreateTemp("", "test-latest-version-write")
-	defer func() { _ = os.Remove(mockFileForWrite.Name()) }()
+	t.Cleanup(func() {
+		assert.NoError(t, os.Remove(mockFileForWrite.Name()))
+	})
 
 	mockFS.On("Open", core.LatestVersionFile()).Return(mockFileForRead, nil)
 

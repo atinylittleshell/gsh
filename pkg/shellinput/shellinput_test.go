@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // mockCompletionProvider implements CompletionProvider for testing
@@ -34,6 +35,21 @@ func (m *mockCompletionProvider) GetCompletions(line string, pos int) []Completi
 func (m *mockCompletionProvider) GetHelpInfo(line string, pos int) string {
 	// Return empty string for tests - no help info needed
 	return ""
+}
+
+type trackingCompletionProvider struct {
+	lastLine string
+	lastPos  int
+}
+
+func (t *trackingCompletionProvider) GetCompletions(line string, pos int) []CompletionCandidate {
+	return nil
+}
+
+func (t *trackingCompletionProvider) GetHelpInfo(line string, pos int) string {
+	t.lastLine = line
+	t.lastPos = pos
+	return line
 }
 
 func TestCompletion(t *testing.T) {
@@ -212,4 +228,114 @@ func TestUpdate(t *testing.T) {
 	msg = tea.KeyMsg{Type: tea.KeyCtrlE}
 	updatedModel, _ = updatedModel.Update(msg)
 	assert.Equal(t, len(updatedModel.Value()), updatedModel.Position(), "End key should move the cursor to the end of the line")
+}
+
+func TestCtrlKTruncatesSuggestionsAndHelp(t *testing.T) {
+	provider := &trackingCompletionProvider{}
+
+	model := New()
+	model.Focus()
+	model.ShowSuggestions = true
+	model.CompletionProvider = provider
+	model.SetSuggestions([]string{"hello"})
+	model.SetValue("hello")
+	model.SetCursor(3) // after "hel"
+
+	// Ensure suggestions are available before trimming
+	model.updateSuggestions()
+	assert.NotEmpty(t, model.MatchedSuggestions())
+
+	provider.lastLine = ""
+	msg := tea.KeyMsg{Type: tea.KeyCtrlK}
+	updatedModel, _ := model.Update(msg)
+
+	assert.Equal(t, "hel", updatedModel.Value(), "Ctrl+K should trim user-entered text")
+	assert.Empty(t, updatedModel.MatchedSuggestions(), "Ctrl+K should clear active suggestions")
+	assert.Equal(t, "hel", provider.lastLine, "Help should reflect the truncated command")
+	assert.Equal(t, updatedModel.Position(), provider.lastPos, "Help should use the truncated cursor position")
+}
+
+func TestCtrlUAndCtrlWRespectSuggestionsAndYank(t *testing.T) {
+	provider := &trackingCompletionProvider{}
+
+	model := New()
+	model.Focus()
+	model.ShowSuggestions = true
+	model.CompletionProvider = provider
+	model.SetSuggestions([]string{"hello world"})
+	model.SetValue("hello world")
+	model.SetCursor(5) // after "hello"
+	model.updateSuggestions()
+
+	provider.lastLine = ""
+	msg := tea.KeyMsg{Type: tea.KeyCtrlU}
+	updatedModel, _ := model.Update(msg)
+
+	assert.Equal(t, " world", updatedModel.Value(), "Ctrl+U should trim to the cursor and keep trailing text")
+	assert.Empty(t, updatedModel.MatchedSuggestions(), "Ctrl+U should clear active suggestions")
+	assert.Equal(t, " world", provider.lastLine, "Help should reflect the truncated command after Ctrl+U")
+	assert.Equal(t, updatedModel.Position(), provider.lastPos, "Help should use the updated cursor position after Ctrl+U")
+
+	// Now test Ctrl+W and Ctrl+Y using the same model
+	updatedModel.SetValue("hello world")
+	updatedModel.SetCursor(len(updatedModel.Value()))
+	updatedModel.updateSuggestions()
+	provider.lastLine = ""
+
+	msg = tea.KeyMsg{Type: tea.KeyCtrlW}
+	updatedModel, _ = updatedModel.Update(msg)
+
+	assert.Equal(t, "hello ", updatedModel.Value(), "Ctrl+W should delete the word before the cursor")
+	assert.Empty(t, updatedModel.MatchedSuggestions(), "Ctrl+W should clear active suggestions")
+	assert.Equal(t, "hello ", provider.lastLine, "Help should reflect the truncated command after Ctrl+W")
+	assert.Equal(t, updatedModel.Position(), provider.lastPos, "Help should use the updated cursor position after Ctrl+W")
+
+	msg = tea.KeyMsg{Type: tea.KeyCtrlY}
+	updatedModel, _ = updatedModel.Update(msg)
+
+	assert.Equal(t, "hello world", updatedModel.Value(), "Ctrl+Y should paste the most recently killed text")
+	assert.NotEmpty(t, updatedModel.MatchedSuggestions(), "Ctrl+Y should resume suggestions with the restored command")
+	assert.Equal(t, "hello world", provider.lastLine, "Help should reflect the yanked command")
+	assert.Equal(t, updatedModel.Position(), provider.lastPos, "Help should use the cursor position after yanking")
+}
+
+func TestKillRingAppendAndYankPop(t *testing.T) {
+	model := New()
+	model.Focus()
+
+	model.SetValue("hello world mars")
+	model.SetCursor(5) // after "hello"
+
+	// First forward kill (Alt+D)
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}, Alt: true}
+	updatedModel, _ := model.Update(msg)
+	assert.Equal(t, "hello mars", updatedModel.Value(), "Alt+D should delete the next word")
+	require.Len(t, updatedModel.killRing, 1, "Kill ring should capture the deleted word")
+	assert.Equal(t, " world", string(updatedModel.killRing[0]))
+
+	// Second forward kill (Ctrl+K) should append to the previous kill ring entry
+	msg = tea.KeyMsg{Type: tea.KeyCtrlK}
+	updatedModel, _ = updatedModel.Update(msg)
+	assert.Equal(t, "hello", updatedModel.Value(), "Ctrl+K should delete to the end of the line")
+	require.Len(t, updatedModel.killRing, 1, "Kills in the same direction should append to the latest entry")
+	assert.Equal(t, " world mars", string(updatedModel.killRing[0]))
+
+	// New kill should start a fresh entry
+	updatedModel.SetValue("alpha beta gamma")
+	updatedModel.SetCursor(len(updatedModel.Value()))
+
+	msg = tea.KeyMsg{Type: tea.KeyCtrlW}
+	updatedModel, _ = updatedModel.Update(msg)
+	assert.Equal(t, "alpha beta ", updatedModel.Value(), "Ctrl+W should delete the previous word")
+	require.Len(t, updatedModel.killRing, 2, "A new kill direction should start a new entry")
+	assert.Equal(t, "gamma", string(updatedModel.killRing[0]))
+
+	// Yank and yank-pop to rotate through the ring
+	msg = tea.KeyMsg{Type: tea.KeyCtrlY}
+	updatedModel, _ = updatedModel.Update(msg)
+	assert.Equal(t, "alpha beta gamma", updatedModel.Value(), "Ctrl+Y should yank the latest kill")
+
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}, Alt: true}
+	updatedModel, _ = updatedModel.Update(msg)
+	assert.Equal(t, "alpha beta  world mars", updatedModel.Value(), "Alt+Y should yank-pop to the previous kill")
 }

@@ -468,10 +468,10 @@ func TestProcessMenuSelectionWithFileOperations(t *testing.T) {
 	// Override the environment variables for testing
 	environment.SetConfigDirForTesting(tempConfigDir)
 	environment.SetAuthorizedCommandsFileForTesting(tempAuthorizedFile)
-	defer func() {
-		_ = os.RemoveAll(tempConfigDir)
+	t.Cleanup(func() {
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
 		environment.ResetCacheForTesting()
-	}()
+	})
 
 	atoms := []PermissionAtom{
 		{Command: "ls", Enabled: true, IsNew: true},
@@ -657,10 +657,10 @@ func TestShowPermissionsMenuIntegration(t *testing.T) {
 	// Override the environment variables for testing
 	environment.SetConfigDirForTesting(tempConfigDir)
 	environment.SetAuthorizedCommandsFileForTesting(tempAuthorizedFile)
-	defer func() {
-		_ = os.RemoveAll(tempConfigDir)
+	t.Cleanup(func() {
+		assert.NoError(t, os.RemoveAll(tempConfigDir))
 		environment.ResetCacheForTesting()
-	}()
+	})
 
 	// Pre-populate with some authorized commands
 	err := os.MkdirAll(tempConfigDir, 0700)

@@ -37,7 +37,9 @@ func TestViewFileToolDefinition(t *testing.T) {
 func TestViewFileTool(t *testing.T) {
 	tempFile, err := os.CreateTemp("", "testfile*.txt")
 	assert.NoError(t, err)
-	defer func() { _ = os.Remove(tempFile.Name()) }()
+	t.Cleanup(func() {
+		assert.NoError(t, os.Remove(tempFile.Name()))
+	})
 
 	content := "Line 1\nLine 2\nLine 3\nLine 4\nLine 5"
 	_, err = tempFile.WriteString(content)
@@ -81,7 +83,9 @@ func TestViewFileTool(t *testing.T) {
 		largeContent := bytes.Repeat([]byte("A"), MAX_VIEW_SIZE+10)
 		tempLargeFile, err := os.CreateTemp("", "largefile*.txt")
 		assert.NoError(t, err)
-		defer func() { _ = os.Remove(tempLargeFile.Name()) }()
+		t.Cleanup(func() {
+			assert.NoError(t, os.Remove(tempLargeFile.Name()))
+		})
 
 		_, err = tempLargeFile.Write(largeContent)
 		assert.NoError(t, err)
