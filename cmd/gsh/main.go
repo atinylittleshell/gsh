@@ -14,6 +14,7 @@ import (
 	"github.com/atinylittleshell/gsh/internal/appupdate"
 	"github.com/atinylittleshell/gsh/internal/bash"
 	"github.com/atinylittleshell/gsh/internal/completion"
+	"github.com/atinylittleshell/gsh/internal/config"
 	"github.com/atinylittleshell/gsh/internal/core"
 	"github.com/atinylittleshell/gsh/internal/environment"
 	"github.com/atinylittleshell/gsh/internal/evaluate"
@@ -75,6 +76,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	// Register session config override getter so environment package can access config overrides
+	environment.SetSessionConfigOverrideGetter(config.GetSessionOverride)
 
 	// Initialize the logger
 	logger, err := initializeLogger(runner)

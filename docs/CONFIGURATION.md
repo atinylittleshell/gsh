@@ -60,6 +60,22 @@ export OPENAI_BASE_URL="https://openrouter.ai/api/v1"
 export OLLAMA_HOST="http://127.0.0.1:11434"
 ```
 
+## Interactive Configuration Menu
+
+gsh provides an interactive configuration menu accessible via the `@!config` command:
+
+```bash
+gsh> @!config
+```
+
+The configuration menu allows you to:
+- Configure slow model settings (API key, model ID, base URL) for chat and agent operations
+- Configure fast model settings for auto-completion and suggestions
+- Set the assistant box height
+- Toggle safety checks for command approval
+
+Changes made through the configuration menu are persisted to `~/.gsh_config_ui` and automatically sourced in your shell.
+
 ## Common Environment Variables
 
 - `GSH_FAST_MODEL`: Fast LLM used for predictions, subagent selection, and lightweight tasks.

@@ -13,6 +13,7 @@ import (
 	"github.com/atinylittleshell/gsh/internal/analytics"
 	"github.com/atinylittleshell/gsh/internal/bash"
 	"github.com/atinylittleshell/gsh/internal/completion"
+	"github.com/atinylittleshell/gsh/internal/config"
 	"github.com/atinylittleshell/gsh/internal/environment"
 	"github.com/atinylittleshell/gsh/internal/history"
 	"github.com/atinylittleshell/gsh/internal/predict"
@@ -148,6 +149,14 @@ func RunInteractiveShell(
 					continue
 				case "tokens":
 					agent.PrintTokenStats()
+					continue
+				case "config":
+					if err := config.RunConfigUI(runner); err != nil {
+						logger.Error("error running config UI", zap.Error(err))
+						fmt.Print(gline.RESET_CURSOR_COLUMN + styles.ERROR("gsh: Error running config: "+err.Error()+"\n") + gline.RESET_CURSOR_COLUMN)
+					}
+					// Sync any gsh variables that were changed in the config UI
+					environment.SyncVariablesToEnv(runner)
 					continue
 				default:
 					logger.Warn("unknown agent control", zap.String("control", control))

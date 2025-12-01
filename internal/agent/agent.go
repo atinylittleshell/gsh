@@ -62,6 +62,12 @@ func NewAgent(
 	}
 }
 
+// RefreshLLMClient reloads the LLM client configuration from runner vars.
+// This allows config changes to take effect without restarting the shell.
+func (agent *Agent) RefreshLLMClient() {
+	agent.llmClient, agent.llmModelConfig = utils.GetLLMClient(agent.runner, utils.SlowModel)
+}
+
 func (agent *Agent) UpdateContext(context *map[string]string) {
 	contextTypes := environment.GetContextTypesForAgent(agent.runner, agent.logger)
 	agent.contextText = utils.ComposeContextText(context, contextTypes, agent.logger)
@@ -132,6 +138,9 @@ func (agent *Agent) PrintTokenStats() {
 }
 
 func (agent *Agent) Chat(prompt string) (<-chan string, error) {
+	// Refresh LLM client to pick up any config changes
+	agent.RefreshLLMClient()
+
 	agent.updateSystemMessage()
 	agent.pruneMessages()
 

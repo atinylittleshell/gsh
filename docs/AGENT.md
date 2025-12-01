@@ -173,6 +173,9 @@ An agent control starts with "@!" followed by the control name.
 Currently supported controls:
 
 ```bash
+# Open the interactive configuration menu
+gsh> @!config
+
 # Reset the current chat session and start fresh
 gsh> @!new
 

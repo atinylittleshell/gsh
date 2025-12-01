@@ -25,14 +25,43 @@ const (
 func GetLLMClient(runner *interp.Runner, modelType LLMModelType) (*openai.Client, LLMModelConfig) {
 	varPrefix := "GSH_" + string(modelType) + "_MODEL_"
 
+	// Read provider setting (ollama, openai, openrouter)
+	provider := strings.ToLower(runner.Vars[varPrefix+"PROVIDER"].String())
+	if provider == "" {
+		provider = "ollama" // Default to ollama
+	}
+
+	// Read API key separately from provider
 	apiKey := runner.Vars[varPrefix+"API_KEY"].String()
-	if apiKey == "" {
-		apiKey = "ollama"
-	}
+
+	// Read base URL (may be overridden by user)
 	baseURL := runner.Vars[varPrefix+"BASE_URL"].String()
-	if baseURL == "" {
-		baseURL = "http://localhost:11434/v1/"
+
+	// Set defaults based on provider
+	switch provider {
+	case "openai":
+		if apiKey == "" {
+			apiKey = "sk-" // Placeholder, user should provide real key
+		}
+		if baseURL == "" {
+			baseURL = "https://api.openai.com/v1"
+		}
+	case "openrouter":
+		if apiKey == "" {
+			apiKey = "sk-or-" // Placeholder, user should provide real key
+		}
+		if baseURL == "" {
+			baseURL = "https://openrouter.ai/api/v1"
+		}
+	default: // "ollama" or unknown
+		if apiKey == "" {
+			apiKey = "ollama"
+		}
+		if baseURL == "" {
+			baseURL = "http://localhost:11434/v1/"
+		}
 	}
+
 	modelId := runner.Vars[varPrefix+"ID"].String()
 	if modelId == "" {
 		modelId = "qwen2.5"
@@ -60,7 +89,10 @@ func GetLLMClient(runner *interp.Runner, modelType LLMModelType) (*openai.Client
 	_ = json.Unmarshal([]byte(runner.Vars[varPrefix+"HEADERS"].String()), &headers)
 
 	// Special headers for the openrouter.ai API
-	if strings.HasPrefix(strings.ToLower(baseURL), "https://openrouter.ai/") {
+	if provider == "openrouter" || strings.HasPrefix(strings.ToLower(baseURL), "https://openrouter.ai/") {
+		if headers == nil {
+			headers = make(map[string]string)
+		}
 		headers["HTTP-Referer"] = "https://github.com/atinylittleshell/gsh"
 		headers["X-Title"] = "gsh - The Generative Shell"
 	}

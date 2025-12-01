@@ -135,8 +135,13 @@ func GetAgentContextWindowTokens(runner *interp.Runner, logger *zap.Logger) int 
 }
 
 func GetAssistantHeight(runner *interp.Runner, logger *zap.Logger) int {
-	assistantHeight, err := strconv.ParseInt(
-		runner.Vars["GSH_ASSISTANT_HEIGHT"].String(), 10, 32)
+	// Check for session override first (set via config UI, immune to bash script resets)
+	rawValue := runner.Vars["GSH_ASSISTANT_HEIGHT"].String()
+	if override, ok := getSessionConfigOverride("GSH_ASSISTANT_HEIGHT"); ok {
+		rawValue = override
+	}
+
+	assistantHeight, err := strconv.ParseInt(rawValue, 10, 32)
 	if err != nil {
 		logger.Debug("error parsing GSH_ASSISTANT_HEIGHT", zap.Error(err))
 		assistantHeight = 3
@@ -148,6 +153,22 @@ func GetAssistantHeight(runner *interp.Runner, logger *zap.Logger) int {
 		assistantHeight = 0
 	}
 	return int(assistantHeight)
+}
+
+// sessionConfigOverrideGetter is set by the config package to allow cross-package access
+var sessionConfigOverrideGetter func(key string) (string, bool)
+
+// SetSessionConfigOverrideGetter sets the function to get session config overrides
+func SetSessionConfigOverrideGetter(getter func(key string) (string, bool)) {
+	sessionConfigOverrideGetter = getter
+}
+
+// getSessionConfigOverride gets a session config override if one exists
+func getSessionConfigOverride(key string) (string, bool) {
+	if sessionConfigOverrideGetter != nil {
+		return sessionConfigOverrideGetter(key)
+	}
+	return "", false
 }
 
 func getContextTypes(runner *interp.Runner, key string) []string {
@@ -423,6 +444,13 @@ func filterDangerousPatterns(patterns []string, logger *zap.Logger) []string {
 }
 
 func GetApprovedBashCommandRegex(runner *interp.Runner, logger *zap.Logger) []string {
+	// Check if safety checks are disabled for this session (set via config UI)
+	// This is a session-only setting that is not persisted
+	if runner.Vars["GSH_SAFETY_CHECKS_DISABLED"].String() == "true" {
+		logger.Debug("safety checks disabled for this session")
+		return []string{".*"}
+	}
+
 	// Get patterns from environment variable
 	regexStr := runner.Vars["GSH_AGENT_APPROVED_BASH_COMMAND_REGEX"].String()
 	logger.Debug("GSH_AGENT_APPROVED_BASH_COMMAND_REGEX value", zap.String("value", regexStr))
