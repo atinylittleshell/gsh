@@ -179,6 +179,7 @@ func (si *SubagentIntegration) HandleAgentControl(control string) bool {
 
 	switch control {
 	case "subagents":
+		// No argument - list all subagents
 		fmt.Print(gline.RESET_CURSOR_COLUMN + styles.AGENT_MESSAGE("gsh: "+si.manager.GetSubagentsSummary()) + gline.RESET_CURSOR_COLUMN)
 		return true
 
@@ -193,9 +194,9 @@ func (si *SubagentIntegration) HandleAgentControl(control string) bool {
 		return true
 
 	default:
-		// Check if it's a subagent-info command
-		if strings.HasPrefix(control, "subagent-info ") {
-			subagentID := strings.TrimSpace(strings.TrimPrefix(control, "subagent-info "))
+		// Check if it's a subagents command with an argument (show specific subagent info)
+		if strings.HasPrefix(control, "subagents ") {
+			subagentID := strings.TrimSpace(strings.TrimPrefix(control, "subagents "))
 			si.showSubagentInfo(subagentID)
 			return true
 		}

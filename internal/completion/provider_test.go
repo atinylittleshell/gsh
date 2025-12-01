@@ -377,7 +377,6 @@ func TestGetCompletions(t *testing.T) {
 				// No setup needed - should match builtin subagent commands
 			},
 			expected: []shellinput.CompletionCandidate{
-				{Value: "@!subagent-info"},
 				{Value: "@!subagents"},
 			},
 		},
@@ -510,7 +509,7 @@ func TestGetHelpInfo(t *testing.T) {
 			name:     "help for @! empty",
 			line:     "@!",
 			pos:      2,
-			expected: "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents** - List available subagents\n• **@!reload-subagents** - Reload subagent configurations\n• **@!subagent-info <name>** - Show subagent details",
+			expected: "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents [name]** - List subagents or show details\n• **@!reload-subagents** - Reload subagent configurations",
 		},
 		{
 			name:     "help for @!new",
@@ -534,31 +533,25 @@ func TestGetHelpInfo(t *testing.T) {
 			name:     "help for partial @!n (matches new)",
 			line:     "@!n",
 			pos:      3,
-			expected: "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents** - List available subagents\n• **@!reload-subagents** - Reload subagent configurations\n• **@!subagent-info <name>** - Show subagent details",
+			expected: "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents [name]** - List subagents or show details\n• **@!reload-subagents** - Reload subagent configurations",
 		},
 		{
 			name:     "help for partial @!t (matches tokens)",
 			line:     "@!t",
 			pos:      3,
-			expected: "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents** - List available subagents\n• **@!reload-subagents** - Reload subagent configurations\n• **@!subagent-info <name>** - Show subagent details",
+			expected: "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents [name]** - List subagents or show details\n• **@!reload-subagents** - Reload subagent configurations",
 		},
 		{
 			name:     "help for @!subagents",
 			line:     "@!subagents",
 			pos:      11,
-			expected: "**@!subagents** - List all available subagents and modes\n\nDisplays all configured Claude-style subagents and Roo Code-style modes with their descriptions and capabilities.",
+			expected: "**@!subagents [name]** - List subagents or show details about a specific one\n\nWithout arguments, displays all configured Claude-style subagents and Roo Code-style modes. With a subagent name, shows detailed information including tools, file restrictions, and configuration.",
 		},
 		{
 			name:     "help for @!reload-subagents",
 			line:     "@!reload-subagents",
 			pos:      18,
 			expected: "**@!reload-subagents** - Reload subagent configurations from disk\n\nRefreshes the subagent configurations by rescanning the .claude/agents/ and .roo/modes/ directories.",
-		},
-		{
-			name:     "help for @!subagent-info",
-			line:     "@!subagent-info",
-			pos:      15,
-			expected: "**@!subagent-info <name>** - Show detailed information about a subagent\n\nDisplays comprehensive information about a specific subagent including tools, file restrictions, and configuration.",
 		},
 		{
 			name:     "no help for regular command",

@@ -613,7 +613,6 @@ func (p *ShellCompletionProvider) getBuiltinCommandCompletions(prefix string) []
 		"tokens",
 		"subagents",
 		"reload-subagents",
-		"subagent-info",
 	}
 
 	var completions []string
@@ -725,20 +724,18 @@ func (p *ShellCompletionProvider) getBuiltinCommandHelp(command string) string {
 	case "tokens":
 		return "**@!tokens** - Display token usage statistics\n\nShows information about token consumption for the current chat session."
 	case "subagents":
-		return "**@!subagents** - List all available subagents and modes\n\nDisplays all configured Claude-style subagents and Roo Code-style modes with their descriptions and capabilities."
+		return "**@!subagents [name]** - List subagents or show details about a specific one\n\nWithout arguments, displays all configured Claude-style subagents and Roo Code-style modes. With a subagent name, shows detailed information including tools, file restrictions, and configuration."
 	case "reload-subagents":
 		return "**@!reload-subagents** - Reload subagent configurations from disk\n\nRefreshes the subagent configurations by rescanning the .claude/agents/ and .roo/modes/ directories."
-	case "subagent-info":
-		return "**@!subagent-info <name>** - Show detailed information about a subagent\n\nDisplays comprehensive information about a specific subagent including tools, file restrictions, and configuration."
 	case "":
-		return "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents** - List available subagents\n• **@!reload-subagents** - Reload subagent configurations\n• **@!subagent-info <name>** - Show subagent details"
+		return "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents [name]** - List subagents or show details\n• **@!reload-subagents** - Reload subagent configurations"
 	default:
 		// Check for partial matches
-		builtinCommands := []string{"new", "tokens", "subagents", "reload-subagents", "subagent-info"}
+		builtinCommands := []string{"new", "tokens", "subagents", "reload-subagents"}
 		for _, cmd := range builtinCommands {
 			if strings.HasPrefix(cmd, command) {
 				// Partial match, show general help
-				return "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents** - List available subagents\n• **@!reload-subagents** - Reload subagent configurations\n• **@!subagent-info <name>** - Show subagent details"
+				return "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents [name]** - List subagents or show details\n• **@!reload-subagents** - Reload subagent configurations"
 			}
 		}
 		return ""

@@ -215,8 +215,8 @@ This helps you understand what type of expertise is being applied to your reques
 New agent controls for managing subagents:
 
 - `@!subagents` - List all subagents available in the current directory
+- `@!subagents <name>` - Show detailed information about a specific subagent (including tools, file restrictions, and configuration)
 - `@!reload-subagents` - Refresh configurations from disk (automatic on directory change)
-- `@!subagent-info <name>` - Show detailed information about a subagent
 - `@!reset-<subagent-name>` - Reset chat session for specific subagent
 
 **Note**: All agent controls automatically reflect the current directory's subagent configuration. When you change directories, these commands will show subagents available in your new location.
@@ -225,7 +225,7 @@ New agent controls for managing subagents:
 
 gsh provides comprehensive tab completion for the subagent system:
 
-- **Agent controls**: Type `@!s` + Tab → `@!subagents`, `@!subagent-info`
+- **Agent controls**: Type `@!s` + Tab → `@!subagents`
 - **Subagent invocation**: Type `@` + Tab → Shows subagents available in current directory
 - **Partial matching**: Type `@c` + Tab → Shows subagents starting with 'c' in current directory
 - **Context preservation**: Works correctly even when completing in the middle of a line
