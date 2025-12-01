@@ -1,6 +1,7 @@
 # Changelog
 
-## [Unreleased]
+## [0.26.0](https://github.com/robottwo/gsh_prime/compare/0.25.10...v0.26.0) (2025-12-01)
+
 
 ### Features
 
@@ -11,6 +12,12 @@
 * Add context-sensitive completions for macro and builtin command prefixes ([57466dc](https://github.com/atinylittleshell/gsh/commit/57466dc))
 * Improve Ctrl+C handling and interrupt detection in gline app ([cada44d](https://github.com/atinylittleshell/gsh/commit/cada44d))
 * Add basic Nix flake support ([9cc2e03](https://github.com/atinylittleshell/gsh/commit/9cc2e03))
+* add LLM loading indicators to Assistant Box ([#45](https://github.com/robottwo/gsh_prime/issues/45)) ([426a385](https://github.com/robottwo/gsh_prime/commit/426a3851f428b22b93942f6c2306abbffaec8689))
+* add LLM-based tab completion ([#22](https://github.com/robottwo/gsh_prime/issues/22)) ([05511ae](https://github.com/robottwo/gsh_prime/commit/05511ae12f6c8637c8c7a49fecad3ab3ab27b6d8))
+* **bash:** add typeset/declare command compatibility ([#10](https://github.com/robottwo/gsh_prime/issues/10)) ([15a8fe9](https://github.com/robottwo/gsh_prime/commit/15a8fe902357b5e15079eaa2e0429d012792bdfb))
+* Improve agent output styling and order ([#26](https://github.com/robottwo/gsh_prime/issues/26)) ([535e324](https://github.com/robottwo/gsh_prime/commit/535e32476394f2ce80831622fa5d915d6fb95758))
+* improve subagent syntax and prompt feedback ([#18](https://github.com/robottwo/gsh_prime/issues/18)) ([eb40d7f](https://github.com/robottwo/gsh_prime/commit/eb40d7fd4edb4d0f8ac5397d7b94a3a0f73ac174))
+* rich TUI history search ([#43](https://github.com/robottwo/gsh_prime/issues/43)) ([02b2fb0](https://github.com/robottwo/gsh_prime/commit/02b2fb051cf184e38cb98c5640c65ebb1d0164a6))
 
 ### Bug Fixes
 
