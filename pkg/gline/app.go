@@ -12,6 +12,8 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
+	"github.com/muesli/reflow/wordwrap"
 	"go.uber.org/zap"
 )
 
@@ -44,6 +46,9 @@ type appModel struct {
 	multilineState *MultilineState
 	originalPrompt string
 	height         int
+
+	// LLM status indicator
+	llmIndicator LLMIndicator
 }
 
 type attemptPredictionMsg struct {
@@ -149,19 +154,31 @@ func initialModel(
 		// Initialize multiline state
 		multilineState: NewMultilineState(),
 		originalPrompt: prompt,
+
+		llmIndicator: NewLLMIndicator(),
 	}
 }
 
 func (m appModel) Init() tea.Cmd {
-	return func() tea.Msg {
-		return attemptPredictionMsg{
-			stateId: m.predictionStateId,
-		}
-	}
+	return tea.Batch(
+		m.llmIndicator.Tick(),
+		func() tea.Msg {
+			return attemptPredictionMsg{
+				stateId: m.predictionStateId,
+			}
+		},
+	)
 }
 
 func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+
+	case LLMTickMsg:
+		m.llmIndicator.Update()
+		if m.llmIndicator.GetStatus() == LLMStatusInFlight {
+			return m, m.llmIndicator.Tick()
+		}
+		return m, nil
 
 	case tea.WindowSizeMsg:
 		m.height = msg.Height
@@ -180,7 +197,9 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case attemptPredictionMsg:
-		return m.attemptPrediction(msg)
+		m.llmIndicator.SetStatus(LLMStatusInFlight)
+		model, cmd := m.attemptPrediction(msg)
+		return model, tea.Batch(cmd, m.llmIndicator.Tick())
 
 	case setPredictionMsg:
 		return m.setPrediction(msg.stateId, msg.prediction, msg.inputContext)
@@ -192,10 +211,9 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.setExplanation(msg)
 
 	case errorMsg:
-		// Only show errors for the current prediction state
 		if msg.stateId == m.predictionStateId {
 			m.lastError = msg.err
-			// Clear any partial prediction/explanation since we have an error
+			m.llmIndicator.SetStatus(LLMStatusError)
 			m.prediction = ""
 			m.explanation = ""
 			m.textInput.SetSuggestions([]string{})
@@ -379,23 +397,96 @@ func (m appModel) View() string {
 		}
 	}
 
-	// Render Assistant Box
-	// Use a fixed height box
-	// Subtract 2 from width to account for terminal margins and prevent wrapping issues
-	assistantStyle := lipgloss.NewStyle().
-		Width(max(0, m.textInput.Width-2)).
-		Height(availableHeight).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62"))
+	// Render Assistant Box with custom border that includes LLM indicators
+	boxWidth := max(0, m.textInput.Width-2)
+	borderColor := lipgloss.Color("62")
+	borderStyle := lipgloss.NewStyle().Foreground(borderColor)
 
-	lines := strings.Split(assistantContent, "\n")
+	// Word wrap content to fit box width, then split into lines
+	innerWidth := max(0, boxWidth-2) // Account for left/right borders
+	wrappedContent := wordwrap.String(assistantContent, innerWidth)
+	lines := strings.Split(wrappedContent, "\n")
 	if len(lines) > availableHeight {
 		lines = lines[:availableHeight]
 	}
-	truncatedContent := strings.Join(lines, "\n")
-	renderedAssistant := assistantStyle.Render(truncatedContent)
+	// Pad to fill the available height
+	for len(lines) < availableHeight {
+		lines = append(lines, "")
+	}
 
-	return inputStr + "\n" + renderedAssistant
+	// Render the LLM indicator
+	indicatorStr := " " + m.llmIndicator.View() + " "
+	indicatorLen := 2 + m.llmIndicator.Width() // spaces + indicator
+
+	// Build the box manually
+	var result strings.Builder
+
+	// Top border: ╭───...───╮
+	topBorder := borderStyle.Render("╭" + strings.Repeat("─", innerWidth) + "╮")
+	result.WriteString(topBorder)
+	result.WriteString("\n")
+
+	// Content lines with left/right borders
+	contentWidth := innerWidth // Width available for content
+	for _, line := range lines {
+		// Truncate or pad line to fit content width
+		lineWidth := lipgloss.Width(line)
+		if lineWidth > contentWidth {
+			// Truncate the line - need to handle ANSI codes
+			line = truncateWithAnsi(line, contentWidth)
+			lineWidth = lipgloss.Width(line)
+		}
+		padding := max(0, contentWidth-lineWidth)
+		result.WriteString(borderStyle.Render("│"))
+		result.WriteString(line)
+		result.WriteString(strings.Repeat(" ", padding))
+		result.WriteString(borderStyle.Render("│"))
+		result.WriteString("\n")
+	}
+
+	// Bottom border with indicators: ╰───...─── Fast:✓ Slow:○ ╯
+	// Calculate how much space we have for the horizontal line
+	bottomLineWidth := max(0, innerWidth-indicatorLen)
+	bottomBorder := borderStyle.Render("╰"+strings.Repeat("─", bottomLineWidth)) + indicatorStr + borderStyle.Render("╯")
+	result.WriteString(bottomBorder)
+
+	return inputStr + "\n" + result.String()
+}
+
+// truncateWithAnsi truncates a string to maxWidth display columns, handling ANSI escape codes
+func truncateWithAnsi(s string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+
+	var result strings.Builder
+	width := 0
+	inEscape := false
+
+	for _, r := range s {
+		if r == '\x1b' {
+			inEscape = true
+			result.WriteRune(r)
+			continue
+		}
+		if inEscape {
+			result.WriteRune(r)
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				inEscape = false
+			}
+			continue
+		}
+
+		// Check if adding this rune would exceed maxWidth
+		runeWidth := runewidth.RuneWidth(r)
+		if width+runeWidth > maxWidth {
+			break
+		}
+		result.WriteRune(r)
+		width += runeWidth
+	}
+
+	return result.String()
 }
 
 func (m appModel) getFinalOutput() string {
@@ -530,6 +621,11 @@ func (m appModel) attemptPrediction(msg attemptPredictionMsg) (tea.Model, tea.Cm
 	if msg.stateId != m.predictionStateId {
 		return m, nil
 	}
+	// Skip LLM prediction for @ commands (agentic commands)
+	if strings.HasPrefix(strings.TrimSpace(m.textInput.Value()), "@") {
+		m.llmIndicator.SetStatus(LLMStatusIdle)
+		return m, nil
+	}
 
 	return m, tea.Cmd(func() tea.Msg {
 		prediction, inputContext, err := m.predictor.Predict(m.textInput.Value())
@@ -601,6 +697,8 @@ func (m appModel) setExplanation(msg setExplanationMsg) (tea.Model, tea.Cmd) {
 	}
 
 	m.explanation = msg.explanation
+	// Mark LLM as successful since explanation is the last step
+	m.llmIndicator.SetStatus(LLMStatusSuccess)
 	return m, nil
 }
 
