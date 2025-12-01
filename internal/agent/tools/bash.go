@@ -199,7 +199,7 @@ func BashTool(runner *interp.Runner, historyManager *history.HistoryManager, log
 	}
 
 	// Always display the command first for consistent behavior
-	fmt.Print(gline.RESET_CURSOR_COLUMN + styles.AGENT_MESSAGE(environment.GetAgentPrompt(runner, logger)+command) + "\n")
+	fmt.Print(gline.RESET_CURSOR_COLUMN + styles.AGENT_MESSAGE(environment.GetAgentPrompt(runner)+command) + "\n")
 
 	// Check if the command matches any pre-approved patterns using secure compound command validation
 	approvedPatterns := environment.GetApprovedBashCommandRegex(runner, logger)

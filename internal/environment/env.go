@@ -43,7 +43,8 @@ func SetAuthorizedCommandsFileForTesting(file string) {
 }
 
 const (
-	DEFAULT_PROMPT = "gsh> "
+	DEFAULT_PROMPT       = "gsh> "
+	DEFAULT_AGENT_PROMPT = "🤖> "
 )
 
 func GetHistoryContextLimit(runner *interp.Runner, logger *zap.Logger) int {
@@ -104,14 +105,14 @@ func GetPrompt(runner *interp.Runner, logger *zap.Logger) string {
 }
 
 // GetAgentPrompt returns the prompt to use when the agent displays commands
-// If GSH_APROMPT is set, it uses that; otherwise falls back to GetPrompt
-func GetAgentPrompt(runner *interp.Runner, logger *zap.Logger) string {
+// If GSH_APROMPT is set, it uses that; otherwise uses DEFAULT_AGENT_PROMPT
+// to differentiate agent commands from user commands
+func GetAgentPrompt(runner *interp.Runner) string {
 	agentPrompt := runner.Vars["GSH_APROMPT"].String()
 	if agentPrompt != "" {
 		return agentPrompt
 	}
-	// Fall back to regular prompt if GSH_APROMPT is not set
-	return GetPrompt(runner, logger)
+	return DEFAULT_AGENT_PROMPT
 }
 
 // GetAgentName returns the name of the active subagent or defaults to "gsh"
