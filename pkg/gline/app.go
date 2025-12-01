@@ -10,6 +10,7 @@ import (
 
 	"github.com/atinylittleshell/gsh/pkg/shellinput"
 	"github.com/charmbracelet/bubbles/cursor"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"go.uber.org/zap"
@@ -44,6 +45,10 @@ type appModel struct {
 	multilineState *MultilineState
 	originalPrompt string
 	height         int
+
+	// LLM status indicators
+	fastLLMIndicator LLMIndicator
+	slowLLMIndicator LLMIndicator
 }
 
 type attemptPredictionMsg struct {
@@ -149,19 +154,44 @@ func initialModel(
 		// Initialize multiline state
 		multilineState: NewMultilineState(),
 		originalPrompt: prompt,
+
+		// Initialize LLM status indicators
+		fastLLMIndicator: NewLLMIndicator("Fast"),
+		slowLLMIndicator: NewLLMIndicator("Slow"),
 	}
 }
 
 func (m appModel) Init() tea.Cmd {
-	return func() tea.Msg {
-		return attemptPredictionMsg{
-			stateId: m.predictionStateId,
-		}
-	}
+	return tea.Batch(
+		m.fastLLMIndicator.spinner.Tick,
+		m.slowLLMIndicator.spinner.Tick,
+		func() tea.Msg {
+			return attemptPredictionMsg{
+				stateId: m.predictionStateId,
+			}
+		},
+	)
 }
 
 func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+
+	case spinner.TickMsg:
+		// Update both spinners and batch their tick commands
+		var cmds []tea.Cmd
+		m.fastLLMIndicator.Update(msg)
+		m.slowLLMIndicator.Update(msg)
+		// Only tick spinners that are actively spinning
+		if m.fastLLMIndicator.GetStatus() == LLMStatusInFlight {
+			cmds = append(cmds, m.fastLLMIndicator.spinner.Tick)
+		}
+		if m.slowLLMIndicator.GetStatus() == LLMStatusInFlight {
+			cmds = append(cmds, m.slowLLMIndicator.spinner.Tick)
+		}
+		if len(cmds) > 0 {
+			return m, tea.Batch(cmds...)
+		}
+		return m, nil
 
 	case tea.WindowSizeMsg:
 		m.height = msg.Height
@@ -180,7 +210,10 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case attemptPredictionMsg:
-		return m.attemptPrediction(msg)
+		// Set fast LLM indicator to in-flight and start spinner
+		m.fastLLMIndicator.SetStatus(LLMStatusInFlight)
+		model, cmd := m.attemptPrediction(msg)
+		return model, tea.Batch(cmd, m.fastLLMIndicator.spinner.Tick)
 
 	case setPredictionMsg:
 		return m.setPrediction(msg.stateId, msg.prediction, msg.inputContext)
@@ -195,6 +228,8 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Only show errors for the current prediction state
 		if msg.stateId == m.predictionStateId {
 			m.lastError = msg.err
+			// Set fast LLM indicator to error
+			m.fastLLMIndicator.SetStatus(LLMStatusError)
 			// Clear any partial prediction/explanation since we have an error
 			m.prediction = ""
 			m.explanation = ""
@@ -379,23 +414,94 @@ func (m appModel) View() string {
 		}
 	}
 
-	// Render Assistant Box
-	// Use a fixed height box
-	// Subtract 2 from width to account for terminal margins and prevent wrapping issues
-	assistantStyle := lipgloss.NewStyle().
-		Width(max(0, m.textInput.Width-2)).
-		Height(availableHeight).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62"))
+	// Render Assistant Box with custom border that includes LLM indicators
+	boxWidth := max(0, m.textInput.Width-2)
+	borderColor := lipgloss.Color("62")
+	borderStyle := lipgloss.NewStyle().Foreground(borderColor)
 
+	// Truncate content to available height
 	lines := strings.Split(assistantContent, "\n")
 	if len(lines) > availableHeight {
 		lines = lines[:availableHeight]
 	}
-	truncatedContent := strings.Join(lines, "\n")
-	renderedAssistant := assistantStyle.Render(truncatedContent)
+	// Pad to fill the available height
+	for len(lines) < availableHeight {
+		lines = append(lines, "")
+	}
 
-	return inputStr + "\n" + renderedAssistant
+	// Render the LLM indicators
+	indicatorStr := " " + m.fastLLMIndicator.View() + " " + m.slowLLMIndicator.View() + " "
+	indicatorLen := lipgloss.Width(indicatorStr)
+
+	// Build the box manually
+	var result strings.Builder
+
+	// Top border: ╭───...───╮
+	innerWidth := max(0, boxWidth-2) // Account for corners, ensure non-negative
+	topBorder := borderStyle.Render("╭" + strings.Repeat("─", innerWidth) + "╮")
+	result.WriteString(topBorder)
+	result.WriteString("\n")
+
+	// Content lines with left/right borders
+	contentWidth := innerWidth // Width available for content
+	for _, line := range lines {
+		// Truncate or pad line to fit content width
+		lineWidth := lipgloss.Width(line)
+		if lineWidth > contentWidth {
+			// Truncate the line - need to handle ANSI codes
+			line = truncateWithAnsi(line, contentWidth)
+			lineWidth = lipgloss.Width(line)
+		}
+		padding := max(0, contentWidth-lineWidth)
+		result.WriteString(borderStyle.Render("│"))
+		result.WriteString(line)
+		result.WriteString(strings.Repeat(" ", padding))
+		result.WriteString(borderStyle.Render("│"))
+		result.WriteString("\n")
+	}
+
+	// Bottom border with indicators: ╰───...─── Fast:✓ Slow:○ ╯
+	// Calculate how much space we have for the horizontal line
+	bottomLineWidth := max(0, innerWidth-indicatorLen)
+	bottomBorder := borderStyle.Render("╰"+strings.Repeat("─", bottomLineWidth)) + indicatorStr + borderStyle.Render("╯")
+	result.WriteString(bottomBorder)
+
+	return inputStr + "\n" + result.String()
+}
+
+// truncateWithAnsi truncates a string to maxWidth, handling ANSI escape codes
+func truncateWithAnsi(s string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+
+	var result strings.Builder
+	width := 0
+	inEscape := false
+
+	for _, r := range s {
+		if r == '\x1b' {
+			inEscape = true
+			result.WriteRune(r)
+			continue
+		}
+		if inEscape {
+			result.WriteRune(r)
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				inEscape = false
+			}
+			continue
+		}
+
+		// Check if adding this rune would exceed maxWidth
+		if width >= maxWidth {
+			break
+		}
+		result.WriteRune(r)
+		width++
+	}
+
+	return result.String()
 }
 
 func (m appModel) getFinalOutput() string {
@@ -601,6 +707,8 @@ func (m appModel) setExplanation(msg setExplanationMsg) (tea.Model, tea.Cmd) {
 	}
 
 	m.explanation = msg.explanation
+	// Mark fast LLM as successful since explanation is the last step
+	m.fastLLMIndicator.SetStatus(LLMStatusSuccess)
 	return m, nil
 }
 
