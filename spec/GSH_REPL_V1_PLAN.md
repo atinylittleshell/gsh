@@ -248,7 +248,7 @@ be merged into a single cohesive component.
   - Input line with cursor
   - Prediction overlay (ghost text)
   - Completion box
-- [ ] Create `internal/repl/input/input.go` - main unified component
+- [x] Create `internal/repl/input/input.go` - main unified component
   - Bubble Tea model (Init/Update/View)
   - Coordinates all sub-components
   - History value management
