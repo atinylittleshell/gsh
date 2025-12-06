@@ -1,7 +1,16 @@
 package repl
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	// Import all subpackages to verify the directory structure is correct
 	_ "github.com/atinylittleshell/gsh/internal/repl/agent"
@@ -18,4 +27,378 @@ func TestDirectoryStructure(t *testing.T) {
 	// The imports above will fail at compile time if any package is missing
 	// or has incorrect package declarations.
 	t.Log("All internal/repl subpackages are correctly structured and importable")
+}
+
+func TestNewREPL_DefaultOptions(t *testing.T) {
+	// Create a temporary directory for history
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+
+	// Create a non-existent config path to use defaults
+	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+
+	logger := zaptest.NewLogger(t)
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      logger,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, repl)
+	defer repl.Close()
+
+	// Verify default config was loaded
+	assert.Equal(t, "gsh> ", repl.Config().Prompt)
+	assert.Equal(t, "info", repl.Config().LogLevel)
+
+	// Verify executor was created
+	assert.NotNil(t, repl.Executor())
+
+	// Verify history manager was created
+	assert.NotNil(t, repl.History())
+}
+
+func TestNewREPL_WithConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "test.gshrc.gsh")
+
+	// Create a test config file
+	configContent := `
+GSH_CONFIG = {
+	prompt: "test> ",
+	logLevel: "debug",
+}
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err)
+
+	logger := zaptest.NewLogger(t)
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      logger,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, repl)
+	defer repl.Close()
+
+	// Verify custom config was loaded
+	assert.Equal(t, "test> ", repl.Config().Prompt)
+	assert.Equal(t, "debug", repl.Config().LogLevel)
+}
+
+func TestNewREPL_NilLogger(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+
+	// Should not panic with nil logger
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      nil,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, repl)
+	defer repl.Close()
+}
+
+func TestREPL_HandleBuiltinCommand_Exit(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
+	})
+	require.NoError(t, err)
+	defer repl.Close()
+
+	// Note: We can't test :exit directly as it calls os.Exit
+	// But we can test that :clear is handled
+	handled := repl.handleBuiltinCommand(":clear")
+	assert.True(t, handled)
+
+	// Test unhandled command
+	handled = repl.handleBuiltinCommand("ls")
+	assert.False(t, handled)
+}
+
+func TestREPL_ProcessCommand_Empty(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
+	})
+	require.NoError(t, err)
+	defer repl.Close()
+
+	ctx := context.Background()
+
+	// Empty command should be no-op
+	err = repl.processCommand(ctx, "")
+	assert.NoError(t, err)
+
+	// Whitespace-only command should be no-op
+	err = repl.processCommand(ctx, "   ")
+	assert.NoError(t, err)
+}
+
+func TestREPL_ProcessCommand_Echo(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
+	})
+	require.NoError(t, err)
+	defer repl.Close()
+
+	ctx := context.Background()
+
+	// Execute a simple echo command
+	err = repl.processCommand(ctx, "echo hello")
+	assert.NoError(t, err)
+
+	// Verify exit code was recorded
+	assert.Equal(t, 0, repl.lastExitCode)
+}
+
+func TestREPL_ProcessCommand_RecordsHistory(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
+	})
+	require.NoError(t, err)
+	defer repl.Close()
+
+	ctx := context.Background()
+
+	// Execute a command
+	err = repl.processCommand(ctx, "echo test_history")
+	assert.NoError(t, err)
+
+	// Verify it was recorded in history
+	entries, err := repl.History().GetRecentEntries("", 10)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, "echo test_history", entries[0].Command)
+	assert.True(t, entries[0].ExitCode.Valid)
+	assert.Equal(t, int32(0), entries[0].ExitCode.Int32)
+}
+
+func TestREPL_ProcessCommand_FailingCommand(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
+	})
+	require.NoError(t, err)
+	defer repl.Close()
+
+	ctx := context.Background()
+
+	// Execute a failing command
+	err = repl.processCommand(ctx, "exit 42")
+	assert.NoError(t, err) // processCommand doesn't return error for non-zero exit
+
+	// Verify exit code was recorded
+	assert.Equal(t, 42, repl.lastExitCode)
+
+	// Verify it was recorded in history with correct exit code
+	entries, err := repl.History().GetRecentEntries("", 10)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.True(t, entries[0].ExitCode.Valid)
+	assert.Equal(t, int32(42), entries[0].ExitCode.Int32)
+}
+
+func TestREPL_GetHistoryValues(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
+	})
+	require.NoError(t, err)
+	defer repl.Close()
+
+	ctx := context.Background()
+
+	// Execute some commands
+	_ = repl.processCommand(ctx, "echo first")
+	_ = repl.processCommand(ctx, "echo second")
+	_ = repl.processCommand(ctx, "echo third")
+
+	// Get history values
+	values := repl.getHistoryValues()
+	require.Len(t, values, 3)
+
+	// Most recent should be first
+	assert.Equal(t, "echo third", values[0])
+	assert.Equal(t, "echo second", values[1])
+	assert.Equal(t, "echo first", values[2])
+}
+
+func TestREPL_GetPrompt(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "test.gshrc.gsh")
+
+	// Create a test config file with custom prompt
+	configContent := `
+GSH_CONFIG = {
+	prompt: "custom> ",
+}
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err)
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
+	})
+	require.NoError(t, err)
+	defer repl.Close()
+
+	// Verify prompt
+	assert.Equal(t, "custom> ", repl.getPrompt())
+}
+
+func TestREPL_Close(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
+	})
+	require.NoError(t, err)
+
+	// Close should not error
+	err = repl.Close()
+	assert.NoError(t, err)
+}
+
+func TestREPL_Run_ContextCancellation(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
+	})
+	require.NoError(t, err)
+	defer repl.Close()
+
+	// Create a context that's already cancelled
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// Run should return immediately with context error
+	err = repl.Run(ctx)
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestREPL_ProcessCommand_TracksDuration(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
+	})
+	require.NoError(t, err)
+	defer repl.Close()
+
+	// Mock time for testing
+	callCount := 0
+	originalTimeNow := timeNow
+	timeNow = func() time.Time {
+		callCount++
+		if callCount == 1 {
+			return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		}
+		return time.Date(2024, 1, 1, 0, 0, 0, 100000000, time.UTC) // 100ms later
+	}
+	defer func() { timeNow = originalTimeNow }()
+
+	ctx := context.Background()
+
+	// Execute a command
+	err = repl.processCommand(ctx, "echo hello")
+	assert.NoError(t, err)
+
+	// Verify duration was tracked
+	assert.Equal(t, int64(100), repl.lastDurationMs)
+}
+
+func TestREPL_HandleBuiltinCommand_Clear(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
+	})
+	require.NoError(t, err)
+	defer repl.Close()
+
+	// :clear should be handled
+	handled := repl.handleBuiltinCommand(":clear")
+	assert.True(t, handled)
+}
+
+func TestREPL_HandleBuiltinCommand_UnknownCommand(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
+	})
+	require.NoError(t, err)
+	defer repl.Close()
+
+	// Unknown commands should not be handled
+	handled := repl.handleBuiltinCommand("unknown")
+	assert.False(t, handled)
+
+	handled = repl.handleBuiltinCommand("ls -la")
+	assert.False(t, handled)
 }
