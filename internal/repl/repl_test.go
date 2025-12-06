@@ -11,7 +11,6 @@ import (
 	_ "github.com/atinylittleshell/gsh/internal/repl/executor"
 	_ "github.com/atinylittleshell/gsh/internal/repl/input"
 	_ "github.com/atinylittleshell/gsh/internal/repl/predict"
-	_ "github.com/atinylittleshell/gsh/internal/repl/util"
 )
 
 func TestDirectoryStructure(t *testing.T) {

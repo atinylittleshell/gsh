@@ -35,7 +35,7 @@ cmd/gsh/main.go
 | ------------------------ | ---------------------------------- | --------------------------- |
 | `pkg/gline/`             | Line input with prediction overlay | `internal/repl/input/`      |
 | `pkg/shellinput/`        | Text input widget (forked bubbles) | `internal/repl/input/`      |
-| `pkg/debounce/`          | Generic debounce utility           | `internal/repl/util/`       |
+| `pkg/debounce/`          | Generic debounce utility           | Removed (unused)            |
 | `pkg/reverse/`           | Generic slice reverse              | Inline or stdlib            |
 | `internal/core/shell.go` | Interactive shell loop             | `internal/repl/`            |
 | `internal/predict/`      | LLM prediction                     | `internal/repl/predict/`    |
@@ -106,12 +106,10 @@ internal/repl/
 │   ├── compgen.go          # compgen integration
 │   ├── files.go            # File completion
 │   └── words.go            # Word completion
-├── executor/
-│   ├── executor.go         # Command execution abstraction
-│   ├── bash.go             # Bash command executor
-│   └── gsh.go              # GSH script executor
-└── util/
-    └── debounce.go         # Debounce utility
+└── executor/
+    ├── executor.go         # Command execution abstraction
+    ├── bash.go             # Bash command executor
+    └── gsh.go              # GSH script executor
 ```
 
 ### Core Interfaces
@@ -252,7 +250,7 @@ be merged into a single cohesive component.
   - Bubble Tea model (Init/Update/View)
   - Coordinates all sub-components
   - History value management
-- [ ] Consolidate debounce utility to `internal/repl/util/debounce.go`
+- [x] Remove `pkg/debounce/` (unused, prediction.go uses inline context-aware pattern)
 - [ ] Remove `pkg/reverse` (use `slices.Reverse` from stdlib)
 - [ ] Write comprehensive tests
 
@@ -346,7 +344,7 @@ script language uses MCP for tool integration. This needs further investigation.
 - [ ] Remove old implementation once new one is stable
   - Remove `pkg/gline/`
   - Remove `pkg/shellinput/`
-  - Remove `pkg/debounce/`
+  - ~~Remove `pkg/debounce/`~~ (done in Phase 2)
   - Remove `pkg/reverse/`
   - Remove `internal/core/shell.go` (keep paths.go, prompter.go)
   - Remove `internal/predict/`
