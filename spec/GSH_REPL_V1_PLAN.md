@@ -80,12 +80,11 @@ internal/repl/
 │   ├── keymap.go           # Key bindings
 │   ├── completion.go       # Tab completion handling
 │   ├── prediction.go       # LLM prediction integration
-│   └── render.go           # View rendering (input, completions, explanations)
+│   └── render.go           # View rendering (input, completions)
 ├── predict/
 │   ├── predictor.go        # LLM prediction interface
 │   ├── prefix.go           # Prefix-based prediction
 │   ├── nullstate.go        # Empty input prediction
-│   ├── explainer.go        # Command explanation
 │   └── router.go           # Prediction routing
 ├── agent/
 │   ├── adapter.go          # Thin wrapper adapting script engine's agent for REPL
@@ -245,11 +244,10 @@ be merged into a single cohesive component.
   - Async prediction with state ID coordination
   - Prefer history based predictions whenever that's available. Use LLM as fallback and when input is empty
   - Debounced prediction requests
-- [ ] Create `internal/repl/input/render.go` - view rendering
+- [x] Create `internal/repl/input/render.go` - view rendering
   - Input line with cursor
   - Prediction overlay (ghost text)
   - Completion box
-  - Explanation/help box
 - [ ] Create `internal/repl/input/input.go` - main unified component
   - Bubble Tea model (Init/Update/View)
   - Coordinates all sub-components
