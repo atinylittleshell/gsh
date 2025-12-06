@@ -251,7 +251,7 @@ be merged into a single cohesive component.
   - Coordinates all sub-components
   - History value management
 - [x] Remove `pkg/debounce/` (unused, prediction.go uses inline context-aware pattern)
-- [ ] Remove `pkg/reverse` (use `slices.Reverse` from stdlib)
+- [x] Remove `pkg/reverse` (use `slices.Reverse` from stdlib)
 - [ ] Write comprehensive tests
 
 ### Phase 3: Context & Prediction

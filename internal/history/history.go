@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"slices"
 	"time"
 
-	"github.com/atinylittleshell/gsh/pkg/reverse"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
@@ -78,7 +78,7 @@ func (historyManager *HistoryManager) GetRecentEntries(directory string, limit i
 		return nil, result.Error
 	}
 
-	reverse.Reverse(entries)
+	slices.Reverse(entries)
 	return entries, nil
 }
 
