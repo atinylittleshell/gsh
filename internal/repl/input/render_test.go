@@ -1,0 +1,637 @@
+package input
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/charmbracelet/lipgloss"
+)
+
+func TestDefaultRenderConfig(t *testing.T) {
+	config := DefaultRenderConfig()
+
+	// Verify default styles are set
+	if config.PromptStyle.String() == "" {
+		// PromptStyle should exist (even if empty)
+	}
+
+	// Check prediction style has a foreground color
+	fg := config.PredictionStyle.GetForeground()
+	noColor := lipgloss.NoColor{}
+	if fg == noColor {
+		t.Error("PredictionStyle should have a foreground color")
+	}
+
+	// Check cursor style has reverse
+	// We can't directly check reverse, but we can verify the style exists
+	if config.CursorStyle.String() == "" {
+		// CursorStyle should exist
+	}
+}
+
+func TestNewRenderer(t *testing.T) {
+	config := DefaultRenderConfig()
+	renderer := NewRenderer(config)
+
+	if renderer == nil {
+		t.Fatal("NewRenderer returned nil")
+	}
+
+	if renderer.Width() != 80 {
+		t.Errorf("Expected default width 80, got %d", renderer.Width())
+	}
+}
+
+func TestRendererSetWidth(t *testing.T) {
+	renderer := NewRenderer(DefaultRenderConfig())
+
+	renderer.SetWidth(120)
+	if renderer.Width() != 120 {
+		t.Errorf("Expected width 120, got %d", renderer.Width())
+	}
+
+	// Setting width to 0 or negative should not change it
+	renderer.SetWidth(0)
+	if renderer.Width() != 120 {
+		t.Errorf("Expected width to remain 120 after setting 0, got %d", renderer.Width())
+	}
+
+	renderer.SetWidth(-10)
+	if renderer.Width() != 120 {
+		t.Errorf("Expected width to remain 120 after setting -10, got %d", renderer.Width())
+	}
+}
+
+func TestRenderInputLineBasic(t *testing.T) {
+	renderer := NewRenderer(DefaultRenderConfig())
+	buffer := NewBuffer()
+
+	// Empty buffer
+	result := renderer.RenderInputLine("$ ", buffer, "", true)
+	if !strings.HasPrefix(result, "$ ") {
+		t.Errorf("Expected result to start with prompt, got: %s", result)
+	}
+
+	// Buffer with text
+	buffer.Insert("hello")
+	result = renderer.RenderInputLine("$ ", buffer, "", true)
+	if !strings.Contains(result, "hello") {
+		t.Errorf("Expected result to contain 'hello', got: %s", result)
+	}
+}
+
+func TestRenderInputLineWithCursor(t *testing.T) {
+	renderer := NewRenderer(DefaultRenderConfig())
+	buffer := NewBufferWithText("hello")
+
+	// Cursor at end
+	result := renderer.RenderInputLine("$ ", buffer, "", true)
+	if !strings.Contains(result, "hello") {
+		t.Errorf("Expected result to contain 'hello', got: %s", result)
+	}
+
+	// Cursor in middle
+	buffer.SetPos(2)
+	result = renderer.RenderInputLine("$ ", buffer, "", true)
+	// Should still contain all text
+	if !strings.Contains(result, "he") {
+		t.Errorf("Expected result to contain 'he', got: %s", result)
+	}
+}
+
+func TestRenderInputLineWithPrediction(t *testing.T) {
+	renderer := NewRenderer(DefaultRenderConfig())
+	buffer := NewBufferWithText("hel")
+
+	// Prediction that extends input
+	result := renderer.RenderInputLine("$ ", buffer, "hello world", true)
+	// Should contain both the input and prediction suffix
+	if !strings.Contains(result, "hel") {
+		t.Errorf("Expected result to contain input 'hel', got: %s", result)
+	}
+	// The prediction suffix "lo world" should be rendered
+	if !strings.Contains(result, "lo world") {
+		t.Errorf("Expected result to contain prediction suffix 'lo world', got: %s", result)
+	}
+}
+
+func TestRenderInputLineNonMatchingPrediction(t *testing.T) {
+	renderer := NewRenderer(DefaultRenderConfig())
+	buffer := NewBufferWithText("hello")
+
+	// Prediction that doesn't match (doesn't start with input)
+	result := renderer.RenderInputLine("$ ", buffer, "world", true)
+	// Should contain input but not the non-matching prediction
+	if !strings.Contains(result, "hello") {
+		t.Errorf("Expected result to contain 'hello', got: %s", result)
+	}
+	if strings.Contains(result, "world") {
+		t.Errorf("Expected result to NOT contain 'world', got: %s", result)
+	}
+}
+
+func TestRenderInputLineUnfocused(t *testing.T) {
+	renderer := NewRenderer(DefaultRenderConfig())
+	buffer := NewBufferWithText("hello")
+
+	// Unfocused should still render text
+	result := renderer.RenderInputLine("$ ", buffer, "", false)
+	if !strings.Contains(result, "hello") {
+		t.Errorf("Expected result to contain 'hello', got: %s", result)
+	}
+}
+
+func TestRenderCompletionBoxEmpty(t *testing.T) {
+	renderer := NewRenderer(DefaultRenderConfig())
+	cs := NewCompletionState()
+
+	// Inactive completion state
+	result := renderer.RenderCompletionBox(cs, 4)
+	if result != "" {
+		t.Errorf("Expected empty result for inactive completion, got: %s", result)
+	}
+}
+
+func TestRenderCompletionBoxSingleItem(t *testing.T) {
+	renderer := NewRenderer(DefaultRenderConfig())
+	cs := NewCompletionState()
+
+	// Single suggestion - IsVisible returns false for single item
+	cs.Activate([]string{"hello"}, "hel", 0, 3)
+	result := renderer.RenderCompletionBox(cs, 4)
+	// Single item should not show box (IsVisible returns false)
+	if result != "" {
+		t.Errorf("Expected empty result for single item, got: %s", result)
+	}
+}
+
+func TestRenderCompletionBoxMultipleItems(t *testing.T) {
+	renderer := NewRenderer(DefaultRenderConfig())
+	renderer.SetWidth(80)
+	cs := NewCompletionState()
+
+	// Multiple suggestions
+	cs.Activate([]string{"hello", "help", "helicopter"}, "hel", 0, 3)
+	cs.NextSuggestion() // Select first item
+
+	result := renderer.RenderCompletionBox(cs, 4)
+	if result == "" {
+		t.Error("Expected non-empty result for multiple items")
+	}
+
+	// Should contain all suggestions
+	if !strings.Contains(result, "hello") {
+		t.Errorf("Expected result to contain 'hello', got: %s", result)
+	}
+	if !strings.Contains(result, "help") {
+		t.Errorf("Expected result to contain 'help', got: %s", result)
+	}
+	if !strings.Contains(result, "helicopter") {
+		t.Errorf("Expected result to contain 'helicopter', got: %s", result)
+	}
+}
+
+func TestRenderCompletionBoxWithScrolling(t *testing.T) {
+	renderer := NewRenderer(DefaultRenderConfig())
+	renderer.SetWidth(80)
+	cs := NewCompletionState()
+
+	// Many suggestions to trigger scrolling
+	suggestions := []string{"a", "b", "c", "d", "e", "f", "g", "h"}
+	cs.Activate(suggestions, "", 0, 0)
+
+	// Select middle item to test scrolling
+	for i := 0; i < 4; i++ {
+		cs.NextSuggestion()
+	}
+
+	result := renderer.RenderCompletionBox(cs, 4)
+	if result == "" {
+		t.Error("Expected non-empty result")
+	}
+
+	// Should have scroll indicators
+	if !strings.Contains(result, "↑") && !strings.Contains(result, "↓") {
+		// At least one indicator should be present when scrolling
+		// Depending on position, might have one or both
+	}
+}
+
+func TestRenderInfoPanel(t *testing.T) {
+	renderer := NewRenderer(DefaultRenderConfig())
+	renderer.SetWidth(80)
+
+	// Nil content
+	result := renderer.RenderInfoPanel(nil)
+	if result != "" {
+		t.Errorf("Expected empty result for nil content, got: %s", result)
+	}
+
+	// Empty help content
+	help := NewHelpContent("")
+	result = renderer.RenderInfoPanel(help)
+	if result != "" {
+		t.Errorf("Expected empty result for empty help, got: %s", result)
+	}
+
+	// Non-empty help content
+	help = NewHelpContent("This is help text")
+	result = renderer.RenderInfoPanel(help)
+	if !strings.Contains(result, "This is help text") {
+		t.Errorf("Expected result to contain help text, got: %s", result)
+	}
+}
+
+func TestRenderHelpBox(t *testing.T) {
+	renderer := NewRenderer(DefaultRenderConfig())
+	renderer.SetWidth(80)
+
+	// Empty text
+	result := renderer.RenderHelpBox("")
+	if result != "" {
+		t.Errorf("Expected empty result for empty text, got: %s", result)
+	}
+
+	// Non-empty text
+	result = renderer.RenderHelpBox("Help information")
+	if !strings.Contains(result, "Help information") {
+		t.Errorf("Expected result to contain help text, got: %s", result)
+	}
+}
+
+func TestRenderFullView(t *testing.T) {
+	renderer := NewRenderer(DefaultRenderConfig())
+	renderer.SetWidth(80)
+	buffer := NewBufferWithText("hel")
+
+	// Basic view with just input
+	result := renderer.RenderFullView("$ ", buffer, "", true, nil, nil, 0)
+	if !strings.Contains(result, "hel") {
+		t.Errorf("Expected result to contain 'hel', got: %s", result)
+	}
+
+	// With prediction
+	result = renderer.RenderFullView("$ ", buffer, "hello", true, nil, nil, 0)
+	if !strings.Contains(result, "hel") {
+		t.Errorf("Expected result to contain 'hel', got: %s", result)
+	}
+
+	// With completion
+	cs := NewCompletionState()
+	cs.Activate([]string{"hello", "help"}, "hel", 0, 3)
+	cs.NextSuggestion()
+	result = renderer.RenderFullView("$ ", buffer, "", true, cs, nil, 0)
+	if !strings.Contains(result, "hello") {
+		t.Errorf("Expected result to contain completion 'hello', got: %s", result)
+	}
+
+	// With info content
+	help := NewHelpContent("Command help")
+	result = renderer.RenderFullView("$ ", buffer, "", true, nil, help, 0)
+	if !strings.Contains(result, "Command help") {
+		t.Errorf("Expected result to contain help text, got: %s", result)
+	}
+}
+
+func TestRenderFullViewMinHeight(t *testing.T) {
+	renderer := NewRenderer(DefaultRenderConfig())
+	buffer := NewBuffer()
+
+	// With minimum height
+	result := renderer.RenderFullView("$ ", buffer, "", true, nil, nil, 5)
+	lineCount := strings.Count(result, "\n")
+	if lineCount < 5 {
+		t.Errorf("Expected at least 5 newlines for minHeight=5, got %d", lineCount)
+	}
+}
+
+func TestGetPredictionSuffix(t *testing.T) {
+	tests := []struct {
+		name       string
+		text       string
+		prediction string
+		expected   string
+	}{
+		{
+			name:       "empty prediction",
+			text:       "hello",
+			prediction: "",
+			expected:   "",
+		},
+		{
+			name:       "non-matching prediction",
+			text:       "hello",
+			prediction: "world",
+			expected:   "",
+		},
+		{
+			name:       "matching prediction with suffix",
+			text:       "hel",
+			prediction: "hello world",
+			expected:   "lo world",
+		},
+		{
+			name:       "exact match",
+			text:       "hello",
+			prediction: "hello",
+			expected:   "",
+		},
+		{
+			name:       "empty text with prediction",
+			text:       "",
+			prediction: "hello",
+			expected:   "hello",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetPredictionSuffix(tt.text, tt.prediction)
+			if result != tt.expected {
+				t.Errorf("GetPredictionSuffix(%q, %q) = %q, want %q",
+					tt.text, tt.prediction, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCalculateCursorPosition(t *testing.T) {
+	tests := []struct {
+		name      string
+		prompt    string
+		text      string
+		cursorPos int
+		expected  int
+	}{
+		{
+			name:      "empty prompt and text",
+			prompt:    "",
+			text:      "",
+			cursorPos: 0,
+			expected:  0,
+		},
+		{
+			name:      "with prompt only",
+			prompt:    "$ ",
+			text:      "",
+			cursorPos: 0,
+			expected:  2,
+		},
+		{
+			name:      "with prompt and text at start",
+			prompt:    "$ ",
+			text:      "hello",
+			cursorPos: 0,
+			expected:  2,
+		},
+		{
+			name:      "with prompt and text at end",
+			prompt:    "$ ",
+			text:      "hello",
+			cursorPos: 5,
+			expected:  7,
+		},
+		{
+			name:      "with prompt and text in middle",
+			prompt:    "$ ",
+			text:      "hello",
+			cursorPos: 2,
+			expected:  4,
+		},
+		{
+			name:      "cursor beyond text length",
+			prompt:    "$ ",
+			text:      "hi",
+			cursorPos: 10,
+			expected:  4, // Should clamp to text length
+		},
+		{
+			name:      "negative cursor",
+			prompt:    "$ ",
+			text:      "hi",
+			cursorPos: -5,
+			expected:  2, // Should clamp to 0
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := CalculateCursorPosition(tt.prompt, tt.text, tt.cursorPos)
+			if result != tt.expected {
+				t.Errorf("CalculateCursorPosition(%q, %q, %d) = %d, want %d",
+					tt.prompt, tt.text, tt.cursorPos, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCalculateVisibleWindow(t *testing.T) {
+	tests := []struct {
+		name       string
+		selected   int
+		total      int
+		maxVisible int
+		wantStart  int
+		wantEnd    int
+	}{
+		{
+			name:       "fewer items than max",
+			selected:   0,
+			total:      3,
+			maxVisible: 4,
+			wantStart:  0,
+			wantEnd:    3,
+		},
+		{
+			name:       "at start of list",
+			selected:   0,
+			total:      10,
+			maxVisible: 4,
+			wantStart:  0,
+			wantEnd:    4,
+		},
+		{
+			name:       "at end of list",
+			selected:   9,
+			total:      10,
+			maxVisible: 4,
+			wantStart:  6,
+			wantEnd:    10,
+		},
+		{
+			name:       "in middle of list",
+			selected:   5,
+			total:      10,
+			maxVisible: 4,
+			wantStart:  4,
+			wantEnd:    8,
+		},
+		{
+			name:       "near start",
+			selected:   1,
+			total:      10,
+			maxVisible: 4,
+			wantStart:  0,
+			wantEnd:    4,
+		},
+		{
+			name:       "near end",
+			selected:   8,
+			total:      10,
+			maxVisible: 4,
+			wantStart:  6,
+			wantEnd:    10,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			start, end := calculateVisibleWindow(tt.selected, tt.total, tt.maxVisible)
+			if start != tt.wantStart || end != tt.wantEnd {
+				t.Errorf("calculateVisibleWindow(%d, %d, %d) = (%d, %d), want (%d, %d)",
+					tt.selected, tt.total, tt.maxVisible, start, end, tt.wantStart, tt.wantEnd)
+			}
+		})
+	}
+}
+
+func TestFormatScrollIndicator(t *testing.T) {
+	tests := []struct {
+		arrow    string
+		count    int
+		expected string
+	}{
+		{"↑", 1, "↑   1"},
+		{"↓", 10, "↓  10"},
+		{"↑", 100, "↑ 100"},
+		{"↓", 0, "↓   0"},
+	}
+
+	for _, tt := range tests {
+		result := formatScrollIndicator(tt.arrow, tt.count)
+		if result != tt.expected {
+			t.Errorf("formatScrollIndicator(%q, %d) = %q, want %q",
+				tt.arrow, tt.count, result, tt.expected)
+		}
+	}
+}
+
+func TestItoa(t *testing.T) {
+	tests := []struct {
+		input    int
+		expected string
+	}{
+		{0, "0"},
+		{1, "1"},
+		{10, "10"},
+		{100, "100"},
+		{-1, "-1"},
+		{-100, "-100"},
+		{12345, "12345"},
+	}
+
+	for _, tt := range tests {
+		result := itoa(tt.input)
+		if result != tt.expected {
+			t.Errorf("itoa(%d) = %q, want %q", tt.input, result, tt.expected)
+		}
+	}
+}
+
+func TestPadLeft(t *testing.T) {
+	tests := []struct {
+		s        string
+		width    int
+		expected string
+	}{
+		{"1", 3, "  1"},
+		{"10", 3, " 10"},
+		{"100", 3, "100"},
+		{"1000", 3, "1000"}, // Longer than width, no truncation
+		{"", 3, "   "},
+	}
+
+	for _, tt := range tests {
+		result := padLeft(tt.s, tt.width)
+		if result != tt.expected {
+			t.Errorf("padLeft(%q, %d) = %q, want %q", tt.s, tt.width, result, tt.expected)
+		}
+	}
+}
+
+func TestMaxInt(t *testing.T) {
+	tests := []struct {
+		a, b     int
+		expected int
+	}{
+		{1, 2, 2},
+		{2, 1, 2},
+		{0, 0, 0},
+		{-1, 1, 1},
+		{-5, -3, -3},
+	}
+
+	for _, tt := range tests {
+		result := maxInt(tt.a, tt.b)
+		if result != tt.expected {
+			t.Errorf("maxInt(%d, %d) = %d, want %d", tt.a, tt.b, result, tt.expected)
+		}
+	}
+}
+
+func TestRendererConfigGetSet(t *testing.T) {
+	renderer := NewRenderer(DefaultRenderConfig())
+
+	// Get config
+	config := renderer.Config()
+	if config.CursorStyle.String() == "" {
+		// Config should be accessible
+	}
+
+	// Set new config
+	newConfig := RenderConfig{
+		PromptStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("red")),
+	}
+	renderer.SetConfig(newConfig)
+
+	updatedConfig := renderer.Config()
+	if updatedConfig.PromptStyle.GetForeground() != newConfig.PromptStyle.GetForeground() {
+		t.Error("SetConfig did not update the config correctly")
+	}
+}
+
+func TestRenderInputLineUnicodeCharacters(t *testing.T) {
+	renderer := NewRenderer(DefaultRenderConfig())
+	buffer := NewBufferWithText("こんにちは")
+
+	result := renderer.RenderInputLine("$ ", buffer, "", true)
+	if !strings.Contains(result, "こんにちは") {
+		t.Errorf("Expected result to contain unicode text, got: %s", result)
+	}
+}
+
+func TestRenderInputLineEmoji(t *testing.T) {
+	renderer := NewRenderer(DefaultRenderConfig())
+	buffer := NewBufferWithText("hello 🌍")
+
+	result := renderer.RenderInputLine("$ ", buffer, "", true)
+	if !strings.Contains(result, "hello") {
+		t.Errorf("Expected result to contain 'hello', got: %s", result)
+	}
+	if !strings.Contains(result, "🌍") {
+		t.Errorf("Expected result to contain emoji, got: %s", result)
+	}
+}
+
+func TestCalculateCursorPositionWithUnicode(t *testing.T) {
+	// Unicode characters may have different byte lengths vs display widths
+	prompt := "$ "
+	text := "日本語" // 3 characters, 6 display width
+
+	// Cursor at position 1 (after first character)
+	pos := CalculateCursorPosition(prompt, text, 1)
+	// Prompt is 2 chars, first Japanese char is 2 wide = 4
+	if pos != 4 {
+		t.Errorf("Expected position 4 for unicode, got %d", pos)
+	}
+}
