@@ -240,10 +240,11 @@ be merged into a single cohesive component.
   - Completion provider interface
   - Multi-suggestion cycling
   - Completion info/help box state
-- [ ] Create `internal/repl/input/prediction.go` - LLM prediction integration
+- [x] Create `internal/repl/input/prediction.go` - LLM prediction integration
+  - Use the model provider from the script engine, and a model from config named GSH_PREDICT_MODEL
   - Async prediction with state ID coordination
+  - Prefer history based predictions whenever that's available. Use LLM as fallback and when input is empty
   - Debounced prediction requests
-  - Explanation display state
 - [ ] Create `internal/repl/input/render.go` - view rendering
   - Input line with cursor
   - Prediction overlay (ghost text)
