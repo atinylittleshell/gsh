@@ -123,7 +123,6 @@ type REPL struct {
     executor   executor.Executor
     history    *history.HistoryManager
     predictor  predict.Predictor
-    explainer  predict.Explainer
     agent      *agent.Agent
     context    *context.Provider
     completion *completion.Manager
@@ -194,7 +193,12 @@ type Executor interface {
 
 ## Implementation Phases
 
-### Phase 1: Foundation
+> **Note on Phase Ordering:** Phases 3-7 were reordered from the original plan to enable
+> an end-to-end working product sooner. The Main REPL Loop and Integration phases were
+> moved earlier so we can have a usable shell quickly, then incrementally add prediction,
+> completion, and agent features. This reduces integration risk and provides faster feedback.
+
+### Phase 1: Foundation ✅
 
 **Goal:** Create the basic REPL structure with configuration loading
 
@@ -204,7 +208,7 @@ type Executor interface {
 - [x] Create `executor.Executor` interface and implementations
 - [x] Write comprehensive tests
 
-### Phase 2: Input System
+### Phase 2: Input System ✅
 
 **Goal:** Create unified input component merging `pkg/gline` and `pkg/shellinput`
 
@@ -252,36 +256,107 @@ be merged into a single cohesive component.
   - History value management
 - [x] Remove `pkg/debounce/` (unused, prediction.go uses inline context-aware pattern)
 - [x] Remove `pkg/reverse` (use `slices.Reverse` from stdlib)
-- [ ] Write comprehensive tests
 
-### Phase 3: Context & Prediction
+### Phase 3: Main REPL Loop (Minimal E2E) ✅
 
-**Goal:** Port RAG and prediction systems
+**Goal:** Implement the main REPL loop with minimal dependencies to get an end-to-end working shell
+
+This phase focuses on getting a working shell as quickly as possible. Prediction and completion
+are stubbed with no-op implementations that will be filled in during later phases.
+
+**Minimal Implementation (must have):**
+
+- [x] Implement `REPL` struct in `internal/repl/repl.go`
+  - Config, executor, history manager, logger
+  - Stub interfaces for prediction and completion (no-op providers)
+- [x] Implement `NewREPL()` constructor
+  - Load config via `config.Loader`
+  - Initialize executor
+  - Initialize history manager (reuse `internal/history/`)
+  - Create no-op prediction provider
+  - Create no-op completion provider
+- [x] Implement `REPL.Run()` main loop
+  - Display prompt (static prompt from config initially)
+  - Read input using `internal/repl/input/` component
+  - Execute commands via executor
+  - Record commands in history
+  - Handle Ctrl+C (cancel current input)
+  - Handle Ctrl+D on empty line (exit shell)
+  - Handle Ctrl+L (clear screen)
+- [x] Implement basic control commands
+  - `:exit` or `exit` - exit the shell
+  - `:clear` - clear screen
+- [x] Basic error handling
+  - Display command exit codes on failure
+  - Handle executor errors gracefully
+
+**Stub Implementations (to be filled in later phases):**
+
+```go
+// No-op prediction provider for Phase 3
+type NoOpPredictor struct{}
+func (p *NoOpPredictor) Predict(ctx context.Context, input string) (string, error) {
+    return "", nil // No prediction
+}
+
+// No-op completion provider for Phase 3
+type NoOpCompleter struct{}
+func (c *NoOpCompleter) Complete(ctx context.Context, input string, pos int) ([]string, error) {
+    return nil, nil // No completions
+}
+```
+
+**Testing:**
+
+- [x] Unit tests for REPL initialization
+- [x] Integration test: start REPL, run `echo hello`, verify output
+- [x] Integration test: Ctrl+D exits cleanly
+- [x] Integration test: Ctrl+C cancels input
+
+### Phase 4: Integration
+
+**Goal:** Wire up the new REPL to main.go for real-world testing
+
+- [ ] Update `cmd/gsh/main.go` to use new REPL
+  - Add `--new-repl` flag (or `GSH_NEW_REPL=1` env var) to opt-in
+  - Keep old implementation as default for now
+- [ ] Ensure new REPL can be tested interactively
+- [ ] Document how to test: `gsh --new-repl` or `GSH_NEW_REPL=1 gsh`
+- [ ] Verify basic workflows work:
+  - Navigate directories (`cd`, `pwd`)
+  - Run commands (`ls`, `git status`, etc.)
+  - History persists across sessions
+  - Environment variables work
+
+### Phase 5: Context & Prediction
+
+**Goal:** Port RAG and prediction systems to enable LLM-powered suggestions
 
 - [ ] Port context retrievers to `internal/repl/context/`
-  - Working directory
-  - Git status
-  - System info
-  - Command history
+  - Working directory context
+  - Git status context
+  - System info context
+  - Command history context
 - [ ] Port prediction system to `internal/repl/predict/`
-  - Prefix predictor
-  - Null-state predictor
-  - Explainer
-  - Router
+  - Prefix predictor (predict based on typing)
+  - Null-state predictor (suggest when input is empty)
+  - Router (coordinate between strategies)
 - [ ] Integrate with new config system for LLM settings
-- [ ] Write comprehensive tests
+- [ ] Wire prediction into REPL (replace no-op provider)
+- [ ] Write tests for prediction accuracy
 
-### Phase 4: Completion System
+### Phase 6: Completion System
 
-**Goal:** Port tab completion
+**Goal:** Port tab completion for command and file completion
 
 - [ ] Port completion manager to `internal/repl/completion/`
 - [ ] Port completion provider
-- [ ] Port compgen integration
+- [ ] Port compgen integration (bash completion specs)
 - [ ] Port file completion
+- [ ] Wire completion into REPL (replace no-op provider)
 - [ ] Write comprehensive tests
 
-### Phase 5: Agent Mode
+### Phase 7: Agent Mode
 
 **Goal:** Create thin adapter for script engine's agent in REPL context
 
@@ -299,40 +374,19 @@ The REPL agent module should be a **minimal adapter** that:
 - Handles interactive I/O (streaming responses, user confirmations)
 - Manages the agent session lifecycle in REPL context
 
+**Implementation:**
+
+- [ ] Create `internal/repl/agent/adapter.go` - thin wrapper around `interpreter.Agent`
+  - Extract GSH_DEFAULT_AGENT from config - use that for REPL
+  - Manage a Conversation instance
+- [ ] Hook agent into REPL - "#" prefix triggers agent mode
+- [ ] Handle agent streaming output to terminal
+- [ ] Implement REPL-specific tools (approach TBD - Go code vs MCP servers)
+
 **NOTE:** REPL-specific agent tools (bash execution with permissions, file operations
 with confirmations, done signal, permissions menu) - implementation approach TBD.
 These may be better implemented as MCP servers rather than Go code, since the gsh
 script language uses MCP for tool integration. This needs further investigation.
-
-### Phase 6: Main REPL Loop
-
-**Goal:** Implement the main REPL
-
-- [ ] Implement `REPL.Run()` main loop
-  - Prompt display with update function support
-  - Input handling
-  - Command execution (bash for now)
-  - History recording
-  - Signal handling (Ctrl+C, Ctrl+D)
-  - Control commands (`:clear`, `:exit`, etc.)
-- [ ] Create `internal/repl/agent/adapter.go` - thin wrapper around `interpreter.Agent`
-  - Extract GSH_DEFAULT_AGENT from config - use that for REPL
-  - Manage a Conversation instance
-  - Hook it up to REPL - "#" is agent mode
-- [ ] Handle agent streaming output to terminal (this may need changes in the core model provider and agent logic)
-- [ ] Integrate all subsystems
-- [ ] Write integration tests
-
-### Phase 7: Integration
-
-**Goal:** Wire up the new REPL to main.go
-
-- [ ] Create `NewREPL()` constructor in `internal/repl/`
-- [ ] Update `cmd/gsh/main.go` to use new REPL
-  - Add flag or detection logic to choose implementation
-  - Initially run both in parallel for testing
-- [ ] Ensure all existing tests pass
-- [ ] Add new integration tests
 
 ### Phase 8: Migration & Cleanup
 
@@ -395,21 +449,6 @@ GSH_CONFIG = {
     # Prompt settings
     prompt: "gsh> ",
     logLevel: "info",
-
-    # Agent settings
-    agent: {
-        approvedBashCommands: [
-            "^ls.*$",
-            "^pwd$",
-            "^cd\\s+.*$",
-            "^git\\s+status.*$",
-            "^git\\s+diff.*$",
-        ],
-        macros: {
-            gitdiff: "Review all staged and unstaged changes and suggest improvements",
-            gitpush: "Review changes, create a commit with a good message, and push",
-        },
-    },
 }
 
 # Optional: Custom prompt update tool (reserved name)
@@ -498,33 +537,6 @@ Users can migrate incrementally:
 - [ ] No performance regression
 - [ ] Documentation updated
 
----
-
-## Risk Mitigation
-
-1. **Feature Parity**: Comprehensive test suite comparing old vs new behavior
-2. **Performance**: Benchmark critical paths (startup, prediction, completion)
-3. **User Disruption**: Keep old implementation until new one is stable
-4. **Complexity**: Incremental implementation with clear phase boundaries
-
----
-
-## Timeline Estimate
-
-| Phase                         | Estimated Effort |
-| ----------------------------- | ---------------- |
-| Phase 1: Foundation           | 2-3 days         |
-| Phase 2: Input System         | 3-4 days         |
-| Phase 3: Context & Prediction | 2-3 days         |
-| Phase 4: Completion System    | 2-3 days         |
-| Phase 5: Agent Mode           | 3-4 days         |
-| Phase 6: Main REPL Loop       | 2-3 days         |
-| Phase 7: Integration          | 2-3 days         |
-| Phase 8: Migration & Cleanup  | 1-2 days         |
-| **Total**                     | **17-25 days**   |
-
----
-
 ## Open Questions
 
 1. **Prompt Update Mechanism**: Should `updatePrompt` be a gsh tool or support calling external commands like starship?
@@ -541,8 +553,3 @@ Users can migrate incrementally:
 
 4. **Error Handling**: How to handle `.gshrc.gsh` parse/runtime errors?
    - Proposal: Print warning, continue with defaults, don't block shell startup
-
----
-
-**Document Version:** 1.0
-**Last Updated:** 2025-01-13

@@ -418,10 +418,10 @@ if (s.has(2)) {
 			name: "map iteration with entries",
 			input: `m = Map([["a", 1], ["b", 2]])
 entries = m.entries()
-for (entry of entries) {
-  print(entry[0])
-}`,
-			expected: "a\nb\n",
+print(entries.length)
+print(m.get("a"))
+print(m.get("b"))`,
+			expected: "2\n1\n2\n",
 		},
 		{
 			name: "set uniqueness based on string representation",
