@@ -16,6 +16,7 @@ import (
 	"github.com/atinylittleshell/gsh/internal/core"
 	"github.com/atinylittleshell/gsh/internal/history"
 	"github.com/atinylittleshell/gsh/internal/repl/config"
+	replcontext "github.com/atinylittleshell/gsh/internal/repl/context"
 	"github.com/atinylittleshell/gsh/internal/repl/executor"
 	"github.com/atinylittleshell/gsh/internal/repl/input"
 	"github.com/atinylittleshell/gsh/internal/repl/predict"
@@ -26,11 +27,12 @@ var timeNow = time.Now
 
 // REPL is the main interactive shell interface.
 type REPL struct {
-	config    *config.Config
-	executor  *executor.REPLExecutor
-	history   *history.HistoryManager
-	predictor *predict.Router
-	logger    *zap.Logger
+	config          *config.Config
+	executor        *executor.REPLExecutor
+	history         *history.HistoryManager
+	predictor       *predict.Router
+	contextProvider *replcontext.Provider
+	logger          *zap.Logger
 
 	// Track last command exit code and duration for prompt updates
 	lastExitCode   int
@@ -101,12 +103,25 @@ func NewREPL(opts Options) (*REPL, error) {
 	// Initialize prediction router from config
 	predictor := predict.NewRouterFromConfig(loadResult.Config, logger)
 
+	// Initialize context provider with retrievers for predictions
+	contextProvider := replcontext.NewProvider(logger,
+		replcontext.NewWorkingDirectoryRetriever(exec),
+		replcontext.NewGitStatusRetriever(exec, logger),
+		replcontext.NewSystemInfoRetriever(),
+	)
+
+	// Add history retriever if history is available
+	if historyMgr != nil {
+		contextProvider.AddRetriever(replcontext.NewConciseHistoryRetriever(historyMgr, 0))
+	}
+
 	return &REPL{
-		config:    loadResult.Config,
-		executor:  exec,
-		history:   historyMgr,
-		predictor: predictor,
-		logger:    logger,
+		config:          loadResult.Config,
+		executor:        exec,
+		history:         historyMgr,
+		predictor:       predictor,
+		contextProvider: contextProvider,
+		logger:          logger,
 	}, nil
 }
 
@@ -143,6 +158,9 @@ func (r *REPL) Run(ctx context.Context) error {
 
 		// Get history values for navigation
 		historyValues := r.getHistoryValues()
+
+		// Update predictor context before each input session
+		r.updatePredictorContext()
 
 		// Reset prediction state for new input
 		if predictionState != nil {
@@ -277,6 +295,16 @@ func (r *REPL) getPrompt() string {
 	// For now, use static prompt from config
 	// TODO: Support GSH_UPDATE_PROMPT tool in later phases
 	return r.config.Prompt
+}
+
+// updatePredictorContext updates the predictor with current context information.
+func (r *REPL) updatePredictorContext() {
+	if r.predictor == nil || r.contextProvider == nil {
+		return
+	}
+
+	contextMap := r.contextProvider.GetContext()
+	r.predictor.UpdateContext(contextMap)
 }
 
 // getHistoryValues returns recent history entries for navigation.

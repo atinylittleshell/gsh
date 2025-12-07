@@ -335,7 +335,7 @@ func (c *NoOpCompleter) Complete(ctx context.Context, input string, pos int) ([]
   - Null-state predictor (suggest when input is empty)
   - Router (coordinate between strategies)
 - [x] Integrate with new config system for LLM settings
-- [ ] Wire prediction into REPL (replace no-op provider)
+- [x] Wire prediction into REPL (replace no-op provider)
 - [ ] Write tests for prediction accuracy
 
 ### Phase 6: Completion System
