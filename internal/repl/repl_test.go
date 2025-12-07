@@ -18,7 +18,7 @@ import (
 	_ "github.com/atinylittleshell/gsh/internal/repl/config"
 	_ "github.com/atinylittleshell/gsh/internal/repl/context"
 	_ "github.com/atinylittleshell/gsh/internal/repl/executor"
-	_ "github.com/atinylittleshell/gsh/internal/repl/input"
+	"github.com/atinylittleshell/gsh/internal/repl/input"
 	_ "github.com/atinylittleshell/gsh/internal/repl/predict"
 )
 
@@ -551,4 +551,71 @@ func TestREPL_ContextContainsSystemInfo(t *testing.T) {
 	assert.Contains(t, systemInfo, "<system_info>")
 	assert.Contains(t, systemInfo, "OS:")
 	assert.Contains(t, systemInfo, "Arch:")
+}
+
+func TestREPL_HistoryPredictionWithoutLLM(t *testing.T) {
+	// This test verifies that history-based prediction works even when
+	// no LLM prediction model is configured. This is a regression test
+	// for a nil interface issue where passing a nil *predict.Router to
+	// PredictionProvider interface would cause a panic.
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+
+	logger := zaptest.NewLogger(t)
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      logger,
+	})
+	require.NoError(t, err)
+	defer repl.Close()
+
+	// Verify that no LLM predictor is configured
+	assert.Nil(t, repl.predictor, "predictor should be nil when no model is configured")
+
+	// Verify history is available
+	require.NotNil(t, repl.history, "history manager should be initialized")
+
+	ctx := context.Background()
+
+	// Execute some commands to populate history
+	err = repl.processCommand(ctx, "echo hello world")
+	require.NoError(t, err)
+	err = repl.processCommand(ctx, "echo testing prediction")
+	require.NoError(t, err)
+
+	// Verify commands are in history
+	entries, err := repl.history.GetRecentEntriesByPrefix("echo", 10)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(entries), 2, "should have at least 2 history entries with 'echo' prefix")
+
+	// Create a history provider from the history manager
+	historyProvider := input.NewHistoryPredictionAdapter(repl.history)
+	require.NotNil(t, historyProvider)
+
+	// Create prediction state with history but WITHOUT LLM provider
+	// This is the key test - it should not panic when llmProvider is nil
+	predictionState := input.NewPredictionState(input.PredictionStateConfig{
+		HistoryProvider: historyProvider,
+		LLMProvider:     nil, // Explicitly nil - no LLM configured
+		Logger:          logger,
+	})
+	require.NotNil(t, predictionState)
+
+	// Trigger a prediction by simulating input change
+	resultCh := predictionState.OnInputChanged("echo")
+	require.NotNil(t, resultCh, "should return a result channel for prediction")
+
+	// Wait for the prediction result (with timeout)
+	select {
+	case result := <-resultCh:
+		// Should get a history-based prediction without error or panic
+		assert.NoError(t, result.Error, "prediction should not return an error")
+		assert.Equal(t, input.PredictionSourceHistory, result.Source, "prediction should come from history")
+		assert.Contains(t, result.Prediction, "echo", "prediction should start with the input prefix")
+	case <-time.After(1 * time.Second):
+		t.Fatal("prediction timed out")
+	}
 }

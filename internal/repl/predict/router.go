@@ -91,7 +91,7 @@ func NewRouterFromConfig(cfg *config.Config, logger *zap.Logger) *Router {
 	// Get the prediction model from config
 	model := cfg.GetPredictModel()
 	if model == nil {
-		logger.Debug("no prediction model configured, predictions disabled")
+		logger.Debug("no prediction model configured, LLM predictions disabled (history-based predictions may still work)")
 		return nil
 	}
 

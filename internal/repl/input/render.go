@@ -267,6 +267,10 @@ func (r *Renderer) RenderFullView(
 ) string {
 	var result strings.Builder
 
+	// Start with carriage return and clear line to ensure we start at column 0
+	// This handles cases where log output may have left the cursor mid-line
+	result.WriteString("\r\033[K")
+
 	// Render input line
 	result.WriteString(r.RenderInputLine(prompt, buffer, prediction, focused))
 
