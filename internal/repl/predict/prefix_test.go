@@ -36,20 +36,18 @@ func TestNewPrefixPredictor(t *testing.T) {
 		assert.NotNil(t, predictor.logger)
 		assert.NotNil(t, predictor.formatter)
 		assert.Nil(t, predictor.model)
-		assert.Nil(t, predictor.provider)
 	})
 
-	t.Run("with model and provider", func(t *testing.T) {
-		model := &interpreter.ModelValue{Name: "test-model"}
+	t.Run("with model", func(t *testing.T) {
 		provider := &mockModelProvider{}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model:    model,
-			Provider: provider,
+			Model: model,
 		})
 
 		assert.Equal(t, model, predictor.model)
-		assert.Equal(t, provider, predictor.provider)
+		assert.Equal(t, provider, predictor.model.Provider)
 	})
 
 	t.Run("with custom formatter", func(t *testing.T) {
@@ -80,12 +78,11 @@ func TestPrefixPredictor_UpdateContext(t *testing.T) {
 
 func TestPrefixPredictor_Predict(t *testing.T) {
 	t.Run("empty input returns empty", func(t *testing.T) {
-		model := &interpreter.ModelValue{Name: "test-model"}
 		provider := &mockModelProvider{}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model:    model,
-			Provider: provider,
+			Model: model,
 		})
 
 		result, err := predictor.Predict(context.Background(), "")
@@ -95,12 +92,11 @@ func TestPrefixPredictor_Predict(t *testing.T) {
 	})
 
 	t.Run("agent chat prefix skipped", func(t *testing.T) {
-		model := &interpreter.ModelValue{Name: "test-model"}
 		provider := &mockModelProvider{}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model:    model,
-			Provider: provider,
+			Model: model,
 		})
 
 		result, err := predictor.Predict(context.Background(), "#hello")
@@ -118,16 +114,15 @@ func TestPrefixPredictor_Predict(t *testing.T) {
 	})
 
 	t.Run("successful prediction", func(t *testing.T) {
-		model := &interpreter.ModelValue{Name: "test-model"}
 		provider := &mockModelProvider{
 			response: &interpreter.ChatResponse{
 				Content: `{"predicted_command": "git status"}`,
 			},
 		}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model:    model,
-			Provider: provider,
+			Model: model,
 		})
 
 		result, err := predictor.Predict(context.Background(), "git")
@@ -138,16 +133,15 @@ func TestPrefixPredictor_Predict(t *testing.T) {
 	})
 
 	t.Run("prediction with context", func(t *testing.T) {
-		model := &interpreter.ModelValue{Name: "test-model"}
 		provider := &mockModelProvider{
 			response: &interpreter.ChatResponse{
 				Content: `{"predicted_command": "git push origin main"}`,
 			},
 		}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model:    model,
-			Provider: provider,
+			Model: model,
 		})
 
 		predictor.UpdateContext(map[string]string{
@@ -162,14 +156,13 @@ func TestPrefixPredictor_Predict(t *testing.T) {
 	})
 
 	t.Run("provider error", func(t *testing.T) {
-		model := &interpreter.ModelValue{Name: "test-model"}
 		provider := &mockModelProvider{
 			err: errors.New("API error"),
 		}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model:    model,
-			Provider: provider,
+			Model: model,
 		})
 
 		_, err := predictor.Predict(context.Background(), "git")
@@ -178,16 +171,15 @@ func TestPrefixPredictor_Predict(t *testing.T) {
 	})
 
 	t.Run("invalid JSON response", func(t *testing.T) {
-		model := &interpreter.ModelValue{Name: "test-model"}
 		provider := &mockModelProvider{
 			response: &interpreter.ChatResponse{
 				Content: "not valid json",
 			},
 		}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model:    model,
-			Provider: provider,
+			Model: model,
 		})
 
 		result, err := predictor.Predict(context.Background(), "git")
@@ -196,16 +188,15 @@ func TestPrefixPredictor_Predict(t *testing.T) {
 	})
 
 	t.Run("prediction does not match prefix", func(t *testing.T) {
-		model := &interpreter.ModelValue{Name: "test-model"}
 		provider := &mockModelProvider{
 			response: &interpreter.ChatResponse{
 				Content: `{"predicted_command": "ls -la"}`, // Doesn't start with "git"
 			},
 		}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model:    model,
-			Provider: provider,
+			Model: model,
 		})
 
 		result, err := predictor.Predict(context.Background(), "git")

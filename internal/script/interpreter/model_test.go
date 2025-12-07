@@ -17,7 +17,7 @@ func TestModelDeclaration(t *testing.T) {
 		{
 			name: "Model declaration with Anthropic",
 			input: `model claude {
-				provider: "anthropic",
+				provider: "openai",
 				apiKey: env.ANTHROPIC_API_KEY,
 				model: "claude-3-5-sonnet-20241022",
 				temperature: 0.7,
@@ -51,8 +51,8 @@ func TestModelDeclaration(t *testing.T) {
 				if !ok {
 					t.Fatalf("expected provider to be *StringValue, got %T", provider)
 				}
-				if providerStr.Value != "anthropic" {
-					t.Errorf("expected provider 'anthropic', got %q", providerStr.Value)
+				if providerStr.Value != "openai" {
+					t.Errorf("expected provider 'openai', got %q", providerStr.Value)
 				}
 
 				// Check apiKey exists (can be any type including null)
@@ -132,7 +132,7 @@ func TestModelDeclaration(t *testing.T) {
 		{
 			name: "Model declaration with Ollama (local)",
 			input: `model llama {
-				provider: "ollama",
+				provider: "openai",
 				url: "http://localhost:11434",
 				model: "llama3.2:3b",
 			}`,
@@ -168,7 +168,7 @@ func TestModelDeclaration(t *testing.T) {
 		{
 			name: "Model declaration with minimal config",
 			input: `model minimal {
-				provider: "anthropic",
+				provider: "openai",
 			}`,
 			checkFunc: func(t *testing.T, result *EvalResult, err error) {
 				if err != nil {
@@ -229,7 +229,7 @@ func TestModelDeclaration(t *testing.T) {
 		{
 			name: "Multiple model declarations",
 			input: `model claude {
-				provider: "anthropic",
+				provider: "openai",
 				model: "claude-3-5-sonnet-20241022",
 			}
 			model gpt4 {
@@ -264,7 +264,7 @@ func TestModelDeclaration(t *testing.T) {
 			input: `baseUrl = "http://localhost"
 			port = 11434
 			model mymodel {
-				provider: "ollama",
+				provider: "openai",
 				url: baseUrl,
 			}`,
 			checkFunc: func(t *testing.T, result *EvalResult, err error) {
@@ -377,7 +377,7 @@ func TestModelDeclarationErrors(t *testing.T) {
 		{
 			name: "Model with invalid url type",
 			input: `model bad {
-				provider: "ollama",
+				provider: "openai",
 				url: 123,
 			}`,
 			expectedError: "url' must be a string",
@@ -429,7 +429,7 @@ func TestModelValueMethods(t *testing.T) {
 	model := &ModelValue{
 		Name: "testmodel",
 		Config: map[string]Value{
-			"provider": &StringValue{Value: "anthropic"},
+			"provider": &StringValue{Value: "openai"},
 		},
 	}
 

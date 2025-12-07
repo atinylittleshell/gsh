@@ -161,4 +161,13 @@ func (l *Loader) extractGSHConfig(value interpreter.Value, result *LoadResult) {
 		}
 	}
 
+	// Extract predictModel
+	if predictModel, ok := obj.Properties["predictModel"]; ok {
+		if strVal, ok := predictModel.(*interpreter.StringValue); ok {
+			result.Config.PredictModel = strVal.Value
+		} else {
+			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.predictModel must be a string"))
+		}
+	}
+
 }

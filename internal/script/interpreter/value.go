@@ -278,8 +278,9 @@ func (t *ToolValue) Equals(other Value) bool {
 
 // ModelValue represents a model configuration
 type ModelValue struct {
-	Name   string
-	Config map[string]Value
+	Name     string
+	Config   map[string]Value
+	Provider ModelProvider
 }
 
 func (m *ModelValue) Type() ValueType { return ValueTypeModel }
@@ -292,6 +293,17 @@ func (m *ModelValue) Equals(other Value) bool {
 		return m.Name == otherModel.Name
 	}
 	return false
+}
+
+// ChatCompletion performs a chat completion using this model's provider.
+// This is a convenience method that delegates to the model's provider.
+func (m *ModelValue) ChatCompletion(request ChatRequest) (*ChatResponse, error) {
+	if m.Provider == nil {
+		return nil, fmt.Errorf("model '%s' has no provider configured", m.Name)
+	}
+	// Ensure the request uses this model
+	request.Model = m
+	return m.Provider.ChatCompletion(request)
 }
 
 // AgentValue represents an agent configuration

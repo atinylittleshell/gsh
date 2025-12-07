@@ -17,20 +17,18 @@ func TestNewNullStatePredictor(t *testing.T) {
 		assert.NotNil(t, predictor.logger)
 		assert.NotNil(t, predictor.formatter)
 		assert.Nil(t, predictor.model)
-		assert.Nil(t, predictor.provider)
 	})
 
-	t.Run("with model and provider", func(t *testing.T) {
-		model := &interpreter.ModelValue{Name: "test-model"}
+	t.Run("with model", func(t *testing.T) {
 		provider := &mockModelProvider{}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewNullStatePredictor(NullStatePredictorConfig{
-			Model:    model,
-			Provider: provider,
+			Model: model,
 		})
 
 		assert.Equal(t, model, predictor.model)
-		assert.Equal(t, provider, predictor.provider)
+		assert.Equal(t, provider, predictor.model.Provider)
 	})
 
 	t.Run("with custom formatter", func(t *testing.T) {
@@ -60,12 +58,11 @@ func TestNullStatePredictor_UpdateContext(t *testing.T) {
 
 func TestNullStatePredictor_Predict(t *testing.T) {
 	t.Run("non-empty input returns empty", func(t *testing.T) {
-		model := &interpreter.ModelValue{Name: "test-model"}
 		provider := &mockModelProvider{}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewNullStatePredictor(NullStatePredictorConfig{
-			Model:    model,
-			Provider: provider,
+			Model: model,
 		})
 
 		result, err := predictor.Predict(context.Background(), "git")
@@ -83,16 +80,15 @@ func TestNullStatePredictor_Predict(t *testing.T) {
 	})
 
 	t.Run("successful prediction", func(t *testing.T) {
-		model := &interpreter.ModelValue{Name: "test-model"}
 		provider := &mockModelProvider{
 			response: &interpreter.ChatResponse{
 				Content: `{"predicted_command": "ls -la"}`,
 			},
 		}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewNullStatePredictor(NullStatePredictorConfig{
-			Model:    model,
-			Provider: provider,
+			Model: model,
 		})
 
 		result, err := predictor.Predict(context.Background(), "")
@@ -102,16 +98,15 @@ func TestNullStatePredictor_Predict(t *testing.T) {
 	})
 
 	t.Run("prediction with context", func(t *testing.T) {
-		model := &interpreter.ModelValue{Name: "test-model"}
 		provider := &mockModelProvider{
 			response: &interpreter.ChatResponse{
 				Content: `{"predicted_command": "git commit -m 'fix: bug'"}`,
 			},
 		}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewNullStatePredictor(NullStatePredictorConfig{
-			Model:    model,
-			Provider: provider,
+			Model: model,
 		})
 
 		predictor.UpdateContext(map[string]string{
@@ -126,14 +121,13 @@ func TestNullStatePredictor_Predict(t *testing.T) {
 	})
 
 	t.Run("provider error", func(t *testing.T) {
-		model := &interpreter.ModelValue{Name: "test-model"}
 		provider := &mockModelProvider{
 			err: errors.New("API error"),
 		}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewNullStatePredictor(NullStatePredictorConfig{
-			Model:    model,
-			Provider: provider,
+			Model: model,
 		})
 
 		_, err := predictor.Predict(context.Background(), "")
@@ -142,16 +136,15 @@ func TestNullStatePredictor_Predict(t *testing.T) {
 	})
 
 	t.Run("invalid JSON response", func(t *testing.T) {
-		model := &interpreter.ModelValue{Name: "test-model"}
 		provider := &mockModelProvider{
 			response: &interpreter.ChatResponse{
 				Content: "not valid json",
 			},
 		}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewNullStatePredictor(NullStatePredictorConfig{
-			Model:    model,
-			Provider: provider,
+			Model: model,
 		})
 
 		result, err := predictor.Predict(context.Background(), "")

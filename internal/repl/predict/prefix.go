@@ -15,7 +15,6 @@ import (
 // It uses an LLM to generate predictions that start with the given prefix.
 type PrefixPredictor struct {
 	model     *interpreter.ModelValue
-	provider  interpreter.ModelProvider
 	logger    *zap.Logger
 	formatter ContextFormatter
 
@@ -25,11 +24,8 @@ type PrefixPredictor struct {
 
 // PrefixPredictorConfig holds configuration for creating a PrefixPredictor.
 type PrefixPredictorConfig struct {
-	// Model is the LLM model to use for predictions.
+	// Model is the LLM model to use for predictions (must have Provider set).
 	Model *interpreter.ModelValue
-
-	// Provider is the model provider (OpenAI, Anthropic, etc.)
-	Provider interpreter.ModelProvider
 
 	// Logger for debug output. If nil, a no-op logger is used.
 	Logger *zap.Logger
@@ -52,7 +48,6 @@ func NewPrefixPredictor(cfg PrefixPredictorConfig) *PrefixPredictor {
 
 	return &PrefixPredictor{
 		model:     cfg.Model,
-		provider:  cfg.Provider,
 		logger:    logger,
 		formatter: formatter,
 	}
@@ -85,7 +80,7 @@ func (p *PrefixPredictor) Predict(ctx context.Context, input string) (string, er
 		return "", nil
 	}
 
-	if p.model == nil || p.provider == nil {
+	if p.model == nil || p.model.Provider == nil {
 		return "", nil
 	}
 
@@ -124,7 +119,7 @@ Respond with JSON in this format: {"predicted_command": "your prediction here"}
 		},
 	}
 
-	response, err := p.provider.ChatCompletion(request)
+	response, err := p.model.ChatCompletion(request)
 	if err != nil {
 		return "", err
 	}

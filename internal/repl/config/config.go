@@ -19,6 +19,10 @@ type Config struct {
 	// LogLevel controls logging verbosity (from GSH_CONFIG.logLevel)
 	LogLevel string
 
+	// PredictModel is the name of the model to use for predictions (from GSH_CONFIG.predictModel)
+	// This should reference a model defined in the Models map.
+	PredictModel string
+
 	// All declarations from .gshrc.gsh (using gsh language syntax)
 	// These are available for use in scripts and agent mode
 
@@ -77,6 +81,15 @@ func (c *Config) GetTool(name string) *interpreter.ToolValue {
 // This tool is called before each prompt to generate a dynamic prompt string.
 func (c *Config) GetUpdatePromptTool() *interpreter.ToolValue {
 	return c.GetTool("GSH_UPDATE_PROMPT")
+}
+
+// GetPredictModel returns the model configured for predictions.
+// Returns nil if no prediction model is configured or the model doesn't exist.
+func (c *Config) GetPredictModel() *interpreter.ModelValue {
+	if c.PredictModel == "" {
+		return nil
+	}
+	return c.GetModel(c.PredictModel)
 }
 
 // GetMCPServer returns an MCP server by name, or nil if not found.

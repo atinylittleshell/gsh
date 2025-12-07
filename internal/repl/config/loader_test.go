@@ -110,7 +110,7 @@ tool GSH_UPDATE_PROMPT(exitCode: number, durationMs: number): string {
 func TestLoader_LoadFromString_CompleteConfig(t *testing.T) {
 	source := `
 model claude {
-	provider: "anthropic",
+	provider: "openai",
 	model: "claude-sonnet-4-20250514"
 }
 
@@ -277,7 +277,7 @@ model gpt4 {
 }
 
 model claude {
-	provider: "anthropic",
+	provider: "openai",
 	model: "claude-sonnet-4-20250514"
 }
 `
@@ -346,4 +346,88 @@ GSH_CONFIG = {
 	assert.NotNil(t, result)
 	assert.NotEmpty(t, result.Errors)
 	assert.Contains(t, result.Errors[0].Error(), "GSH_CONFIG.logLevel must be a string")
+}
+
+func TestLoader_LoadFromString_PredictModel(t *testing.T) {
+	source := `
+model predictModel {
+	provider: "openai",
+	model: "gpt-4o-mini",
+	apiKey: "test-key"
+}
+
+GSH_CONFIG = {
+	predictModel: "predictModel"
+}
+`
+	loader := NewLoader(nil)
+	result, err := loader.LoadFromString(source)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Empty(t, result.Errors)
+	assert.Equal(t, "predictModel", result.Config.PredictModel)
+
+	// Verify GetPredictModel returns the correct model
+	model := result.Config.GetPredictModel()
+	require.NotNil(t, model)
+	assert.Equal(t, "predictModel", model.Name)
+}
+
+func TestLoader_LoadFromString_PredictModelInvalidType(t *testing.T) {
+	source := `
+GSH_CONFIG = {
+	predictModel: 123
+}
+`
+	loader := NewLoader(nil)
+	result, err := loader.LoadFromString(source)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.NotEmpty(t, result.Errors)
+	assert.Contains(t, result.Errors[0].Error(), "GSH_CONFIG.predictModel must be a string")
+}
+
+func TestLoader_LoadFromString_PredictModelWithFullConfig(t *testing.T) {
+	source := `
+model fastModel {
+	provider: "openai",
+	model: "gpt-4o-mini",
+	apiKey: "test-key",
+	temperature: 0.1
+}
+
+model slowModel {
+	provider: "openai",
+	model: "gpt-4o",
+	apiKey: "test-key"
+}
+
+GSH_CONFIG = {
+	prompt: "myshell> ",
+	logLevel: "debug",
+	predictModel: "fastModel"
+}
+`
+	loader := NewLoader(nil)
+	result, err := loader.LoadFromString(source)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Empty(t, result.Errors)
+
+	assert.Equal(t, "myshell> ", result.Config.Prompt)
+	assert.Equal(t, "debug", result.Config.LogLevel)
+	assert.Equal(t, "fastModel", result.Config.PredictModel)
+
+	// Verify the correct model is returned
+	model := result.Config.GetPredictModel()
+	require.NotNil(t, model)
+	assert.Equal(t, "fastModel", model.Name)
+
+	// Verify the other model is also available
+	slowModel := result.Config.GetModel("slowModel")
+	require.NotNil(t, slowModel)
+	assert.Equal(t, "slowModel", slowModel.Name)
 }

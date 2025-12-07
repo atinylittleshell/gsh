@@ -5,7 +5,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/atinylittleshell/gsh/internal/repl/config"
+	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // mockPredictor implements Predictor for testing.
@@ -195,4 +198,53 @@ func TestRouter_Accessors(t *testing.T) {
 
 	assert.Equal(t, prefixPredictor, router.PrefixPredictor())
 	assert.Equal(t, nullStatePredictor, router.NullStatePredictor())
+}
+
+func TestNewRouterFromConfig(t *testing.T) {
+	t.Run("returns nil when no predict model configured", func(t *testing.T) {
+		cfg := config.DefaultConfig()
+		router := NewRouterFromConfig(cfg, nil)
+		assert.Nil(t, router)
+	})
+
+	t.Run("returns nil when predict model references non-existent model", func(t *testing.T) {
+		cfg := config.DefaultConfig()
+		cfg.PredictModel = "non-existent"
+		router := NewRouterFromConfig(cfg, nil)
+		assert.Nil(t, router)
+	})
+
+	t.Run("returns nil when model has no provider", func(t *testing.T) {
+		cfg := config.DefaultConfig()
+		cfg.Models["testModel"] = &interpreter.ModelValue{
+			Name:     "testModel",
+			Provider: nil, // No provider set
+			Config: map[string]interpreter.Value{
+				"model": &interpreter.StringValue{Value: "some-model"},
+			},
+		}
+		cfg.PredictModel = "testModel"
+
+		router := NewRouterFromConfig(cfg, nil)
+		assert.Nil(t, router)
+	})
+
+	t.Run("creates router when model has provider", func(t *testing.T) {
+		cfg := config.DefaultConfig()
+		cfg.Models["testModel"] = &interpreter.ModelValue{
+			Name:     "testModel",
+			Provider: interpreter.NewOpenAIProvider(),
+			Config: map[string]interpreter.Value{
+				"provider": &interpreter.StringValue{Value: "openai"},
+				"model":    &interpreter.StringValue{Value: "gpt-4o-mini"},
+				"apiKey":   &interpreter.StringValue{Value: "test-key"},
+			},
+		}
+		cfg.PredictModel = "testModel"
+
+		router := NewRouterFromConfig(cfg, nil)
+		require.NotNil(t, router)
+		assert.NotNil(t, router.PrefixPredictor())
+		assert.NotNil(t, router.NullStatePredictor())
+	})
 }
