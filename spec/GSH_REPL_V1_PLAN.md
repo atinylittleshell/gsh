@@ -330,7 +330,7 @@ func (c *NoOpCompleter) Complete(ctx context.Context, input string, pos int) ([]
   - Git status context
   - System info context
   - Command history context
-- [ ] Port prediction system to `internal/repl/predict/`
+- [x] Port prediction system to `internal/repl/predict/`
   - Prefix predictor (predict based on typing)
   - Null-state predictor (suggest when input is empty)
   - Router (coordinate between strategies)
