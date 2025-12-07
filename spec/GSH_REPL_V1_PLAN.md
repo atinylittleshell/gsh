@@ -325,7 +325,7 @@ func (c *NoOpCompleter) Complete(ctx context.Context, input string, pos int) ([]
 
 **Goal:** Port RAG and prediction systems to enable LLM-powered suggestions
 
-- [ ] Port context retrievers to `internal/repl/context/`
+- [x] Port context retrievers to `internal/repl/context/`
   - Working directory context
   - Git status context
   - System info context
