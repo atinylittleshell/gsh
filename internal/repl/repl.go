@@ -129,18 +129,25 @@ func NewREPL(opts Options) (*REPL, error) {
 func (r *REPL) Run(ctx context.Context) error {
 	r.logger.Info("starting REPL")
 
-	// Create prediction state if predictor is available
+	// Create prediction state if history or LLM predictor is available
+	// History-based prediction doesn't require an LLM model
 	var predictionState *input.PredictionState
-	if r.predictor != nil {
-		// Create history adapter for history-based predictions
-		var historyProvider input.HistoryProvider
-		if r.history != nil {
-			historyProvider = input.NewHistoryPredictionAdapter(r.history)
+	var historyProvider input.HistoryProvider
+	if r.history != nil {
+		historyProvider = input.NewHistoryPredictionAdapter(r.history)
+	}
+
+	// Create prediction state if we have history or LLM predictor
+	if historyProvider != nil || r.predictor != nil {
+		// Only set LLMProvider if predictor is not nil to avoid nil interface issues
+		var llmProvider input.PredictionProvider
+		if r.predictor != nil {
+			llmProvider = r.predictor
 		}
 
 		predictionState = input.NewPredictionState(input.PredictionStateConfig{
 			HistoryProvider: historyProvider,
-			LLMProvider:     r.predictor,
+			LLMProvider:     llmProvider,
 			Logger:          r.logger,
 		})
 	}
@@ -350,3 +357,4 @@ func (r *REPL) Executor() *executor.REPLExecutor {
 func (r *REPL) History() *history.HistoryManager {
 	return r.history
 }
+
