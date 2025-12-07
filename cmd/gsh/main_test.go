@@ -763,6 +763,29 @@ result = outer()`,
 	}
 }
 
+// TestRunInteractiveShell tests the runInteractiveShell function
+func TestRunInteractiveShell(t *testing.T) {
+	t.Run("context cancellation exits cleanly", func(t *testing.T) {
+		logger, err := zap.NewDevelopment()
+		if err != nil {
+			t.Fatalf("Failed to create logger: %v", err)
+		}
+
+		// Create a context that's already cancelled
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		// Should return immediately with context error
+		err = runInteractiveShell(ctx, logger)
+		if err == nil {
+			t.Error("Expected context cancellation error, got nil")
+		}
+		if err != context.Canceled {
+			t.Errorf("Expected context.Canceled, got: %v", err)
+		}
+	})
+}
+
 // TestErrorMessageQuality tests the overall quality and formatting of error messages
 func TestErrorMessageQuality(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "gsh-error-quality-test-*")

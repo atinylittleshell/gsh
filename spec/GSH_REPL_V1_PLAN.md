@@ -313,20 +313,13 @@ func (c *NoOpCompleter) Complete(ctx context.Context, input string, pos int) ([]
 - [x] Integration test: Ctrl+D exits cleanly
 - [x] Integration test: Ctrl+C cancels input
 
-### Phase 4: Integration
+### Phase 4: Integration ✅
 
 **Goal:** Wire up the new REPL to main.go for real-world testing
 
-- [ ] Update `cmd/gsh/main.go` to use new REPL
-  - Add `--new-repl` flag (or `GSH_NEW_REPL=1` env var) to opt-in
-  - Keep old implementation as default for now
-- [ ] Ensure new REPL can be tested interactively
-- [ ] Document how to test: `gsh --new-repl` or `GSH_NEW_REPL=1 gsh`
-- [ ] Verify basic workflows work:
-  - Navigate directories (`cd`, `pwd`)
-  - Run commands (`ls`, `git status`, etc.)
-  - History persists across sessions
-  - Environment variables work
+- [x] Update `cmd/gsh/main.go` to use new REPL
+  - Keep old implementation in codebase for now, but default to new REPL
+- [x] Ensure new REPL can be tested interactively
 
 ### Phase 5: Context & Prediction
 
