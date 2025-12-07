@@ -18,7 +18,7 @@ func TestAgentDeclaration(t *testing.T) {
 			name: "Agent declaration with model reference",
 			input: `
 				model claude {
-					provider: "anthropic",
+					provider: "openai",
 					apiKey: "test-key",
 					model: "claude-3-5-sonnet-20241022",
 				}
@@ -241,7 +241,7 @@ func TestAgentDeclaration(t *testing.T) {
 					model: "gpt-4",
 				}
 				model claude {
-					provider: "anthropic",
+					provider: "openai",
 					apiKey: "test-key",
 					model: "claude-3-5-sonnet-20241022",
 				}

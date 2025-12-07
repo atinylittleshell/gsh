@@ -50,10 +50,23 @@ func (i *Interpreter) evalModelDeclaration(node *parser.ModelDeclaration) (Value
 		config[key] = value
 	}
 
-	// Create the model value
+	// Resolve provider from registry
+	var provider ModelProvider
+	if providerVal, ok := config["provider"]; ok {
+		if providerStr, ok := providerVal.(*StringValue); ok {
+			var found bool
+			provider, found = i.providerRegistry.Get(providerStr.Value)
+			if !found {
+				return nil, fmt.Errorf("unknown model provider: %s", providerStr.Value)
+			}
+		}
+	}
+
+	// Create the model value with resolved provider
 	model := &ModelValue{
-		Name:   modelName,
-		Config: config,
+		Name:     modelName,
+		Config:   config,
+		Provider: provider,
 	}
 
 	// Register the model in the environment

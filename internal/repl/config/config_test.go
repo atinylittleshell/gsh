@@ -211,4 +211,35 @@ func TestConfig_ZeroValueBehavior(t *testing.T) {
 	assert.Nil(t, cfg.GetTool("test"))
 	assert.Nil(t, cfg.GetUpdatePromptTool())
 	assert.Nil(t, cfg.GetMCPServer("test"))
+	assert.Nil(t, cfg.GetPredictModel())
+}
+
+func TestConfig_GetPredictModel(t *testing.T) {
+	t.Run("returns nil when PredictModel is empty", func(t *testing.T) {
+		cfg := DefaultConfig()
+		assert.Nil(t, cfg.GetPredictModel())
+	})
+
+	t.Run("returns nil when PredictModel references non-existent model", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.PredictModel = "non-existent"
+		assert.Nil(t, cfg.GetPredictModel())
+	})
+
+	t.Run("returns model when PredictModel references existing model", func(t *testing.T) {
+		model := &interpreter.ModelValue{
+			Name: "predict-model",
+			Config: map[string]interpreter.Value{
+				"provider": &interpreter.StringValue{Value: "openai"},
+				"model":    &interpreter.StringValue{Value: "gpt-4o-mini"},
+			},
+		}
+		cfg := DefaultConfig()
+		cfg.Models["predict-model"] = model
+		cfg.PredictModel = "predict-model"
+
+		result := cfg.GetPredictModel()
+		require.NotNil(t, result)
+		assert.Equal(t, "predict-model", result.Name)
+	})
 }

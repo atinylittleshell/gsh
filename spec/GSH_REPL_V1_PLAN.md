@@ -334,7 +334,7 @@ func (c *NoOpCompleter) Complete(ctx context.Context, input string, pos int) ([]
   - Prefix predictor (predict based on typing)
   - Null-state predictor (suggest when input is empty)
   - Router (coordinate between strategies)
-- [ ] Integrate with new config system for LLM settings
+- [x] Integrate with new config system for LLM settings
 - [ ] Wire prediction into REPL (replace no-op provider)
 - [ ] Write tests for prediction accuracy
 

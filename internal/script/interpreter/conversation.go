@@ -121,22 +121,6 @@ func (i *Interpreter) executeAgent(conv *ConversationValue, agent *AgentValue) (
 		return nil, fmt.Errorf("agent '%s' model config is not a model", agent.Name)
 	}
 
-	// Get provider from model config
-	providerVal, ok := model.Config["provider"]
-	if !ok {
-		return nil, fmt.Errorf("model '%s' has no provider configured", model.Name)
-	}
-	providerStr, ok := providerVal.(*StringValue)
-	if !ok {
-		return nil, fmt.Errorf("model '%s' provider must be a string", model.Name)
-	}
-
-	// Get provider from registry
-	provider, ok := i.providerRegistry.Get(providerStr.Value)
-	if !ok {
-		return nil, fmt.Errorf("unknown model provider: %s", providerStr.Value)
-	}
-
 	// Prepare tools for the agent
 	tools := []ChatTool{}
 	if toolsVal, ok := agent.Config["tools"]; ok {
@@ -169,8 +153,8 @@ func (i *Interpreter) executeAgent(conv *ConversationValue, agent *AgentValue) (
 		Tools:    tools,
 	}
 
-	// Call the model provider
-	response, err := provider.ChatCompletion(request)
+	// Call the model directly (provider is resolved at model creation time)
+	response, err := model.ChatCompletion(request)
 	if err != nil {
 		return nil, fmt.Errorf("agent execution failed: %w", err)
 	}
@@ -214,7 +198,7 @@ func (i *Interpreter) executeAgent(conv *ConversationValue, agent *AgentValue) (
 
 		// Make another call to get final response after tool execution
 		request.Messages = newConv.Messages
-		response, err = provider.ChatCompletion(request)
+		response, err = model.ChatCompletion(request)
 		if err != nil {
 			return nil, fmt.Errorf("agent execution after tool calls failed: %w", err)
 		}

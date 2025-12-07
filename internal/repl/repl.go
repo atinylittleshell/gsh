@@ -18,6 +18,7 @@ import (
 	"github.com/atinylittleshell/gsh/internal/repl/config"
 	"github.com/atinylittleshell/gsh/internal/repl/executor"
 	"github.com/atinylittleshell/gsh/internal/repl/input"
+	"github.com/atinylittleshell/gsh/internal/repl/predict"
 )
 
 // timeNow is a variable that can be overridden for testing.
@@ -25,10 +26,11 @@ var timeNow = time.Now
 
 // REPL is the main interactive shell interface.
 type REPL struct {
-	config   *config.Config
-	executor *executor.REPLExecutor
-	history  *history.HistoryManager
-	logger   *zap.Logger
+	config    *config.Config
+	executor  *executor.REPLExecutor
+	history   *history.HistoryManager
+	predictor *predict.Router
+	logger    *zap.Logger
 
 	// Track last command exit code and duration for prompt updates
 	lastExitCode   int
@@ -96,17 +98,37 @@ func NewREPL(opts Options) (*REPL, error) {
 		// Continue without history - not fatal
 	}
 
+	// Initialize prediction router from config
+	predictor := predict.NewRouterFromConfig(loadResult.Config, logger)
+
 	return &REPL{
-		config:   loadResult.Config,
-		executor: exec,
-		history:  historyMgr,
-		logger:   logger,
+		config:    loadResult.Config,
+		executor:  exec,
+		history:   historyMgr,
+		predictor: predictor,
+		logger:    logger,
 	}, nil
 }
 
 // Run starts the interactive REPL loop.
 func (r *REPL) Run(ctx context.Context) error {
 	r.logger.Info("starting REPL")
+
+	// Create prediction state if predictor is available
+	var predictionState *input.PredictionState
+	if r.predictor != nil {
+		// Create history adapter for history-based predictions
+		var historyProvider input.HistoryProvider
+		if r.history != nil {
+			historyProvider = input.NewHistoryPredictionAdapter(r.history)
+		}
+
+		predictionState = input.NewPredictionState(input.PredictionStateConfig{
+			HistoryProvider: historyProvider,
+			LLMProvider:     r.predictor,
+			Logger:          r.logger,
+		})
+	}
 
 	for {
 		// Check context cancellation
@@ -122,12 +144,17 @@ func (r *REPL) Run(ctx context.Context) error {
 		// Get history values for navigation
 		historyValues := r.getHistoryValues()
 
+		// Reset prediction state for new input
+		if predictionState != nil {
+			predictionState.Reset()
+		}
+
 		// Create input model
 		inputModel := input.New(input.Config{
 			Prompt:             prompt,
 			HistoryValues:      historyValues,
 			CompletionProvider: nil, // No-op for Phase 3
-			PredictionState:    nil, // No-op for Phase 3
+			PredictionState:    predictionState,
 			Logger:             r.logger,
 		})
 

@@ -3,6 +3,7 @@ package predict
 import (
 	"context"
 
+	"github.com/atinylittleshell/gsh/internal/repl/config"
 	"go.uber.org/zap"
 )
 
@@ -76,4 +77,50 @@ func (r *Router) PrefixPredictor() Predictor {
 // NullStatePredictor returns the null state predictor (for testing).
 func (r *Router) NullStatePredictor() Predictor {
 	return r.nullStatePredictor
+}
+
+// NewRouterFromConfig creates a Router configured from the REPL config.
+// It sets up the prefix and null-state predictors using the model specified
+// in GSH_CONFIG.predictModel.
+// Returns nil if no prediction model is configured.
+func NewRouterFromConfig(cfg *config.Config, logger *zap.Logger) *Router {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
+	// Get the prediction model from config
+	model := cfg.GetPredictModel()
+	if model == nil {
+		logger.Debug("no prediction model configured, predictions disabled")
+		return nil
+	}
+
+	// Verify the model has a provider
+	if model.Provider == nil {
+		logger.Warn("prediction model has no provider",
+			zap.String("model", cfg.PredictModel))
+		return nil
+	}
+
+	logger.Debug("creating prediction router",
+		zap.String("model", cfg.PredictModel),
+		zap.String("provider", model.Provider.Name()))
+
+	// Create prefix predictor
+	prefixPredictor := NewPrefixPredictor(PrefixPredictorConfig{
+		Model:  model,
+		Logger: logger,
+	})
+
+	// Create null-state predictor
+	nullStatePredictor := NewNullStatePredictor(NullStatePredictorConfig{
+		Model:  model,
+		Logger: logger,
+	})
+
+	return NewRouter(RouterConfig{
+		PrefixPredictor:    prefixPredictor,
+		NullStatePredictor: nullStatePredictor,
+		Logger:             logger,
+	})
 }

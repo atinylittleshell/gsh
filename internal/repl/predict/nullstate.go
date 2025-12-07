@@ -14,7 +14,6 @@ import (
 // It uses context (cwd, git status, history, etc.) to suggest a likely next command.
 type NullStatePredictor struct {
 	model     *interpreter.ModelValue
-	provider  interpreter.ModelProvider
 	logger    *zap.Logger
 	formatter ContextFormatter
 
@@ -24,11 +23,8 @@ type NullStatePredictor struct {
 
 // NullStatePredictorConfig holds configuration for creating a NullStatePredictor.
 type NullStatePredictorConfig struct {
-	// Model is the LLM model to use for predictions.
+	// Model is the LLM model to use for predictions (must have Provider set).
 	Model *interpreter.ModelValue
-
-	// Provider is the model provider (OpenAI, Anthropic, etc.)
-	Provider interpreter.ModelProvider
 
 	// Logger for debug output. If nil, a no-op logger is used.
 	Logger *zap.Logger
@@ -51,7 +47,6 @@ func NewNullStatePredictor(cfg NullStatePredictorConfig) *NullStatePredictor {
 
 	return &NullStatePredictor{
 		model:     cfg.Model,
-		provider:  cfg.Provider,
 		logger:    logger,
 		formatter: formatter,
 	}
@@ -78,7 +73,7 @@ func (p *NullStatePredictor) Predict(ctx context.Context, input string) (string,
 		return "", nil
 	}
 
-	if p.model == nil || p.provider == nil {
+	if p.model == nil || p.model.Provider == nil {
 		return "", nil
 	}
 
@@ -115,7 +110,7 @@ Now predict what my next command should be.`, BestPractices, contextText)
 		},
 	}
 
-	response, err := p.provider.ChatCompletion(request)
+	response, err := p.model.ChatCompletion(request)
 	if err != nil {
 		return "", err
 	}
