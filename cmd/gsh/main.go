@@ -19,6 +19,7 @@ import (
 	"github.com/atinylittleshell/gsh/internal/evaluate"
 	"github.com/atinylittleshell/gsh/internal/filesystem"
 	"github.com/atinylittleshell/gsh/internal/history"
+	"github.com/atinylittleshell/gsh/internal/repl"
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 	"github.com/atinylittleshell/gsh/internal/script/lexer"
 	"github.com/atinylittleshell/gsh/internal/script/parser"
@@ -145,7 +146,7 @@ func run(
 	// gsh
 	if flag.NArg() == 0 {
 		if term.IsTerminal(int(os.Stdin.Fd())) {
-			return core.RunInteractiveShell(ctx, runner, historyManager, analyticsManager, completionManager, logger)
+			return runInteractiveShell(ctx, logger)
 		}
 
 		return bash.RunBashScriptFromReader(ctx, runner, os.Stdin, "gsh")
@@ -165,6 +166,19 @@ func run(
 	}
 
 	return nil
+}
+
+// runInteractiveShell starts the new REPL implementation.
+func runInteractiveShell(ctx context.Context, logger *zap.Logger) error {
+	r, err := repl.NewREPL(repl.Options{
+		Logger: logger,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize REPL: %w", err)
+	}
+	defer r.Close()
+
+	return r.Run(ctx)
 }
 
 // isGshScript checks if a file is a .gsh script
