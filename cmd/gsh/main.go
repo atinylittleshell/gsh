@@ -248,6 +248,12 @@ func initializeLogger(runner *interp.Runner) (*zap.Logger, error) {
 	loggerConfig.OutputPaths = []string{
 		core.LogFile(),
 	}
+
+	// In dev builds, also log to stderr for easier debugging
+	if BUILD_VERSION == "dev" {
+		loggerConfig.OutputPaths = append(loggerConfig.OutputPaths, "stderr")
+	}
+
 	logger, err := loggerConfig.Build()
 	if err != nil {
 		return nil, err
