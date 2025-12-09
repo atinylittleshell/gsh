@@ -605,9 +605,9 @@ func TestShellCompletionProvider_GlobalCompletion_Integration(t *testing.T) {
 	scriptPath := filepath.Join(tmpDir, "completer.sh")
 	scriptContent := `#!/bin/sh
 echo "global-option1"
-echo "global-option2\tdescription2"
+echo -e "global-option2\tdescription2"
 echo '{"Value":"global-option3","Description":"json desc"}'
-`
+`, sh_path)
 	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
 	require.NoError(t, err)
 
