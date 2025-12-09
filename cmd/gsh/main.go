@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,6 +24,7 @@ import (
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 	"github.com/atinylittleshell/gsh/internal/script/lexer"
 	"github.com/atinylittleshell/gsh/internal/script/parser"
+	"github.com/atinylittleshell/gsh/internal/styles"
 	"go.uber.org/zap"
 	"golang.org/x/term"
 	"mvdan.cc/sh/v3/expand"
@@ -232,6 +234,23 @@ func runGshScript(ctx context.Context, filePath string, logger *zap.Logger) erro
 	return nil
 }
 
+// grayStderrWriter wraps stderr and applies gray styling to output
+type grayStderrWriter struct{}
+
+func (w grayStderrWriter) Write(p []byte) (n int, err error) {
+	// Apply gray styling to the log output
+	styled := styles.LOG(string(p))
+	return os.Stderr.WriteString(styled)
+}
+
+func (w grayStderrWriter) Sync() error {
+	return os.Stderr.Sync()
+}
+
+func (w grayStderrWriter) Close() error {
+	return nil
+}
+
 func initializeLogger(runner *interp.Runner) (*zap.Logger, error) {
 	logLevel := environment.GetLogLevel(runner)
 	if BUILD_VERSION == "dev" {
@@ -249,9 +268,17 @@ func initializeLogger(runner *interp.Runner) (*zap.Logger, error) {
 		core.LogFile(),
 	}
 
-	// In dev builds, also log to stderr for easier debugging
+	// In dev builds, also log to stderr for easier debugging with gray styling
 	if BUILD_VERSION == "dev" {
-		loggerConfig.OutputPaths = append(loggerConfig.OutputPaths, "stderr")
+		// Register a custom sink for gray stderr output
+		err := zap.RegisterSink("graystderr", func(u *url.URL) (zap.Sink, error) {
+			return grayStderrWriter{}, nil
+		})
+		if err != nil {
+			// Sink may already be registered, ignore the error
+			_ = err
+		}
+		loggerConfig.OutputPaths = append(loggerConfig.OutputPaths, "graystderr://")
 	}
 
 	logger, err := loggerConfig.Build()

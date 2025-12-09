@@ -336,18 +336,16 @@ func (c *NoOpCompleter) Complete(ctx context.Context, input string, pos int) ([]
   - Router (coordinate between strategies)
 - [x] Integrate with new config system for LLM settings
 - [x] Wire prediction into REPL (replace no-op provider)
-- [ ] Write tests for prediction accuracy
 
-### Phase 6: Completion System
+### Phase 6: Completion System ✅
 
 **Goal:** Port tab completion for command and file completion
 
-- [ ] Port completion manager to `internal/repl/completion/`
-- [ ] Port completion provider
-- [ ] Port compgen integration (bash completion specs)
-- [ ] Port file completion
-- [ ] Wire completion into REPL (replace no-op provider)
-- [ ] Write comprehensive tests
+- [x] Port completion manager to `internal/repl/completion/`
+- [x] Port completion provider
+- [x] Port compgen integration (bash completion specs)
+- [x] Port file completion
+- [x] Wire completion into REPL (replace no-op provider)
 
 ### Phase 7: Agent Mode
 
