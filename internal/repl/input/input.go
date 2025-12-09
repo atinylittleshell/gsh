@@ -282,21 +282,28 @@ func (m Model) CurrentPrediction() string {
 
 // handleKeyMsg processes keyboard input.
 func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// First, check if completion state should handle this
-	if m.completion.IsActive() {
-		if action := m.keymap.Lookup(msg); action == ActionComplete || action == ActionCompleteBackward || action == ActionCancel {
-			return m.handleCompletionAction(action)
-		}
-	}
-
 	// Look up the action for this key
 	action := m.keymap.Lookup(msg)
 
-	// Reset completion state for most keys (except completion-related)
-	if action != ActionComplete && action != ActionCompleteBackward && action != ActionCancel {
-		if m.completion.IsActive() {
+	// When completion is active, handle navigation keys specially
+	if m.completion.IsActive() {
+		switch action {
+		case ActionComplete, ActionCursorDown:
+			// Tab or Down arrow: cycle forward through completions
+			return m.handleComplete()
+		case ActionCompleteBackward, ActionCursorUp:
+			// Shift+Tab or Up arrow: cycle backward through completions
+			return m.handleCompleteBackward()
+		case ActionCancel:
+			// Escape: cancel completion
+			return m.handleCompletionAction(action)
+		case ActionSubmit:
+			// Enter: accept current completion and submit
 			m.completion.Reset()
+			return m.handleSubmit()
 		}
+		// For other keys, reset completion and continue with normal handling
+		m.completion.Reset()
 	}
 
 	// Handle special actions first
@@ -375,11 +382,11 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case ActionDeleteAfterCursor:
 		return m.handleDeleteAfterCursor()
 
-	// History navigation
-	case ActionHistoryPrevious:
+	// Vertical navigation (history when completion not active)
+	case ActionCursorUp:
 		return m.handleHistoryPrevious()
 
-	case ActionHistoryNext:
+	case ActionCursorDown:
 		return m.handleHistoryNext()
 
 	default:

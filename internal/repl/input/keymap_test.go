@@ -24,8 +24,8 @@ func TestActionString(t *testing.T) {
 		{ActionDeleteWordForward, "DeleteWordForward"},
 		{ActionDeleteBeforeCursor, "DeleteBeforeCursor"},
 		{ActionDeleteAfterCursor, "DeleteAfterCursor"},
-		{ActionHistoryPrevious, "HistoryPrevious"},
-		{ActionHistoryNext, "HistoryNext"},
+		{ActionCursorUp, "CursorUp"},
+		{ActionCursorDown, "CursorDown"},
 		{ActionComplete, "Complete"},
 		{ActionCompleteBackward, "CompleteBackward"},
 		{ActionSubmit, "Submit"},
@@ -85,8 +85,8 @@ func TestDefaultKeyMap(t *testing.T) {
 		ActionDeleteWordForward:       {"alt+d", "alt+delete"},
 		ActionDeleteBeforeCursor:      {"ctrl+u"},
 		ActionDeleteAfterCursor:       {"ctrl+k"},
-		ActionHistoryPrevious:         {"up", "ctrl+p"},
-		ActionHistoryNext:             {"down", "ctrl+n"},
+		ActionCursorUp:                {"up", "ctrl+p"},
+		ActionCursorDown:              {"down", "ctrl+n"},
 		ActionComplete:                {"tab"},
 		ActionCompleteBackward:        {"shift+tab"},
 		ActionSubmit:                  {"enter"},
@@ -196,10 +196,10 @@ func TestKeyMapLookup(t *testing.T) {
 		{"ctrl+k", ActionDeleteAfterCursor},
 
 		// History
-		{"up", ActionHistoryPrevious},
-		{"ctrl+p", ActionHistoryPrevious},
-		{"down", ActionHistoryNext},
-		{"ctrl+n", ActionHistoryNext},
+		{"up", ActionCursorUp},
+		{"ctrl+p", ActionCursorUp},
+		{"down", ActionCursorDown},
+		{"ctrl+n", ActionCursorDown},
 
 		// Completion
 		{"tab", ActionComplete},

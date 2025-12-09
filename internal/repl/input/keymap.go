@@ -27,9 +27,9 @@ const (
 	ActionDeleteBeforeCursor      // Delete all text before cursor (Ctrl+U)
 	ActionDeleteAfterCursor       // Delete all text after cursor (Ctrl+K)
 
-	// History navigation
-	ActionHistoryPrevious // Navigate to previous history entry (Up, Ctrl+P)
-	ActionHistoryNext     // Navigate to next history entry (Down, Ctrl+N)
+	// Vertical navigation (context-dependent: history or completion)
+	ActionCursorUp   // Move up (Up, Ctrl+P) - history previous or completion previous
+	ActionCursorDown // Move down (Down, Ctrl+N) - history next or completion next
 
 	// Completion actions
 	ActionComplete         // Trigger tab completion (Tab)
@@ -76,10 +76,10 @@ func (a Action) String() string {
 		return "DeleteBeforeCursor"
 	case ActionDeleteAfterCursor:
 		return "DeleteAfterCursor"
-	case ActionHistoryPrevious:
-		return "HistoryPrevious"
-	case ActionHistoryNext:
-		return "HistoryNext"
+	case ActionCursorUp:
+		return "CursorUp"
+	case ActionCursorDown:
+		return "CursorDown"
 	case ActionComplete:
 		return "Complete"
 	case ActionCompleteBackward:
@@ -160,9 +160,9 @@ func DefaultKeyMap() *KeyMap {
 		{Keys: []string{"ctrl+u"}, Action: ActionDeleteBeforeCursor},
 		{Keys: []string{"ctrl+k"}, Action: ActionDeleteAfterCursor},
 
-		// History navigation
-		{Keys: []string{"up", "ctrl+p"}, Action: ActionHistoryPrevious},
-		{Keys: []string{"down", "ctrl+n"}, Action: ActionHistoryNext},
+		// Vertical navigation (context-dependent)
+		{Keys: []string{"up", "ctrl+p"}, Action: ActionCursorUp},
+		{Keys: []string{"down", "ctrl+n"}, Action: ActionCursorDown},
 
 		// Completion
 		{Keys: []string{"tab"}, Action: ActionComplete},

@@ -15,6 +15,7 @@ import (
 
 	"github.com/atinylittleshell/gsh/internal/core"
 	"github.com/atinylittleshell/gsh/internal/history"
+	"github.com/atinylittleshell/gsh/internal/repl/completion"
 	"github.com/atinylittleshell/gsh/internal/repl/config"
 	replcontext "github.com/atinylittleshell/gsh/internal/repl/context"
 	"github.com/atinylittleshell/gsh/internal/repl/executor"
@@ -27,12 +28,13 @@ var timeNow = time.Now
 
 // REPL is the main interactive shell interface.
 type REPL struct {
-	config          *config.Config
-	executor        *executor.REPLExecutor
-	history         *history.HistoryManager
-	predictor       *predict.Router
-	contextProvider *replcontext.Provider
-	logger          *zap.Logger
+	config             *config.Config
+	executor           *executor.REPLExecutor
+	history            *history.HistoryManager
+	predictor          *predict.Router
+	contextProvider    *replcontext.Provider
+	completionProvider *completion.Provider
+	logger             *zap.Logger
 
 	// Track last command exit code and duration for prompt updates
 	lastExitCode   int
@@ -115,13 +117,17 @@ func NewREPL(opts Options) (*REPL, error) {
 		contextProvider.AddRetriever(replcontext.NewConciseHistoryRetriever(historyMgr, 0))
 	}
 
+	// Initialize completion provider
+	completionProvider := completion.NewProvider(exec)
+
 	return &REPL{
-		config:          loadResult.Config,
-		executor:        exec,
-		history:         historyMgr,
-		predictor:       predictor,
-		contextProvider: contextProvider,
-		logger:          logger,
+		config:             loadResult.Config,
+		executor:           exec,
+		history:            historyMgr,
+		predictor:          predictor,
+		contextProvider:    contextProvider,
+		completionProvider: completionProvider,
+		logger:             logger,
 	}, nil
 }
 
@@ -178,7 +184,7 @@ func (r *REPL) Run(ctx context.Context) error {
 		inputModel := input.New(input.Config{
 			Prompt:             prompt,
 			HistoryValues:      historyValues,
-			CompletionProvider: nil, // No-op for Phase 3
+			CompletionProvider: r.completionProvider,
 			PredictionState:    predictionState,
 			Logger:             r.logger,
 		})
@@ -357,4 +363,3 @@ func (r *REPL) Executor() *executor.REPLExecutor {
 func (r *REPL) History() *history.HistoryManager {
 	return r.history
 }
-
