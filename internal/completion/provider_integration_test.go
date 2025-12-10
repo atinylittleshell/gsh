@@ -1,6 +1,7 @@
 package completion
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -590,7 +591,8 @@ func TestShellCompletionProvider_GlobalCompletion_Integration(t *testing.T) {
 	}
 
 	// Skip on CI if needed, or ensure sh is available
-	if _, err := exec.LookPath("sh"); err != nil {
+	sh_path, err := exec.LookPath("sh")
+	if err != nil {
 		t.Skip("sh not found")
 	}
 
@@ -603,7 +605,7 @@ func TestShellCompletionProvider_GlobalCompletion_Integration(t *testing.T) {
 	// Create a script that ignores arguments and prints completions
 	tmpDir := t.TempDir()
 	scriptPath := filepath.Join(tmpDir, "completer.sh")
-	scriptContent := `#!/bin/sh
+	scriptContent := fmt.Sprintf(`#!%s
 echo "global-option1"
 echo -e "global-option2\tdescription2"
 echo '{"Value":"global-option3","Description":"json desc"}'
