@@ -1,6 +1,7 @@
 package completion
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -562,6 +563,12 @@ func TestShellCompletionProvider_CompletionSpec_Integration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			completions := provider.GetCompletions(tt.line, tt.pos)
 
+			// DEBUG: Log all completions with their byte representation
+			t.Logf("Got %d completions:", len(completions))
+			for i, c := range completions {
+				t.Logf("  [%d] Value=%q (bytes: %v), Description=%q", i, c.Value, []byte(c.Value), c.Description)
+			}
+
 			assert.GreaterOrEqual(t, len(completions), tt.expectedMin,
 				"Should have at least %d completions, got %d: %v",
 				tt.expectedMin, len(completions), completions)
@@ -590,7 +597,8 @@ func TestShellCompletionProvider_GlobalCompletion_Integration(t *testing.T) {
 	}
 
 	// Skip on CI if needed, or ensure sh is available
-	if _, err := exec.LookPath("sh"); err != nil {
+	sh_path, err := exec.LookPath("sh")
+	if err != nil {
 		t.Skip("sh not found")
 	}
 
@@ -603,11 +611,11 @@ func TestShellCompletionProvider_GlobalCompletion_Integration(t *testing.T) {
 	// Create a script that ignores arguments and prints completions
 	tmpDir := t.TempDir()
 	scriptPath := filepath.Join(tmpDir, "completer.sh")
-	scriptContent := `#!/bin/sh
+	scriptContent := fmt.Sprintf(`#!%s
 echo "global-option1"
-echo "global-option2\tdescription2"
+printf "global-option2\tdescription2\n"
 echo '{"Value":"global-option3","Description":"json desc"}'
-`
+`, sh_path)
 	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
 	require.NoError(t, err)
 
@@ -636,6 +644,12 @@ echo '{"Value":"global-option3","Description":"json desc"}'
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			completions := provider.GetCompletions(tt.line, tt.pos)
+
+			// DEBUG: Log all completions with their byte representation
+			t.Logf("Got %d completions:", len(completions))
+			for i, c := range completions {
+				t.Logf("  [%d] Value=%q (bytes: %v), Description=%q", i, c.Value, []byte(c.Value), c.Description)
+			}
 
 			assert.GreaterOrEqual(t, len(completions), tt.expectedMin,
 				"Should have at least %d completions, got %d: %v",
