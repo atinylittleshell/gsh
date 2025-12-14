@@ -67,9 +67,10 @@ func (i *LLMIndicator) Update() {
 
 // Width returns the display width of the indicator.
 // Note: ⚡ (U+26A1) has ambiguous East Asian width; runewidth returns 2 but
-// most western terminals render it as 1 cell, so we hardcode 1.
+// many western terminals render it as 1 cell. We detect the actual terminal
+// behavior at runtime using cursor position probing.
 func (i LLMIndicator) Width() int {
-	return 1
+	return GetLightningBoltWidth()
 }
 
 // View renders the indicator
