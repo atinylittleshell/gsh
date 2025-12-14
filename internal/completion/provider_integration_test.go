@@ -563,6 +563,12 @@ func TestShellCompletionProvider_CompletionSpec_Integration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			completions := provider.GetCompletions(tt.line, tt.pos)
 
+			// DEBUG: Log all completions with their byte representation
+			t.Logf("Got %d completions:", len(completions))
+			for i, c := range completions {
+				t.Logf("  [%d] Value=%q (bytes: %v), Description=%q", i, c.Value, []byte(c.Value), c.Description)
+			}
+
 			assert.GreaterOrEqual(t, len(completions), tt.expectedMin,
 				"Should have at least %d completions, got %d: %v",
 				tt.expectedMin, len(completions), completions)
@@ -607,7 +613,7 @@ func TestShellCompletionProvider_GlobalCompletion_Integration(t *testing.T) {
 	scriptPath := filepath.Join(tmpDir, "completer.sh")
 	scriptContent := fmt.Sprintf(`#!%s
 echo "global-option1"
-echo -e "global-option2\tdescription2"
+printf "global-option2\tdescription2\n"
 echo '{"Value":"global-option3","Description":"json desc"}'
 `, sh_path)
 	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
@@ -638,6 +644,12 @@ echo '{"Value":"global-option3","Description":"json desc"}'
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			completions := provider.GetCompletions(tt.line, tt.pos)
+
+			// DEBUG: Log all completions with their byte representation
+			t.Logf("Got %d completions:", len(completions))
+			for i, c := range completions {
+				t.Logf("  [%d] Value=%q (bytes: %v), Description=%q", i, c.Value, []byte(c.Value), c.Description)
+			}
 
 			assert.GreaterOrEqual(t, len(completions), tt.expectedMin,
 				"Should have at least %d completions, got %d: %v",

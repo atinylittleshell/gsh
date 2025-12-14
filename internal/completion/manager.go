@@ -205,6 +205,45 @@ func (m *CompletionManager) RunExternalCompleter(ctx context.Context, command st
 
 		var candidate shellinput.CompletionCandidate
 
+		// Try to parse as JSON (single object or array)
+		if strings.HasPrefix(l, "{") || strings.HasPrefix(l, "[") {
+			// Try parsing as a single JSON object with Value/Display/Description
+			type JsonCandidate struct {
+				Value       string `json:"Value"`
+				Display     string `json:"Display"`
+				Description string `json:"Description"`
+			}
+			var obj JsonCandidate
+			if err := json.Unmarshal([]byte(l), &obj); err == nil && obj.Value != "" {
+				candidate.Value = obj.Value
+				candidate.Display = obj.Display
+				candidate.Description = obj.Description
+				completions = append(completions, candidate)
+				continue
+			}
+			// Try parsing as an array of JSON objects
+			var objList []JsonCandidate
+			if err := json.Unmarshal([]byte(l), &objList); err == nil && len(objList) > 0 {
+				for _, o := range objList {
+					completions = append(completions, shellinput.CompletionCandidate{
+						Value:       o.Value,
+						Display:     o.Display,
+						Description: o.Description,
+					})
+				}
+				continue
+			}
+			// Try parsing as a simple list of strings
+			var stringList []string
+			if err := json.Unmarshal([]byte(l), &stringList); err == nil && len(stringList) > 0 {
+				for _, s := range stringList {
+					completions = append(completions, shellinput.CompletionCandidate{Value: s})
+				}
+				continue
+			}
+			// If JSON parsing fails, fall through to regular parsing
+		}
+
 		// Check for tab delimiter (Value\tDescription)
 		if strings.Contains(l, "\t") {
 			parts := strings.SplitN(l, "\t", 2)
