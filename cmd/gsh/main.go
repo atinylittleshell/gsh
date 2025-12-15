@@ -13,6 +13,7 @@ import (
 	"github.com/atinylittleshell/gsh/internal/analytics"
 	"github.com/atinylittleshell/gsh/internal/appupdate"
 	"github.com/atinylittleshell/gsh/internal/bash"
+	"github.com/atinylittleshell/gsh/internal/coach"
 	"github.com/atinylittleshell/gsh/internal/completion"
 	"github.com/atinylittleshell/gsh/internal/config"
 	"github.com/atinylittleshell/gsh/internal/core"
@@ -101,8 +102,16 @@ func main() {
 		appupdate.DefaultUpdater{},
 	)
 
+	// Initialize the coach manager (uses same database as history)
+	coachManager, err := coach.NewCoachManager(historyManager.GetDB(), historyManager, runner, logger)
+	if err != nil {
+		logger.Warn("failed to initialize coach manager", zap.Error(err))
+		// Coach is optional, continue without it
+		coachManager = nil
+	}
+
 	// Start running
-	err = run(runner, historyManager, analyticsManager, completionManager, logger, stderrCapturer)
+	err = run(runner, historyManager, analyticsManager, completionManager, coachManager, logger, stderrCapturer)
 
 	// Handle exit status
 	if code, ok := interp.IsExitStatus(err); ok {
@@ -120,6 +129,7 @@ func run(
 	historyManager *history.HistoryManager,
 	analyticsManager *analytics.AnalyticsManager,
 	completionManager *completion.CompletionManager,
+	coachManager *coach.CoachManager,
 	logger *zap.Logger,
 	stderrCapturer *core.StderrCapturer,
 ) error {
@@ -133,7 +143,7 @@ func run(
 	// gsh
 	if flag.NArg() == 0 {
 		if term.IsTerminal(int(os.Stdin.Fd())) {
-			return core.RunInteractiveShell(ctx, runner, historyManager, analyticsManager, completionManager, logger, stderrCapturer)
+			return core.RunInteractiveShell(ctx, runner, historyManager, analyticsManager, completionManager, coachManager, logger, stderrCapturer)
 		}
 
 		return bash.RunBashScriptFromReader(ctx, runner, os.Stdin, "gsh")

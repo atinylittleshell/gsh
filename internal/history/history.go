@@ -50,6 +50,12 @@ func (historyManager *HistoryManager) Close() error {
 	return sqlDB.Close()
 }
 
+// GetDB returns the underlying GORM database connection.
+// This allows other packages (like coach) to use the same database.
+func (historyManager *HistoryManager) GetDB() *gorm.DB {
+	return historyManager.db
+}
+
 func (historyManager *HistoryManager) StartCommand(command string, directory string) (*HistoryEntry, error) {
 	entry := HistoryEntry{
 		Command:   command,

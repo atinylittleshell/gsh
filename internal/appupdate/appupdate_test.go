@@ -102,12 +102,34 @@ func (m *MockRelease) AssetName() string {
 func TestReadLatestVersion(t *testing.T) {
 	mockFS := new(MockFileSystem)
 	mockFile, _ := os.CreateTemp("", "test-latest-version")
+	fileName := mockFile.Name()
+
+	// Write data and close file immediately to prevent handle leaks
+	_, err := mockFile.Write([]byte("1.2.3"))
+	assert.NoError(t, err)
+	err = mockFile.Close()
+	assert.NoError(t, err)
+
+	// Reopen for reading to simulate the mock behavior
+	mockFile, err = os.Open(fileName)
+	assert.NoError(t, err)
+
+	// Cleanup function that ensures file is closed before removal
 	t.Cleanup(func() {
-		assert.NoError(t, os.Remove(mockFile.Name()))
+		// Close file first to release file handle (critical for Windows)
+		if mockFile != nil {
+			err := mockFile.Close()
+			if err != nil {
+				t.Logf("Warning: error closing mockFile: %v", err)
+			}
+		}
+		// Now remove the file
+		err := os.Remove(fileName)
+		if err != nil {
+			t.Logf("Warning: error removing mockFile: %v", err)
+		}
 	})
 
-	_, _ = mockFile.Write([]byte("1.2.3"))
-	_, _ = mockFile.Seek(0, 0)
 	mockFS.On("Open", core.LatestVersionFile()).Return(mockFile, nil)
 
 	result := readLatestVersion(mockFS)
@@ -124,20 +146,62 @@ func TestHandleSelfUpdate_UpdateNeeded(t *testing.T) {
 	logger := zap.NewNop()
 
 	mockFileForRead, _ := os.CreateTemp("", "test-latest-version-read")
+	readFileName := mockFileForRead.Name()
+
+	// Write data and close file immediately to prevent handle leaks
+	_, err := mockFileForRead.Write([]byte("1.0.0"))
+	assert.NoError(t, err)
+	err = mockFileForRead.Close()
+	assert.NoError(t, err)
+
+	// Reopen for reading to simulate the mock behavior
+	mockFileForRead, err = os.Open(readFileName)
+	assert.NoError(t, err)
+
+	// Cleanup function that ensures file is closed before removal
 	t.Cleanup(func() {
-		assert.NoError(t, os.Remove(mockFileForRead.Name()))
+		// Close file first to release file handle (critical for Windows)
+		if mockFileForRead != nil {
+			err := mockFileForRead.Close()
+			if err != nil {
+				t.Logf("Warning: error closing mockFileForRead: %v", err)
+			}
+		}
+		// Now remove the file
+		err := os.Remove(readFileName)
+		if err != nil {
+			t.Logf("Warning: error removing mockFileForRead: %v", err)
+		}
 	})
-	_, _ = mockFileForRead.Write([]byte("1.0.0"))
-	_, _ = mockFileForRead.Seek(0, 0)
 
 	mockFileForWrite, _ := os.CreateTemp("", "test-latest-version-write")
+	writeFileName := mockFileForWrite.Name()
+
+	// Close file immediately to prevent handle leaks
+	err = mockFileForWrite.Close()
+	assert.NoError(t, err)
+
+	// Reopen for writing to simulate the mock behavior
+	mockFileForWrite, err = os.OpenFile(writeFileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	assert.NoError(t, err)
+
+	// Cleanup function that ensures file is closed before removal
 	t.Cleanup(func() {
-		assert.NoError(t, os.Remove(mockFileForWrite.Name()))
+		// Close file first to release file handle (critical for Windows)
+		if mockFileForWrite != nil {
+			err := mockFileForWrite.Close()
+			if err != nil {
+				t.Logf("Warning: error closing mockFileForWrite: %v", err)
+			}
+		}
+		// Now remove the file
+		err := os.Remove(writeFileName)
+		if err != nil {
+			t.Logf("Warning: error removing mockFileForWrite: %v", err)
+		}
 	})
 
 	mockFS.On("Open", core.LatestVersionFile()).Return(mockFileForRead, nil)
-
-	// Update to expect OpenFile instead of Create
 	mockFS.On("OpenFile", core.LatestVersionFile(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.FileMode(0600)).Return(mockFileForWrite, nil)
 
 	mockRemoteRelease.On("Version").Return("2.0.0")
@@ -172,20 +236,62 @@ func TestHandleSelfUpdate_NoUpdateNeeded(t *testing.T) {
 	logger := zap.NewNop()
 
 	mockFileForRead, _ := os.CreateTemp("", "test-latest-version-read")
+	readFileName := mockFileForRead.Name()
+
+	// Write data and close file immediately to prevent handle leaks
+	_, err := mockFileForRead.Write([]byte("1.2.3"))
+	assert.NoError(t, err)
+	err = mockFileForRead.Close()
+	assert.NoError(t, err)
+
+	// Reopen for reading to simulate the mock behavior
+	mockFileForRead, err = os.Open(readFileName)
+	assert.NoError(t, err)
+
+	// Cleanup function that ensures file is closed before removal
 	t.Cleanup(func() {
-		assert.NoError(t, os.Remove(mockFileForRead.Name()))
+		// Close file first to release file handle (critical for Windows)
+		if mockFileForRead != nil {
+			err := mockFileForRead.Close()
+			if err != nil {
+				t.Logf("Warning: error closing mockFileForRead: %v", err)
+			}
+		}
+		// Now remove the file
+		err := os.Remove(readFileName)
+		if err != nil {
+			t.Logf("Warning: error removing mockFileForRead: %v", err)
+		}
 	})
-	_, _ = mockFileForRead.Write([]byte("1.2.3"))
-	_, _ = mockFileForRead.Seek(0, 0)
 
 	mockFileForWrite, _ := os.CreateTemp("", "test-latest-version-write")
+	writeFileName := mockFileForWrite.Name()
+
+	// Close file immediately to prevent handle leaks
+	err = mockFileForWrite.Close()
+	assert.NoError(t, err)
+
+	// Reopen for writing to simulate the mock behavior
+	mockFileForWrite, err = os.OpenFile(writeFileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	assert.NoError(t, err)
+
+	// Cleanup function that ensures file is closed before removal
 	t.Cleanup(func() {
-		assert.NoError(t, os.Remove(mockFileForWrite.Name()))
+		// Close file first to release file handle (critical for Windows)
+		if mockFileForWrite != nil {
+			err := mockFileForWrite.Close()
+			if err != nil {
+				t.Logf("Warning: error closing mockFileForWrite: %v", err)
+			}
+		}
+		// Now remove the file
+		err := os.Remove(writeFileName)
+		if err != nil {
+			t.Logf("Warning: error removing mockFileForWrite: %v", err)
+		}
 	})
 
 	mockFS.On("Open", core.LatestVersionFile()).Return(mockFileForRead, nil)
-
-	// Update to expect OpenFile instead of Create
 	mockFS.On("OpenFile", core.LatestVersionFile(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.FileMode(0600)).Return(mockFileForWrite, nil)
 
 	mockRemoteRelease.On("Version").Return("1.2.4")
@@ -201,6 +307,5 @@ func TestHandleSelfUpdate_NoUpdateNeeded(t *testing.T) {
 	mockFS.AssertExpectations(t)
 	mockRemoteRelease.AssertExpectations(t)
 	mockUpdater.AssertExpectations(t)
-
 	mockPrompter.AssertNotCalled(t, "Prompt")
 }

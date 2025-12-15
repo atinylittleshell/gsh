@@ -12,6 +12,7 @@ import (
 	"github.com/atinylittleshell/gsh/internal/agent"
 	"github.com/atinylittleshell/gsh/internal/analytics"
 	"github.com/atinylittleshell/gsh/internal/bash"
+	"github.com/atinylittleshell/gsh/internal/coach"
 	"github.com/atinylittleshell/gsh/internal/completion"
 	"github.com/atinylittleshell/gsh/internal/config"
 	"github.com/atinylittleshell/gsh/internal/environment"
@@ -35,6 +36,7 @@ func RunInteractiveShell(
 	historyManager *history.HistoryManager,
 	analyticsManager *analytics.AnalyticsManager,
 	completionManager *completion.CompletionManager,
+	coachManager *coach.CoachManager,
 	logger *zap.Logger,
 	stderrCapturer *StderrCapturer,
 ) error {
@@ -125,7 +127,21 @@ func RunInteractiveShell(
 		options.User = environment.GetUser(runner)
 		options.Host, _ = os.Hostname()
 
-		line, err := gline.Gline(prompt, historyCommands, "", predictor, explainer, analyticsManager, logger, options)
+		// Get coach startup content for the Assistant Box
+		var coachContent string
+		if coachManager != nil {
+			if content := coachManager.GetDisplayContent(); content != nil {
+				coachContent = content.Icon + " " + content.Title
+				if content.Content != "" {
+					coachContent += "\n" + content.Content
+				}
+				if content.Action != "" {
+					coachContent += "\n" + content.Action
+				}
+			}
+		}
+
+		line, err := gline.Gline(prompt, historyCommands, coachContent, predictor, explainer, analyticsManager, logger, options)
 
 		logger.Debug("received command", zap.String("line", line))
 
@@ -163,6 +179,34 @@ func RunInteractiveShell(
 					}
 					// Sync any gsh variables that were changed in the config UI
 					environment.SyncVariablesToEnv(runner)
+					continue
+				case "coach":
+					if coachManager != nil {
+						fmt.Print(coachManager.RenderDashboard())
+					} else {
+						fmt.Print(gline.RESET_CURSOR_COLUMN + styles.ERROR("gsh: Coach not initialized\n") + gline.RESET_CURSOR_COLUMN)
+					}
+					continue
+				case "coach-stats":
+					if coachManager != nil {
+						fmt.Print(coachManager.RenderStats())
+					} else {
+						fmt.Print(gline.RESET_CURSOR_COLUMN + styles.ERROR("gsh: Coach not initialized\n") + gline.RESET_CURSOR_COLUMN)
+					}
+					continue
+				case "coach-achievements":
+					if coachManager != nil {
+						fmt.Print(coachManager.RenderAchievements())
+					} else {
+						fmt.Print(gline.RESET_CURSOR_COLUMN + styles.ERROR("gsh: Coach not initialized\n") + gline.RESET_CURSOR_COLUMN)
+					}
+					continue
+				case "coach-challenges":
+					if coachManager != nil {
+						fmt.Print(coachManager.RenderChallenges())
+					} else {
+						fmt.Print(gline.RESET_CURSOR_COLUMN + styles.ERROR("gsh: Coach not initialized\n") + gline.RESET_CURSOR_COLUMN)
+					}
 					continue
 				default:
 					logger.Warn("unknown agent control", zap.String("control", control))
@@ -239,7 +283,7 @@ func RunInteractiveShell(
 
 					if confirmed {
 						fmt.Println()
-						shouldExit, err := executeCommand(ctx, fixedCmd, historyManager, runner, logger, state, stderrCapturer)
+						shouldExit, err := executeCommand(ctx, fixedCmd, historyManager, coachManager, runner, logger, state, stderrCapturer)
 						if err != nil {
 							fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
 						}
@@ -308,7 +352,7 @@ func RunInteractiveShell(
 		}
 
 		// Execute the command
-		shouldExit, err := executeCommand(ctx, line, historyManager, runner, logger, state, stderrCapturer)
+		shouldExit, err := executeCommand(ctx, line, historyManager, coachManager, runner, logger, state, stderrCapturer)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
 		}
@@ -325,7 +369,7 @@ func RunInteractiveShell(
 	return nil
 }
 
-func executeCommand(ctx context.Context, input string, historyManager *history.HistoryManager, runner *interp.Runner, logger *zap.Logger, state *ShellState, stderrCapturer *StderrCapturer) (bool, error) {
+func executeCommand(ctx context.Context, input string, historyManager *history.HistoryManager, coachManager *coach.CoachManager, runner *interp.Runner, logger *zap.Logger, state *ShellState, stderrCapturer *StderrCapturer) (bool, error) {
 	// Pre-process input to transform typeset/declare -f/-F/-p commands to gsh_typeset
 	logger.Debug("preprocessing input", zap.String("original_input", input), zap.Int("input_length", len(input)))
 
@@ -407,6 +451,11 @@ func executeCommand(ctx context.Context, input string, historyManager *history.H
 
 	_, _ = historyManager.FinishCommand(historyEntry, exitCode)
 	_, _, _ = bash.RunBashCommand(ctx, runner, fmt.Sprintf("GSH_LAST_COMMAND_EXIT_CODE=%d", exitCode))
+
+	// Record command for coach gamification
+	if coachManager != nil {
+		coachManager.RecordCommand(input, exitCode, durationMs)
+	}
 
 	return exited, nil
 }

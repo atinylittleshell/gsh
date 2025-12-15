@@ -1,5 +1,7 @@
 package predict
 
+import "strings"
+
 type PredictRouter struct {
 	PrefixPredictor    *LLMPrefixPredictor
 	NullStatePredictor *LLMNullStatePredictor
@@ -16,8 +18,9 @@ func (p *PredictRouter) UpdateContext(context *map[string]string) {
 }
 
 func (p *PredictRouter) Predict(input string) (string, string, error) {
-	if input == "" {
-		return p.NullStatePredictor.Predict(input)
+	// Skip LLM prediction when input is blank (empty or whitespace only)
+	if strings.TrimSpace(input) == "" {
+		return "", "", nil
 	}
 	return p.PrefixPredictor.Predict(input)
 }

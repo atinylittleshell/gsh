@@ -15,7 +15,7 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/reflow/wordwrap"
+	"github.com/charmbracelet/x/ansi"
 	"go.uber.org/zap"
 )
 
@@ -30,6 +30,7 @@ type appModel struct {
 	dirty               bool
 	prediction          string
 	explanation         string
+	defaultExplanation  string // Shown when buffer is blank (e.g., coach tips)
 	lastError           error
 	lastPredictionInput string
 	lastPrediction      string
@@ -43,6 +44,7 @@ type appModel struct {
 	explanationStyle lipgloss.Style
 	completionStyle  lipgloss.Style
 	errorStyle       lipgloss.Style
+	coachTipStyle    lipgloss.Style
 
 	// Multiline support
 	multilineState *MultilineState
@@ -151,14 +153,15 @@ func initialModel(
 		logger:    logger,
 		options:   options,
 
-		textInput:     textInput,
-		dirty:         false,
-		prediction:    "",
-		explanation:   explanation,
-		historyValues: historyValues,
-		result:        "",
-		appState:      Active,
-		interrupted:   false, // Explicitly initialize to prevent stateful behavior
+		textInput:          textInput,
+		dirty:              false,
+		prediction:         "",
+		explanation:        explanation,
+		defaultExplanation: explanation, // Store for restoring when buffer is blank
+		historyValues:      historyValues,
+		result:             "",
+		appState:           Active,
+		interrupted:        false, // Explicitly initialize to prevent stateful behavior
 
 		predictionStateId: 0,
 
@@ -170,6 +173,8 @@ func initialModel(
 			BorderForeground(lipgloss.Color("10")),
 		errorStyle: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("9")), // Red
+		coachTipStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")), // Faded gray
 
 		// Initialize multiline state
 		multilineState: NewMultilineState(),
@@ -291,11 +296,11 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// TODO: replace with custom keybindings
 		case "backspace":
 			if !m.textInput.InReverseSearch() {
-				// if the input is already empty, we should clear prediction
+				// if the input is already empty, we should clear prediction and restore default tip
 				if m.textInput.Value() == "" {
 					m.dirty = true
 					m.predictionStateId++
-					m.clearPrediction()
+					m.clearPredictionAndRestoreDefault()
 					return m, nil
 				}
 			}
@@ -462,6 +467,9 @@ func (m appModel) View() string {
 		}
 	}
 
+	// Track if this is a coach tip for styling after word wrap
+	isCoachTip := m.explanation == m.defaultExplanation && m.explanation != ""
+
 	// Render Assistant Box with custom border that includes LLM indicators
 	boxWidth := max(0, m.textInput.Width-2)
 	borderColor := lipgloss.Color("62")
@@ -471,14 +479,39 @@ func (m appModel) View() string {
 	innerWidth := max(0, boxWidth-2) // Account for left/right borders
 	// Content area is innerWidth minus 2 spaces for left/right padding
 	contentWidth := innerWidth - 2
-	wrappedContent := wordwrap.String(assistantContent, contentWidth)
+	// Use ANSI-aware word wrapping - ansi.Wordwrap respects word boundaries and ANSI codes
+	wrappedContent := ansi.Wordwrap(assistantContent, contentWidth, "")
 	lines := strings.Split(wrappedContent, "\n")
+
+	// Apply faded style to each line of coach tips after word wrapping
+	if isCoachTip {
+		for i, line := range lines {
+			if line != "" {
+				lines[i] = m.coachTipStyle.Render(line)
+			}
+		}
+	}
 	if len(lines) > availableHeight {
 		lines = lines[:availableHeight]
 	}
-	// Pad to fill the available height
-	for len(lines) < availableHeight {
-		lines = append(lines, "")
+
+	// Vertically center all content in the box
+	if len(lines) < availableHeight {
+		// Calculate padding for vertical centering
+		topPadding := (availableHeight - len(lines)) / 2
+		bottomPadding := availableHeight - len(lines) - topPadding
+
+		// Add empty lines at top
+		centeredLines := make([]string, 0, availableHeight)
+		for i := 0; i < topPadding; i++ {
+			centeredLines = append(centeredLines, "")
+		}
+		centeredLines = append(centeredLines, lines...)
+		// Add empty lines at bottom
+		for i := 0; i < bottomPadding; i++ {
+			centeredLines = append(centeredLines, "")
+		}
+		lines = centeredLines
 	}
 
 	// Top Border Logic
@@ -792,8 +825,8 @@ func (m appModel) updateTextInput(msg tea.Msg) (appModel, tea.Cmd) {
 		switch {
 		case len(userInput) == 0 && m.dirty:
 			// if the model was dirty earlier, but now the user has cleared the input,
-			// we should clear the prediction
-			m.clearPrediction()
+			// we should clear the prediction and restore the default tip
+			m.clearPredictionAndRestoreDefault()
 		case suppressionActive:
 			// When suppression is active (e.g., after Ctrl+K), clear stale predictions but
 			// still recompute assistant help for the remaining buffer while keeping
@@ -846,6 +879,15 @@ func (m *appModel) clearPrediction() {
 	m.textInput.SetSuggestions([]string{})
 }
 
+// clearPredictionAndRestoreDefault clears the prediction and restores the default
+// explanation (e.g., coach tips) - used when the input buffer becomes blank
+func (m *appModel) clearPredictionAndRestoreDefault() {
+	m.prediction = ""
+	m.explanation = m.defaultExplanation
+	m.lastError = nil
+	m.textInput.SetSuggestions([]string{})
+}
+
 func (m appModel) setPrediction(stateId int, prediction string, inputContext string) (appModel, tea.Cmd) {
 	if stateId != m.predictionStateId {
 		m.logger.Debug(
@@ -861,6 +903,15 @@ func (m appModel) setPrediction(stateId int, prediction string, inputContext str
 	m.lastPrediction = prediction
 	m.textInput.SetSuggestions([]string{prediction})
 	m.textInput.UpdateHelpInfo()
+
+	// When input is blank and there's no prediction, preserve the default explanation (coach tips)
+	if strings.TrimSpace(m.textInput.Value()) == "" && prediction == "" {
+		m.explanation = m.defaultExplanation
+		// Reset LLM status to prevent pulsing when showing coaching tips
+		m.llmIndicator.SetStatus(LLMStatusSuccess)
+		return m, nil
+	}
+
 	m.explanation = ""
 	explanationTarget := prediction
 	if m.textInput.SuggestionsSuppressedUntilInput() {

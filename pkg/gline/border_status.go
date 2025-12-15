@@ -524,8 +524,8 @@ func (m BorderStatusModel) RenderBottomLeft() string {
 func (m BorderStatusModel) RenderBottomCenter() string {
 	// User@Host - centered at bottom
 	host := m.host
-	if len(host) > 8 {
-		host = host[:8]
+	if len(host) > 16 {
+		host = host[:16]
 	}
 	if m.user != "" {
 		// Add spaces around user@host to match lightning bolt formatting

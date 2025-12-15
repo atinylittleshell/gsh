@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mattn/go-runewidth"
 	"golang.org/x/term"
 )
 
@@ -45,11 +46,8 @@ func GetRuneWidth(r rune) int {
 		(r >= 0x1F0A0 && r <= 0x1F0FF) // Playing Cards
 
 	if !isEmoji {
-		// For non-emoji wide characters, return 2
-		if r >= 0x1100 {
-			return 2
-		}
-		return 1
+		// For non-emoji characters, defer to the standard runewidth library
+		return runewidth.RuneWidth(r)
 	}
 
 	// Check cache first

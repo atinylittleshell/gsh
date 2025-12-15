@@ -235,6 +235,28 @@ func TestClearPrediction(t *testing.T) {
 	assert.Equal(t, []string{}, model.textInput.AvailableSuggestions())
 }
 
+// Test clearPredictionAndRestoreDefault
+func TestClearPredictionAndRestoreDefault(t *testing.T) {
+	logger := zap.NewNop()
+	defaultTip := "💡 Coach tip: Try using pipes!"
+	model := initialModel("test> ", []string{}, defaultTip, nil, nil, nil, logger, NewOptions())
+
+	// Verify defaultExplanation is set
+	assert.Equal(t, defaultTip, model.defaultExplanation)
+	assert.Equal(t, defaultTip, model.explanation)
+
+	// Set some prediction data
+	model.prediction = "test prediction"
+	model.explanation = "test explanation"
+	model.textInput.SetSuggestions([]string{"suggestion1", "suggestion2"})
+
+	// Clear prediction and restore default
+	model.clearPredictionAndRestoreDefault()
+
+	assert.Equal(t, "", model.prediction)
+	assert.Equal(t, defaultTip, model.explanation) // Should be restored to default
+	assert.Equal(t, []string{}, model.textInput.AvailableSuggestions())
+}
 
 // Test handleClearScreen
 func TestHandleClearScreen(t *testing.T) {

@@ -3,7 +3,8 @@ all: ci
 
 .PHONY: build
 build:
-	@VERSION=$$(cat VERSION) && go build -ldflags="-X main.BUILD_VERSION=v$$VERSION" -o ./bin/gsh ./cmd/gsh/main.go
+	@echo "Building gsh..."
+	@VERSION=$$(cat VERSION) && echo "Building version v$$VERSION..." && go build -ldflags="-X main.BUILD_VERSION=v$$VERSION" -o ./bin/gsh ./cmd/gsh/main.go && echo "Build completed successfully! Binary: ./bin/gsh"
 
 .PHONY: test
 test:
