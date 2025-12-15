@@ -1,0 +1,50 @@
+#!/bin/sh
+#
+# pre-commit hook to run linters and tests
+#
+
+# ANSI color codes
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Check for required tools
+MISSING_TOOLS=0
+
+if ! command -v golangci-lint >/dev/null 2>&1; then
+    printf "${RED}Error: golangci-lint is not installed.${NC}\n"
+    echo "Please run 'make tools' or install it manually."
+    MISSING_TOOLS=1
+fi
+
+if ! command -v govulncheck >/dev/null 2>&1; then
+    printf "${RED}Error: govulncheck is not installed.${NC}\n"
+    echo "Please run 'make tools' or install it manually."
+    MISSING_TOOLS=1
+fi
+
+if [ $MISSING_TOOLS -eq 1 ]; then
+    exit 1
+fi
+
+printf "${YELLOW}Running golangci-lint...${NC}\n"
+if ! golangci-lint run; then
+    printf "${RED}golangci-lint failed.${NC}\n"
+    exit 1
+fi
+
+printf "${YELLOW}Running unit tests...${NC}\n"
+if ! go test ./...; then
+    printf "${RED}Tests failed.${NC}\n"
+    exit 1
+fi
+
+printf "${YELLOW}Running govulncheck...${NC}\n"
+if ! govulncheck ./...; then
+    printf "${RED}Vulnerability check failed.${NC}\n"
+    exit 1
+fi
+
+printf "${GREEN}All checks passed!${NC}\n"
+exit 0

@@ -118,6 +118,7 @@ func RunInteractiveShell(
 		options.AssistantHeight = environment.GetAssistantHeight(runner, logger)
 		options.CompletionProvider = completionProvider
 		options.RichHistory = richHistory
+		options.CurrentDirectory = environment.GetPwd(runner)
 
 		line, err := gline.Gline(prompt, historyCommands, "", predictor, explainer, analyticsManager, logger, options)
 

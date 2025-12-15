@@ -92,6 +92,7 @@ type KeyMap struct {
 	PrevSuggestion          key.Binding
 	ClearScreen             key.Binding
 	ReverseSearch           key.Binding
+	HistorySort             key.Binding
 }
 
 // DefaultKeyMap is the default set of key bindings for navigating and acting
@@ -118,6 +119,7 @@ var DefaultKeyMap = KeyMap{
 	PrevValue:               key.NewBinding(key.WithKeys("up", "ctrl+p")),
 	ClearScreen:             key.NewBinding(key.WithKeys("ctrl+l")),
 	ReverseSearch:           key.NewBinding(key.WithKeys("ctrl+r")),
+	HistorySort:             key.NewBinding(key.WithKeys("ctrl+o")),
 }
 
 const (
@@ -223,10 +225,8 @@ type Model struct {
 	selectedValueIndex int
 
 	// Reverse search state
-	inReverseSearch         bool
-	reverseSearchQuery      string
-	reverseSearchMatches    []int
-	reverseSearchMatchIndex int
+	inReverseSearch    bool
+	reverseSearchQuery string
 
 	// Rich history search
 	historyItems       []HistoryItem
@@ -734,6 +734,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			case msg.String() == "ctrl+f":
 				m.toggleHistoryFilter()
 				return m, nil
+			// Toggle Sort with Ctrl+O
+			case key.Matches(msg, m.KeyMap.HistorySort):
+				m.toggleHistorySort()
+				return m, nil
 			// Left/Right: Accept and edit?
 			case key.Matches(msg, m.KeyMap.CharacterBackward), key.Matches(msg, m.KeyMap.CharacterForward):
 				m.acceptRichReverseSearch()
@@ -918,12 +922,13 @@ func (m Model) View() string {
 		matchText := ""
 		prefix := "(reverse-i-search)"
 
-		if len(m.reverseSearchMatches) > 0 {
-			// Ensure index is within bounds
-			if m.reverseSearchMatchIndex < len(m.reverseSearchMatches) {
-				matchIndex := m.reverseSearchMatches[m.reverseSearchMatchIndex]
-				if matchIndex >= 0 && matchIndex < len(m.values) {
-					matchText = string(m.values[matchIndex])
+		// Use rich history state to determine if there are matches and what the selected one is
+		if len(m.historySearchState.filteredIndices) > 0 {
+			selectedIdx := m.historySearchState.selected
+			if selectedIdx >= 0 && selectedIdx < len(m.historySearchState.filteredIndices) {
+				originalIdx := m.historySearchState.filteredIndices[selectedIdx]
+				if originalIdx >= 0 && originalIdx < len(m.historyItems) {
+					matchText = m.historyItems[originalIdx].Command
 				}
 			}
 		} else if m.reverseSearchQuery != "" {

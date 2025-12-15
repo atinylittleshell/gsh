@@ -2,6 +2,7 @@ package shellinput
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -38,11 +39,32 @@ func (m HistoryFilterMode) String() string {
 	}
 }
 
+// HistorySortMode defines the sort order of history search results
+type HistorySortMode int
+
+const (
+	HistorySortRecent HistorySortMode = iota
+	HistorySortRelevance
+	HistorySortAlphabetical
+)
+
+func (m HistorySortMode) String() string {
+	switch m {
+	case HistorySortRelevance:
+		return "Relevance"
+	case HistorySortAlphabetical:
+		return "Alphabetical"
+	default:
+		return "Recent"
+	}
+}
+
 // historySearchState tracks the state of the rich history search
 type historySearchState struct {
 	filteredIndices []int // indices into Model.historyItems
 	selected        int   // index into filteredIndices
 	filterMode      HistoryFilterMode
+	sortMode        HistorySortMode
 	currentDir      string // used for filtering by directory
 }
 
@@ -85,16 +107,20 @@ func (m Model) HistorySearchBoxView(height, width int) string {
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("243"))   // Slightly brighter for help
 
 	// Render Header
-	// e.g. "Filter: All (Ctrl+F) | 35 matches"
+	// e.g. "Filter: All | Sort: Recent | 35 matches"
 	filterText := fmt.Sprintf("Filter: %s", m.historySearchState.filterMode.String())
+	sortText := fmt.Sprintf("Sort: %s", m.historySearchState.sortMode.String())
 	matchCount := len(m.historySearchState.filteredIndices)
-	header := headerStyle.Render(fmt.Sprintf("%s | %d matches", filterStyle.Render(filterText), matchCount))
+	header := headerStyle.Render(fmt.Sprintf("%s | %s | %d matches",
+		filterStyle.Render(filterText),
+		filterStyle.Render(sortText),
+		matchCount))
 	content.WriteString(header + "\n")
 
 	if matchCount == 0 {
 		content.WriteString(lipgloss.NewStyle().Padding(0, 1).Foreground(lipgloss.Color("240")).Render("No history matches found"))
 		content.WriteString("\n")
-		helpText := "Ctrl+F: Toggle filter | Enter: Select | Esc: Cancel"
+		helpText := "Ctrl+F: Filter | Ctrl+O: Sort | Enter: Select | Esc: Cancel"
 		content.WriteString(helpStyle.Render(helpText))
 		return content.String()
 	}
@@ -197,7 +223,7 @@ func (m Model) HistorySearchBoxView(height, width int) string {
 
 	// Add help footer
 	content.WriteString("\n")
-	helpText := "Ctrl+F: Toggle filter | Enter: Select | Esc: Cancel"
+	helpText := "Ctrl+F: Filter | Ctrl+O: Sort | Enter: Select | Esc: Cancel"
 	content.WriteString(helpStyle.Render(helpText))
 
 	return content.String()
@@ -239,6 +265,18 @@ func (m *Model) updateHistorySearch() {
 	}
 
 	if query == "" {
+		// Sort candidates if needed
+		switch m.historySearchState.sortMode {
+		case HistorySortRecent:
+			// Candidates are already sorted by recent (index order in historyItems)
+		case HistorySortAlphabetical:
+			sort.SliceStable(candidates, func(i, j int) bool {
+				return m.historyItems[candidates[i]].Command < m.historyItems[candidates[j]].Command
+			})
+		case HistorySortRelevance:
+			// Relevance implies query relevance, but with empty query, fallback to Recent
+		}
+
 		m.historySearchState.filteredIndices = candidates
 		m.historySearchState.selected = 0
 		return
@@ -252,6 +290,24 @@ func (m *Model) updateHistorySearch() {
 	}
 
 	matches := fuzzy.FindFrom(query, source)
+
+	// Sort matches based on sort mode
+	switch m.historySearchState.sortMode {
+	case HistorySortRecent:
+		// Sort by index in candidates (which preserves original time-descending order, i.e. Newest First)
+		// Assuming historyItems are ordered Newest First (index 0 is newest),
+		// then lower index means more recent.
+		sort.SliceStable(matches, func(i, j int) bool {
+			return matches[i].Index < matches[j].Index
+		})
+	case HistorySortAlphabetical:
+		sort.SliceStable(matches, func(i, j int) bool {
+			return matches[i].Str < matches[j].Str
+		})
+	case HistorySortRelevance:
+		// Already sorted by fuzzy score
+	}
+
 	m.historySearchState.filteredIndices = make([]int, len(matches))
 	for i, match := range matches {
 		// match.Index is index into 'candidates', so we need candidates[match.Index]
@@ -297,6 +353,21 @@ func (m *Model) toggleHistoryFilter() {
 		m.historySearchState.filterMode = HistoryFilterAll // Skip session for now as we don't track it
 	default:
 		m.historySearchState.filterMode = HistoryFilterAll
+	}
+	m.updateHistorySearch()
+}
+
+// toggleHistorySort cycles through sort modes
+func (m *Model) toggleHistorySort() {
+	switch m.historySearchState.sortMode {
+	case HistorySortRecent:
+		m.historySearchState.sortMode = HistorySortRelevance
+	case HistorySortRelevance:
+		m.historySearchState.sortMode = HistorySortAlphabetical
+	case HistorySortAlphabetical:
+		m.historySearchState.sortMode = HistorySortRecent
+	default:
+		m.historySearchState.sortMode = HistorySortRecent
 	}
 	m.updateHistorySearch()
 }

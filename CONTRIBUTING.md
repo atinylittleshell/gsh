@@ -53,6 +53,7 @@ Tips for upstreamable changes:
 Requirements:
 - Go 1.21+ on macOS or Linux
 - Make
+- pre-commit (optional, but recommended)
 
 Clone and build:
 
@@ -62,6 +63,21 @@ cd gsh_prime
 make build
 # binary at ./bin/gsh
 ```
+
+### Git Hooks
+
+We provide a git hook to run linters and tests before commit. To set up the git hooks:
+
+```bash
+make install-hooks
+```
+
+This will install a `pre-commit` hook that runs:
+- `golangci-lint`
+- `go test`
+- `govulncheck`
+
+Ensure you have the required tools installed via `make tools`.
 
 Useful docs:
 - Getting started: docs/GETTING_STARTED.md

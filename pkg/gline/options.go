@@ -8,6 +8,7 @@ type Options struct {
 	AssistantHeight    int
 	CompletionProvider shellinput.CompletionProvider
 	RichHistory        []shellinput.HistoryItem
+	CurrentDirectory   string
 }
 
 func NewOptions() Options {

@@ -119,6 +119,9 @@ func initialModel(
 	if len(options.RichHistory) > 0 {
 		textInput.SetRichHistory(options.RichHistory)
 	}
+	if options.CurrentDirectory != "" {
+		textInput.SetCurrentDirectory(options.CurrentDirectory)
+	}
 	textInput.Cursor.SetMode(cursor.CursorStatic)
 	textInput.ShowSuggestions = true
 	textInput.CompletionProvider = options.CompletionProvider
