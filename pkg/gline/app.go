@@ -1,6 +1,7 @@
 package gline
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -8,11 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/atinylittleshell/gsh/internal/git"
+	"github.com/atinylittleshell/gsh/internal/system"
 	"github.com/atinylittleshell/gsh/pkg/shellinput"
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/mattn/go-runewidth"
 	"github.com/muesli/reflow/wordwrap"
 	"go.uber.org/zap"
 )
@@ -49,6 +51,9 @@ type appModel struct {
 
 	// LLM status indicator
 	llmIndicator LLMIndicator
+
+	// Border Status
+	borderStatus BorderStatusModel
 }
 
 type attemptPredictionMsg struct {
@@ -64,6 +69,15 @@ type setPredictionMsg struct {
 type attemptExplanationMsg struct {
 	stateId    int
 	prediction string
+}
+
+// resourceMsg carries updated system resources
+type resourceMsg struct {
+	resources *system.Resources
+}
+
+type gitStatusMsg struct {
+	status *git.RepoStatus
 }
 
 // errorMsg wraps an error that occurred during prediction or explanation
@@ -127,6 +141,9 @@ func initialModel(
 	textInput.CompletionProvider = options.CompletionProvider
 	textInput.Focus()
 
+	borderStatus := NewBorderStatusModel()
+	borderStatus.UpdateContext(options.User, options.Host, options.CurrentDirectory)
+
 	return appModel{
 		predictor: predictor,
 		explainer: explainer,
@@ -159,6 +176,7 @@ func initialModel(
 		originalPrompt: prompt,
 
 		llmIndicator: NewLLMIndicator(),
+		borderStatus: borderStatus,
 	}
 }
 
@@ -170,7 +188,30 @@ func (m appModel) Init() tea.Cmd {
 				stateId: m.predictionStateId,
 			}
 		},
+		m.fetchResources(),
+		m.fetchGitStatus(),
 	)
+}
+
+func (m appModel) fetchResources() tea.Cmd {
+	return func() tea.Msg {
+		res := system.GetResources()
+		return resourceMsg{resources: res}
+	}
+}
+
+func (m appModel) fetchGitStatus() tea.Cmd {
+	return func() tea.Msg {
+		if m.options.CurrentDirectory == "" {
+			return nil
+		}
+		// Create a context with timeout for git status check
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+
+		status := git.GetStatusWithContext(ctx, m.options.CurrentDirectory)
+		return gitStatusMsg{status: status}
+	}
 }
 
 func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -183,11 +224,32 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case resourceMsg:
+		m.borderStatus.UpdateResources(msg.resources)
+		// Schedule next update after 1 second
+		return m, tea.Tick(time.Second, func(t time.Time) tea.Msg {
+			// Instead of returning resourceMsg directly (which would block if done synchronously),
+			// we trigger another fetch command which runs in a goroutine
+			return "fetch_resources_trigger"
+		})
+
+	case string:
+		if msg == "fetch_resources_trigger" {
+			return m, m.fetchResources()
+		}
+
+	case gitStatusMsg:
+		if msg.status != nil {
+			m.borderStatus.UpdateGit(msg.status)
+		}
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.height = msg.Height
 		m.textInput.Width = msg.Width
 		m.explanationStyle = m.explanationStyle.Width(max(1, msg.Width-2))
 		m.completionStyle = m.completionStyle.Width(max(1, msg.Width-2))
+		m.borderStatus.SetWidth(max(0, msg.Width-2))
 		return m, nil
 
 	case terminateMsg:
@@ -407,7 +469,9 @@ func (m appModel) View() string {
 
 	// Word wrap content to fit box width, then split into lines
 	innerWidth := max(0, boxWidth-2) // Account for left/right borders
-	wrappedContent := wordwrap.String(assistantContent, innerWidth)
+	// Content area is innerWidth minus 2 spaces for left/right padding
+	contentWidth := innerWidth - 2
+	wrappedContent := wordwrap.String(assistantContent, contentWidth)
 	lines := strings.Split(wrappedContent, "\n")
 	if len(lines) > availableHeight {
 		lines = lines[:availableHeight]
@@ -417,46 +481,234 @@ func (m appModel) View() string {
 		lines = append(lines, "")
 	}
 
-	// Render the LLM indicator
-	indicatorStr := " " + m.llmIndicator.View() + " "
-	indicatorLen := 2 + m.llmIndicator.Width() // spaces + indicator
+	// Top Border Logic
+	// ╭[Badge][risk]──[context]╮
+	topLeft := m.borderStatus.RenderTopLeft()
+	// Calculate available space for top context
+	// width - 2 (corners) - len(topLeft) - 2 (padding maybe?)
 
-	// Build the box manually
+	// We construct top border in pieces
+	// corner + topLeft + separator + context + ... + corner
+	// Actually typical lipgloss border is uniform. We need to override.
+
+	// We manually draw the top line.
+	// "╭" + [Badge][Risk] + "──" + [Context] + "──" + "╮"
+
+	// Let's compute exact widths.
+	// Use TopLeftWidth() method which accounts for terminal-specific rendering
+	// of emoji characters like 🤖, rather than lipgloss.Width() which may be incorrect
+	topLeftWidth := m.borderStatus.TopLeftWidth()
+
+	// Available width for middle
+	middleWidth := innerWidth
+
+	// If middleWidth is small, we might have issues.
+	if middleWidth <= 0 {
+		middleWidth = 0
+	}
+
+	topContentWidth := middleWidth
+	// We need some lines between topLeft and Context?
+	// Spec says: "Command kind badge immediately followed by the execution risk meter."
+	// "Top edge: Prompt-style context stripes ... separated by line-continuation characters"
+	// So: ╭[Badge][Risk]────[Context]────╮
+
+	// Context
+	// We want to fill the remaining space with context, right aligned or distributed?
+	// Spec says: "Top edge (left-to-right): Prompt-style context stripes"
+	// But Top-left is Badge/Risk.
+	// So Badge/Risk comes first, then Context.
+	// Should we pad with lines between them?
+
+	// If we just concatenate: Badge Risk Context
+	// And pad the rest with lines?
+	// Or: Badge Risk ── Context ── ?
+
+	// Let's assume: Badge Risk [context] ──────────
+	// Or: Badge Risk ── [context] ── ?
+
+	// Let's try to put context immediately after, separated by line.
+	// But context stripes are variable width.
+
+	// Render context with available width
+	// Available = topContentWidth - topLeftWidth
+	contextAvailableWidth := topContentWidth - topLeftWidth - 1 // -1 for separator
+	if contextAvailableWidth < 0 {
+		contextAvailableWidth = 0
+	}
+
+	topContext := m.borderStatus.RenderTopContext(contextAvailableWidth)
+	topContextWidth := lipgloss.Width(topContext)
+
+	// Line filler
+	fillerWidth := topContentWidth - topLeftWidth - topContextWidth
+	if fillerWidth < 0 {
+		fillerWidth = 0
+	}
+
+	// Construction
+	// ╭ + topLeft + [filler/separator] + topContext + [filler] + ╮
+	// We prefer context to be visible.
+	// The prompt context stripes usually sit on the line.
+
+	// Design choice:
+	// ╭[Badge][Risk]──[Context]──────────────╮
+
+	// Note: We need to use border style for the line parts (╭, ─, ╮)
+	// But Badge/Risk/Context have their own colors.
+
+	var topBar strings.Builder
+	topBar.WriteString(borderStyle.Render("╭"))
+	topBar.WriteString(topLeft)
+
+	if topContext != "" {
+		// Separator line
+		// Use Divider style from borderStatus? Or just border color?
+		// Spec: "separated by line-continuation characters ... degrade to icon-only"
+		// "Apply subtle color to the divider"
+		// borderStatus handles internal dividers in Context.
+		// Here we need divider between Risk and Context.
+		topBar.WriteString(m.borderStatus.styles.Divider.Render("─"))
+		topBar.WriteString(topContext)
+
+		// Remaining filler
+		if fillerWidth > 1 {
+			topBar.WriteString(borderStyle.Render(strings.Repeat("─", fillerWidth-1)))
+		}
+	} else {
+		// Just fill
+		if fillerWidth > 0 {
+			topBar.WriteString(borderStyle.Render(strings.Repeat("─", fillerWidth)))
+		}
+	}
+	topBar.WriteString(borderStyle.Render("╮"))
+
 	var result strings.Builder
-
-	// Top border: ╭───...───╮
-	topBorder := borderStyle.Render("╭" + strings.Repeat("─", innerWidth) + "╮")
-	result.WriteString(topBorder)
+	result.WriteString(topBar.String())
 	result.WriteString("\n")
 
 	// Content lines with left/right borders
-	contentWidth := innerWidth // Width available for content
+	// Middle content - with one space padding on each side
+	// Content is already wrapped at contentWidth
 	for _, line := range lines {
 		// Truncate or pad line to fit content width
-		lineWidth := lipgloss.Width(line)
+		// Use stringWidthWithAnsi instead of lipgloss.Width to properly handle emoji
+		lineWidth := stringWidthWithAnsi(line)
 		if lineWidth > contentWidth {
-			// Truncate the line - need to handle ANSI codes
 			line = truncateWithAnsi(line, contentWidth)
-			lineWidth = lipgloss.Width(line)
+			lineWidth = stringWidthWithAnsi(line)
 		}
 		padding := max(0, contentWidth-lineWidth)
 		result.WriteString(borderStyle.Render("│"))
+		result.WriteString(" ") // Left padding
 		result.WriteString(line)
 		result.WriteString(strings.Repeat(" ", padding))
+		result.WriteString(" ") // Right padding
 		result.WriteString(borderStyle.Render("│"))
 		result.WriteString("\n")
 	}
 
-	// Bottom border with indicators: ╰───...─── Fast:✓ Slow:○ ╯
-	// Calculate how much space we have for the horizontal line
-	bottomLineWidth := max(0, innerWidth-indicatorLen)
-	bottomBorder := borderStyle.Render("╰"+strings.Repeat("─", bottomLineWidth)) + indicatorStr + borderStyle.Render("╯")
-	result.WriteString(bottomBorder)
+	// Bottom border with indicators: ╰[Res]──[User@Host]──[Res]── Fast:✓ Slow:○ ╯
+	// Bottom-left: Resource Glance
+	// Bottom-center: User@Host (centered) - suppressed if window too narrow
+	// Bottom-right: LLM Indicator (preserved)
+
+	bottomLeft := m.borderStatus.RenderBottomLeft()
+	bottomCenter := m.borderStatus.RenderBottomCenter()
+	bottomCenterWidth := lipgloss.Width(bottomCenter)
+	bottomLeftWidth := lipgloss.Width(bottomLeft)
+
+	indicatorStr := " " + m.llmIndicator.View() + " "
+	// Use the indicator's Width() method which accounts for terminal-specific rendering
+	// of the lightning bolt character, rather than lipgloss.Width() which may be incorrect
+	indicatorLen := 2 + m.llmIndicator.Width() // 2 spaces + lightning bolt width
+
+	// Calculate minimum required space for all elements
+	minRequiredWidth := bottomLeftWidth + indicatorLen + 10 // 10 chars minimum for spacing
+
+	// Use middleWidth to match the top bar's content width
+	bottomContentWidth := middleWidth
+
+	// Determine if we have enough space for user@hostname
+	showUserHost := bottomContentWidth > minRequiredWidth && bottomCenter != ""
+
+	// Calculate available space for centering
+	var leftFillerWidth, rightFillerWidth, availableSpace int
+	var totalUsedWidth int
+
+	if showUserHost {
+		totalUsedWidth = bottomLeftWidth + bottomCenterWidth + indicatorLen
+		availableSpace = bottomContentWidth - totalUsedWidth
+
+		if availableSpace < 0 {
+			// Not enough space even with user@host, drop it
+			showUserHost = false
+			totalUsedWidth = bottomLeftWidth + indicatorLen
+			availableSpace = bottomContentWidth - totalUsedWidth
+		}
+
+		// Distribute extra space to center the user@host
+		leftFillerWidth = availableSpace / 2
+		rightFillerWidth = availableSpace - leftFillerWidth
+	} else {
+		// User@host suppressed, just center between left and right
+		totalUsedWidth = bottomLeftWidth + indicatorLen
+		availableSpace = bottomContentWidth - totalUsedWidth
+
+		leftFillerWidth = availableSpace / 2
+		rightFillerWidth = availableSpace - leftFillerWidth
+	}
+
+	// Construction
+	// ╰ + bottomLeft + leftFiller + center + rightFiller + indicator + ╯
+
+	result.WriteString(borderStyle.Render("╰"))
+	result.WriteString(bottomLeft)
+	if showUserHost && leftFillerWidth > 0 {
+		result.WriteString(borderStyle.Render(strings.Repeat("─", leftFillerWidth)))
+	}
+	if showUserHost && bottomCenter != "" {
+		result.WriteString(bottomCenter)
+	}
+	if showUserHost && rightFillerWidth > 0 {
+		result.WriteString(borderStyle.Render(strings.Repeat("─", rightFillerWidth)))
+	}
+	if !showUserHost && availableSpace > 0 {
+		// User@host suppressed, just fill the space
+		result.WriteString(borderStyle.Render(strings.Repeat("─", availableSpace)))
+	}
+	result.WriteString(indicatorStr)
+	result.WriteString(borderStyle.Render("╯"))
 
 	return inputStr + "\n" + result.String()
 }
 
+// stringWidthWithAnsi calculates the display width of a string, handling ANSI escape codes
+// Uses terminal-specific probing for emoji characters to get accurate widths
+func stringWidthWithAnsi(s string) int {
+	width := 0
+	inEscape := false
+
+	for _, r := range s {
+		if r == '\x1b' {
+			inEscape = true
+			continue
+		}
+		if inEscape {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				inEscape = false
+			}
+			continue
+		}
+
+		width += GetRuneWidth(r)
+	}
+
+	return width
+}
+
 // truncateWithAnsi truncates a string to maxWidth display columns, handling ANSI escape codes
+// Uses terminal-specific probing for emoji characters to get accurate widths
 func truncateWithAnsi(s string, maxWidth int) string {
 	if maxWidth <= 0 {
 		return ""
@@ -481,7 +733,7 @@ func truncateWithAnsi(s string, maxWidth int) string {
 		}
 
 		// Check if adding this rune would exceed maxWidth
-		runeWidth := runewidth.RuneWidth(r)
+		runeWidth := GetRuneWidth(r)
 		if width+runeWidth > maxWidth {
 			break
 		}
@@ -506,14 +758,14 @@ func (m appModel) getFinalOutput() string {
 }
 
 func (m appModel) updateTextInput(msg tea.Msg) (appModel, tea.Cmd) {
-        oldVal := m.textInput.Value()
-        oldMatchedSuggestions := m.textInput.MatchedSuggestions()
-        oldSuppression := m.textInput.SuggestionsSuppressedUntilInput()
-        updatedTextInput, cmd := m.textInput.Update(msg)
-        newVal := updatedTextInput.Value()
-        newMatchedSuggestions := updatedTextInput.MatchedSuggestions()
+	oldVal := m.textInput.Value()
+	oldMatchedSuggestions := m.textInput.MatchedSuggestions()
+	oldSuppression := m.textInput.SuggestionsSuppressedUntilInput()
+	updatedTextInput, cmd := m.textInput.Update(msg)
+	newVal := updatedTextInput.Value()
+	newMatchedSuggestions := updatedTextInput.MatchedSuggestions()
 
-        textUpdated := oldVal != newVal
+	textUpdated := oldVal != newVal
 	suggestionsCleared := len(oldMatchedSuggestions) > 0 && len(newMatchedSuggestions) == 0
 	m.textInput = updatedTextInput
 
@@ -521,42 +773,45 @@ func (m appModel) updateTextInput(msg tea.Msg) (appModel, tea.Cmd) {
 	if textUpdated && m.predictor != nil {
 		m.predictionStateId++
 
+		// Update border status with new input
+		m.borderStatus.UpdateInput(newVal)
+
 		// Clear any existing error when user types
 		m.lastError = nil
 
 		userInput := updatedTextInput.Value()
 
 		// whenever the user has typed something, mark the model as dirty
-                if len(userInput) > 0 {
-                        m.dirty = true
-                }
+		if len(userInput) > 0 {
+			m.dirty = true
+		}
 
-                suppressionActive := updatedTextInput.SuggestionsSuppressedUntilInput()
-                suppressionLifted := !suppressionActive && oldSuppression
+		suppressionActive := updatedTextInput.SuggestionsSuppressedUntilInput()
+		suppressionLifted := !suppressionActive && oldSuppression
 
-                switch {
-                case len(userInput) == 0 && m.dirty:
-                        // if the model was dirty earlier, but now the user has cleared the input,
-                        // we should clear the prediction
-                        m.clearPrediction()
+		switch {
+		case len(userInput) == 0 && m.dirty:
+			// if the model was dirty earlier, but now the user has cleared the input,
+			// we should clear the prediction
+			m.clearPrediction()
 		case suppressionActive:
 			// When suppression is active (e.g., after Ctrl+K), clear stale predictions but
 			// still recompute assistant help for the remaining buffer while keeping
 			// autocomplete hints hidden until new input arrives.
-                        m.clearPrediction()
-                        if len(userInput) > 0 {
-                                cmd = tea.Batch(cmd, tea.Tick(200*time.Millisecond, func(t time.Time) tea.Msg {
-                                        return attemptPredictionMsg{
-                                                stateId: m.predictionStateId,
-                                        }
-                                }))
-                        }
-                case len(userInput) > 0 && strings.HasPrefix(m.prediction, userInput) && !suggestionsCleared && !suppressionLifted:
-                        // if the prediction already starts with the user input, we don't need to predict again
-                        m.logger.Debug("gline existing predicted input already starts with user input", zap.String("userInput", userInput))
-                default:
-                        // in other cases, we should kick off a debounced prediction after clearing the current one
-                        m.clearPrediction()
+			m.clearPrediction()
+			if len(userInput) > 0 {
+				cmd = tea.Batch(cmd, tea.Tick(200*time.Millisecond, func(t time.Time) tea.Msg {
+					return attemptPredictionMsg{
+						stateId: m.predictionStateId,
+					}
+				}))
+			}
+		case len(userInput) > 0 && strings.HasPrefix(m.prediction, userInput) && !suggestionsCleared && !suppressionLifted:
+			// if the prediction already starts with the user input, we don't need to predict again
+			m.logger.Debug("gline existing predicted input already starts with user input", zap.String("userInput", userInput))
+		default:
+			// in other cases, we should kick off a debounced prediction after clearing the current one
+			m.clearPrediction()
 
 			cmd = tea.Batch(cmd, tea.Tick(200*time.Millisecond, func(t time.Time) tea.Msg {
 				return attemptPredictionMsg{
@@ -601,20 +856,20 @@ func (m appModel) setPrediction(stateId int, prediction string, inputContext str
 		return m, nil
 	}
 
-        m.prediction = prediction
-        m.lastPredictionInput = inputContext
-        m.lastPrediction = prediction
-        m.textInput.SetSuggestions([]string{prediction})
-        m.textInput.UpdateHelpInfo()
-        m.explanation = ""
-        explanationTarget := prediction
-        if m.textInput.SuggestionsSuppressedUntilInput() {
-                explanationTarget = m.textInput.Value()
-        }
+	m.prediction = prediction
+	m.lastPredictionInput = inputContext
+	m.lastPrediction = prediction
+	m.textInput.SetSuggestions([]string{prediction})
+	m.textInput.UpdateHelpInfo()
+	m.explanation = ""
+	explanationTarget := prediction
+	if m.textInput.SuggestionsSuppressedUntilInput() {
+		explanationTarget = m.textInput.Value()
+	}
 
-        return m, tea.Cmd(func() tea.Msg {
-                return attemptExplanationMsg{stateId: m.predictionStateId, prediction: explanationTarget}
-        })
+	return m, tea.Cmd(func() tea.Msg {
+		return attemptExplanationMsg{stateId: m.predictionStateId, prediction: explanationTarget}
+	})
 }
 
 func (m appModel) attemptPrediction(msg attemptPredictionMsg) (tea.Model, tea.Cmd) {
@@ -626,7 +881,7 @@ func (m appModel) attemptPrediction(msg attemptPredictionMsg) (tea.Model, tea.Cm
 	}
 	// Skip LLM prediction for @ commands (agentic commands)
 	if strings.HasPrefix(strings.TrimSpace(m.textInput.Value()), "@") {
-		m.llmIndicator.SetStatus(LLMStatusIdle)
+		// Don't show indicator when buffer is empty - just return clean state
 		return m, nil
 	}
 

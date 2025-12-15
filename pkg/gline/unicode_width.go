@@ -8,21 +8,70 @@ import (
 	"golang.org/x/term"
 )
 
-// lightningBoltWidth stores the detected width of the ⚡ character.
-// This is detected once at startup and cached for the lifetime of the process.
+// emojiWidthCache stores the detected widths of emoji characters.
+// Widths are detected once using terminal cursor position probing and cached.
 var (
-	lightningBoltWidth     int
-	lightningBoltWidthOnce sync.Once
+	emojiWidthCache   = make(map[rune]int)
+	emojiWidthCacheMu sync.RWMutex
 )
 
-// GetLightningBoltWidth returns the cached width of the lightning bolt character.
-// The width is detected exactly once per process using terminal cursor position
-// probing, then cached for the lifetime of the process.
+// GetLightningBoltWidth returns the width of the lightning bolt character.
+// Uses the generic emoji width cache with terminal probing.
 func GetLightningBoltWidth() int {
-	lightningBoltWidthOnce.Do(func() {
-		lightningBoltWidth = probeTerminalCharWidth('⚡')
-	})
-	return lightningBoltWidth
+	return GetRuneWidth('⚡')
+}
+
+// GetRobotWidth returns the width of the robot emoji character.
+// Uses the generic emoji width cache with terminal probing.
+func GetRobotWidth() int {
+	return GetRuneWidth('🤖')
+}
+
+// GetRuneWidth returns the display width of a rune, using terminal probing for emoji.
+// For emoji characters, the width is detected once and cached. For other characters,
+// it returns 1 for ASCII or 2 for wide characters.
+func GetRuneWidth(r rune) int {
+	// Fast path for ASCII
+	if r < 128 {
+		return 1
+	}
+
+	// Check if it's an emoji (simplified check for common emoji ranges)
+	isEmoji := (r >= 0x1F300 && r <= 0x1F9FF) || // Misc Symbols and Pictographs, Emoticons, etc.
+		(r >= 0x2600 && r <= 0x26FF) || // Misc symbols
+		(r >= 0x2700 && r <= 0x27BF) || // Dingbats
+		(r >= 0xFE00 && r <= 0xFE0F) || // Variation Selectors
+		(r >= 0x1F000 && r <= 0x1F02F) || // Mahjong Tiles
+		(r >= 0x1F0A0 && r <= 0x1F0FF) // Playing Cards
+
+	if !isEmoji {
+		// For non-emoji wide characters, return 2
+		if r >= 0x1100 {
+			return 2
+		}
+		return 1
+	}
+
+	// Check cache first
+	emojiWidthCacheMu.RLock()
+	if width, ok := emojiWidthCache[r]; ok {
+		emojiWidthCacheMu.RUnlock()
+		return width
+	}
+	emojiWidthCacheMu.RUnlock()
+
+	// Probe and cache
+	emojiWidthCacheMu.Lock()
+	defer emojiWidthCacheMu.Unlock()
+
+	// Double-check after acquiring write lock
+	if width, ok := emojiWidthCache[r]; ok {
+		return width
+	}
+
+	width := probeTerminalCharWidth(r)
+	emojiWidthCache[r] = width
+	return width
 }
 
 // probeTerminalCharWidth uses terminal cursor position reporting to detect

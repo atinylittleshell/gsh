@@ -74,8 +74,14 @@ func (p *ShellCompletionProvider) GetCompletions(line string, pos int) []shellin
 		return completion
 	}
 
-	// Split the line into words, preserving quotes
+	// Skip completions for agentic commands (starting with @)
 	truncatedLine := line[:pos]
+	trimmedLine := strings.TrimSpace(truncatedLine)
+	if strings.HasPrefix(trimmedLine, "@") {
+		return make([]shellinput.CompletionCandidate, 0)
+	}
+
+	// Split the line into words, preserving quotes
 	words := splitPreservingQuotes(truncatedLine)
 	if len(words) == 0 {
 		return make([]shellinput.CompletionCandidate, 0)

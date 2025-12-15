@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -79,6 +80,17 @@ func GetDefaultToYes(runner *interp.Runner) bool {
 
 func GetPwd(runner *interp.Runner) string {
 	return runner.Vars["PWD"].String()
+}
+
+func GetUser(runner *interp.Runner) string {
+	u := runner.Vars["USER"].String()
+	if u == "" {
+		if usr, err := user.Current(); err == nil {
+			return usr.Username
+		}
+		return "user"
+	}
+	return u
 }
 
 func GetPrompt(runner *interp.Runner, logger *zap.Logger) string {

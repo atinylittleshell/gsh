@@ -9,6 +9,8 @@ type Options struct {
 	CompletionProvider shellinput.CompletionProvider
 	RichHistory        []shellinput.HistoryItem
 	CurrentDirectory   string
+	User               string
+	Host               string
 }
 
 func NewOptions() Options {

@@ -45,7 +45,7 @@ func NewLLMIndicator() LLMIndicator {
 
 // Tick returns a command that sends LLMTickMsg after the animation interval
 func (i LLMIndicator) Tick() tea.Cmd {
-	return tea.Tick(time.Second/10, func(t time.Time) tea.Msg {
+	return tea.Tick(time.Second/2, func(t time.Time) tea.Msg {
 		return LLMTickMsg{}
 	})
 }
@@ -75,16 +75,16 @@ func (i LLMIndicator) Width() int {
 
 // View renders the indicator
 func (i LLMIndicator) View() string {
-	greenStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("10")) // Green
-	redStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))    // Red
-	idleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))   // Gray
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("62")) // Match border color
+	redStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))     // Red
+	idleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))    // Gray
 
 	switch i.status {
 	case LLMStatusInFlight:
 		color := inFlightColors[i.frameIndex]
 		return lipgloss.NewStyle().Foreground(color).Render(lightning)
 	case LLMStatusSuccess:
-		return greenStyle.Render(lightning)
+		return borderStyle.Render(lightning)
 	case LLMStatusError:
 		return redStyle.Render(lightning)
 	default:

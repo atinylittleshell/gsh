@@ -120,6 +120,11 @@ func RunInteractiveShell(
 		options.RichHistory = richHistory
 		options.CurrentDirectory = environment.GetPwd(runner)
 
+		// Populate context for border status
+		options.CurrentDirectory = environment.GetPwd(runner)
+		options.User = environment.GetUser(runner)
+		options.Host, _ = os.Hostname()
+
 		line, err := gline.Gline(prompt, historyCommands, "", predictor, explainer, analyticsManager, logger, options)
 
 		logger.Debug("received command", zap.String("line", line))
