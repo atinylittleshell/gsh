@@ -114,24 +114,55 @@ func (m *CoachManager) loadTodayStats() {
 	today := time.Now().Format("2006-01-02")
 	stats := &CoachDailyStats{}
 
+	m.logger.Debug("loadTodayStats: Attempting to load stats",
+		zap.String("date", today),
+		zap.Uint("profile_id", m.profile.ID))
+
 	result := m.db.Where("profile_id = ? AND date = ?", m.profile.ID, today).First(stats)
 	if result.Error == gorm.ErrRecordNotFound {
+		m.logger.Debug("loadTodayStats: No existing stats found, creating new record")
 		stats = &CoachDailyStats{
 			ProfileID: m.profile.ID,
 			Date:      today,
 		}
-		m.db.Create(stats)
+		if err := m.db.Create(stats).Error; err != nil {
+			// If create fails (likely due to unique constraint race condition), try to fetch again
+			m.logger.Warn("loadTodayStats: Failed to create coach daily stats, checking for concurrent creation", zap.Error(err))
+			if err := m.db.Where("profile_id = ? AND date = ?", m.profile.ID, today).First(stats).Error; err != nil {
+				m.logger.Error("loadTodayStats: Failed to create and failed to retrieve existing stats", zap.Error(err))
+				return
+			}
+			m.logger.Debug("loadTodayStats: Recovered from concurrent creation")
+		} else {
+			m.logger.Debug("loadTodayStats: Successfully created new stats record")
+		}
+	} else if result.Error != nil {
+		m.logger.Error("loadTodayStats: Failed to load coach daily stats", zap.Error(result.Error))
+		return
 	} else {
+		m.logger.Debug("loadTodayStats: Found existing stats record",
+			zap.Int("commands_executed", stats.CommandsExecuted),
+			zap.Int("command_count", stats.CommandCount),
+			zap.Int("avg_command_time_ms", stats.AvgCommandTimeMs))
 		// For existing records, initialize CommandCount if it's 0
 		// and AvgCommandTimeMs > 0 (indicating there were commands)
 		if stats.CommandCount == 0 && stats.AvgCommandTimeMs > 0 && stats.CommandsExecuted > 0 {
 			// Estimate CommandCount from CommandsExecuted for backwards compatibility
 			stats.CommandCount = stats.CommandsExecuted
-			m.db.Save(stats)
+			m.logger.Debug("loadTodayStats: Updating CommandCount for backwards compatibility",
+				zap.Int("new_command_count", stats.CommandCount))
+			if err := m.db.Save(stats).Error; err != nil {
+				m.logger.Error("loadTodayStats: Failed to save coach daily stats", zap.Error(err))
+			} else {
+				m.logger.Debug("loadTodayStats: Successfully updated stats for backwards compatibility")
+			}
 		}
 	}
 
 	m.todayStats = stats
+	m.logger.Debug("loadTodayStats: Successfully loaded stats",
+		zap.Int("commands_executed", stats.CommandsExecuted),
+		zap.Int("command_count", stats.CommandCount))
 }
 
 // loadActiveChallenges loads current challenges

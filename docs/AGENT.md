@@ -83,19 +83,15 @@ The system combines clean, reliable display with immediate keyboard responsivene
 
 **Note**: In non-interactive environments (like automated scripts), the system automatically falls back to line-based input for compatibility.
 
-### Legacy "Always Allow" Support
-
-The legacy `a` (always) response is still supported for backward compatibility and works the same as the previous version.
-
 ### Examples
 
 ```bash
 # First time running a git status command
 gsh> @ check git status
 Agent wants to run: git status
-Do I have your permission to run the following command? (y/N/freeform/a) a
+Do I have your permission to run the following command? (y/N/manage/freeform) m
 
-# The pattern "^git status.*" is now saved to ~/.config/gsh/authorized_commands
+# The permission menu opens, and you can approve "^git status.*" which is saved to ~/.config/gsh/authorized_commands
 # Future git status commands will be auto-approved:
 
 gsh> @ show git status with short format

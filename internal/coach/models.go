@@ -66,8 +66,8 @@ type CoachChallenge struct {
 // CoachDailyStats aggregates daily activity
 type CoachDailyStats struct {
 	ID        uint   `gorm:"primaryKey"`
-	ProfileID uint   `gorm:"index"`
-	Date      string `gorm:"index"` // YYYY-MM-DD format
+	ProfileID uint   `gorm:"uniqueIndex:idx_profile_date"`
+	Date      string `gorm:"uniqueIndex:idx_profile_date"` // YYYY-MM-DD format
 
 	// Command Stats
 	CommandsExecuted   int `gorm:"default:0"`

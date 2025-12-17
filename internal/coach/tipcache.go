@@ -106,14 +106,22 @@ func (c *TipCache) GetHighPriority() *GeneratedTip {
 	// Acquire full lock for checkDayReset() which mutates shownToday and lastReset
 	c.mu.Lock()
 	c.checkDayReset()
-	// Downgrade to read lock for the iteration to allow concurrent reads
-	c.mu.Unlock()
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 
+	// Capture the current state under the write lock to avoid race conditions
+	tipsCopy := make([]*GeneratedTip, len(c.tips))
+	copy(tipsCopy, c.tips)
+	shownTodayCopy := make(map[string]bool)
+	for id, shown := range c.shownToday {
+		shownTodayCopy[id] = shown
+	}
+
+	// Release the write lock since we have the state we need
+	c.mu.Unlock()
+
+	// Find the best tip from the captured state (no lock needed)
 	var best *GeneratedTip
-	for _, tip := range c.tips {
-		if !c.shownToday[tip.ID] {
+	for _, tip := range tipsCopy {
+		if !shownTodayCopy[tip.ID] {
 			if best == nil || tip.Priority > best.Priority {
 				best = tip
 			}

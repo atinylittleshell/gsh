@@ -28,7 +28,7 @@ Primary runtime configuration file. Recommended setup:
 
 ```bash
 # Example: configure models and behavior
-export GSH_FAST_MODEL="qwen2.5:3b"
+export GSH_FAST_MODEL_ID="qwen2.5:3b"
 export GSH_AGENT_CONTEXT_WINDOW_TOKENS=6000
 export GSH_MINIMUM_HEIGHT=10
 
@@ -78,7 +78,8 @@ Changes made through the configuration menu are persisted to `~/.gsh_config_ui` 
 
 ## Common Environment Variables
 
-- `GSH_FAST_MODEL`: Fast LLM used for predictions, subagent selection, and lightweight tasks.
+- `GSH_FAST_MODEL_ID`: Model ID for the fast LLM (default: qwen2.5).
+- `GSH_FAST_MODEL_PROVIDER`: LLM provider for fast model (ollama, openai, openrouter).
 - `GSH_MINIMUM_HEIGHT`: Minimum number of lines reserved for prompt and UI rendering.
 - `GSH_AGENT_CONTEXT_WINDOW_TOKENS`: Context window size for agent chats and tools; messages are pruned beyond this.
 - `GSH_AGENT_APPROVED_BASH_COMMAND_REGEX`: Optional regex to pre-approve read-only or safe command families.
