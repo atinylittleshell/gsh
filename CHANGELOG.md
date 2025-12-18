@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.26.1](https://github.com/robottwo/gsh_prime/compare/v0.26.0...v0.26.1) (2025-12-17)
+
+
+### Features
+
+* Claude/gamified productivity coach ([#58](https://github.com/robottwo/gsh_prime/issues/58)) ([ce7c3ff](https://github.com/robottwo/gsh_prime/commit/ce7c3ff4902f4d821bedfc80da31745f50e048ae))
+* Assistant Box Border Status UI ([#57](https://github.com/robottwo/gsh_prime/issues/57)) ([137fad6](https://github.com/robottwo/gsh_prime/commit/137fad678624eda803b24372cee2cca03dd35b16))
+* Add history search sort toggle (Ctrl+O) ([#56](https://github.com/robottwo/gsh_prime/issues/56)) ([45881a2](https://github.com/robottwo/gsh_prime/commit/45881a28a1be08651dd7111684328d14391b3fca))
+
+### Bug Fixes
+
+* Fix DST transitions and improve coach robustness ([#59](https://github.com/robottwo/gsh_prime/issues/59)) ([4e5e6e7](https://github.com/robottwo/gsh_prime/commit/4e5e6e79cef7eab83dadb9bc0c18b76ae37b4a9d))
+* detect Unicode character width at runtime for Assistant Box ([#54](https://github.com/robottwo/gsh_prime/issues/54)) ([bd1ed47](https://github.com/robottwo/gsh_prime/commit/bd1ed479483f97176cddfcfb7e6521f14f3777f5))
+* fix provider integration test ([#53](https://github.com/robottwo/gsh_prime/issues/53)) ([bafae69](https://github.com/robottwo/gsh_prime/commit/bafae699c6ec93f500af0104a49f38efc32aac31))
+
 ## [0.26.0](https://github.com/robottwo/gsh_prime/compare/0.25.10...v0.26.0) (2025-12-01)
 
 
