@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -341,24 +340,11 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// Handle Ctrl-C: cancel current line, preserve input with "^C" appended, and present fresh prompt
-			currentInput := m.textInput.Value()
-
-			// Reset multiline state on Ctrl+C
-			if m.multilineState.IsActive() {
-				m.multilineState.Reset()
-				m.textInput.Prompt = m.originalPrompt // Reset to original prompt
-			}
-
-			// Print the current input with "^C" appended, then move to next line
-			// This works for both empty and non-empty input
-			fmt.Printf("%s^C\n", currentInput)
-
-			// Flush output to ensure it's displayed before framework cleanup
-			_ = os.Stdout.Sync()
 
 			// Set result to empty string so shell doesn't try to execute it
 			m.result = ""
 			// Use interrupt message to indicate Ctrl+C was pressed
+			// We do not reset multiline state here so that Gline() can reconstruct the full input
 			return m, tea.Sequence(interrupt, tea.Quit)
 		case "ctrl+d":
 			// Handle Ctrl-D: exit shell if on blank line
@@ -1038,6 +1024,22 @@ func Gline(
 
 	// Check if the session was interrupted by Ctrl+C
 	if appModel.interrupted {
+		// Reconstruct what was on screen so it persists
+		var inputStr string
+		if appModel.multilineState.IsActive() {
+			lines := appModel.multilineState.GetLines()
+			for i, line := range lines {
+				if i == 0 {
+					inputStr += appModel.originalPrompt + line + "\n"
+				} else {
+					inputStr += "> " + line + "\n"
+				}
+			}
+		}
+		// Append current line with ^C
+		inputStr += appModel.textInput.Prompt + appModel.textInput.Value() + "^C\n"
+
+		fmt.Print(RESET_CURSOR_COLUMN + inputStr)
 		return "", ErrInterrupted
 	}
 

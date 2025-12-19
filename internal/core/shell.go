@@ -146,6 +146,11 @@ func RunInteractiveShell(
 		logger.Debug("received command", zap.String("line", line))
 
 		if err != nil {
+			if err == gline.ErrInterrupted {
+				// User pressed Ctrl+C, restart loop with fresh prompt
+				logger.Debug("input interrupted by user")
+				continue
+			}
 			logger.Error("error reading input through gline", zap.Error(err))
 			return err
 		}
