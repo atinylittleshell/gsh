@@ -195,8 +195,8 @@ func TestModel_RealCompletion_Integration(t *testing.T) {
 			keySequence: []tea.KeyMsg{
 				{Type: tea.KeyTab},
 			},
-			expectedValue:  "git add",
-			expectedCursor: 7,
+			expectedValue:  "git ",
+			expectedCursor: 4,
 			expectedActive: true,
 		},
 		{
@@ -204,6 +204,7 @@ func TestModel_RealCompletion_Integration(t *testing.T) {
 			initialValue: "git",
 			cursorPos:    3,
 			keySequence: []tea.KeyMsg{
+				{Type: tea.KeyTab}, // shared prefix
 				{Type: tea.KeyTab}, // git add
 				{Type: tea.KeyTab}, // git commit
 				{Type: tea.KeyTab}, // git push
@@ -228,12 +229,12 @@ func TestModel_RealCompletion_Integration(t *testing.T) {
 			initialValue: "git",
 			cursorPos:    3,
 			keySequence: []tea.KeyMsg{
+				{Type: tea.KeyTab},      // shared prefix
 				{Type: tea.KeyTab},      // git add
-				{Type: tea.KeyTab},      // git commit
-				{Type: tea.KeyShiftTab}, // back to git add
+				{Type: tea.KeyShiftTab}, // back to git status (previous in cycle)
 			},
-			expectedValue:  "git add",
-			expectedCursor: 7,
+			expectedValue:  "git status",
+			expectedCursor: 10,
 			expectedActive: true,
 		},
 		{
@@ -241,11 +242,11 @@ func TestModel_RealCompletion_Integration(t *testing.T) {
 			initialValue: "git",
 			cursorPos:    3,
 			keySequence: []tea.KeyMsg{
-				{Type: tea.KeyTab},                       // git add
+				{Type: tea.KeyTab},                       // shared prefix
 				{Type: tea.KeyRunes, Runes: []rune{' '}}, // add space
 			},
-			expectedValue:  "git add ",
-			expectedCursor: 8,
+			expectedValue:  "git  ",
+			expectedCursor: 5,
 			expectedActive: false,
 		},
 		{
@@ -253,6 +254,7 @@ func TestModel_RealCompletion_Integration(t *testing.T) {
 			initialValue: "@/",
 			cursorPos:    2,
 			keySequence: []tea.KeyMsg{
+				{Type: tea.KeyTab},
 				{Type: tea.KeyTab},
 			},
 			expectedValue:  "@/deploy",
@@ -264,6 +266,7 @@ func TestModel_RealCompletion_Integration(t *testing.T) {
 			initialValue: "@!",
 			cursorPos:    2,
 			keySequence: []tea.KeyMsg{
+				{Type: tea.KeyTab},
 				{Type: tea.KeyTab},
 			},
 			expectedValue:  "@!new",
@@ -354,28 +357,28 @@ func TestModel_FileCompletion_Integration(t *testing.T) {
 			name:           "directory completion with cd",
 			initialValue:   "cd ",
 			cursorPos:      3,
-			keyPresses:     1,
+			keyPresses:     2,
 			expectedSubstr: []string{"documents/", "downloads/", "projects/"},
 		},
 		{
 			name:           "file completion with cat",
 			initialValue:   "cat ",
 			cursorPos:      4,
-			keyPresses:     1,
+			keyPresses:     2,
 			expectedSubstr: []string{"documents/", "downloads/", "projects/", "file1.txt", "file2.log", "script.sh"}, // Accept any completion
 		},
 		{
 			name:           "partial file completion",
 			initialValue:   "vim file",
 			cursorPos:      8,
-			keyPresses:     1,
+			keyPresses:     2,
 			expectedSubstr: []string{"file1.txt"},
 		},
 		{
 			name:           "directory completion with prefix",
 			initialValue:   "cd d",
 			cursorPos:      4,
-			keyPresses:     1,
+			keyPresses:     2,
 			expectedSubstr: []string{"documents/", "downloads/"},
 		},
 	}

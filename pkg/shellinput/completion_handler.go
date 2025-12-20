@@ -101,6 +101,23 @@ func (m *Model) handleCompletion() {
 		if len(suggestions) > 1 {
 			m.completion.activateInfoBox(m.Value())
 		}
+
+		if len(suggestions) == 1 {
+			m.completion.selected = 0
+			m.applySuggestion(suggestions[0].Value)
+			m.updateHelpInfo()
+			return
+		}
+
+		commonPrefix := longestCommonPrefix(suggestions)
+		if len(commonPrefix) > len(m.completion.prefix) {
+			m.completion.prefix = commonPrefix
+			m.completion.endPos = m.completion.startPos + len(commonPrefix)
+			m.applySuggestion(commonPrefix)
+			return
+		}
+
+		return
 	}
 
 	// Get next suggestion (this works for both initial and subsequent TAB presses)
@@ -262,4 +279,26 @@ func (m *Model) cancelCompletion() {
 	} else {
 		m.resetCompletion()
 	}
+}
+
+func longestCommonPrefix(candidates []CompletionCandidate) string {
+	if len(candidates) == 0 {
+		return ""
+	}
+
+	prefixRunes := []rune(candidates[0].Value)
+	for _, candidate := range candidates[1:] {
+		candidateRunes := []rune(candidate.Value)
+		maxLength := min(len(prefixRunes), len(candidateRunes))
+		i := 0
+		for i < maxLength && prefixRunes[i] == candidateRunes[i] {
+			i++
+		}
+		prefixRunes = prefixRunes[:i]
+		if len(prefixRunes) == 0 {
+			break
+		}
+	}
+
+	return string(prefixRunes)
 }

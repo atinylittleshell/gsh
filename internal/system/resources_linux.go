@@ -21,7 +21,9 @@ func getResources() *Resources {
 
 	// RAM
 	if memInfo, err := os.Open("/proc/meminfo"); err == nil {
-		defer memInfo.Close()
+		defer func() {
+			_ = memInfo.Close()
+		}()
 		scanner := bufio.NewScanner(memInfo)
 		var memTotal, memAvailable uint64
 		for scanner.Scan() {
@@ -35,9 +37,10 @@ func getResources() *Resources {
 			// /proc/meminfo values are in kB
 			val *= 1024
 
-			if key == "MemTotal" {
+			switch key {
+			case "MemTotal":
 				memTotal = val
-			} else if key == "MemAvailable" {
+			case "MemAvailable":
 				memAvailable = val
 			}
 		}
@@ -49,7 +52,9 @@ func getResources() *Resources {
 
 	// CPU
 	if stat, err := os.Open("/proc/stat"); err == nil {
-		defer stat.Close()
+		defer func() {
+			_ = stat.Close()
+		}()
 		scanner := bufio.NewScanner(stat)
 		if scanner.Scan() {
 			line := scanner.Text()

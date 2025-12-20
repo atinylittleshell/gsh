@@ -61,23 +61,27 @@ func TestCompletion(t *testing.T) {
 	model.SetValue("gi")
 	model.SetCursor(2) // cursor at end of "gi"
 
-	// First TAB should complete to "git"
+	// First TAB should extend to the shared prefix only
 	msg := tea.KeyMsg{Type: tea.KeyTab}
 	updatedModel, _ := model.Update(msg)
-	assert.Equal(t, "git", updatedModel.Value(), "First TAB should complete 'gi' to 'git'")
-	assert.Equal(t, 3, updatedModel.Position(), "Cursor should be at end of completion")
+	assert.Equal(t, "gi", updatedModel.Value(), "First TAB should leave input at common prefix when multiple matches exist")
+	assert.Equal(t, 2, updatedModel.Position(), "Cursor should remain at end of current prefix")
 	assert.True(t, updatedModel.completion.active, "Completion should be active")
 
-	// Second TAB should complete to "gist"
+	// Second TAB should complete to "git"
 	updatedModel, _ = updatedModel.Update(msg)
-	assert.Equal(t, "gist", updatedModel.Value(), "Second TAB should complete to 'gist'")
-	assert.Equal(t, 4, updatedModel.Position(), "Cursor should be at end of completion")
+	assert.Equal(t, "git", updatedModel.Value(), "Second TAB should complete to 'git'")
+	assert.Equal(t, 3, updatedModel.Position(), "Cursor should be at end of completion")
 
-	// Third TAB should complete to "give"
+	// Third TAB should complete to "gist"
 	updatedModel, _ = updatedModel.Update(msg)
-	assert.Equal(t, "give", updatedModel.Value(), "Third TAB should complete to 'give'")
+	assert.Equal(t, "gist", updatedModel.Value(), "Third TAB should complete to 'gist'")
 
-	// Fourth TAB should cycle back to "git"
+	// Fourth TAB should complete to "give"
+	updatedModel, _ = updatedModel.Update(msg)
+	assert.Equal(t, "give", updatedModel.Value(), "Fourth TAB should complete to 'give'")
+
+	// Fifth TAB should cycle back to "git"
 	updatedModel, _ = updatedModel.Update(msg)
 	assert.Equal(t, "git", updatedModel.Value(), "Fourth TAB should cycle back to 'git'")
 
@@ -95,14 +99,14 @@ func TestCompletion(t *testing.T) {
 	updatedModel.SetValue("git ch")
 	updatedModel.SetCursor(6) // cursor at end of "git ch"
 
-	// TAB should complete to "git checkout"
+	// TAB should complete to the shared prefix "git che"
 	msg = tea.KeyMsg{Type: tea.KeyTab}
 	updatedModel, _ = updatedModel.Update(msg)
-	assert.Equal(t, "git checkout", updatedModel.Value(), "TAB should complete 'git ch' to 'git checkout'")
+	assert.Equal(t, "git che", updatedModel.Value(), "TAB should extend 'git ch' to shared prefix 'git che'")
 
-	// Second TAB should complete to "git cherry-pick"
+	// Second TAB should complete to "git checkout"
 	updatedModel, _ = updatedModel.Update(msg)
-	assert.Equal(t, "git cherry-pick", updatedModel.Value(), "Second TAB should complete to 'git cherry-pick'")
+	assert.Equal(t, "git checkout", updatedModel.Value(), "Second TAB should complete to 'git checkout'")
 
 	// Test no completion available
 	model = New() // Reset model state

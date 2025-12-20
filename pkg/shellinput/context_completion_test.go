@@ -76,19 +76,23 @@ func TestContextSensitiveCompletions(t *testing.T) {
 	model.SetValue("@/")
 	model.SetCursor(2) // cursor at end of "@/"
 
-	// First TAB should complete to "@/macro1"
+	// First TAB should complete to the shared prefix
 	msg := tea.KeyMsg{Type: tea.KeyTab}
 	updatedModel, _ := model.Update(msg)
-	assert.Equal(t, "@/macro1", updatedModel.Value(), "First TAB should complete '@/ to '@/macro1'")
+	assert.Equal(t, "@/macro", updatedModel.Value(), "First TAB should extend '@/ to shared prefix '@/macro'")
 	assert.True(t, updatedModel.completion.active, "Completion should be active")
 
-	// Second TAB should complete to "@/macro2"
+	// Second TAB should complete to "@/macro1"
 	updatedModel, _ = updatedModel.Update(msg)
-	assert.Equal(t, "@/macro2", updatedModel.Value(), "Second TAB should complete to '@/macro2'")
+	assert.Equal(t, "@/macro1", updatedModel.Value(), "Second TAB should complete to '@/macro1'")
 
-	// Third TAB should cycle to "@/macro3" (cycling through all options)
+	// Third TAB should cycle to "@/macro2" (cycling through all options)
 	updatedModel, _ = updatedModel.Update(msg)
-	assert.Equal(t, "@/macro3", updatedModel.Value(), "Third TAB should cycle to '@/macro3'")
+	assert.Equal(t, "@/macro2", updatedModel.Value(), "Third TAB should cycle to '@/macro2'")
+
+	// Fourth TAB should cycle to "@/macro3"
+	updatedModel, _ = updatedModel.Update(msg)
+	assert.Equal(t, "@/macro3", updatedModel.Value(), "Fourth TAB should cycle to '@/macro3'")
 
 	// Test Shift+TAB cycles backwards
 	msg = tea.KeyMsg{Type: tea.KeyShiftTab}
@@ -99,14 +103,14 @@ func TestContextSensitiveCompletions(t *testing.T) {
 	model.SetValue("@!")
 	model.SetCursor(2) // cursor at end of "@!"
 
-	// First TAB should complete to "@!gsh_analytics"
+	// First TAB should leave the ambiguous prefix unchanged
 	msg = tea.KeyMsg{Type: tea.KeyTab}
 	updatedModel, _ = model.Update(msg)
-	assert.Equal(t, "@!gsh_analytics", updatedModel.Value(), "First TAB should complete '@! to '@!gsh_analytics'")
+	assert.Equal(t, "@!", updatedModel.Value(), "First TAB should leave '@!' unchanged when multiple matches exist")
 
-	// Second TAB should complete to "@!gsh_evaluate"
+	// Second TAB should complete to "@!gsh_analytics"
 	updatedModel, _ = updatedModel.Update(msg)
-	assert.Equal(t, "@!gsh_evaluate", updatedModel.Value(), "Second TAB should complete to '@!gsh_evaluate'")
+	assert.Equal(t, "@!gsh_analytics", updatedModel.Value(), "Second TAB should complete to '@!gsh_analytics'")
 
 	// Test completion reset on other key press
 	model.SetValue("@/")
@@ -129,18 +133,18 @@ func TestContextSensitivePartialCompletions(t *testing.T) {
 	model.SetValue("@/m")
 	model.SetCursor(3) // cursor at end of "@/m"
 
-	// TAB should complete to "@/macro1" (filtering based on 'm')
+	// TAB should extend to the shared prefix (filtering based on 'm')
 	msg := tea.KeyMsg{Type: tea.KeyTab}
 	updatedModel, _ := model.Update(msg)
-	assert.Equal(t, "@/macro1", updatedModel.Value(), "TAB should filter and complete '@/m to '@/macro1'")
+	assert.Equal(t, "@/macro", updatedModel.Value(), "TAB should extend '@/m to shared prefix '@/macro'")
 
 	// Test partial @! completion
 	model.SetValue("@!g")
 	model.SetCursor(3) // cursor at end of "@!g"
 
-	// TAB should complete to "@!gsh_analytics" (filtering based on 'g')
+	// TAB should extend to the shared prefix (filtering based on 'g')
 	updatedModel, _ = model.Update(msg)
-	assert.Equal(t, "@!gsh_analytics", updatedModel.Value(), "TAB should filter and complete '@!g to '@!gsh_analytics'")
+	assert.Equal(t, "@!gsh_", updatedModel.Value(), "TAB should extend '@!g to shared prefix '@!gsh_'")
 }
 
 func TestContextSensitiveCompletionEdgeCases(t *testing.T) {
@@ -164,7 +168,7 @@ func TestContextSensitiveCompletionEdgeCases(t *testing.T) {
 	model.SetCursor(2)
 
 	updatedModel, _ = model.Update(msg)
-	assert.Equal(t, "@/macro1", updatedModel.Value(), "Should complete empty '@/ to first macro")
+	assert.Equal(t, "@/macro", updatedModel.Value(), "Should extend empty '@/ to shared macro prefix")
 	assert.True(t, updatedModel.completion.active, "Completion should be active")
 
 	// Test single match
@@ -186,21 +190,21 @@ func TestTextRetentionFix(t *testing.T) {
 	model.SetValue("@!")
 	model.SetCursor(2) // cursor at end of "@!"
 
-	// First TAB should complete to "@!gsh_analytics" (longer completion)
+	// First TAB should leave the ambiguous prefix unchanged
 	msg := tea.KeyMsg{Type: tea.KeyTab}
 	updatedModel, _ := model.Update(msg)
-	assert.Equal(t, "@!gsh_analytics", updatedModel.Value(), "First TAB should complete '@! to '@!gsh_analytics'")
+	assert.Equal(t, "@!", updatedModel.Value(), "First TAB should leave '@!' unchanged when multiple matches exist")
 	assert.True(t, updatedModel.completion.active, "Completion should be active")
 
-	// Second TAB should complete to "@!gsh_evaluate" (same length)
+	// Second TAB should complete to "@!gsh_analytics"
 	updatedModel, _ = updatedModel.Update(msg)
-	assert.Equal(t, "@!gsh_evaluate", updatedModel.Value(), "Second TAB should complete to '@!gsh_evaluate'")
+	assert.Equal(t, "@!gsh_analytics", updatedModel.Value(), "Second TAB should complete to '@!gsh_analytics'")
 	assert.True(t, updatedModel.completion.active, "Completion should still be active")
 
-	// Third TAB should cycle to "@!history" - this tests that no text retention occurs
+	// Third TAB should cycle to "@!gsh_evaluate" - this tests that no text retention occurs
 	// Before the fix, this would result in "@!historyuate" (retaining characters from the previous completion)
 	updatedModel, _ = updatedModel.Update(msg)
-	assert.Equal(t, "@!history", updatedModel.Value(), "Third TAB should cycle to '@!history' without text retention")
+	assert.Equal(t, "@!gsh_evaluate", updatedModel.Value(), "Third TAB should cycle to '@!gsh_evaluate' without text retention")
 	assert.True(t, updatedModel.completion.active, "Completion should still be active")
 
 	// Test with a shorter completion following a longer one
@@ -211,15 +215,19 @@ func TestTextRetentionFix(t *testing.T) {
 	model.SetValue("@!")
 	model.SetCursor(2)
 
-	// First completion: first in the list (short)
+	// First TAB should extend to the shared prefix only
 	updatedModel, _ = model.Update(msg)
+	assert.Equal(t, "@!", updatedModel.Value(), "First TAB should leave ambiguous prefix unchanged")
+
+	// Second completion: first suggestion (short)
+	updatedModel, _ = updatedModel.Update(msg)
 	assert.Equal(t, "@!short", updatedModel.Value(), "Should complete to first completion")
 
-	// Second completion: second in the list (longer) - this was the main bug scenario
+	// Third completion: second in the list (longer) - this was the main bug scenario
 	updatedModel, _ = updatedModel.Update(msg)
 	assert.Equal(t, "@!longer_completion", updatedModel.Value(), "Should complete to longer completion without text retention issues")
 
-	// Third completion: cycle back to first (short) - this tests the fix
+	// Fourth completion: cycle back to first (short) - this tests the fix
 	updatedModel, _ = updatedModel.Update(msg)
 	assert.Equal(t, "@!short", updatedModel.Value(), "Should complete back to shorter completion without retaining old text")
 }

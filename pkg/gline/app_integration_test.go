@@ -67,17 +67,17 @@ type mockExplainer struct {
 }
 
 func newMockExplainer() *mockExplainer {
-        return &mockExplainer{
-                explanations: map[string]string{
-                        "git":       "General git command help",
-                        "git status": "Shows the status of the working directory",
-                        "docker ps":  "Lists running Docker containers",
-                        "ls":         "Lists files in the current directory",
-                        "ls -la":     "Lists all files in long format including hidden files",
-                        "cd ~/":      "Changes to the home directory",
-                        "vim .":      "Opens vim editor in the current directory",
-                },
-                delay: 0, // No delay by default for faster tests
+	return &mockExplainer{
+		explanations: map[string]string{
+			"git":        "General git command help",
+			"git status": "Shows the status of the working directory",
+			"docker ps":  "Lists running Docker containers",
+			"ls":         "Lists files in the current directory",
+			"ls -la":     "Lists all files in long format including hidden files",
+			"cd ~/":      "Changes to the home directory",
+			"vim .":      "Opens vim editor in the current directory",
+		},
+		delay: 0, // No delay by default for faster tests
 	}
 }
 
@@ -372,8 +372,8 @@ func TestCtrlKRefreshesPredictionWhenTextUnchanged(t *testing.T) {
 		}
 	}
 
-        assert.Equal(t, "General git command help", model.explanation, "Assistant help should derive from the remaining buffer while suggestions are suppressed")
-        assert.Empty(t, model.textInput.MatchedSuggestions(), "Suggestions should stay hidden until the user types again")
+	assert.Equal(t, "General git command help", model.explanation, "Assistant help should derive from the remaining buffer while suggestions are suppressed")
+	assert.Empty(t, model.textInput.MatchedSuggestions(), "Suggestions should stay hidden until the user types again")
 
 	// Resume predictions after the user provides more input
 	updatedModel, predictionCmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
@@ -765,20 +765,11 @@ func TestApp_CompletionIntegration(t *testing.T) {
 	updatedModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updatedModel.(appModel)
 
-	// Verify completion was applied
+	// Verify completion inserted the common prefix
 	value := model.textInput.Value()
-	completions := []string{"git add", "git commit", "git push", "git status"}
 
-	found := false
-	for _, completion := range completions {
-		if value == completion {
-			found = true
-			break
-		}
-	}
-
-	assert.True(t, found,
-		"Expected value to be one of %v, got %q", completions, value)
+	assert.Equal(t, "git ", value,
+		"Expected value to be the common prefix \"git \" after first tab press, got %q", value)
 
 	// Note: Can't access unexported completion field, but if value changed, completion worked
 }

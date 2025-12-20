@@ -224,12 +224,15 @@ func TestHelpBoxUpdatesOnCompletionNavigation(t *testing.T) {
 	model.SetValue("@!")
 	model.SetCursor(2)
 
-	// Simulate TAB to start completion (should select first completion: @!new)
+	// Simulate TAB to start completion (ambiguous, so no selection yet)
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+
+	// Simulate another TAB to navigate to the first completion (@!new)
 	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
 
 	// Check that help shows specific help for @!new
 	helpBox := model.HelpBoxView()
-	assert.Contains(t, helpBox, "**@!new**", "Should show specific help for @!new after first TAB")
+	assert.Contains(t, helpBox, "**@!new**", "Should show specific help for @!new after selecting first completion")
 	assert.True(t, model.completion.shouldShowHelpBox(), "Help box should be visible")
 
 	// Simulate another TAB to navigate to next completion (@!tokens)
@@ -237,7 +240,7 @@ func TestHelpBoxUpdatesOnCompletionNavigation(t *testing.T) {
 
 	// Check that help updates to show specific help for @!tokens
 	helpBox = model.HelpBoxView()
-	assert.Contains(t, helpBox, "**@!tokens**", "Should show specific help for @!tokens after second TAB")
+	assert.Contains(t, helpBox, "**@!tokens**", "Should show specific help for @!tokens after second selection")
 	assert.True(t, model.completion.shouldShowHelpBox(), "Help box should still be visible")
 }
 
