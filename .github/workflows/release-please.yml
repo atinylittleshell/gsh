@@ -147,3 +147,73 @@ jobs:
           installers-regex: 'gsh_Windows_x86_64\.zip$'
           token: ${{ secrets.WINGET_TOKEN }}
         continue-on-error: true  # Don't fail the workflow if winget submission fails
+
+  # Build macOS DMG installer for Intel (x86_64)
+  macos-installer-x86_64:
+    needs: [release-please, goreleaser]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download macOS x86_64 release asset
+        run: |
+          version="${{ needs.release-please.outputs.version }}"
+          url="https://github.com/robottwo/gsh_prime/releases/download/v${version}/gsh_Darwin_x86_64.tar.gz"
+          curl -L -o gsh_Darwin_x86_64.tar.gz "$url"
+          mkdir -p installer_files
+          tar -xzf gsh_Darwin_x86_64.tar.gz -C installer_files
+
+      - name: Prepare installer files
+        run: |
+          cp LICENSE installer_files/
+          cp README.md installer_files/
+
+      - name: Build DMG installer
+        run: |
+          version="${{ needs.release-please.outputs.version }}"
+          chmod +x packaging/macos/create-dmg.sh
+          ./packaging/macos/create-dmg.sh "$version" "x86_64" "installer_files" "."
+
+      - name: Upload DMG to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${{ needs.release-please.outputs.version }}"
+          dmg="gsh_${version}_macos_x86_64.dmg"
+          gh release upload "v${version}" "$dmg" --clobber
+
+  # Build macOS DMG installer for Apple Silicon (arm64)
+  macos-installer-arm64:
+    needs: [release-please, goreleaser]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download macOS arm64 release asset
+        run: |
+          version="${{ needs.release-please.outputs.version }}"
+          url="https://github.com/robottwo/gsh_prime/releases/download/v${version}/gsh_Darwin_arm64.tar.gz"
+          curl -L -o gsh_Darwin_arm64.tar.gz "$url"
+          mkdir -p installer_files
+          tar -xzf gsh_Darwin_arm64.tar.gz -C installer_files
+
+      - name: Prepare installer files
+        run: |
+          cp LICENSE installer_files/
+          cp README.md installer_files/
+
+      - name: Build DMG installer
+        run: |
+          version="${{ needs.release-please.outputs.version }}"
+          chmod +x packaging/macos/create-dmg.sh
+          ./packaging/macos/create-dmg.sh "$version" "arm64" "installer_files" "."
+
+      - name: Upload DMG to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${{ needs.release-please.outputs.version }}"
+          dmg="gsh_${version}_macos_arm64.dmg"
+          gh release upload "v${version}" "$dmg" --clobber
