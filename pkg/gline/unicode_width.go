@@ -2,6 +2,7 @@ package gline
 
 import (
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -145,6 +146,154 @@ func probeTerminalCharWidth(char rune) int {
 	}
 
 	return width
+}
+
+// WordwrapWithRuneWidth wraps text to the given width using GetRuneWidth for accurate
+// Unicode character width calculation. This is needed because the standard ansi.Wordwrap
+// uses its own width calculation that may not match terminal-specific emoji rendering.
+// It preserves ANSI escape codes in the output.
+func WordwrapWithRuneWidth(s string, width int) string {
+	if width <= 0 {
+		return s
+	}
+
+	var result strings.Builder
+	var lineWidth int
+	var wordBuffer strings.Builder
+	var wordWidth int
+	inEscape := false
+	pendingSpace := false      // Track if we need to add a space before the next word
+	pendingSpaceWidth := 0     // Width of pending space (1 for space, 4 for tab)
+	pendingSpaceRune := ' '    // The actual space character
+
+	flushWord := func() {
+		if wordBuffer.Len() == 0 {
+			return
+		}
+
+		word := wordBuffer.String()
+
+		// If word alone is wider than width, we need to break it
+		if wordWidth > width {
+			// If there's content on the current line, start a new line
+			if lineWidth > 0 {
+				result.WriteRune('\n')
+				lineWidth = 0
+			}
+			pendingSpace = false // Don't add space before broken word
+
+			// Break the word across multiple lines
+			var charBuf strings.Builder
+			charWidth := 0
+			inCharEscape := false
+
+			for _, r := range word {
+				if r == '\x1b' {
+					inCharEscape = true
+					charBuf.WriteRune(r)
+					continue
+				}
+				if inCharEscape {
+					charBuf.WriteRune(r)
+					if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+						inCharEscape = false
+					}
+					continue
+				}
+
+				rw := GetRuneWidth(r)
+				if charWidth+rw > width && charWidth > 0 {
+					result.WriteString(charBuf.String())
+					result.WriteRune('\n')
+					charBuf.Reset()
+					charWidth = 0
+				}
+				charBuf.WriteRune(r)
+				charWidth += rw
+			}
+
+			if charBuf.Len() > 0 {
+				result.WriteString(charBuf.String())
+				lineWidth = charWidth
+			}
+		} else {
+			// Calculate total width needed (with pending space if any)
+			neededWidth := wordWidth
+			if pendingSpace && lineWidth > 0 {
+				neededWidth += pendingSpaceWidth
+			}
+
+			if lineWidth+neededWidth > width && lineWidth > 0 {
+				// Word doesn't fit on current line, start new line
+				result.WriteRune('\n')
+				lineWidth = 0
+				pendingSpace = false // Don't add space at start of new line
+			}
+
+			// Add pending space if we're not at the start of a line
+			if pendingSpace && lineWidth > 0 {
+				result.WriteRune(pendingSpaceRune)
+				lineWidth += pendingSpaceWidth
+			}
+			pendingSpace = false
+
+			// Add the word
+			result.WriteString(word)
+			lineWidth += wordWidth
+		}
+
+		wordBuffer.Reset()
+		wordWidth = 0
+	}
+
+	for _, r := range s {
+		// Handle ANSI escape sequences
+		if r == '\x1b' {
+			inEscape = true
+			wordBuffer.WriteRune(r)
+			continue
+		}
+		if inEscape {
+			wordBuffer.WriteRune(r)
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				inEscape = false
+			}
+			continue
+		}
+
+		// Handle newlines - they force a line break
+		if r == '\n' {
+			flushWord()
+			result.WriteRune('\n')
+			lineWidth = 0
+			pendingSpace = false
+			continue
+		}
+
+		// Handle spaces - they're word boundaries
+		if r == ' ' || r == '\t' {
+			flushWord()
+
+			// Remember the space for later (we'll add it before the next word if it fits)
+			pendingSpace = true
+			pendingSpaceRune = r
+			if r == '\t' {
+				pendingSpaceWidth = 4 // Approximate tab width
+			} else {
+				pendingSpaceWidth = 1
+			}
+			continue
+		}
+
+		// Regular character - add to word buffer
+		wordBuffer.WriteRune(r)
+		wordWidth += GetRuneWidth(r)
+	}
+
+	// Flush any remaining word
+	flushWord()
+
+	return result.String()
 }
 
 // parseDSRResponse parses an ESC[row;colR response and returns the column.

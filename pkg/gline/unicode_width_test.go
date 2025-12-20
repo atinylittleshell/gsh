@@ -89,3 +89,114 @@ func TestProbeTerminalCharWidthNonTerminal(t *testing.T) {
 		t.Errorf("probeTerminalCharWidth('⚡') in non-terminal = %d, want 1", width)
 	}
 }
+
+func TestWordwrapWithRuneWidth(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		width    int
+		expected string
+	}{
+		{
+			name:     "simple text fits",
+			input:    "hello world",
+			width:    20,
+			expected: "hello world",
+		},
+		{
+			name:     "text wraps at word boundary",
+			input:    "hello world",
+			width:    6,
+			expected: "hello\nworld",
+		},
+		{
+			name:     "multiple words wrap",
+			input:    "one two three four",
+			width:    8,
+			expected: "one two\nthree\nfour",
+		},
+		{
+			name:     "preserves existing newlines",
+			input:    "line1\nline2",
+			width:    20,
+			expected: "line1\nline2",
+		},
+		{
+			name:     "long word breaks",
+			input:    "abcdefghij",
+			width:    5,
+			expected: "abcde\nfghij",
+		},
+		{
+			name:     "width zero returns original",
+			input:    "test",
+			width:    0,
+			expected: "test",
+		},
+		{
+			name:     "negative width returns original",
+			input:    "test",
+			width:    -5,
+			expected: "test",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			width:    10,
+			expected: "",
+		},
+		{
+			name:     "text with emoji - fits in width",
+			input:    "🔥 fire",
+			width:    10,
+			expected: "🔥 fire",
+		},
+		{
+			name:     "text with emoji - needs wrapping",
+			input:    "🔥 fire emoji here",
+			width:    10,
+			expected: "🔥 fire\nemoji here",
+		},
+		{
+			name:     "coach tip style content",
+			input:    "🔥 Day 5 streak (1.2x XP)",
+			width:    20,
+			// In test environment emoji width=1, so: 🔥(1)+' '(1)+Day(3)+' '(1)+5(1)+' '(1)+streak(6)+' '(1)+(1.2x(5)=20
+			// XP) doesn't fit (20+1+3=24>20), so it wraps
+			expected: "🔥 Day 5 streak (1.2x\nXP)",
+		},
+		{
+			name:     "multiple emojis",
+			input:    "📊 Today: 10 commands, +50 XP",
+			width:    15,
+			expected: "📊 Today: 10\ncommands, +50\nXP",
+		},
+		{
+			name:     "preserves ANSI codes",
+			input:    "\x1b[31mred\x1b[0m text",
+			width:    5,
+			expected: "\x1b[31mred\x1b[0m\ntext",
+		},
+		{
+			name:     "ANSI codes don't count towards width",
+			input:    "\x1b[31mred\x1b[0m blue",
+			width:    8,
+			expected: "\x1b[31mred\x1b[0m blue",
+		},
+		{
+			name:     "tabs handled as word boundaries",
+			input:    "one\ttwo\tthree",
+			width:    10,
+			expected: "one\ttwo\nthree",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := WordwrapWithRuneWidth(tt.input, tt.width)
+			if result != tt.expected {
+				t.Errorf("WordwrapWithRuneWidth(%q, %d) = %q, want %q", tt.input, tt.width, result, tt.expected)
+			}
+		})
+	}
+}

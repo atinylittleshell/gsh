@@ -14,7 +14,6 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
 	"go.uber.org/zap"
 )
 
@@ -508,8 +507,9 @@ func (m appModel) View() string {
 	innerWidth := max(0, boxWidth-2) // Account for left/right borders
 	// Content area is innerWidth minus 2 spaces for left/right padding
 	contentWidth := innerWidth - 2
-	// Use ANSI-aware word wrapping - ansi.Wordwrap respects word boundaries and ANSI codes
-	wrappedContent := ansi.Wordwrap(assistantContent, contentWidth, "")
+	// Use custom word wrapping that uses GetRuneWidth for accurate Unicode/emoji width calculation
+	// This ensures coach tips with emoji render correctly in the assistant box
+	wrappedContent := WordwrapWithRuneWidth(assistantContent, contentWidth)
 	lines := strings.Split(wrappedContent, "\n")
 
 	// Apply faded style to each line of coach tips after word wrapping
