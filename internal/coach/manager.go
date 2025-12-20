@@ -1,8 +1,12 @@
 package coach
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"math/rand"
 	"os/user"
 	"strings"
 	"time"
@@ -56,6 +60,7 @@ func NewCoachManager(db *gorm.DB, historyManager *history.HistoryManager, runner
 		&CoachGeneratedTip{},
 		&CoachTipFeedback{},
 		&CoachNotification{},
+		&CoachDatabaseTip{},
 	)
 	if err != nil {
 		return nil, err
@@ -96,6 +101,12 @@ func NewCoachManager(db *gorm.DB, historyManager *history.HistoryManager, runner
 
 	// Update streak on session start
 	manager.updateStreak()
+
+	// Seed static tips to database if not done yet
+	manager.seedStaticTips()
+
+	// Check if we need to generate new tips (startup)
+	manager.checkAndTriggerTipGeneration()
 
 	return manager, nil
 }
@@ -281,6 +292,15 @@ func (m *CoachManager) updateStreak() {
 func (m *CoachManager) RecordCommand(command string, exitCode int, durationMs int64) {
 	m.sessionCommands++
 	now := time.Now()
+
+	// Track commands since last tip generation
+	m.profile.CommandsSinceLastTipGen++
+	m.db.Save(m.profile)
+
+	// Check if we need to generate new tips (every 1000 commands)
+	if m.profile.CommandsSinceLastTipGen >= 1000 {
+		m.checkAndTriggerTipGeneration()
+	}
 
 	// Track success/failure
 	success := exitCode == 0
@@ -675,10 +695,16 @@ func (m *CoachManager) GetDisplayContent() *CoachDisplayContent {
 		}
 	}
 
-	// Priority 3: Static tip
-	tip := GetRandomStaticTip()
-	if tip != nil {
-		return ConvertStaticTipToDisplay(tip)
+	// Priority 3: Database tip (includes both static and LLM-generated tips)
+	dbTip := m.GetRandomDatabaseTip()
+	if dbTip != nil {
+		return ConvertDatabaseTipToDisplay(dbTip)
+	}
+
+	// Fallback to static tips if database is empty
+	staticTip := GetRandomStaticTip()
+	if staticTip != nil {
+		return ConvertStaticTipToDisplay(staticTip)
 	}
 
 	return nil
@@ -851,4 +877,322 @@ func formatFloat(f float64) string {
 	whole := int(f)
 	frac := int((f - float64(whole)) * 10)
 	return formatInt(whole) + "." + string(rune('0'+frac))
+}
+
+// seedStaticTips seeds the database with static tips if not already done
+func (m *CoachManager) seedStaticTips() {
+	if m.profile.TipsSeeded {
+		return
+	}
+
+	m.logger.Info("Seeding static tips to database")
+
+	for _, tip := range StaticTips {
+		dbTip := CoachDatabaseTip{
+			TipID:    tip.ID,
+			Source:   "static",
+			Category: string(tip.Category),
+			Icon:     tip.Icon,
+			Title:    tip.Title,
+			Content:  tip.Content,
+			Priority: tip.Priority,
+			Active:   true,
+		}
+
+		// Use FirstOrCreate to avoid duplicates
+		m.db.Where(CoachDatabaseTip{TipID: tip.ID}).FirstOrCreate(&dbTip)
+	}
+
+	m.profile.TipsSeeded = true
+	m.db.Save(m.profile)
+	m.logger.Info("Static tips seeded successfully", zap.Int("count", len(StaticTips)))
+}
+
+// checkAndTriggerTipGeneration checks if we need to generate new tips
+// This is called on startup and after every 1000 commands
+func (m *CoachManager) checkAndTriggerTipGeneration() {
+	shouldGenerate := false
+
+	// Check if this is the first time or tips were never generated
+	if !m.profile.LastTipGenTime.Valid {
+		m.logger.Info("First tip generation - never generated before")
+		shouldGenerate = true
+	}
+
+	// Check if we've hit 1000 commands since last generation
+	if m.profile.CommandsSinceLastTipGen >= 1000 {
+		m.logger.Info("Triggering tip generation - 1000 commands reached",
+			zap.Int("commands_since_last", m.profile.CommandsSinceLastTipGen))
+		shouldGenerate = true
+	}
+
+	if shouldGenerate {
+		go m.generateNewTipsAsync()
+	}
+}
+
+// generateNewTipsAsync generates new tips using the slow LLM in the background
+func (m *CoachManager) generateNewTipsAsync() {
+	// Skip if essential components are missing
+	if m.historyManager == nil || m.runner == nil {
+		m.logger.Warn("Skipping tip generation - missing required components")
+		return
+	}
+
+	m.logger.Info("Starting background tip generation using slow LLM")
+
+	generator := NewLLMTipGenerator(m.runner, m.historyManager, m, m.logger)
+	ctx := context.Background()
+
+	// Generate 20 new tips
+	tips, err := generator.GenerateBatchTipsWithSlowModel(ctx, 20)
+	if err != nil {
+		m.logger.Warn("Failed to generate tips with LLM", zap.Error(err))
+		return
+	}
+
+	// Store generated tips in database
+	storedCount := 0
+	for _, tip := range tips {
+		dbTip := CoachDatabaseTip{
+			TipID:      tip.ID,
+			Source:     "llm",
+			Category:   tip.Category,
+			Icon:       getTipIcon(tip.Type),
+			Title:      tip.Title,
+			Content:    tip.Content,
+			Priority:   tip.Priority,
+			Reasoning:  tip.Reasoning,
+			Command:    tip.Command,
+			Suggestion: tip.Suggestion,
+			Impact:     tip.Impact,
+			Active:     true,
+		}
+
+		// Encode BasedOn as JSON
+		if len(tip.BasedOn) > 0 {
+			basedOnJSON, _ := json.Marshal(tip.BasedOn)
+			dbTip.BasedOn = string(basedOnJSON)
+		}
+
+		// Use FirstOrCreate to avoid duplicates based on content hash
+		result := m.db.Where(CoachDatabaseTip{TipID: tip.ID}).FirstOrCreate(&dbTip)
+		if result.RowsAffected > 0 {
+			storedCount++
+		}
+	}
+
+	// Update tracking fields
+	m.profile.CommandsSinceLastTipGen = 0
+	m.profile.LastTipGenTime = sql.NullTime{Time: time.Now(), Valid: true}
+	m.db.Save(m.profile)
+
+	m.logger.Info("Background tip generation completed",
+		zap.Int("generated", len(tips)),
+		zap.Int("stored", storedCount))
+}
+
+// getTipIcon returns an appropriate icon for a tip type
+func getTipIcon(tipType TipType) string {
+	switch tipType {
+	case TipTypeProductivity:
+		return "💡"
+	case TipTypeEfficiency:
+		return "⚡"
+	case TipTypeLearning:
+		return "📚"
+	case TipTypeErrorFix:
+		return "🔧"
+	case TipTypeWorkflow:
+		return "🔄"
+	case TipTypeAlias:
+		return "⌨️"
+	case TipTypeToolDiscovery:
+		return "🔍"
+	case TipTypeSecurityTip:
+		return "🔒"
+	case TipTypeGitWorkflow:
+		return "🌿"
+	case TipTypeTimeManagement:
+		return "⏰"
+	case TipTypeFunFact:
+		return "🎲"
+	case TipTypeEncouragement:
+		return "🚀"
+	default:
+		return "💡"
+	}
+}
+
+// GetRandomDatabaseTip returns a random tip from the database
+// Tips are weighted by priority and penalized based on how recently/often they were shown
+func (m *CoachManager) GetRandomDatabaseTip() *CoachDatabaseTip {
+	var tips []CoachDatabaseTip
+	m.db.Where("active = ?", true).Find(&tips)
+
+	if len(tips) == 0 {
+		return nil
+	}
+
+	now := time.Now()
+
+	// Weighted selection by priority, penalized by shown count and recency
+	totalWeight := 0
+	weights := make([]int, len(tips))
+	for i, tip := range tips {
+		weight := tip.Priority
+		if weight <= 0 {
+			weight = 1
+		}
+
+		// Penalize tips that have been shown many times
+		// Each time shown reduces weight by 20%, minimum 10% of original
+		if tip.ShownCount > 0 {
+			reduction := 1.0 - (float64(tip.ShownCount) * 0.2)
+			if reduction < 0.1 {
+				reduction = 0.1
+			}
+			weight = int(float64(weight) * reduction)
+			if weight < 1 {
+				weight = 1
+			}
+		}
+
+		// Penalize tips shown recently (within last 24 hours)
+		if tip.LastShownAt.Valid {
+			hoursSinceShown := now.Sub(tip.LastShownAt.Time).Hours()
+			if hoursSinceShown < 24 {
+				// Reduce weight significantly for recently shown tips
+				// Tips shown in last hour get 10% weight, scaling up to 100% at 24 hours
+				recencyFactor := hoursSinceShown / 24.0
+				if recencyFactor < 0.1 {
+					recencyFactor = 0.1
+				}
+				weight = int(float64(weight) * recencyFactor)
+				if weight < 1 {
+					weight = 1
+				}
+			}
+		}
+
+		weights[i] = weight
+		totalWeight += weight
+	}
+
+	r := rand.Intn(totalWeight)
+	cumulative := 0
+	for i := range tips {
+		cumulative += weights[i]
+		if r < cumulative {
+			// Update shown count
+			tips[i].ShownCount++
+			tips[i].LastShownAt = sql.NullTime{Time: now, Valid: true}
+			m.db.Save(&tips[i])
+			return &tips[i]
+		}
+	}
+
+	return &tips[len(tips)-1]
+}
+
+// ConvertDatabaseTipToDisplay converts a CoachDatabaseTip to CoachDisplayContent
+func ConvertDatabaseTipToDisplay(tip *CoachDatabaseTip) *CoachDisplayContent {
+	if tip == nil {
+		return nil
+	}
+	return &CoachDisplayContent{
+		Type:     "tip",
+		Icon:     tip.Icon,
+		Title:    tip.Title,
+		Content:  tip.Content,
+		Priority: tip.Priority,
+	}
+}
+
+// ResetAndRegenerateTips clears all tips and generates new ones from the slow LLM
+// This runs synchronously and returns the result message
+func (m *CoachManager) ResetAndRegenerateTips() string {
+	// Check if essential components are available
+	if m.historyManager == nil || m.runner == nil {
+		return "Cannot regenerate tips - missing required components"
+	}
+
+	m.logger.Info("Resetting and regenerating all tips")
+
+	// Step 1: Delete existing tips
+	progress := NewProgressIndicator("[1/3] Clearing existing tips...")
+	progress.Start()
+	result := m.db.Where("1 = 1").Delete(&CoachDatabaseTip{})
+	deletedCount := result.RowsAffected
+	progress.StopWithMessage(fmt.Sprintf("  [1/3] Clearing existing tips... deleted %d tips", deletedCount))
+	m.logger.Info("Deleted existing tips", zap.Int64("count", deletedCount))
+
+	// Step 2: Generate 61 new tips using the slow LLM
+	// Uses 10-minute max timeout, but will timeout after 1 minute of inactivity
+	progress = NewProgressIndicator("[2/3] Generating 61 tips")
+	progress.Start()
+
+	generator := NewLLMTipGenerator(m.runner, m.historyManager, m, m.logger)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	tips, err := generator.GenerateBatchTipsWithSlowModelProgress(ctx, 61, progress)
+	if err != nil {
+		progress.Stop()
+		// Check for timeout or cancellation errors
+		if errors.Is(err, context.DeadlineExceeded) {
+			m.logger.Warn("LLM tip generation timed out (no activity for 1 minute)", zap.Error(err))
+			return fmt.Sprintf("Reset incomplete. Deleted %d tips.\nAI tip generation timed out (no response for 1 minute). Try again later.", deletedCount)
+		}
+		if errors.Is(err, context.Canceled) {
+			m.logger.Warn("LLM tip generation was canceled", zap.Error(err))
+			return fmt.Sprintf("Reset incomplete. Deleted %d tips.\nAI tip generation was canceled.", deletedCount)
+		}
+		m.logger.Warn("Failed to generate tips with LLM", zap.Error(err))
+		return fmt.Sprintf("Reset incomplete. Deleted %d tips.\nFailed to generate new AI tips: %v", deletedCount, err)
+	}
+	progress.StopWithMessage(fmt.Sprintf("  [2/3] Generated %d personalized tips", len(tips)))
+
+	// Step 3: Store generated tips in database
+	progress = NewProgressIndicator("[3/3] Saving tips to database...")
+	progress.Start()
+	storedCount := 0
+	for _, tip := range tips {
+		dbTip := CoachDatabaseTip{
+			TipID:      tip.ID,
+			Source:     "llm",
+			Category:   tip.Category,
+			Icon:       getTipIcon(tip.Type),
+			Title:      tip.Title,
+			Content:    tip.Content,
+			Priority:   tip.Priority,
+			Reasoning:  tip.Reasoning,
+			Command:    tip.Command,
+			Suggestion: tip.Suggestion,
+			Impact:     tip.Impact,
+			Active:     true,
+		}
+
+		if len(tip.BasedOn) > 0 {
+			basedOnJSON, _ := json.Marshal(tip.BasedOn)
+			dbTip.BasedOn = string(basedOnJSON)
+		}
+
+		if err := m.db.Create(&dbTip).Error; err == nil {
+			storedCount++
+		}
+	}
+	progress.StopWithMessage(fmt.Sprintf("  [3/3] Saved %d tips to database", storedCount))
+
+	// Update tracking fields
+	m.profile.CommandsSinceLastTipGen = 0
+	m.profile.LastTipGenTime = sql.NullTime{Time: time.Now(), Valid: true}
+	m.db.Save(m.profile)
+
+	m.logger.Info("Tips reset and regeneration completed",
+		zap.Int64("deleted", deletedCount),
+		zap.Int("llm_generated", storedCount))
+
+	return fmt.Sprintf("\nDone! Tips reset complete.\n  - Deleted: %d old tips\n  - Generated: %d AI tips based on your command history\n\nAll tips are now personalized to your shell usage!",
+		deletedCount, storedCount)
 }

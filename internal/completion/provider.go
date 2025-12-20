@@ -219,6 +219,34 @@ func (p *ShellCompletionProvider) checkSpecialPrefixes(line string, pos int) []s
 
 	currentWord := line[start:end]
 
+	// Check for @!coach subcommand completion (when line starts with "@!coach " and we're past it)
+	trimmedLine := strings.TrimSpace(line[:pos])
+	if strings.HasPrefix(trimmedLine, "@!coach") && (trimmedLine == "@!coach" || strings.HasPrefix(trimmedLine, "@!coach ")) {
+		// Extract the part after "@!coach "
+		afterCoach := ""
+		if idx := strings.Index(line, "@!coach "); idx >= 0 {
+			afterCoach = strings.TrimSpace(line[idx+8 : pos])
+		}
+
+		// Only provide subcommand completions if we're past "@!coach " and the current word isn't a special prefix
+		if start >= 7 && !strings.HasPrefix(currentWord, "@") {
+			completions := p.getCoachSubcommandCompletions(afterCoach)
+			if len(completions) > 0 {
+				// Build the proper prefix for the current line context
+				var linePrefix string
+				if start > 0 {
+					linePrefix = line[:start]
+				}
+				// Return completions with line prefix
+				result := make([]shellinput.CompletionCandidate, len(completions))
+				for i, c := range completions {
+					result[i] = shellinput.CompletionCandidate{Value: linePrefix + c}
+				}
+				return result
+			}
+		}
+	}
+
 	// Check if the current word starts with @/, @!, or @
 	if strings.HasPrefix(currentWord, "@/") {
 		completions := p.getMacroCompletions(currentWord)
@@ -621,9 +649,6 @@ func (p *ShellCompletionProvider) getBuiltinCommandCompletions(prefix string) []
 		"subagents",
 		"reload-subagents",
 		"coach",
-		"coach-stats",
-		"coach-achievements",
-		"coach-challenges",
 	}
 
 	var completions []string
@@ -636,6 +661,28 @@ func (p *ShellCompletionProvider) getBuiltinCommandCompletions(prefix string) []
 	}
 
 	// Sort alphabetically for consistent ordering
+	sort.Strings(completions)
+	return completions
+}
+
+// getCoachSubcommandCompletions returns completions for @!coach subcommands
+func (p *ShellCompletionProvider) getCoachSubcommandCompletions(prefix string) []string {
+	subcommands := []string{
+		"stats",
+		"achievements",
+		"challenges",
+		"tips",
+		"reset-tips",
+		"dashboard",
+	}
+
+	var completions []string
+	for _, cmd := range subcommands {
+		if strings.HasPrefix(cmd, prefix) {
+			completions = append(completions, cmd)
+		}
+	}
+
 	sort.Strings(completions)
 	return completions
 }
@@ -741,22 +788,16 @@ func (p *ShellCompletionProvider) getBuiltinCommandHelp(command string) string {
 	case "reload-subagents":
 		return "**@!reload-subagents** - Reload subagent configurations from disk\n\nRefreshes the subagent configurations by rescanning the .claude/agents/ and .roo/modes/ directories."
 	case "coach":
-		return "**@!coach** - View your productivity dashboard\n\nShows your level, XP progress, current streak, daily stats, and challenge progress. Gamify your shell experience!"
-	case "coach-stats":
-		return "**@!coach-stats** - View detailed statistics\n\nShows comprehensive stats including profile info, multipliers, and today's activity breakdown."
-	case "coach-achievements":
-		return "**@!coach-achievements** - Browse your achievements\n\nView all achievements organized by category with unlock progress and tier levels."
-	case "coach-challenges":
-		return "**@!coach-challenges** - View active challenges\n\nShows your daily and weekly challenges with progress bars and XP rewards."
+		return "**@!coach [subcommand]** - Productivity coach dashboard\n\nSubcommands:\n• **@!coach** or **@!coach dashboard** - View main dashboard\n• **@!coach stats** - View detailed statistics\n• **@!coach achievements** - Browse achievements\n• **@!coach challenges** - View active challenges\n• **@!coach tips** - View all tips\n• **@!coach reset-tips** - Regenerate tips from history"
 	case "":
-		return "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!config** - Open the configuration menu\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents [name]** - List subagents or show details\n• **@!reload-subagents** - Reload subagent configurations\n• **@!coach** - View productivity dashboard\n• **@!coach-stats** - View detailed statistics\n• **@!coach-achievements** - Browse achievements\n• **@!coach-challenges** - View active challenges"
+		return "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!config** - Open the configuration menu\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents [name]** - List subagents or show details\n• **@!reload-subagents** - Reload subagent configurations\n• **@!coach [subcommand]** - Productivity coach (stats, achievements, challenges, tips, reset-tips)"
 	default:
 		// Check for partial matches
-		builtinCommands := []string{"config", "new", "tokens", "subagents", "reload-subagents", "coach", "coach-stats", "coach-achievements", "coach-challenges"}
+		builtinCommands := []string{"config", "new", "tokens", "subagents", "reload-subagents", "coach"}
 		for _, cmd := range builtinCommands {
 			if strings.HasPrefix(cmd, command) {
 				// Partial match, show general help
-				return "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!config** - Open the configuration menu\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents [name]** - List subagents or show details\n• **@!reload-subagents** - Reload subagent configurations\n• **@!coach** - View productivity dashboard\n• **@!coach-stats** - View detailed statistics\n• **@!coach-achievements** - Browse achievements\n• **@!coach-challenges** - View active challenges"
+				return "**Agent Controls** - Built-in commands for managing the agent\n\nAvailable commands:\n• **@!config** - Open the configuration menu\n• **@!new** - Start a new chat session\n• **@!tokens** - Show token usage statistics\n• **@!subagents [name]** - List subagents or show details\n• **@!reload-subagents** - Reload subagent configurations\n• **@!coach [subcommand]** - Productivity coach (stats, achievements, challenges, tips, reset-tips)"
 			}
 		}
 		return ""

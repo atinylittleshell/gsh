@@ -196,35 +196,38 @@ func RunInteractiveShell(
 					// Sync any gsh variables that were changed in the config UI
 					environment.SyncVariablesToEnv(runner)
 					continue
-				case "coach":
-					if coachManager != nil {
-						fmt.Print(coachManager.RenderDashboard())
-					} else {
-						fmt.Print(gline.RESET_CURSOR_COLUMN + styles.ERROR("gsh: Coach not initialized\n") + gline.RESET_CURSOR_COLUMN)
-					}
-					continue
-				case "coach-stats":
-					if coachManager != nil {
-						fmt.Print(coachManager.RenderStats())
-					} else {
-						fmt.Print(gline.RESET_CURSOR_COLUMN + styles.ERROR("gsh: Coach not initialized\n") + gline.RESET_CURSOR_COLUMN)
-					}
-					continue
-				case "coach-achievements":
-					if coachManager != nil {
-						fmt.Print(coachManager.RenderAchievements())
-					} else {
-						fmt.Print(gline.RESET_CURSOR_COLUMN + styles.ERROR("gsh: Coach not initialized\n") + gline.RESET_CURSOR_COLUMN)
-					}
-					continue
-				case "coach-challenges":
-					if coachManager != nil {
-						fmt.Print(coachManager.RenderChallenges())
-					} else {
-						fmt.Print(gline.RESET_CURSOR_COLUMN + styles.ERROR("gsh: Coach not initialized\n") + gline.RESET_CURSOR_COLUMN)
-					}
-					continue
 				default:
+					// Handle coach command with subcommands
+					if strings.HasPrefix(control, "coach") {
+						if coachManager == nil {
+							fmt.Print(gline.RESET_CURSOR_COLUMN + styles.ERROR("gsh: Coach not initialized\n") + gline.RESET_CURSOR_COLUMN)
+							continue
+						}
+
+						// Parse subcommand (e.g., "coach tips" -> "tips")
+						coachArgs := strings.TrimSpace(strings.TrimPrefix(control, "coach"))
+
+						switch coachArgs {
+						case "", "dashboard":
+							fmt.Print(coachManager.RenderDashboard())
+						case "stats":
+							fmt.Print(coachManager.RenderStats())
+						case "achievements":
+							fmt.Print(coachManager.RenderAchievements())
+						case "challenges":
+							fmt.Print(coachManager.RenderChallenges())
+						case "tips":
+							fmt.Print(coachManager.RenderAllTips())
+						case "reset-tips":
+							fmt.Print(gline.RESET_CURSOR_COLUMN + styles.AGENT_MESSAGE("Resetting tips and generating new ones from your history...\nThis may take a moment.\n\n") + gline.RESET_CURSOR_COLUMN)
+							result := coachManager.ResetAndRegenerateTips()
+							fmt.Print(gline.RESET_CURSOR_COLUMN + styles.AGENT_MESSAGE(result+"\n") + gline.RESET_CURSOR_COLUMN)
+						default:
+							fmt.Print(gline.RESET_CURSOR_COLUMN + styles.AGENT_MESSAGE("gsh: Unknown coach command: "+coachArgs+"\n") + gline.RESET_CURSOR_COLUMN)
+							fmt.Print(gline.RESET_CURSOR_COLUMN + styles.AGENT_MESSAGE("Available: @!coach [stats|achievements|challenges|tips|reset-tips]\n") + gline.RESET_CURSOR_COLUMN)
+						}
+						continue
+					}
 					logger.Warn("unknown agent control", zap.String("control", control))
 					fmt.Print(gline.RESET_CURSOR_COLUMN + styles.AGENT_MESSAGE("gsh: Unknown agent control: "+control+"\n") + gline.RESET_CURSOR_COLUMN)
 					continue

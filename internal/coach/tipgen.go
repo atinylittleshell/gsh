@@ -3,9 +3,12 @@ package coach
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/atinylittleshell/gsh/internal/history"
@@ -133,19 +136,21 @@ func (g *LLMTipGenerator) buildTipContext(ctx context.Context) (*TipContext, err
 		CurrentStreak: profile.CurrentStreak,
 	}
 
-	// Get recent history
-	entries, err := g.historyManager.GetRecentEntries("", 500)
-	if err != nil {
-		g.logger.Warn("Failed to get history", zap.Error(err))
-	} else {
-		tipContext.TotalCommands = len(entries)
-		tipContext.TopCommands = g.analyzeCommandFrequency(entries, 10)
-		tipContext.ErrorCommands = g.analyzeErrorCommands(entries, 5)
-		tipContext.LongCommands = g.findLongCommands(entries, 5)
-		tipContext.RecentErrors = g.getRecentErrors(entries, 5)
-		tipContext.Directories = g.getUniqueDirectories(entries, 5)
-		tipContext.GitUsage = g.countGitCommands(entries)
-		tipContext.PipelineUsage = g.countPipelines(entries)
+	// Get recent history (skip if historyManager or its db is nil)
+	if g.historyManager != nil && g.historyManager.GetDB() != nil {
+		entries, err := g.historyManager.GetRecentEntries("", 500)
+		if err != nil {
+			g.logger.Warn("Failed to get history", zap.Error(err))
+		} else {
+			tipContext.TotalCommands = len(entries)
+			tipContext.TopCommands = g.analyzeCommandFrequency(entries, 10)
+			tipContext.ErrorCommands = g.analyzeErrorCommands(entries, 5)
+			tipContext.LongCommands = g.findLongCommands(entries, 5)
+			tipContext.RecentErrors = g.getRecentErrors(entries, 5)
+			tipContext.Directories = g.getUniqueDirectories(entries, 5)
+			tipContext.GitUsage = g.countGitCommands(entries)
+			tipContext.PipelineUsage = g.countPipelines(entries)
+		}
 	}
 
 	if todayStats != nil {
@@ -534,3 +539,291 @@ const tipResponseSchema = `{
   "action_type": "string (alias|function|tool|config|learning|none)",
   "based_on": ["array of commands/patterns this tip is based on"]
 }`
+
+// GenerateBatchTipsWithSlowModel generates multiple tips using the slow LLM model
+// This is used for background tip generation that takes user history into account
+func (g *LLMTipGenerator) GenerateBatchTipsWithSlowModel(ctx context.Context, count int) ([]*GeneratedTip, error) {
+	return g.GenerateBatchTipsWithSlowModelProgress(ctx, count, nil)
+}
+
+// GenerateBatchTipsWithSlowModelProgress generates tips with optional progress indicator
+func (g *LLMTipGenerator) GenerateBatchTipsWithSlowModelProgress(ctx context.Context, count int, progress *ProgressIndicator) ([]*GeneratedTip, error) {
+	tipContext, err := g.buildTipContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	tips, err := g.generateBatchWithSlowLLM(ctx, tipContext, count, progress)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache all
+	for _, tip := range tips {
+		g.cache.Add(tip)
+	}
+
+	return tips, nil
+}
+
+// generateBatchWithSlowLLM generates multiple tips using the slow LLM model
+func (g *LLMTipGenerator) generateBatchWithSlowLLM(ctx context.Context, tipContext *TipContext, count int, progress *ProgressIndicator) ([]*GeneratedTip, error) {
+	llmClient, modelConfig := utils.GetLLMClient(g.runner, utils.SlowModel)
+
+	prompt := g.buildBatchPrompt(tipContext, count)
+
+	g.logger.Info("Generating tips with slow LLM",
+		zap.String("model", modelConfig.ModelId),
+		zap.Int("count", count))
+
+	request := openai.ChatCompletionRequest{
+		Model: modelConfig.ModelId,
+		Messages: []openai.ChatCompletionMessage{
+			{Role: "system", Content: tipGeneratorSystemPrompt},
+			{Role: "user", Content: prompt},
+		},
+		ResponseFormat: &openai.ChatCompletionResponseFormat{
+			Type: openai.ChatCompletionResponseFormatTypeJSONObject,
+		},
+		Stream: progress != nil, // Use streaming when progress indicator is provided
+	}
+
+	if modelConfig.Temperature != nil {
+		request.Temperature = float32(*modelConfig.Temperature)
+	}
+
+	var content string
+
+	if progress != nil {
+		// Use streaming to track progress with inactivity timeout
+		stream, err := llmClient.CreateChatCompletionStream(ctx, request)
+		if err != nil {
+			g.logger.Error("Slow LLM stream request failed", zap.Error(err))
+			return nil, err
+		}
+		defer func() {
+			_ = stream.Close()
+		}()
+
+		var contentBuilder strings.Builder
+		wordCount := 0
+
+		// Create a cancellable context for inactivity timeout
+		streamCtx, streamCancel := context.WithCancel(ctx)
+		defer streamCancel()
+
+		// Track last activity time
+		var lastActivityMu sync.Mutex
+		lastActivity := time.Now()
+
+		// Inactivity monitor goroutine
+		inactivityTimeout := 1 * time.Minute
+		go func() {
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-streamCtx.Done():
+					return
+				case <-ticker.C:
+					lastActivityMu.Lock()
+					elapsed := time.Since(lastActivity)
+					lastActivityMu.Unlock()
+					if elapsed > inactivityTimeout {
+						g.logger.Warn("LLM stream inactivity timeout", zap.Duration("elapsed", elapsed))
+						streamCancel()
+						return
+					}
+				}
+			}
+		}()
+
+		for {
+			response, err := stream.Recv()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				// Check if context was canceled (either parent or inactivity)
+				if streamCtx.Err() != nil {
+					if ctx.Err() != nil {
+						return nil, ctx.Err()
+					}
+					return nil, context.DeadlineExceeded // Inactivity timeout
+				}
+				g.logger.Error("Stream receive error", zap.Error(err))
+				return nil, err
+			}
+
+			// Update last activity time
+			lastActivityMu.Lock()
+			lastActivity = time.Now()
+			lastActivityMu.Unlock()
+
+			if len(response.Choices) > 0 {
+				chunk := response.Choices[0].Delta.Content
+				contentBuilder.WriteString(chunk)
+
+				// Count words in this chunk (approximate by counting spaces + 1)
+				chunkWords := len(strings.Fields(chunk))
+				if chunkWords > 0 {
+					wordCount += chunkWords
+					progress.UpdateWordCount(wordCount)
+				}
+			}
+		}
+
+		content = contentBuilder.String()
+	} else {
+		// Non-streaming request
+		request.Stream = false
+		response, err := llmClient.CreateChatCompletion(ctx, request)
+		if err != nil {
+			g.logger.Error("Slow LLM request failed", zap.Error(err))
+			return nil, err
+		}
+
+		if len(response.Choices) == 0 {
+			return nil, fmt.Errorf("no response from slow LLM")
+		}
+
+		content = response.Choices[0].Message.Content
+	}
+
+	// Extract JSON from response, stripping markdown code fences if present
+	content = stripMarkdownCodeFences(content)
+
+	var batchResponse struct {
+		Tips []*GeneratedTip `json:"tips"`
+	}
+
+	// First try normal JSON parsing
+	if err := json.Unmarshal([]byte(content), &batchResponse); err != nil {
+		// If normal parsing fails, try to extract complete tip objects from incomplete JSON
+		g.logger.Warn("Standard JSON parse failed, attempting to extract partial tips", zap.Error(err))
+		extractedTips := extractTipsFromIncompleteJSON(content)
+		if len(extractedTips) > 0 {
+			g.logger.Info("Extracted tips from incomplete JSON",
+				zap.Int("extracted", len(extractedTips)))
+			batchResponse.Tips = extractedTips
+		} else {
+			g.logger.Error("Failed to parse slow LLM response and no tips could be extracted",
+				zap.Error(err),
+				zap.String("content", content))
+			return nil, err
+		}
+	}
+
+	for _, tip := range batchResponse.Tips {
+		tip.ID = GenerateTipID()
+		tip.GeneratedAt = time.Now()
+		tip.ExpiresAt = time.Now().Add(7 * 24 * time.Hour) // LLM tips expire after 7 days
+	}
+
+	g.logger.Info("Successfully generated tips with slow LLM",
+		zap.Int("generated", len(batchResponse.Tips)))
+
+	return batchResponse.Tips, nil
+}
+
+// stripMarkdownCodeFences removes markdown code fences from LLM responses
+// Handles formats like: ```json\n{...}\n``` or ```\n{...}\n```
+func stripMarkdownCodeFences(content string) string {
+	content = strings.TrimSpace(content)
+
+	// Check if content starts with ``` (markdown code fence)
+	if strings.HasPrefix(content, "```") {
+		// Find the end of the first line (after ```json or just ```)
+		firstNewline := strings.Index(content, "\n")
+		if firstNewline != -1 {
+			content = content[firstNewline+1:]
+		}
+
+		// Find and remove the closing ```
+		if lastFence := strings.LastIndex(content, "```"); lastFence != -1 {
+			content = content[:lastFence]
+		}
+
+		content = strings.TrimSpace(content)
+	}
+
+	return content
+}
+
+// extractTipsFromIncompleteJSON attempts to extract complete tip objects from
+// truncated or incomplete JSON responses. It finds each complete {...} object
+// within the tips array and parses them individually.
+func extractTipsFromIncompleteJSON(content string) []*GeneratedTip {
+	var tips []*GeneratedTip
+
+	// Find the start of the tips array
+	tipsStart := strings.Index(content, `"tips"`)
+	if tipsStart == -1 {
+		return tips
+	}
+
+	// Find the opening bracket of the array
+	arrayStart := strings.Index(content[tipsStart:], "[")
+	if arrayStart == -1 {
+		return tips
+	}
+	arrayStart += tipsStart
+
+	// Extract individual tip objects by finding matching braces
+	depth := 0
+	objectStart := -1
+	inString := false
+	escaped := false
+
+	for i := arrayStart; i < len(content); i++ {
+		c := content[i]
+
+		// Handle escape sequences in strings
+		if escaped {
+			escaped = false
+			continue
+		}
+		if c == '\\' && inString {
+			escaped = true
+			continue
+		}
+
+		// Track string boundaries
+		if c == '"' {
+			inString = !inString
+			continue
+		}
+
+		// Skip characters inside strings
+		if inString {
+			continue
+		}
+
+		// Track object depth
+		if c == '{' {
+			if depth == 0 {
+				objectStart = i
+			}
+			depth++
+		} else if c == '}' {
+			depth--
+			if depth == 0 && objectStart != -1 {
+				// Found a complete object
+				objectJSON := content[objectStart : i+1]
+				var tip GeneratedTip
+				if err := json.Unmarshal([]byte(objectJSON), &tip); err == nil {
+					// Only add tips with at least a title and content
+					if tip.Title != "" && tip.Content != "" {
+						tips = append(tips, &tip)
+					}
+				}
+				objectStart = -1
+			}
+		} else if c == ']' && depth == 0 {
+			// End of tips array
+			break
+		}
+	}
+
+	return tips
+}

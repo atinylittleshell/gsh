@@ -31,6 +31,11 @@ type CoachProfile struct {
 	// Customization
 	EquippedBadges string `gorm:"type:text"` // JSON array of badge IDs (max 3)
 	Settings       string `gorm:"type:text"` // JSON config
+
+	// Tip generation tracking
+	CommandsSinceLastTipGen int          `gorm:"default:0"`  // Commands since last LLM tip generation
+	LastTipGenTime          sql.NullTime                     // When tips were last generated
+	TipsSeeded              bool         `gorm:"default:false"` // Whether static tips have been seeded
 }
 
 // CoachAchievement tracks achievement progress for a user
@@ -151,6 +156,33 @@ type CoachTipFeedback struct {
 	TipID     string `gorm:"index"`
 	Feedback  string // "helpful", "not_helpful", "already_knew", "applied"
 	Comment   string `gorm:"type:text"`
+}
+
+// CoachDatabaseTip stores all tips (both static and LLM-generated) in the database
+type CoachDatabaseTip struct {
+	ID        uint      `gorm:"primaryKey"`
+	CreatedAt time.Time `gorm:"index"`
+	UpdatedAt time.Time `gorm:"index"`
+
+	TipID    string `gorm:"uniqueIndex"` // Unique identifier for the tip
+	Source   string `gorm:"index"`       // "static" or "llm"
+	Category string `gorm:"index"`       // Category like productivity, shortcut, command, etc.
+	Icon     string
+	Title    string
+	Content  string `gorm:"type:text"`
+	Priority int    `gorm:"default:5"` // 1-10, higher = more likely to show
+
+	// LLM-specific fields
+	Reasoning  string `gorm:"type:text"` // Why this tip is relevant (for LLM tips)
+	Command    string                    // Related command
+	Suggestion string `gorm:"type:text"` // Actionable suggestion
+	Impact     string                    // Estimated impact
+	BasedOn    string `gorm:"type:text"` // JSON array of commands this tip is based on
+
+	// Display tracking
+	ShownCount  int `gorm:"default:0"`
+	LastShownAt sql.NullTime
+	Active      bool `gorm:"default:true"` // Whether this tip should be shown
 }
 
 // CoachNotification stores pending notifications for the user

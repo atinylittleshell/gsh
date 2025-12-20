@@ -113,7 +113,7 @@ func (m *CoachManager) RenderDashboard() string {
 
 	// Footer
 	sb.WriteString(styles.AGENT_MESSAGE("╠══════════════════════════════════════════════════════════════════════════╣\n"))
-	sb.WriteString(styles.AGENT_MESSAGE("║  Commands: @!coach-stats | @!coach-achievements | @!coach-challenges     ║\n"))
+	sb.WriteString(styles.AGENT_MESSAGE("║  @!coach [stats|achievements|challenges|tips|reset-tips]                 ║\n"))
 	sb.WriteString(styles.AGENT_MESSAGE("╚══════════════════════════════════════════════════════════════════════════╝\n"))
 
 	return sb.String()
@@ -391,4 +391,108 @@ func getTierIcon(tier AchievementTier) string {
 	default:
 		return "⭐"
 	}
+}
+
+// RenderAllTips renders a view of all tips in the database
+func (m *CoachManager) RenderAllTips() string {
+	var sb strings.Builder
+
+	sb.WriteString(styles.AGENT_MESSAGE("╔══════════════════════════════════════════════════════════════════════════╗\n"))
+	sb.WriteString(styles.AGENT_MESSAGE("║  💡 ALL TIPS                                                              ║\n"))
+	sb.WriteString(styles.AGENT_MESSAGE("╠══════════════════════════════════════════════════════════════════════════╣\n"))
+
+	// Get all tips from database
+	var tips []CoachDatabaseTip
+	m.db.Where("active = ?", true).Order("category, priority DESC").Find(&tips)
+
+	// Count by source
+	staticCount := 0
+	llmCount := 0
+	for _, tip := range tips {
+		if tip.Source == "static" {
+			staticCount++
+		} else {
+			llmCount++
+		}
+	}
+
+	sb.WriteString(styles.AGENT_MESSAGE(fmt.Sprintf("║  Total: %d tips (%d static, %d AI-generated)\n", len(tips), staticCount, llmCount)))
+	sb.WriteString(styles.AGENT_MESSAGE("║\n"))
+
+	// Group by category
+	categories := make(map[string][]CoachDatabaseTip)
+	categoryOrder := []string{}
+	for _, tip := range tips {
+		if _, exists := categories[tip.Category]; !exists {
+			categoryOrder = append(categoryOrder, tip.Category)
+		}
+		categories[tip.Category] = append(categories[tip.Category], tip)
+	}
+
+	categoryIcons := map[string]string{
+		"productivity": "💡",
+		"shortcut":     "⌨️",
+		"command":      "📚",
+		"git":          "🌿",
+		"fun_fact":     "🎲",
+		"motivation":   "🚀",
+		"efficiency":   "⚡",
+		"learning":     "📖",
+		"error_fix":    "🔧",
+		"workflow":     "🔄",
+		"alias":        "⌨️",
+		"tool_discovery": "🔍",
+		"security":     "🔒",
+		"time_management": "⏰",
+		"encouragement": "💪",
+	}
+
+	for _, cat := range categoryOrder {
+		catTips := categories[cat]
+		icon := categoryIcons[cat]
+		if icon == "" {
+			icon = "📌"
+		}
+
+		sb.WriteString(styles.AGENT_MESSAGE(fmt.Sprintf("║  %s %s (%d tips)\n", icon, strings.ToUpper(cat), len(catTips))))
+
+		// Show up to 5 tips per category
+		showCount := len(catTips)
+		if showCount > 5 {
+			showCount = 5
+		}
+
+		for i := 0; i < showCount; i++ {
+			tip := catTips[i]
+			sourceTag := ""
+			if tip.Source == "llm" {
+				sourceTag = " [AI]"
+			}
+			shownInfo := ""
+			if tip.ShownCount > 0 {
+				shownInfo = fmt.Sprintf(" (shown %dx)", tip.ShownCount)
+			}
+			sb.WriteString(styles.AGENT_MESSAGE(fmt.Sprintf("║  │ %s%s%s\n", truncate(tip.Title+": "+tip.Content, 60), sourceTag, shownInfo)))
+		}
+
+		if len(catTips) > 5 {
+			sb.WriteString(styles.AGENT_MESSAGE(fmt.Sprintf("║  │ ... and %d more\n", len(catTips)-5)))
+		}
+		sb.WriteString(styles.AGENT_MESSAGE("║\n"))
+	}
+
+	// Show tip generation status
+	sb.WriteString(styles.AGENT_MESSAGE("║──────────────────────────────────────────────────────────────────────────║\n"))
+	sb.WriteString(styles.AGENT_MESSAGE("║  📊 TIP GENERATION STATUS\n"))
+	sb.WriteString(styles.AGENT_MESSAGE(fmt.Sprintf("║  ├── Commands since last generation: %d / 1000\n", m.profile.CommandsSinceLastTipGen)))
+	if m.profile.LastTipGenTime.Valid {
+		sb.WriteString(styles.AGENT_MESSAGE(fmt.Sprintf("║  └── Last generated: %s\n", m.profile.LastTipGenTime.Time.Format("2006-01-02 15:04"))))
+	} else {
+		sb.WriteString(styles.AGENT_MESSAGE("║  └── Last generated: Never\n"))
+	}
+
+	sb.WriteString(styles.AGENT_MESSAGE("║\n"))
+	sb.WriteString(styles.AGENT_MESSAGE("╚══════════════════════════════════════════════════════════════════════════╝\n"))
+
+	return sb.String()
 }
