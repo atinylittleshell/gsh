@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.27.0](https://github.com/robottwo/gsh_prime/compare/v0.26.1...v0.27.0) (2025-12-20)
+
+
+### Features
+
+* add dynamic coaching tips based on user behavior ([#70](https://github.com/robottwo/gsh_prime/issues/70)) ([5a71bd3](https://github.com/robottwo/gsh_prime/commit/5a71bd3f9687853d6b5ee0eb7c582e5db815b53c))
+* Add dynamic terminal title updates based on command history ([#73](https://github.com/robottwo/gsh_prime/issues/73)) ([ecf06fa](https://github.com/robottwo/gsh_prime/commit/ecf06fa1007d7c715f7ae8b48d8de33c9440f93c))
+* Add idle summary feature for command prompt ([#69](https://github.com/robottwo/gsh_prime/issues/69)) ([2d8052e](https://github.com/robottwo/gsh_prime/commit/2d8052e715307a0ddf2daebbfd5da97c5716a43e))
+* Right-align coach tips in assistant box ([#66](https://github.com/robottwo/gsh_prime/issues/66)) ([ee20bfd](https://github.com/robottwo/gsh_prime/commit/ee20bfd02450531078a95bacdee58a3b18b194f9))
+
+
+### Bug Fixes
+
+* Adjust tab completion to use common prefix ([#64](https://github.com/robottwo/gsh_prime/issues/64)) ([3c6b9aa](https://github.com/robottwo/gsh_prime/commit/3c6b9aa7abe39582db8ce885c52139a6f77e018b))
+* Correct path handling for ./. and ~/. tab completions ([#72](https://github.com/robottwo/gsh_prime/issues/72)) ([3b43eee](https://github.com/robottwo/gsh_prime/commit/3b43eee2500d86f384bfefc0f5ffa7b9aaf434e2))
+* Prevent LLM path hallucinations during completion ([#62](https://github.com/robottwo/gsh_prime/issues/62)) ([87d6e65](https://github.com/robottwo/gsh_prime/commit/87d6e65d3a2ccb3b6c245fdf2e66d77d010953cd))
+* prevent shell exit on Ctrl+C ([#61](https://github.com/robottwo/gsh_prime/issues/61)) ([315f634](https://github.com/robottwo/gsh_prime/commit/315f63494c0f564d7663b6fa9cd6445eafdbfa2f))
+* Treat variation selectors and zero-width chars as width 0 ([#74](https://github.com/robottwo/gsh_prime/issues/74)) ([a336d5e](https://github.com/robottwo/gsh_prime/commit/a336d5e96182c9a0a23ad112077e557555c44e1f))
+* Use custom wordwrap with accurate Unicode width for coach tips ([#67](https://github.com/robottwo/gsh_prime/issues/67)) ([528ff15](https://github.com/robottwo/gsh_prime/commit/528ff158971506634507c7792ebbf386da209070))
+
 ## [0.26.1](https://github.com/robottwo/gsh_prime/compare/v0.26.0...v0.26.1) (2025-12-17)
 
 
