@@ -13,29 +13,137 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
         with:
           release-type: go
 
+  goreleaser:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-        if: ${{ steps.release.outputs.release_created }}
 
       - uses: actions/setup-go@v5
         with:
           go-version: stable
-        if: ${{ steps.release.outputs.release_created }}
 
-      - uses: goreleaser/goreleaser-action@v6
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
-          # GoReleaser's version
           version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
           AUR_PRIVATE_KEY: ${{ secrets.AUR_PRIVATE_KEY }}
-        if: ${{ steps.release.outputs.release_created }}
+
+  # Build Windows installer (.exe) using Inno Setup
+  windows-installer:
+    needs: [release-please, goreleaser]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows release asset
+        shell: pwsh
+        run: |
+          $version = "${{ needs.release-please.outputs.version }}"
+          $url = "https://github.com/robottwo/gsh_prime/releases/download/v${version}/gsh_Windows_x86_64.zip"
+          Invoke-WebRequest -Uri $url -OutFile gsh_Windows_x86_64.zip
+          Expand-Archive -Path gsh_Windows_x86_64.zip -DestinationPath installer_files
+
+      - name: Prepare installer files
+        shell: pwsh
+        run: |
+          Copy-Item LICENSE installer_files/
+          Copy-Item README.md installer_files/
+
+      - name: Build installer with Inno Setup
+        shell: pwsh
+        run: |
+          $version = "${{ needs.release-please.outputs.version }}"
+          $env:GSH_VERSION = $version
+
+          # Copy the installer script to the build directory
+          Copy-Item packaging/windows/installer.iss installer_files/
+
+          cd installer_files
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+
+      - name: Upload installer to release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = "${{ needs.release-please.outputs.version }}"
+          $installer = "installer_files/gsh_${version}_windows_x86_64_setup.exe"
+          gh release upload "v${version}" $installer --clobber
+
+  # Publish to Chocolatey (Windows package manager)
+  chocolatey:
+    needs: [release-please, goreleaser]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows release asset
+        shell: pwsh
+        run: |
+          $version = "${{ needs.release-please.outputs.version }}"
+          $url = "https://github.com/robottwo/gsh_prime/releases/download/v${version}/gsh_Windows_x86_64.zip"
+          Invoke-WebRequest -Uri $url -OutFile gsh_Windows_x86_64.zip
+          $hash = (Get-FileHash -Path gsh_Windows_x86_64.zip -Algorithm SHA256).Hash
+          echo "CHECKSUM=$hash" >> $env:GITHUB_ENV
+
+      - name: Update Chocolatey package files
+        shell: pwsh
+        run: |
+          $version = "${{ needs.release-please.outputs.version }}"
+          $checksum = "${{ env.CHECKSUM }}"
+
+          # Update nuspec version
+          $nuspec = Get-Content packaging/chocolatey/gsh.nuspec
+          $nuspec = $nuspec -replace '<version>.*</version>', "<version>$version</version>"
+          Set-Content packaging/chocolatey/gsh.nuspec $nuspec
+
+          # Update install script with version and checksum
+          $install = Get-Content packaging/chocolatey/tools/chocolateyinstall.ps1
+          $install = $install -replace "releases/download/v[^/]+/", "releases/download/v$version/"
+          $install = $install -replace "checksum64\s*=\s*'[^']*'", "checksum64    = '$checksum'"
+          Set-Content packaging/chocolatey/tools/chocolateyinstall.ps1 $install
+
+      - name: Pack and push to Chocolatey
+        shell: pwsh
+        run: |
+          cd packaging/chocolatey
+          choco pack
+          choco push gsh.${{ needs.release-please.outputs.version }}.nupkg --source https://push.chocolatey.org/ --api-key ${{ secrets.CHOCO_API_KEY }}
+        continue-on-error: true  # Don't fail the workflow if Chocolatey push fails
+
+  # Submit to Windows Package Manager (winget)
+  winget:
+    needs: [release-please, goreleaser]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Submit to winget
+        uses: vedantmgoyal9/winget-releaser@main
+        with:
+          identifier: robottwo.gsh
+          version: ${{ needs.release-please.outputs.version }}
+          installers-regex: 'gsh_Windows_x86_64\.zip$'
+          token: ${{ secrets.WINGET_TOKEN }}
+        continue-on-error: true  # Don't fail the workflow if winget submission fails

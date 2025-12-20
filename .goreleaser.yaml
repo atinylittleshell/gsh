@@ -12,8 +12,11 @@ builds:
       - linux
       - windows
       - darwin
+    goarch:
+      - amd64
+      - arm64
     ldflags:
-      - -X main.BUILD_VERSION={{.Version}}
+      - -s -w -X main.BUILD_VERSION={{.Version}}
 
 source:
   enabled: true
@@ -33,6 +36,37 @@ archives:
       - goos: windows
         format: zip
 
+# NFPM for .deb and .rpm packages
+nfpms:
+  - id: packages
+    package_name: gsh
+    vendor: robottwo
+    homepage: https://github.com/robottwo/gsh_prime
+    maintainer: robottwo <robottwo@users.noreply.github.com>
+    description: A modern, POSIX-compatible, generative shell
+    license: GPL-3.0-or-later
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    section: shells
+    priority: optional
+    rpm:
+      group: System Environment/Shells
+      compression: xz
+    deb:
+      lintian_overrides:
+        - statically-linked-binary
+    contents:
+      - src: ./LICENSE
+        dst: /usr/share/licenses/gsh/LICENSE
+        file_info:
+          mode: 0644
+      - src: ./README.md
+        dst: /usr/share/doc/gsh/README.md
+        file_info:
+          mode: 0644
+
 changelog:
   sort: asc
   filters:
@@ -40,32 +74,44 @@ changelog:
       - "^docs:"
       - "^test:"
 
-brews:
+# Homebrew Casks (replaces deprecated brews section as of GoReleaser v2.10)
+homebrew_casks:
   - name: gsh
-    homepage: https://github.com/atinylittleshell/gsh
+    homepage: https://github.com/robottwo/gsh_prime
     description: A modern, POSIX-compatible, generative shell
     license: GPL-3.0-or-later
-    directory: Formula
     commit_author:
-      name: atinylittleshell
-      email: shell@atinylittleshell.me
+      name: robottwo
+      email: robottwo@users.noreply.github.com
     repository:
-      owner: atinylittleshell
-      name: gsh
-      token: "{{ .Env.GITHUB_TOKEN }}"
+      owner: robottwo
+      name: homebrew-gsh
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
 
+# Scoop (Windows)
+scoops:
+  - name: gsh
+    homepage: https://github.com/robottwo/gsh_prime
+    description: A modern, POSIX-compatible, generative shell
+    license: GPL-3.0-or-later
+    repository:
+      owner: robottwo
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+
+# AUR binary package
 aurs:
   - name: gsh-bin
-    homepage: https://github.com/atinylittleshell/gsh
+    homepage: https://github.com/robottwo/gsh_prime
     description: A modern, POSIX-compatible, generative shell
     license: GPL-3.0-or-later
     maintainers:
-      - "atinylittleshell <shell@atinylittleshell.me>"
+      - "robottwo <robottwo@users.noreply.github.com>"
     private_key: "{{ .Env.AUR_PRIVATE_KEY }}"
     git_url: "ssh://aur@aur.archlinux.org/gsh-bin.git"
     commit_author:
-      name: atinylittleshell
-      email: shell@atinylittleshell.me
+      name: robottwo
+      email: robottwo@users.noreply.github.com
     package: |-
       # bin
       install -Dm755 "./gsh" "${pkgdir}/usr/bin/gsh"
@@ -73,19 +119,19 @@ aurs:
       # license
       install -Dm644 "./LICENSE" "${pkgdir}/usr/share/licenses/gsh/LICENSE"
 
+# AUR source package
 aur_sources:
   - name: gsh
-    homepage: https://github.com/atinylittleshell/gsh
+    homepage: https://github.com/robottwo/gsh_prime
     description: A modern, POSIX-compatible, generative shell
     license: GPL-3.0-or-later
     maintainers:
-      - "atinylittleshell <shell@atinylittleshell.me>"
-      - "Vitalii Kuzhdin <vitaliikuzhdin@gmail.com>"
+      - "robottwo <robottwo@users.noreply.github.com>"
     private_key: "{{ .Env.AUR_PRIVATE_KEY }}"
     git_url: "ssh://aur@aur.archlinux.org/gsh.git"
     commit_author:
-      name: atinylittleshell
-      email: shell@atinylittleshell.me
+      name: robottwo
+      email: robottwo@users.noreply.github.com
     prepare: |-
       cd "${srcdir}/${_pkgsrc}"
       go mod download

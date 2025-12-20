@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>gsh</id>
+    <version>0.26.0</version>
+    <title>gsh - Generative Shell</title>
+    <authors>robottwo</authors>
+    <owners>robottwo</owners>
+    <licenseUrl>https://github.com/robottwo/gsh_prime/blob/main/LICENSE</licenseUrl>
+    <projectUrl>https://github.com/robottwo/gsh_prime</projectUrl>
+    <iconUrl>https://raw.githubusercontent.com/robottwo/gsh_prime/main/docs/icon.png</iconUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>A modern, POSIX-compatible, generative shell with AI capabilities.
+
+gsh is a modern shell that combines the familiarity of POSIX shell syntax with powerful AI/LLM enhancements for command prediction, explanation, and interactive agent capabilities.</description>
+    <summary>A modern, POSIX-compatible, generative shell with AI capabilities</summary>
+    <releaseNotes>https://github.com/robottwo/gsh_prime/releases</releaseNotes>
+    <tags>shell cli terminal ai llm posix bash zsh</tags>
+    <packageSourceUrl>https://github.com/robottwo/gsh_prime</packageSourceUrl>
+    <docsUrl>https://github.com/robottwo/gsh_prime/blob/main/docs/GETTING_STARTED.md</docsUrl>
+    <bugTrackerUrl>https://github.com/robottwo/gsh_prime/issues</bugTrackerUrl>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>
