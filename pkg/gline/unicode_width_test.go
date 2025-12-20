@@ -90,6 +90,98 @@ func TestProbeTerminalCharWidthNonTerminal(t *testing.T) {
 	}
 }
 
+func TestGetRuneWidthZeroWidthCharacters(t *testing.T) {
+	// Zero-width characters should return width 0
+	tests := []struct {
+		name     string
+		char     rune
+		expected int
+	}{
+		{
+			name:     "variation selector 16 (FE0F)",
+			char:     '\uFE0F',
+			expected: 0,
+		},
+		{
+			name:     "variation selector 15 (FE0E)",
+			char:     '\uFE0E',
+			expected: 0,
+		},
+		{
+			name:     "zero width space (200B)",
+			char:     '\u200B',
+			expected: 0,
+		},
+		{
+			name:     "zero width non-joiner (200C)",
+			char:     '\u200C',
+			expected: 0,
+		},
+		{
+			name:     "zero width joiner (200D)",
+			char:     '\u200D',
+			expected: 0,
+		},
+		{
+			name:     "byte order mark / zero width no-break space (FEFF)",
+			char:     '\uFEFF',
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetRuneWidth(tt.char)
+			if result != tt.expected {
+				t.Errorf("GetRuneWidth(%U) = %d, want %d", tt.char, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestStringWidthWithVariationSelector(t *testing.T) {
+	// The keyboard emoji with variation selector should be calculated correctly
+	// ⌨️ = U+2328 (KEYBOARD) + U+FE0F (VARIATION SELECTOR-16)
+	// The variation selector should have width 0
+	keyboard := "⌨️"
+
+	width := stringWidthWithAnsi(keyboard)
+
+	// Width should be 1 or 2 (depending on terminal), not 2 or 3
+	// In test environment (non-terminal), keyboard base char has width 1 per runewidth
+	// Variation selector has width 0
+	// So total should be 1
+	if width != 1 {
+		t.Errorf("stringWidthWithAnsi(%q) = %d, want 1 (in test environment)", keyboard, width)
+	}
+}
+
+func TestCoachTipWithEmojiAlignment(t *testing.T) {
+	// Simulate the coach tip scenario that was causing misalignment
+	// Line 1: "⌨️ Alias for exit" (keyboard emoji with variation selector)
+	// Line 2: "You use 'exit' often."
+	// Both lines should calculate width correctly for right-alignment
+
+	line1 := "⌨️ Alias for exit"
+	line2 := "You use 'exit' often."
+
+	width1 := stringWidthWithAnsi(line1)
+	width2 := stringWidthWithAnsi(line2)
+
+	// In test environment:
+	// Line 1: ⌨(1) + ️(0) + space(1) + "Alias for exit"(14) = 16
+	// Line 2: "You use 'exit' often." = 21
+	expectedWidth1 := 16
+	expectedWidth2 := 21
+
+	if width1 != expectedWidth1 {
+		t.Errorf("stringWidthWithAnsi(%q) = %d, want %d", line1, width1, expectedWidth1)
+	}
+	if width2 != expectedWidth2 {
+		t.Errorf("stringWidthWithAnsi(%q) = %d, want %d", line2, width2, expectedWidth2)
+	}
+}
+
 func TestWordwrapWithRuneWidth(t *testing.T) {
 	tests := []struct {
 		name     string

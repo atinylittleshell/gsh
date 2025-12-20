@@ -38,11 +38,21 @@ func GetRuneWidth(r rune) int {
 		return 1
 	}
 
+	// Zero-width characters: variation selectors, combining marks, zero-width joiners, etc.
+	// These modify or combine with adjacent characters but don't take up display space.
+	if (r >= 0xFE00 && r <= 0xFE0F) || // Variation Selectors
+		(r >= 0xE0100 && r <= 0xE01EF) || // Variation Selectors Supplement
+		r == 0x200B || // Zero Width Space
+		r == 0x200C || // Zero Width Non-Joiner
+		r == 0x200D || // Zero Width Joiner (used in emoji sequences)
+		r == 0xFEFF { // Zero Width No-Break Space (BOM)
+		return 0
+	}
+
 	// Check if it's an emoji (simplified check for common emoji ranges)
 	isEmoji := (r >= 0x1F300 && r <= 0x1F9FF) || // Misc Symbols and Pictographs, Emoticons, etc.
 		(r >= 0x2600 && r <= 0x26FF) || // Misc symbols
 		(r >= 0x2700 && r <= 0x27BF) || // Dingbats
-		(r >= 0xFE00 && r <= 0xFE0F) || // Variation Selectors
 		(r >= 0x1F000 && r <= 0x1F02F) || // Mahjong Tiles
 		(r >= 0x1F0A0 && r <= 0x1F0FF) // Playing Cards
 
