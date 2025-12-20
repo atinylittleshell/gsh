@@ -125,3 +125,8 @@ GSH_AGENT_MACROS='{
   "gitpush": "when inside of a git repository, commit all staged and unstaged changes, and push them to remote; otherwise do nothing",
   "gitreview": "when inside of a git repository, review all staged and unstaged changes, and let me know if there are problems worth fixing; otherwise do nothing"
 }'
+
+# -------- Idle Summary Configuration --------
+# When idle at the command prompt for this many seconds, gsh will summarize
+# what you were doing based on recent commands. Set to 0 to disable.
+GSH_IDLE_SUMMARY_TIMEOUT_SECONDS=60

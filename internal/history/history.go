@@ -32,7 +32,9 @@ func NewHistoryManager(dbFilePath string) (*HistoryManager, error) {
 		return nil, err
 	}
 
-	if err := db.AutoMigrate(&HistoryEntry{}); err != nil { return nil, err }
+	if err := db.AutoMigrate(&HistoryEntry{}); err != nil {
+		return nil, err
+	}
 
 	return &HistoryManager{
 		db: db,
@@ -132,6 +134,19 @@ func (historyManager *HistoryManager) GetRecentEntriesByPrefix(prefix string, li
 	result := historyManager.db.Where("command LIKE ?", prefix+"%").
 		Order("created_at desc").
 		Limit(limit).
+		Find(&entries)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return entries, nil
+}
+
+// GetEntriesSince returns all history entries created after the given time, ordered by creation time (oldest first)
+func (historyManager *HistoryManager) GetEntriesSince(since time.Time) ([]HistoryEntry, error) {
+	var entries []HistoryEntry
+	result := historyManager.db.Where("created_at >= ?", since).
+		Order("created_at asc").
 		Find(&entries)
 	if result.Error != nil {
 		return nil, result.Error

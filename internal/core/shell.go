@@ -17,6 +17,7 @@ import (
 	"github.com/atinylittleshell/gsh/internal/config"
 	"github.com/atinylittleshell/gsh/internal/environment"
 	"github.com/atinylittleshell/gsh/internal/history"
+	"github.com/atinylittleshell/gsh/internal/idle"
 	"github.com/atinylittleshell/gsh/internal/predict"
 	"github.com/atinylittleshell/gsh/internal/rag"
 	"github.com/atinylittleshell/gsh/internal/rag/retrievers"
@@ -64,6 +65,9 @@ func RunInteractiveShell(
 	// Set up completion
 	completionProvider := completion.NewShellCompletionProvider(completionManager, runner)
 	completionProvider.SetSubagentProvider(subagentIntegration.GetCompletionProvider())
+
+	// Set up idle summary generator
+	idleSummaryGenerator := idle.NewSummaryGenerator(runner, historyManager, logger)
 
 	chanSIGINT := make(chan os.Signal, 1)
 	signal.Notify(chanSIGINT, os.Interrupt)
@@ -126,6 +130,13 @@ func RunInteractiveShell(
 		options.CurrentDirectory = environment.GetPwd(runner)
 		options.User = environment.GetUser(runner)
 		options.Host, _ = os.Hostname()
+
+		// Configure idle summary
+		idleTimeout := environment.GetIdleSummaryTimeout(runner, logger)
+		options.IdleSummaryTimeout = idleTimeout
+		if idleTimeout > 0 {
+			options.IdleSummaryGenerator = idleSummaryGenerator.GenerateSummary
+		}
 
 		// Get coach startup content for the Assistant Box
 		var coachContent string

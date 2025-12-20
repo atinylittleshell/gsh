@@ -55,6 +55,12 @@ type appModel struct {
 
 	// Border Status
 	borderStatus BorderStatusModel
+
+	// Idle summary tracking
+	lastInputTime      time.Time
+	idleSummaryShown   bool
+	idleSummaryPending bool
+	idleSummaryStateId int
 }
 
 type attemptPredictionMsg struct {
@@ -93,6 +99,16 @@ var helpHeaderRegex = regexp.MustCompile(`^\*\*[^\*]+\*\* - `)
 type setExplanationMsg struct {
 	stateId     int
 	explanation string
+}
+
+// Idle summary messages
+type idleCheckMsg struct {
+	stateId int
+}
+
+type setIdleSummaryMsg struct {
+	stateId int
+	summary string
 }
 
 // ErrInterrupted is returned when the user presses Ctrl+C
@@ -181,11 +197,17 @@ func initialModel(
 
 		llmIndicator: NewLLMIndicator(),
 		borderStatus: borderStatus,
+
+		// Initialize idle summary tracking
+		lastInputTime:      time.Now(),
+		idleSummaryShown:   false,
+		idleSummaryPending: false,
+		idleSummaryStateId: 0,
 	}
 }
 
 func (m appModel) Init() tea.Cmd {
-	return tea.Batch(
+	cmds := []tea.Cmd{
 		m.llmIndicator.Tick(),
 		func() tea.Msg {
 			return attemptPredictionMsg{
@@ -194,7 +216,22 @@ func (m appModel) Init() tea.Cmd {
 		},
 		m.fetchResources(),
 		m.fetchGitStatus(),
-	)
+	}
+
+	// Start idle check timer if enabled
+	if m.options.IdleSummaryTimeout > 0 && m.options.IdleSummaryGenerator != nil {
+		cmds = append(cmds, m.scheduleIdleCheck())
+	}
+
+	return tea.Batch(cmds...)
+}
+
+func (m appModel) scheduleIdleCheck() tea.Cmd {
+	stateId := m.idleSummaryStateId
+	timeout := time.Duration(m.options.IdleSummaryTimeout) * time.Second
+	return tea.Tick(timeout, func(t time.Time) tea.Msg {
+		return idleCheckMsg{stateId: stateId}
+	})
 }
 
 func (m appModel) fetchResources() tea.Cmd {
@@ -288,6 +325,12 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.textInput.SetSuggestions([]string{})
 		}
 		return m, nil
+
+	case idleCheckMsg:
+		return m.handleIdleCheck(msg)
+
+	case setIdleSummaryMsg:
+		return m.handleSetIdleSummary(msg)
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -805,6 +848,11 @@ func (m appModel) updateTextInput(msg tea.Msg) (appModel, tea.Cmd) {
 		// Clear any existing error when user types
 		m.lastError = nil
 
+		// Reset idle timer and state when user types
+		m.lastInputTime = time.Now()
+		m.idleSummaryShown = false
+		m.idleSummaryStateId++
+
 		userInput := updatedTextInput.Value()
 
 		// whenever the user has typed something, mark the model as dirty
@@ -1001,6 +1049,82 @@ func (m appModel) setExplanation(msg setExplanationMsg) (tea.Model, tea.Cmd) {
 	m.explanation = msg.explanation
 	// Mark LLM as successful since explanation is the last step
 	m.llmIndicator.SetStatus(LLMStatusSuccess)
+	return m, nil
+}
+
+// handleIdleCheck checks if the user is idle and triggers summary generation
+func (m appModel) handleIdleCheck(msg idleCheckMsg) (tea.Model, tea.Cmd) {
+	// Ignore stale idle check messages
+	if msg.stateId != m.idleSummaryStateId {
+		return m, nil
+	}
+
+	// Don't generate if idle summary is disabled or already shown
+	if m.options.IdleSummaryTimeout <= 0 || m.options.IdleSummaryGenerator == nil {
+		return m, nil
+	}
+
+	if m.idleSummaryShown || m.idleSummaryPending {
+		return m, nil
+	}
+
+	// Check if user input is empty (idle at command prompt)
+	if strings.TrimSpace(m.textInput.Value()) != "" {
+		// User has typed something, reschedule idle check
+		return m, m.scheduleIdleCheck()
+	}
+
+	// Check if enough time has passed since last input
+	idleTimeout := time.Duration(m.options.IdleSummaryTimeout) * time.Second
+	if time.Since(m.lastInputTime) < idleTimeout {
+		// Not idle long enough, reschedule
+		return m, m.scheduleIdleCheck()
+	}
+
+	// User is idle, trigger summary generation
+	m.idleSummaryPending = true
+	m.logger.Debug("user idle, generating summary",
+		zap.Duration("idle_duration", time.Since(m.lastInputTime)),
+	)
+
+	stateId := m.idleSummaryStateId
+	return m, tea.Cmd(func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		summary, err := m.options.IdleSummaryGenerator(ctx)
+		if err != nil {
+			m.logger.Debug("idle summary generation failed", zap.Error(err))
+			return setIdleSummaryMsg{stateId: stateId, summary: ""}
+		}
+
+		return setIdleSummaryMsg{stateId: stateId, summary: summary}
+	})
+}
+
+// handleSetIdleSummary sets the idle summary in the assistant box
+func (m appModel) handleSetIdleSummary(msg setIdleSummaryMsg) (tea.Model, tea.Cmd) {
+	// Ignore stale messages
+	if msg.stateId != m.idleSummaryStateId {
+		return m, nil
+	}
+
+	m.idleSummaryPending = false
+
+	// If no summary (generation failed or no commands), don't update
+	if msg.summary == "" {
+		return m, nil
+	}
+
+	// Set the summary as the default explanation
+	m.idleSummaryShown = true
+	m.defaultExplanation = "💭 " + msg.summary
+	m.explanation = m.defaultExplanation
+
+	m.logger.Debug("idle summary displayed",
+		zap.String("summary", msg.summary),
+	)
+
 	return m, nil
 }
 

@@ -226,6 +226,23 @@ func GetContextNumHistoryVerbose(runner *interp.Runner, logger *zap.Logger) int 
 	return int(numHistoryVerbose)
 }
 
+// GetIdleSummaryTimeout returns the idle summary timeout in seconds.
+// Returns 0 if disabled, otherwise defaults to 60 seconds.
+func GetIdleSummaryTimeout(runner *interp.Runner, logger *zap.Logger) int {
+	timeoutStr := runner.Vars["GSH_IDLE_SUMMARY_TIMEOUT_SECONDS"].String()
+	if timeoutStr == "" {
+		return 60 // Default to 60 seconds
+	}
+
+	timeout, err := strconv.ParseInt(timeoutStr, 10, 32)
+	if err != nil {
+		logger.Debug("error parsing GSH_IDLE_SUMMARY_TIMEOUT_SECONDS", zap.Error(err))
+		return 60 // Default to 60 seconds on parse error
+	}
+
+	return int(timeout)
+}
+
 func GetHomeDir(runner *interp.Runner) string {
 	return runner.Vars["HOME"].String()
 }
