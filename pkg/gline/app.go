@@ -620,8 +620,15 @@ func (m appModel) View() string {
 		padding := max(0, contentWidth-lineWidth)
 		result.WriteString(borderStyle.Render("│"))
 		result.WriteString(" ") // Left padding
-		result.WriteString(line)
-		result.WriteString(strings.Repeat(" ", padding))
+		if isCoachTip {
+			// Right-justify coach tips
+			result.WriteString(strings.Repeat(" ", padding))
+			result.WriteString(line)
+		} else {
+			// Left-justify other content
+			result.WriteString(line)
+			result.WriteString(strings.Repeat(" ", padding))
+		}
 		result.WriteString(" ") // Right padding
 		result.WriteString(borderStyle.Render("│"))
 		result.WriteString("\n")
