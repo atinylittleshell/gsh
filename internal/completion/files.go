@@ -96,17 +96,26 @@ var getFileCompletions fileCompleter = func(prefix string, currentDirectory stri
 		if err != nil {
 			return []shellinput.CompletionCandidate{}
 		}
-		// Replace "~" with actual home directory for searching
-		searchPath := filepath.Join(homeDir, prefix[1:])
-		dir = filepath.Dir(searchPath)
+
+		pathAfterTilde := prefix[1:] // "" for "~", "/" for "~/", "/." for "~/."
 		filePrefix = filepath.Base(prefix)
 		prefixDir = filepath.Dir(prefix)
 
-		// If prefix ends with "/", adjust accordingly
+		// If prefix ends with "/", list directory contents
 		if strings.HasSuffix(prefix, "/") || strings.HasSuffix(prefix, string(os.PathSeparator)) {
-			dir = searchPath
+			dir = filepath.Join(homeDir, pathAfterTilde)
 			filePrefix = ""
 			prefixDir = prefix
+		} else if prefix == "~" {
+			// Just "~" - list home directory contents
+			dir = homeDir
+			filePrefix = ""
+		} else {
+			// Compute directory from the path structure, not from normalized full path
+			// For "~/.", Dir("/.") = "/", so dir = homeDir
+			// For "~/foo", Dir("/foo") = "/", so dir = homeDir
+			// For "~/foo/bar", Dir("/foo/bar") = "/foo", so dir = homeDir/foo
+			dir = filepath.Join(homeDir, filepath.Dir(pathAfterTilde))
 		}
 	} else if filepath.IsAbs(prefix) {
 		// Absolute path
@@ -124,21 +133,24 @@ var getFileCompletions fileCompleter = func(prefix string, currentDirectory stri
 	} else {
 		// Relative path
 		pathType = "rel"
-		fullPath := filepath.Join(currentDirectory, prefix)
 		filePrefix = filepath.Base(prefix)
 		prefixDir = filepath.Dir(prefix)
 
-		// If prefix ends with "/", adjust accordingly
+		// If prefix ends with "/", list directory contents
 		if strings.HasSuffix(prefix, "/") || strings.HasSuffix(prefix, string(os.PathSeparator)) {
-			dir = fullPath
+			dir = filepath.Join(currentDirectory, prefix)
 			filePrefix = ""
 			prefixDir = prefix
 		} else if prefix == "." || prefix == ".." {
-			// Special case: "." means current directory, ".." means parent directory
-			dir = fullPath
+			// Special case: "." or ".." as standalone
+			dir = filepath.Join(currentDirectory, prefix)
 		} else {
-			// For other relative paths, get the directory part
-			dir = filepath.Dir(fullPath)
+			// Compute directory from prefixDir, not from filepath.Dir of normalized path
+			// This correctly handles "./." (prefixDir=".") and "../." (prefixDir="..")
+			// For "./.", prefixDir="." so dir=currentDirectory (correct!)
+			// For "foo", prefixDir="." so dir=currentDirectory (correct!)
+			// For "foo/bar", prefixDir="foo" so dir=currentDirectory/foo (correct!)
+			dir = filepath.Join(currentDirectory, prefixDir)
 		}
 	}
 
@@ -172,9 +184,9 @@ var getFileCompletions fileCompleter = func(prefix string, currentDirectory stri
 		default:
 			// For relative paths, keep them relative
 			if prefixDir == "." {
-				// Check if the original prefix started with "./"
-				if strings.HasPrefix(prefix, "./") {
-					completionPath = "./" + name
+				// Check if the original prefix started with "./" or ".\" (Windows)
+				if strings.HasPrefix(prefix, "./") || strings.HasPrefix(prefix, "."+string(os.PathSeparator)) {
+					completionPath = "." + string(os.PathSeparator) + name
 				} else {
 					completionPath = name
 				}

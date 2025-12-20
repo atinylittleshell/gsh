@@ -126,59 +126,11 @@ func (m *Model) handleCompletion() {
 		return
 	}
 
-	// For subsequent completions, we need to recalculate the boundaries
-	// based on the current value, not the original value when completion started
-	if m.completion.selected > 0 {
-		start, end := m.getWordBoundary()
-
-		// Check for context-sensitive completions (#/ and #! prefixes)
-		value := m.Value()
-		if len(value) >= 2 {
-			if value[:2] == "#/" || value[:2] == "#!" {
-				// For context-sensitive completions, use the beginning of the prefix
-				start = 0
-			}
-		}
-
-		// Check if this is a multi-word completion by examining the suggestions
-		isMultiWord := false
-		for _, suggestion := range m.completion.suggestions {
-			if strings.Contains(suggestion.Value, " ") {
-				isMultiWord = true
-				break
-			}
-		}
-
-		// For multi-word completions, we need to find the start of the command
-		if isMultiWord {
-			// Find the start of the current command (go back to beginning of line or last space)
-			line := m.Value()
-			pos := m.Position()
-			commandStart := pos
-			for commandStart > 0 && !unicode.IsSpace(rune(line[commandStart-1])) {
-				commandStart--
-			}
-			// If there's a space before this word, go back to find the start of the command
-			if commandStart > 0 {
-				// Find the start of the previous word
-				prevWordStart := commandStart - 1
-				for prevWordStart > 0 && unicode.IsSpace(rune(line[prevWordStart-1])) {
-					prevWordStart--
-				}
-				for prevWordStart > 0 && !unicode.IsSpace(rune(line[prevWordStart-1])) {
-					prevWordStart--
-				}
-				// If the suggestion starts with the same prefix as the current command, use the full command
-				if len(m.completion.suggestions) > 0 && strings.HasPrefix(m.completion.suggestions[m.completion.selected].Value, line[prevWordStart:commandStart]) {
-					start = prevWordStart
-				}
-			}
-		}
-
-		m.completion.startPos = start
-		m.completion.endPos = end
-		m.completion.prefix = m.Value()[start:m.Position()]
-	}
+	// Note: We intentionally do NOT recalculate startPos when cycling through completions.
+	// The startPos should remain at the original word boundary where completion started.
+	// Only endPos changes to reflect the length of the current completion.
+	// Recalculating startPos would break completions that contain spaces (e.g., quoted paths)
+	// because getWordBoundary() would find the internal space and only replace part of the word.
 
 	// Apply the suggestion
 	m.applySuggestion(suggestion)

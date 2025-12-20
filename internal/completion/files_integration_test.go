@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/atinylittleshell/gsh/pkg/shellinput"
@@ -551,4 +552,171 @@ func TestGetFileCompletions_LargeDirectory_Integration(t *testing.T) {
 				tt.expectedMax, tt.prefix, len(completions))
 		})
 	}
+}
+
+// TestGetFileCompletions_DotPrefixEquivalence tests that "." and "./." give equivalent results
+// This was a bug where "./." would search the parent directory instead of current directory
+func TestGetFileCompletions_DotPrefixEquivalence_Integration(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create some hidden files and directories
+	hiddenFiles := []string{".hidden1", ".hidden2", ".config"}
+	regularFiles := []string{"visible1.txt", "visible2.txt"}
+
+	for _, file := range hiddenFiles {
+		filePath := filepath.Join(tmpDir, file)
+		err := os.WriteFile(filePath, []byte("content"), 0644)
+		require.NoError(t, err)
+	}
+
+	for _, file := range regularFiles {
+		filePath := filepath.Join(tmpDir, file)
+		err := os.WriteFile(filePath, []byte("content"), 0644)
+		require.NoError(t, err)
+	}
+
+	// Create a hidden directory
+	hiddenDir := filepath.Join(tmpDir, ".hidden_dir")
+	err := os.MkdirAll(hiddenDir, 0755)
+	require.NoError(t, err)
+
+	norm := func(p string) string {
+		return filepath.FromSlash(p)
+	}
+
+	t.Run("dot prefix shows hidden files", func(t *testing.T) {
+		completions := getFileCompletions(".", tmpDir)
+
+		// Should find hidden files
+		assert.True(t, containsCompletion(completions, ".hidden1"),
+			"Expected to find .hidden1 with '.' prefix, got: %v", completions)
+		assert.True(t, containsCompletion(completions, ".hidden2"),
+			"Expected to find .hidden2 with '.' prefix, got: %v", completions)
+		assert.True(t, containsCompletion(completions, norm(".hidden_dir/")),
+			"Expected to find .hidden_dir/ with '.' prefix, got: %v", completions)
+
+		// Should NOT find regular files (they don't start with ".")
+		assert.False(t, containsCompletion(completions, "visible1.txt"),
+			"Should NOT find visible1.txt with '.' prefix, got: %v", completions)
+	})
+
+	t.Run("dot-slash-dot prefix shows hidden files with ./ prefix", func(t *testing.T) {
+		completions := getFileCompletions(norm("./."), tmpDir)
+
+		// Should find hidden files with "./" prefix (or ".\" on Windows)
+		assert.True(t, containsCompletion(completions, norm("./.hidden1")),
+			"Expected to find ./.hidden1 with './.' prefix, got: %v", completions)
+		assert.True(t, containsCompletion(completions, norm("./.hidden2")),
+			"Expected to find ./.hidden2 with './.' prefix, got: %v", completions)
+		assert.True(t, containsCompletion(completions, norm("./.hidden_dir/")),
+			"Expected to find ./.hidden_dir/ with './.' prefix, got: %v", completions)
+
+		// Should NOT find regular files
+		assert.False(t, containsCompletion(completions, norm("./visible1.txt")),
+			"Should NOT find ./visible1.txt with './.' prefix, got: %v", completions)
+	})
+
+	t.Run("dot and dot-slash-dot give same count", func(t *testing.T) {
+		dotCompletions := getFileCompletions(".", tmpDir)
+		dotSlashDotCompletions := getFileCompletions(norm("./."), tmpDir)
+
+		assert.Equal(t, len(dotCompletions), len(dotSlashDotCompletions),
+			"'.' and './.' should return same number of completions: '.'=%v, './.'=%v",
+			dotCompletions, dotSlashDotCompletions)
+	})
+
+	t.Run("parent-dot prefix works correctly", func(t *testing.T) {
+		// Create a subdirectory and test from there
+		subDir := filepath.Join(tmpDir, "subdir")
+		err := os.MkdirAll(subDir, 0755)
+		require.NoError(t, err)
+
+		completions := getFileCompletions(norm("../."), subDir)
+
+		// Should find hidden files in parent (tmpDir) with "../" prefix (or "..\" on Windows)
+		assert.True(t, containsCompletion(completions, norm("../.hidden1")),
+			"Expected to find ../.hidden1 with '../.' prefix from subdir, got: %v", completions)
+		assert.True(t, containsCompletion(completions, norm("../.hidden2")),
+			"Expected to find ../.hidden2 with '../.' prefix from subdir, got: %v", completions)
+	})
+}
+
+// TestGetFileCompletions_TildePrefix tests home directory completion edge cases
+func TestGetFileCompletions_TildePrefix_Integration(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip("Could not get home directory")
+	}
+
+	// Create a test hidden file in home directory
+	testHiddenFile := filepath.Join(homeDir, ".gsh_test_hidden_file")
+	err = os.WriteFile(testHiddenFile, []byte("test"), 0644)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = os.Remove(testHiddenFile)
+	})
+
+	// Create a test visible file in home directory
+	testVisibleFile := filepath.Join(homeDir, "gsh_test_visible_file")
+	err = os.WriteFile(testVisibleFile, []byte("test"), 0644)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = os.Remove(testVisibleFile)
+	})
+
+	norm := func(p string) string {
+		return filepath.FromSlash(p)
+	}
+
+	t.Run("tilde alone lists home directory", func(t *testing.T) {
+		completions := getFileCompletions("~", "/some/other/dir")
+
+		// Should have some completions (home is not empty)
+		assert.Greater(t, len(completions), 0,
+			"Expected some completions for '~' prefix")
+
+		// All completions should start with "~/"
+		for _, c := range completions {
+			assert.True(t, strings.HasPrefix(c.Value, "~"+string(os.PathSeparator)),
+				"Expected completion to start with ~/, got: %s", c.Value)
+		}
+
+		// Should find our test visible file
+		assert.True(t, containsCompletion(completions, norm("~/gsh_test_visible_file")),
+			"Expected to find ~/gsh_test_visible_file with '~' prefix, got: %v", completions)
+	})
+
+	t.Run("tilde-slash lists home directory", func(t *testing.T) {
+		completions := getFileCompletions("~/", "/some/other/dir")
+
+		// Should have some completions
+		assert.Greater(t, len(completions), 0,
+			"Expected some completions for '~/' prefix")
+
+		// All completions should start with "~/"
+		for _, c := range completions {
+			assert.True(t, strings.HasPrefix(c.Value, "~"+string(os.PathSeparator)),
+				"Expected completion to start with ~/, got: %s", c.Value)
+		}
+	})
+
+	t.Run("tilde-dot shows hidden files in home", func(t *testing.T) {
+		completions := getFileCompletions("~/.", "/some/other/dir")
+
+		// Should find our test hidden file
+		assert.True(t, containsCompletion(completions, norm("~/.gsh_test_hidden_file")),
+			"Expected to find ~/.gsh_test_hidden_file with '~/.' prefix, got: %v", completions)
+
+		// Should NOT find visible files (they don't start with ".")
+		assert.False(t, containsCompletion(completions, norm("~/gsh_test_visible_file")),
+			"Should NOT find ~/gsh_test_visible_file with '~/.' prefix, got: %v", completions)
+	})
+
+	t.Run("tilde and tilde-slash give same results", func(t *testing.T) {
+		tildeCompletions := getFileCompletions("~", "/some/other/dir")
+		tildeSlashCompletions := getFileCompletions("~/", "/some/other/dir")
+
+		assert.Equal(t, len(tildeCompletions), len(tildeSlashCompletions),
+			"'~' and '~/' should return same number of completions")
+	})
 }

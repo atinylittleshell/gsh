@@ -442,6 +442,9 @@ func (m appModel) View() string {
 		availableHeight = max(m.options.AssistantHeight, m.height-4)
 	}
 
+	// Track if content is pre-formatted (completion/history boxes) and should skip word wrapping
+	isPreformatted := false
+
 	// Display error if present
 	if m.lastError != nil {
 		errorContent := fmt.Sprintf("LLM Inference Error: %s", m.lastError.Error())
@@ -461,6 +464,7 @@ func (m appModel) View() string {
 
 		if historyBox != "" {
 			assistantContent = historyBox
+			isPreformatted = true
 		} else if completionBox != "" && helpBox != "" {
 			// Clean up help box text to avoid redundancy
 			// Remove headers like "**@name** - " or "**name** - " using regex
@@ -485,9 +489,11 @@ func (m appModel) View() string {
 			assistantContent = lipgloss.JoinHorizontal(lipgloss.Top,
 				leftStyle.Render(completionBox),
 				rightStyle.Render(helpBox))
+			isPreformatted = true
 
 		} else if completionBox != "" {
 			assistantContent = completionBox
+			isPreformatted = true
 		} else if helpBox != "" {
 			assistantContent = helpBox
 		} else {
@@ -509,7 +515,14 @@ func (m appModel) View() string {
 	contentWidth := innerWidth - 2
 	// Use custom word wrapping that uses GetRuneWidth for accurate Unicode/emoji width calculation
 	// This ensures coach tips with emoji render correctly in the assistant box
-	wrappedContent := WordwrapWithRuneWidth(assistantContent, contentWidth)
+	// Note: Skip word wrapping for completion/history boxes as they are already formatted with proper columns
+	var wrappedContent string
+	if isPreformatted {
+		// Completion and history boxes are pre-formatted, don't word wrap
+		wrappedContent = assistantContent
+	} else {
+		wrappedContent = WordwrapWithRuneWidth(assistantContent, contentWidth)
+	}
 	lines := strings.Split(wrappedContent, "\n")
 
 	// Apply faded style to each line of coach tips after word wrapping
