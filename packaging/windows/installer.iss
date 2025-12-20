@@ -44,7 +44,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Files]
 Source: "gsh.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
-Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists('README.md')
+Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion; Check: SourceFileExists('README.md')
 
 [Icons]
 ; Optional: Add to Start Menu if user wants
@@ -74,7 +74,7 @@ begin
   Result := Pos(';' + Uppercase(ParamExpanded) + ';', ';' + Uppercase(OrigPath) + ';') = 0;
 end;
 
-function FileExists(FileName: string): boolean;
+function SourceFileExists(FileName: string): boolean;
 begin
   Result := FileExists(ExpandConstant('{src}\' + FileName));
 end;
