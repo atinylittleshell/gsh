@@ -23,6 +23,7 @@ import (
 	"github.com/atinylittleshell/gsh/internal/rag/retrievers"
 	"github.com/atinylittleshell/gsh/internal/styles"
 	"github.com/atinylittleshell/gsh/internal/subagent"
+	"github.com/atinylittleshell/gsh/internal/termtitle"
 	"github.com/atinylittleshell/gsh/pkg/gline"
 	"github.com/atinylittleshell/gsh/pkg/shellinput"
 	"go.uber.org/zap"
@@ -68,6 +69,9 @@ func RunInteractiveShell(
 
 	// Set up idle summary generator
 	idleSummaryGenerator := idle.NewSummaryGenerator(runner, historyManager, logger)
+
+	// Set up terminal title manager
+	termTitleManager := termtitle.NewManager(runner, logger)
 
 	chanSIGINT := make(chan os.Signal, 1)
 	signal.Notify(chanSIGINT, os.Interrupt)
@@ -306,6 +310,10 @@ func RunInteractiveShell(
 						if err != nil {
 							fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
 						}
+
+						// Record command for terminal title updates
+						termTitleManager.RecordCommand(fixedCmd)
+
 						// Sync any gsh variables that might have been changed during command execution
 						environment.SyncVariablesToEnv(runner)
 
@@ -375,6 +383,9 @@ func RunInteractiveShell(
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
 		}
+
+		// Record command for terminal title updates
+		termTitleManager.RecordCommand(line)
 
 		// Sync any gsh variables that might have been changed during command execution
 		environment.SyncVariablesToEnv(runner)
