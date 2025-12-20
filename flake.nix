@@ -1,7 +1,7 @@
 {
   description = "A modern, POSIX-compatible, generative shell";
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -12,17 +12,21 @@
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {inherit system;};
+      version = builtins.replaceStrings ["\n"] [""] (builtins.readFile ./VERSION);
     in {
-      defaultPackage = pkgs.buildGoModule rec {
-        name = "gsh";
-        version = "v${builtins.readFile ./VERSION}";
-        src = pkgs.fetchFromGitHub {
-          owner = "atinylittleshell";
-          repo = "gsh";
-          rev = version;
-          hash = "sha256-r4vWse5zAzxaMNVXbISYHvB7158BF6MFWnVhJTN5Y0M=";
-        };
+      packages.default = pkgs.buildGoModule {
+        pname = "gsh";
+        inherit version;
+        src = ./.;
         vendorHash = "sha256-Lcl6fyZf3ku8B8q4J4ljUyqhLhJ+q61DLj/Bs/RrQZo=";
+
+        ldflags = [
+          "-s"
+          "-w"
+          "-X main.BUILD_VERSION=${version}"
+        ];
+
+        subPackages = ["cmd/gsh"];
 
         checkFlags = let
           # Skip tests that require network access or violate
@@ -34,6 +38,27 @@
             "TestFileCompletions"
           ];
         in ["-skip=^${builtins.concatStringsSep "$|^" skippedTests}$"];
+
+        meta = with pkgs.lib; {
+          description = "A modern, POSIX-compatible, generative shell";
+          homepage = "https://github.com/robottwo/gsh_prime";
+          license = licenses.gpl3Plus;
+          maintainers = [];
+          mainProgram = "gsh";
+        };
+      };
+
+      # Backwards compatibility alias
+      defaultPackage = self.packages.${system}.default;
+
+      # Development shell
+      devShells.default = pkgs.mkShell {
+        buildInputs = with pkgs; [
+          go
+          gopls
+          gotools
+          go-tools
+        ];
       };
     });
 }
