@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.28.0](https://github.com/robottwo/gsh_prime/compare/v0.27.0...v0.28.0) (2025-12-21)
+
+
+### Features
+
+* Add macOS DMG installers to release workflow ([#76](https://github.com/robottwo/gsh_prime/issues/76)) ([ef7ff20](https://github.com/robottwo/gsh_prime/commit/ef7ff2083e9b076ff4a7cf6574cc7619551b3638))
+* Add Nix package building to release workflow ([#78](https://github.com/robottwo/gsh_prime/issues/78)) ([8dd2c33](https://github.com/robottwo/gsh_prime/commit/8dd2c330bc24c02d4399eadde18e743f3bc18209))
+
+
+### Bug Fixes
+
+* Rename FileExists to SourceFileExists to prevent infinite recursion ([#77](https://github.com/robottwo/gsh_prime/issues/77)) ([2c0852f](https://github.com/robottwo/gsh_prime/commit/2c0852faecac85df35b148381bdd95633c81a43e))
+
 ## [0.27.0](https://github.com/robottwo/gsh_prime/compare/v0.26.1...v0.27.0) (2025-12-20)
 
 
