@@ -217,3 +217,32 @@ jobs:
           version="${{ needs.release-please.outputs.version }}"
           dmg="gsh_${version}_macos_arm64.dmg"
           gh release upload "v${version}" "$dmg" --clobber
+
+  # Build and verify Nix package
+  nix:
+    needs: [release-please, goreleaser]
+    if: ${{ needs.release-please.outputs.release_created }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.release-please.outputs.version }}
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Setup Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Check flake
+        run: nix flake check
+
+      - name: Build package
+        run: nix build .#default
+
+      - name: Verify binary
+        run: |
+          ./result/bin/gsh --version

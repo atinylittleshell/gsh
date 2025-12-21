@@ -47,9 +47,9 @@ func TestVersionFileFormat(t *testing.T) {
 		require.NoError(t, err)
 
 		version := strings.TrimSpace(string(content))
-		
+
 		// Should not have leading 'v'
-		assert.False(t, strings.HasPrefix(version, "v"), 
+		assert.False(t, strings.HasPrefix(version, "v"),
 			"VERSION file should not have leading 'v' (will be added by build process)")
 
 		// Should have at least major.minor format
@@ -68,12 +68,12 @@ func TestVersionFileFormat(t *testing.T) {
 
 		// Check for single newline at end (Unix convention)
 		assert.True(t, len(content) > 0, "VERSION file should not be empty")
-		
+
 		// Trim and check that trimmed version matches when one newline is added
 		trimmed := strings.TrimSpace(string(content))
 		expected := trimmed + "\n"
 		expectedCRLF := trimmed + "\r\n"
-		
+
 		// Allow either no newline, single newline (LF), or single newline (CRLF)
 		contentStr := string(content)
 		assert.True(t, contentStr == trimmed || contentStr == expected || contentStr == expectedCRLF,
@@ -116,9 +116,9 @@ func TestVersionFileIntegrationWithMakefile(t *testing.T) {
 		makefileContent := string(content)
 
 		// Verify Makefile references VERSION file
-		assert.Contains(t, makefileContent, "VERSION", 
+		assert.Contains(t, makefileContent, "VERSION",
 			"Makefile should reference VERSION file")
-		assert.Contains(t, makefileContent, "cat VERSION", 
+		assert.Contains(t, makefileContent, "cat VERSION",
 			"Makefile should read VERSION file using cat command")
 	})
 
@@ -134,7 +134,7 @@ func TestVersionFileIntegrationWithMakefile(t *testing.T) {
 		// Verify ldflags injection
 		assert.Contains(t, makefileContent, "-X main.BUILD_VERSION",
 			"Makefile should inject BUILD_VERSION via ldflags")
-		
+
 		// Verify version is prefixed with 'v'
 		assert.Contains(t, makefileContent, "v$$VERSION",
 			"Makefile should prefix VERSION with 'v'")
@@ -159,10 +159,15 @@ func TestVersionFileIntegrationWithNix(t *testing.T) {
 		// Verify flake.nix references VERSION file
 		assert.Contains(t, flakeContent, "builtins.readFile ./VERSION",
 			"flake.nix should read VERSION file")
-		
-		// Verify version is prefixed with 'v'
-		assert.Contains(t, flakeContent, "v${builtins.readFile ./VERSION}",
-			"flake.nix should prefix VERSION with 'v'")
+
+		// Verify version is conditionally prefixed with 'v' (avoids double-prefixing)
+		assert.Contains(t, flakeContent, `else "v${rawVersion}"`,
+			"flake.nix should conditionally prefix VERSION with 'v'")
+
+		// Also verify that with the current VERSION (0.26.0), the conditional logic holds
+		// Since we can't easily execute Nix code here without nix-instantiate,
+		// we rely on the structural check above and verifying the source data (VERSION file)
+		// doesn't have the prefix, which triggers the 'else' branch we just verified.
 	})
 
 	t.Run("flake.nix version string is properly formatted", func(t *testing.T) {
@@ -174,8 +179,8 @@ func TestVersionFileIntegrationWithNix(t *testing.T) {
 
 		flakeContent := string(content)
 
-		// Should use string interpolation for version
-		assert.Contains(t, flakeContent, "version = ",
+		// Should define a version variable
+		assert.Contains(t, flakeContent, "version =",
 			"flake.nix should define version variable")
 	})
 }
@@ -206,6 +211,10 @@ func TestVersionConsistencyAcrossBuildSystems(t *testing.T) {
 		if err == nil {
 			assert.Contains(t, string(flakeContent), "builtins.readFile ./VERSION",
 				"flake.nix should read from VERSION file")
+
+			// Also check for the conditional logic since we're here
+			assert.Contains(t, string(flakeContent), `else "v${rawVersion}"`,
+				"flake.nix should have logic to ensure 'v' prefix")
 		}
 	})
 

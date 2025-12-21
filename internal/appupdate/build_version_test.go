@@ -117,11 +117,11 @@ func TestMakefileVersionInjection(t *testing.T) {
 		// Verify proper shell variable syntax
 		assert.Contains(t, makefileContent, "$$(cat VERSION)",
 			"Makefile should use proper shell command substitution")
-		
+
 		// Verify ldflags format
 		assert.Contains(t, makefileContent, "-ldflags=",
 			"Makefile should use proper ldflags syntax")
-		
+
 		// Verify version is prefixed with v
 		assert.Contains(t, makefileContent, "-X main.BUILD_VERSION=v$$VERSION",
 			"Makefile should prefix version with 'v'")
@@ -139,15 +139,15 @@ func TestMakefileVersionInjection(t *testing.T) {
 		// Verify build target exists
 		assert.Contains(t, makefileContent, ".PHONY: build",
 			"Makefile should have .PHONY build target")
-		
+
 		// Verify go build command
 		assert.Contains(t, makefileContent, "go build",
 			"Makefile should use go build command")
-		
+
 		// Verify output location
 		assert.Contains(t, makefileContent, "./bin/gsh",
 			"Makefile should build to ./bin/gsh")
-		
+
 		// Verify main package location
 		assert.Contains(t, makefileContent, "./cmd/gsh/main.go",
 			"Makefile should reference correct main package")
@@ -172,14 +172,14 @@ func TestNixFlakeVersionInjection(t *testing.T) {
 		// Verify Nix builtins.readFile syntax
 		assert.Contains(t, flakeContent, "builtins.readFile",
 			"flake.nix should use builtins.readFile")
-		
+
 		// Verify path is relative
 		assert.Contains(t, flakeContent, "./VERSION",
 			"flake.nix should reference ./VERSION")
-		
-		// Verify string interpolation
-		assert.Contains(t, flakeContent, "${builtins.readFile ./VERSION}",
-			"flake.nix should use Nix string interpolation")
+
+		// Verify normalization (trimming whitespace)
+		assert.Contains(t, flakeContent, "builtins.replaceStrings",
+			"flake.nix should normalize version string (trim whitespace)")
 	})
 
 	t.Run("flake.nix version variable assignment", func(t *testing.T) {
@@ -191,13 +191,17 @@ func TestNixFlakeVersionInjection(t *testing.T) {
 
 		flakeContent := string(content)
 
+		// Verify version logic handles 'v' prefix conditionally
+		assert.Contains(t, flakeContent, `if builtins.substring 0 1 rawVersion == "v"`,
+			"flake.nix should check for existing 'v' prefix")
+
+		// Verify it adds 'v' if missing
+		assert.Contains(t, flakeContent, `else "v${rawVersion}"`,
+			"flake.nix should add 'v' prefix if missing")
+
 		// Verify version is assigned in buildGoModule
-		assert.Contains(t, flakeContent, "version = ",
-			"flake.nix should assign version variable")
-		
-		// Verify it's prefixed with v
-		assert.Contains(t, flakeContent, "v${builtins.readFile ./VERSION}",
-			"flake.nix should prefix version with 'v'")
+		assert.Contains(t, flakeContent, "version = version;",
+			"flake.nix should assign calculated version variable")
 	})
 }
 
@@ -232,8 +236,18 @@ func TestBuildSystemVersionConsistency(t *testing.T) {
 		// Check flake.nix produces this format
 		flakeContent, err := os.ReadFile(filepath.Join(repoRoot, "flake.nix"))
 		if err == nil {
-			assert.Contains(t, string(flakeContent), "v${builtins.readFile ./VERSION}",
-				"flake.nix should produce version with 'v' prefix")
+			// Verify flake.nix has logic to ensure v prefix
+			assert.Contains(t, string(flakeContent), `else "v${rawVersion}"`,
+				"flake.nix should have logic to ensure 'v' prefix")
+
+			// Also verify that the logic would resolve correctly given our current VERSION
+			if !strings.HasPrefix(version, "v") {
+				// Since our VERSION file doesn't have 'v' prefix (e.g. "0.26.0"),
+				// the logic `if builtins.substring 0 1 rawVersion == "v" then rawVersion else "v${rawVersion}"`
+				// should evaluate to "v0.26.0"
+				assert.Equal(t, "v"+version, expectedVersionString,
+					"Resolved version should be 'v' + VERSION content")
+			}
 		}
 
 		// Verify the format is what appupdate expects
@@ -259,11 +273,11 @@ func TestVersionFileUpdateProcess(t *testing.T) {
 			// Should not contain hardcoded version like "v0.22.2" anymore
 			lines := strings.Split(string(flakeContent), "\n")
 			for _, line := range lines {
-				if strings.Contains(line, "version = ") && 
-				   !strings.Contains(line, "builtins.readFile") {
+				if strings.Contains(line, "version = ") &&
+					!strings.Contains(line, "builtins.readFile") {
 					// If there's a version assignment without builtins.readFile,
 					// it should be the variable reference, not a hardcoded string
-					assert.NotContains(t, line, `"v0.`, 
+					assert.NotContains(t, line, `"v0.`,
 						"flake.nix should not contain hardcoded version strings")
 				}
 			}

@@ -12,11 +12,17 @@
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {inherit system;};
-      version = builtins.replaceStrings ["\n"] [""] "v${builtins.readFile ./VERSION}";
+      # Read VERSION file and normalize (trim whitespace/newlines)
+      rawVersion = builtins.replaceStrings ["\n" "\r" " "] ["" "" ""] (builtins.readFile ./VERSION);
+      # Ensure version starts with "v" (avoid double-prefixing if VERSION already has "v")
+      version =
+        if builtins.substring 0 1 rawVersion == "v"
+        then rawVersion
+        else "v${rawVersion}";
     in {
       packages.default = pkgs.buildGoModule {
         pname = "gsh";
-        inherit version;
+        version = version;
         src = ./.;
         vendorHash = "sha256-Lcl6fyZf3ku8B8q4J4ljUyqhLhJ+q61DLj/Bs/RrQZo=";
 
