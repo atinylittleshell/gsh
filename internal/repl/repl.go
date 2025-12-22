@@ -224,6 +224,10 @@ func (r *REPL) Run(ctx context.Context) error {
 			continue
 
 		case input.ResultSubmit:
+			// Print the prompt + user input before executing (like old REPL)
+			// This shows the user what command is being executed
+			fmt.Print("\r" + model.Prompt() + result.Value + "\n")
+
 			// Process the command
 			if err := r.processCommand(ctx, result.Value); err != nil {
 				// Log error but continue

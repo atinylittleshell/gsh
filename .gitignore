@@ -7,6 +7,7 @@
 *.dll
 *.so
 *.dylib
+gsh
 bin/
 tmp/
 
