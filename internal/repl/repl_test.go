@@ -120,14 +120,25 @@ func TestREPL_HandleBuiltinCommand_Exit(t *testing.T) {
 	require.NoError(t, err)
 	defer repl.Close()
 
-	// Note: We can't test :exit directly as it calls os.Exit
-	// But we can test that :clear is handled
-	handled := repl.handleBuiltinCommand(":clear")
+	// Test that exit returns ErrExit
+	handled, err := repl.handleBuiltinCommand("exit")
 	assert.True(t, handled)
+	assert.Equal(t, ErrExit, err)
+
+	// Test that :exit also returns ErrExit
+	handled, err = repl.handleBuiltinCommand(":exit")
+	assert.True(t, handled)
+	assert.Equal(t, ErrExit, err)
+
+	// Test that :clear is handled
+	handled, err = repl.handleBuiltinCommand(":clear")
+	assert.True(t, handled)
+	assert.NoError(t, err)
 
 	// Test unhandled command
-	handled = repl.handleBuiltinCommand("ls")
+	handled, err = repl.handleBuiltinCommand("ls")
 	assert.False(t, handled)
+	assert.NoError(t, err)
 }
 
 func TestREPL_ProcessCommand_Empty(t *testing.T) {
@@ -379,8 +390,9 @@ func TestREPL_HandleBuiltinCommand_Clear(t *testing.T) {
 	defer repl.Close()
 
 	// :clear should be handled
-	handled := repl.handleBuiltinCommand(":clear")
+	handled, err := repl.handleBuiltinCommand(":clear")
 	assert.True(t, handled)
+	assert.NoError(t, err)
 }
 
 func TestREPL_HandleBuiltinCommand_UnknownCommand(t *testing.T) {
@@ -397,11 +409,13 @@ func TestREPL_HandleBuiltinCommand_UnknownCommand(t *testing.T) {
 	defer repl.Close()
 
 	// Unknown commands should not be handled
-	handled := repl.handleBuiltinCommand("unknown")
+	handled, err := repl.handleBuiltinCommand("unknown")
 	assert.False(t, handled)
+	assert.NoError(t, err)
 
-	handled = repl.handleBuiltinCommand("ls -la")
+	handled, err = repl.handleBuiltinCommand("ls -la")
 	assert.False(t, handled)
+	assert.NoError(t, err)
 }
 
 func TestREPL_ContextProviderInitialized(t *testing.T) {
@@ -652,11 +666,11 @@ func TestNewREPL_AgentFallback(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, repl)
 
-	// Verify agent adapter was initialized with the only available agent
-	assert.NotNil(t, repl.agent)
-	assert.Equal(t, "onlyAgent", repl.agent.Name)
-	assert.NotNil(t, repl.agentProvider)
-	assert.Equal(t, "onlyAgent", repl.agent.Name)
+	// Verify agent was initialized and set as current
+	assert.Len(t, repl.agentStates, 1)
+	assert.Equal(t, "onlyAgent", repl.currentAgentName)
+	assert.NotNil(t, repl.agentStates["onlyAgent"])
+	assert.Equal(t, "onlyAgent", repl.agentStates["onlyAgent"].Agent.Name)
 }
 
 func TestNewREPL_NoAgentFallbackWithMultipleAgents(t *testing.T) {
@@ -695,9 +709,10 @@ func TestNewREPL_NoAgentFallbackWithMultipleAgents(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, repl)
 
-	// Verify agent adapter was NOT initialized (ambiguous which to use)
-	assert.Nil(t, repl.agent)
-	assert.Nil(t, repl.agentProvider)
+	// Verify both agents were initialized, and one was picked as default
+	assert.Len(t, repl.agentStates, 2)
+	assert.NotEmpty(t, repl.currentAgentName)
+	assert.Contains(t, []string{"agent1", "agent2"}, repl.currentAgentName)
 }
 
 func TestNewREPL_ExplicitDefaultAgentOverridesFallback(t *testing.T) {
@@ -732,11 +747,11 @@ func TestNewREPL_ExplicitDefaultAgentOverridesFallback(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, repl)
 
-	// Verify the explicitly configured agent was used
-	assert.NotNil(t, repl.agent)
-	assert.Equal(t, "chosenAgent", repl.agent.Name)
-	assert.NotNil(t, repl.agentProvider)
-	assert.Equal(t, "chosenAgent", repl.agent.Name)
+	// Verify the explicitly configured agent was set as current
+	assert.Len(t, repl.agentStates, 1)
+	assert.Equal(t, "chosenAgent", repl.currentAgentName)
+	assert.NotNil(t, repl.agentStates["chosenAgent"])
+	assert.Equal(t, "chosenAgent", repl.agentStates["chosenAgent"].Agent.Name)
 }
 
 func TestHandleAgentCommand_NoAgent(t *testing.T) {
@@ -744,8 +759,8 @@ func TestHandleAgentCommand_NoAgent(t *testing.T) {
 
 	logger := zap.NewNop()
 	repl := &REPL{
-		logger: logger,
-		agent:  nil, // No agent configured
+		logger:      logger,
+		agentStates: make(map[string]*AgentState), // No agents configured
 	}
 
 	ctx := context.Background()
@@ -755,39 +770,56 @@ func TestHandleAgentCommand_NoAgent(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestHandleAgentCommand_Reset(t *testing.T) {
-	// Test that reset command clears conversation history
+func TestHandleAgentCommand_Clear(t *testing.T) {
+	// Test that /clear command clears conversation history
 
 	logger := zap.NewNop()
 	mockProvider := &MockProvider{
 		responseContent: "dummy",
 		shouldError:     false,
 	}
-	repl := &REPL{
-		logger:        logger,
-		agent:         &interpreter.AgentValue{Name: "test"},
-		agentProvider: mockProvider, // Need provider for the agent check
-		agentConversation: []interpreter.ChatMessage{
+
+	agentState := &AgentState{
+		Agent:    &interpreter.AgentValue{Name: "test"},
+		Provider: mockProvider,
+		Conversation: []interpreter.ChatMessage{
 			{Role: "user", Content: "hello"},
 			{Role: "assistant", Content: "hi"},
 		},
 	}
 
+	repl := &REPL{
+		logger:           logger,
+		agentStates:      map[string]*AgentState{"test": agentState},
+		currentAgentName: "test",
+	}
+
 	ctx := context.Background()
-	err := repl.handleAgentCommand(ctx, "reset")
+	err := repl.handleAgentCommand(ctx, "/clear")
 
 	assert.NoError(t, err)
-	assert.Equal(t, 0, len(repl.agentConversation))
+	assert.Equal(t, 0, len(agentState.Conversation))
 }
 
 func TestHandleAgentCommand_Help(t *testing.T) {
 	// Test that empty message shows help
 
 	logger := zap.NewNop()
+	mockProvider := &MockProvider{
+		responseContent: "dummy",
+		shouldError:     false,
+	}
+
+	agentState := &AgentState{
+		Agent:        &interpreter.AgentValue{Name: "test"},
+		Provider:     mockProvider,
+		Conversation: []interpreter.ChatMessage{},
+	}
+
 	repl := &REPL{
-		logger:        logger,
-		agent:         &interpreter.AgentValue{Name: "test"},
-		agentProvider: nil,
+		logger:           logger,
+		agentStates:      map[string]*AgentState{"test": agentState},
+		currentAgentName: "test",
 	}
 
 	ctx := context.Background()
@@ -844,11 +876,16 @@ func TestHandleAgentCommand_Success(t *testing.T) {
 		},
 	}
 
+	agentState := &AgentState{
+		Agent:        agent,
+		Provider:     mockProvider,
+		Conversation: []interpreter.ChatMessage{},
+	}
+
 	repl := &REPL{
-		logger:            logger,
-		agent:             agent,
-		agentProvider:     mockProvider,
-		agentConversation: []interpreter.ChatMessage{},
+		logger:           logger,
+		agentStates:      map[string]*AgentState{"testAgent": agentState},
+		currentAgentName: "testAgent",
 	}
 
 	ctx := context.Background()
@@ -857,11 +894,11 @@ func TestHandleAgentCommand_Success(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Verify conversation history was updated
-	assert.Equal(t, 2, len(repl.agentConversation))
-	assert.Equal(t, "user", repl.agentConversation[0].Role)
-	assert.Equal(t, "hello", repl.agentConversation[0].Content)
-	assert.Equal(t, "assistant", repl.agentConversation[1].Role)
-	assert.Equal(t, "Hello! How can I help?", repl.agentConversation[1].Content)
+	assert.Equal(t, 2, len(agentState.Conversation))
+	assert.Equal(t, "user", agentState.Conversation[0].Role)
+	assert.Equal(t, "hello", agentState.Conversation[0].Content)
+	assert.Equal(t, "assistant", agentState.Conversation[1].Role)
+	assert.Equal(t, "Hello! How can I help?", agentState.Conversation[1].Content)
 }
 
 func TestHandleAgentCommand_ConversationHistory(t *testing.T) {
@@ -899,11 +936,16 @@ func TestHandleAgentCommand_ConversationHistory(t *testing.T) {
 		},
 	}
 
+	agentState := &AgentState{
+		Agent:        agent,
+		Provider:     mockProvider,
+		Conversation: []interpreter.ChatMessage{},
+	}
+
 	repl := &REPL{
-		logger:            logger,
-		agent:             agent,
-		agentProvider:     mockProvider,
-		agentConversation: []interpreter.ChatMessage{},
+		logger:           logger,
+		agentStates:      map[string]*AgentState{"testAgent": agentState},
+		currentAgentName: "testAgent",
 	}
 
 	ctx := context.Background()
@@ -911,7 +953,7 @@ func TestHandleAgentCommand_ConversationHistory(t *testing.T) {
 	// First message
 	err := repl.handleAgentCommand(ctx, "first message")
 	assert.NoError(t, err)
-	assert.Equal(t, 2, len(repl.agentConversation))
+	assert.Equal(t, 2, len(agentState.Conversation))
 
 	// Verify first request had system prompt + user message
 	assert.Equal(t, 2, len(lastRequestMessages)) // system + user
@@ -923,7 +965,7 @@ func TestHandleAgentCommand_ConversationHistory(t *testing.T) {
 	// Second message
 	err = repl.handleAgentCommand(ctx, "second message")
 	assert.NoError(t, err)
-	assert.Equal(t, 4, len(repl.agentConversation))
+	assert.Equal(t, 4, len(agentState.Conversation))
 
 	// Verify second request included conversation history
 	assert.Equal(t, 4, len(lastRequestMessages)) // system + history (2) + new user message
@@ -954,11 +996,16 @@ func TestHandleAgentCommand_ProviderError(t *testing.T) {
 		},
 	}
 
+	agentState := &AgentState{
+		Agent:        agent,
+		Provider:     mockProvider,
+		Conversation: []interpreter.ChatMessage{},
+	}
+
 	repl := &REPL{
-		logger:            logger,
-		agent:             agent,
-		agentProvider:     mockProvider,
-		agentConversation: []interpreter.ChatMessage{},
+		logger:           logger,
+		agentStates:      map[string]*AgentState{"testAgent": agentState},
+		currentAgentName: "testAgent",
 	}
 
 	ctx := context.Background()
@@ -968,7 +1015,7 @@ func TestHandleAgentCommand_ProviderError(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Conversation should not be updated on error
-	assert.Equal(t, 0, len(repl.agentConversation))
+	assert.Equal(t, 0, len(agentState.Conversation))
 }
 
 func TestHandleAgentCommand_NoSystemPrompt(t *testing.T) {
@@ -999,11 +1046,16 @@ func TestHandleAgentCommand_NoSystemPrompt(t *testing.T) {
 		},
 	}
 
+	agentState := &AgentState{
+		Agent:        agent,
+		Provider:     mockProvider,
+		Conversation: []interpreter.ChatMessage{},
+	}
+
 	repl := &REPL{
-		logger:            logger,
-		agent:             agent,
-		agentProvider:     mockProvider,
-		agentConversation: []interpreter.ChatMessage{},
+		logger:           logger,
+		agentStates:      map[string]*AgentState{"testAgent": agentState},
+		currentAgentName: "testAgent",
 	}
 
 	ctx := context.Background()

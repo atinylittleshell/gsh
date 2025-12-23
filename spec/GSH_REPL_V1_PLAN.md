@@ -356,6 +356,7 @@ The script engine (`internal/script/interpreter/`) already provides:
 Initially planned to create an adapter wrapper around the script engine's agent functionality,
 but this would block streaming support (adapter sits between REPL and provider, preventing
 direct streaming callbacks). The REPL now:
+
 - Loads agent config from script engine (model, systemPrompt, etc.)
 - Calls `ModelProvider.ChatCompletion()` directly
 - Manages conversation history in REPL state (`[]ChatMessage`)
@@ -379,12 +380,39 @@ direct streaming callbacks). The REPL now:
 - [x] Add `SetVariable()` method to interpreter (for future script-based agent usage)
 
 **Benefits of Direct Provider Approach:**
+
 - Simpler architecture (no adapter layer to maintain)
 - Streaming support becomes straightforward (add `ChatCompletionStream` to provider interface)
 - Full control over conversation management
 - Cleaner separation of concerns: script engine for config, provider for execution
+### Phase 8: Agent Switching ✅
 
-### Phase 8: Migration & Cleanup
+**Goal:** Allow users to dynamically switch between configured agents
+
+Users can switch agents on-the-fly without editing config files, with each agent maintaining
+isolated conversation history.
+
+**Syntax:**
+
+```bash
+#<message>              # Send message to current agent
+#/clear                 # Clear current agent's conversation
+#/agents                # List all available agents
+#/agent <name>          # Switch to a different agent
+```
+
+**Implementation:**
+
+- [x] Multi-agent state management with `map[string]*AgentState`
+- [x] Command parsing to distinguish between messages and commands (`parseAgentInput`)
+- [x] Agent command handlers (`/clear`, `/agents`, `/agent`)
+- [x] Completion support for agent commands and names
+- [x] Single source of truth for agent commands in `AgentCommands` variable
+- [x] Each agent maintains isolated conversation history
+- [x] Switching preserves conversation state for all agents
+- [x] Comprehensive tests for all agent switching scenarios
+
+### Phase 9: Migration & Cleanup
 
 **Goal:** Complete the transition
 
