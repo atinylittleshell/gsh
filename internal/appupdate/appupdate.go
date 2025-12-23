@@ -71,6 +71,15 @@ func updateToLatestVersion(currentSemVer *semver.Version, logger *zap.Logger, fs
 		return
 	}
 
+	// Check for major version boundary - don't auto-update across major versions
+	if latestSemVer.Major() > currentSemVer.Major() {
+		logger.Info("major version update available",
+			zap.String("current", currentSemVer.String()),
+			zap.String("latest", latestSemVer.String()),
+			zap.String("info", "Major version updates require manual upgrade. See https://github.com/atinylittleshell/gsh for migration guide."))
+		return
+	}
+
 	confirm, _ := prompter.Prompt(
 		styles.AGENT_QUESTION("New version of gsh available. Update now? (Y/n) "),
 		[]string{},
@@ -128,6 +137,8 @@ func fetchAndSaveLatestVersion(resultChannel chan string, logger *zap.Logger, fs
 		return
 	}
 
+	// Note: We save the latest version even if it's a major version bump
+	// This allows updateToLatestVersion to show an info message about the major update
 	recordFilePath := core.LatestVersionFile()
 	file, err := fs.Create(recordFilePath)
 	if err != nil {
