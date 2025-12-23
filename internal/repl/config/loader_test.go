@@ -1,8 +1,11 @@
 package config
 
 import (
+	"context"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -483,4 +486,106 @@ func TestLoader_LoadFromString_DefaultAgentInvalidType(t *testing.T) {
 	// Should have error about invalid type
 	assert.Greater(t, len(result.Errors), 0)
 	assert.Contains(t, result.Errors[0].Error(), "defaultAgent must be a string")
+}
+
+// mockBashExecutor is a mock implementation of BashExecutor for testing
+type mockBashExecutor struct {
+	executedScripts []string
+	executeError    error
+}
+
+func (m *mockBashExecutor) RunBashScriptFromReader(ctx context.Context, reader io.Reader, name string) error {
+	if m.executeError != nil {
+		return m.executeError
+	}
+
+	// Read the script content
+	var content strings.Builder
+	buf := make([]byte, 1024)
+	for {
+		n, err := reader.Read(buf)
+		if n > 0 {
+			content.Write(buf[:n])
+		}
+		if err != nil {
+			break
+		}
+	}
+
+	m.executedScripts = append(m.executedScripts, content.String())
+	return nil
+}
+
+func TestLoadBashRC_FileExists(t *testing.T) {
+	// Create a temporary file
+	tmpDir := t.TempDir()
+	rcPath := filepath.Join(tmpDir, ".gshrc")
+
+	testContent := "# Test .gshrc\nexport TEST_VAR=hello\nalias ll='ls -la'"
+	err := os.WriteFile(rcPath, []byte(testContent), 0644)
+	require.NoError(t, err)
+
+	// Create mock executor
+	mock := &mockBashExecutor{}
+
+	// Load the bash RC
+	ctx := context.Background()
+	err = LoadBashRC(ctx, mock, rcPath)
+	require.NoError(t, err)
+
+	// Verify the script was executed
+	assert.Equal(t, 1, len(mock.executedScripts))
+	assert.Equal(t, testContent, mock.executedScripts[0])
+}
+
+func TestLoadBashRC_FileDoesNotExist(t *testing.T) {
+	mock := &mockBashExecutor{}
+
+	ctx := context.Background()
+	err := LoadBashRC(ctx, mock, "/nonexistent/.gshrc")
+
+	// Should not return an error for non-existent files
+	require.NoError(t, err)
+
+	// Should not have executed anything
+	assert.Equal(t, 0, len(mock.executedScripts))
+}
+
+func TestLoadBashRC_EmptyFile(t *testing.T) {
+	// Create an empty file
+	tmpDir := t.TempDir()
+	rcPath := filepath.Join(tmpDir, ".gshrc")
+
+	err := os.WriteFile(rcPath, []byte(""), 0644)
+	require.NoError(t, err)
+
+	mock := &mockBashExecutor{}
+
+	ctx := context.Background()
+	err = LoadBashRC(ctx, mock, rcPath)
+	require.NoError(t, err)
+
+	// Empty files should be skipped
+	assert.Equal(t, 0, len(mock.executedScripts))
+}
+
+func TestLoadBashRC_ExecutionError(t *testing.T) {
+	// Create a temporary file
+	tmpDir := t.TempDir()
+	rcPath := filepath.Join(tmpDir, ".gshrc")
+
+	err := os.WriteFile(rcPath, []byte("echo test"), 0644)
+	require.NoError(t, err)
+
+	// Create mock that returns an error
+	mock := &mockBashExecutor{
+		executeError: assert.AnError,
+	}
+
+	ctx := context.Background()
+	err = LoadBashRC(ctx, mock, rcPath)
+
+	// Should return the execution error
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to execute")
 }

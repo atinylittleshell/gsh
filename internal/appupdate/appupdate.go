@@ -3,15 +3,12 @@ package appupdate
 import (
 	"bytes"
 	"context"
-	"github.com/atinylittleshell/gsh/internal/filesystem"
 	"io"
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/atinylittleshell/gsh/internal/core"
-	"github.com/atinylittleshell/gsh/internal/styles"
-	"github.com/atinylittleshell/gsh/pkg/gline"
-	"github.com/creativeprojects/go-selfupdate"
+	"github.com/atinylittleshell/gsh/internal/filesystem"
 	"go.uber.org/zap"
 )
 
@@ -19,7 +16,6 @@ func HandleSelfUpdate(
 	currentVersion string,
 	logger *zap.Logger,
 	fs filesystem.FileSystem,
-	prompter core.UserPrompter,
 	updater Updater,
 ) chan string {
 	resultChannel := make(chan string)
@@ -31,11 +27,8 @@ func HandleSelfUpdate(
 		return resultChannel
 	}
 
-	// Check if we have previously detected a newer version
-	updateToLatestVersion(currentSemVer, logger, fs, prompter, updater)
-
 	// Check for newer versions from remote repository
-	go fetchAndSaveLatestVersion(resultChannel, logger, fs, updater)
+	go fetchAndSaveLatestVersion(resultChannel, logger, fs, updater, currentSemVer)
 
 	return resultChannel
 }
@@ -56,72 +49,7 @@ func readLatestVersion(fs filesystem.FileSystem) string {
 	return strings.TrimSpace(buf.String())
 }
 
-func updateToLatestVersion(currentSemVer *semver.Version, logger *zap.Logger, fs filesystem.FileSystem, prompter core.UserPrompter, updater Updater) {
-	latestVersion := readLatestVersion(fs)
-	if latestVersion == "" {
-		return
-	}
-
-	latestSemVer, err := semver.NewVersion(latestVersion)
-	if err != nil {
-		logger.Error("failed to parse latest version", zap.Error(err))
-		return
-	}
-	if latestSemVer.LessThanEqual(currentSemVer) {
-		return
-	}
-
-	// Check for major version boundary - don't auto-update across major versions
-	if latestSemVer.Major() > currentSemVer.Major() {
-		logger.Info("major version update available",
-			zap.String("current", currentSemVer.String()),
-			zap.String("latest", latestSemVer.String()),
-			zap.String("info", "Major version updates require manual upgrade. See https://github.com/atinylittleshell/gsh for migration guide."))
-		return
-	}
-
-	confirm, _ := prompter.Prompt(
-		styles.AGENT_QUESTION("New version of gsh available. Update now? (Y/n) "),
-		[]string{},
-		latestVersion,
-		nil,
-		nil,
-		nil,
-		logger,
-		gline.NewOptions(),
-	)
-
-	if strings.ToLower(confirm) == "n" {
-		return
-	}
-
-	latest, found, err := updater.DetectLatest(
-		context.Background(),
-		"atinylittleshell/gsh",
-	)
-	if err != nil {
-		logger.Warn("error occurred while detecting latest version", zap.Error(err))
-		return
-	}
-	if !found {
-		logger.Warn("latest version could not be detected")
-		return
-	}
-
-	exe, err := selfupdate.ExecutablePath()
-	if err != nil {
-		logger.Error("failed to get executable path to update", zap.Error(err))
-		return
-	}
-	if err := updater.UpdateTo(context.Background(), latest.AssetURL(), latest.AssetName(), exe); err != nil {
-		logger.Error("failed to update to latest version", zap.Error(err))
-		return
-	}
-
-	logger.Info("successfully updated to latest version", zap.String("version", latest.Version()))
-}
-
-func fetchAndSaveLatestVersion(resultChannel chan string, logger *zap.Logger, fs filesystem.FileSystem, updater Updater) {
+func fetchAndSaveLatestVersion(resultChannel chan string, logger *zap.Logger, fs filesystem.FileSystem, updater Updater, currentSemVer *semver.Version) {
 	defer close(resultChannel)
 
 	latest, found, err := updater.DetectLatest(
@@ -137,8 +65,19 @@ func fetchAndSaveLatestVersion(resultChannel chan string, logger *zap.Logger, fs
 		return
 	}
 
-	// Note: We save the latest version even if it's a major version bump
-	// This allows updateToLatestVersion to show an info message about the major update
+	// Check if there's a newer version
+	latestSemVer, err := semver.NewVersion(latest.Version())
+	if err != nil {
+		logger.Error("failed to parse latest version", zap.Error(err))
+		return
+	}
+
+	if latestSemVer.LessThanEqual(currentSemVer) {
+		logger.Debug("already running the latest version")
+		return
+	}
+
+	// Save the latest version for notification
 	recordFilePath := core.LatestVersionFile()
 	file, err := fs.Create(recordFilePath)
 	if err != nil {
@@ -153,5 +92,6 @@ func fetchAndSaveLatestVersion(resultChannel chan string, logger *zap.Logger, fs
 		return
 	}
 
+	logger.Info("new version available", zap.String("current", currentSemVer.String()), zap.String("latest", latest.Version()))
 	resultChannel <- latest.Version()
 }

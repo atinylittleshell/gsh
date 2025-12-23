@@ -10,9 +10,7 @@ import (
 	"time"
 
 	"github.com/atinylittleshell/gsh/internal/analytics"
-	"github.com/atinylittleshell/gsh/internal/predict"
 	"github.com/atinylittleshell/gsh/internal/utils"
-	"github.com/atinylittleshell/gsh/pkg/gline"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -22,6 +20,15 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/term"
 )
+
+const (
+	ESC                 = "\x1b"
+	RESET_CURSOR_COLUMN = ESC + "[G"
+)
+
+type PredictedCommand struct {
+	PredictedCommand string `json:"predicted_command"`
+}
 
 type evaluationResult struct {
 	truth        string
@@ -209,7 +216,7 @@ func (m model) View() string {
 
 	s.WriteString(t.String() + "\n")
 
-	return gline.RESET_CURSOR_COLUMN + s.String()
+	return RESET_CURSOR_COLUMN + s.String()
 }
 
 func average(numbers []float64) float64 {
@@ -292,7 +299,7 @@ func evaluateEntry(analyticsManager *analytics.AnalyticsManager, entry analytics
 	result.inputTokens = chatCompletion.Usage.PromptTokens
 	result.outputTokens = chatCompletion.Usage.CompletionTokens
 
-	prediction := predict.PredictedCommand{}
+	prediction := PredictedCommand{}
 	err = json.Unmarshal([]byte(chatCompletion.Choices[0].Message.Content), &prediction)
 	if err != nil {
 		result.err = err

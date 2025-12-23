@@ -2,7 +2,9 @@
 package config
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -104,6 +106,45 @@ func (l *Loader) LoadDefaultConfigPath() (*LoadResult, error) {
 
 	configPath := filepath.Join(homeDir, ".gshrc.gsh")
 	return l.LoadFromFile(configPath)
+}
+
+// LoadBashRC loads a bash configuration file (.gshrc) by executing it through
+// a bash interpreter. This maintains compatibility with existing bash/zsh configurations.
+// Returns any errors encountered during execution (non-fatal).
+func LoadBashRC(ctx context.Context, executor BashExecutor, rcPath string) error {
+	// Check if file exists
+	stat, err := os.Stat(rcPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// File doesn't exist, this is fine
+			return nil
+		}
+		return fmt.Errorf("failed to stat %s: %w", rcPath, err)
+	}
+
+	// Skip empty files
+	if stat.Size() == 0 {
+		return nil
+	}
+
+	// Open and execute the file
+	f, err := os.Open(rcPath)
+	if err != nil {
+		return fmt.Errorf("failed to open %s: %w", rcPath, err)
+	}
+	defer f.Close()
+
+	err = executor.RunBashScriptFromReader(ctx, f, rcPath)
+	if err != nil {
+		return fmt.Errorf("failed to execute %s: %w", rcPath, err)
+	}
+
+	return nil
+}
+
+// BashExecutor is the interface required for loading bash configuration files.
+type BashExecutor interface {
+	RunBashScriptFromReader(ctx context.Context, reader io.Reader, name string) error
 }
 
 // extractConfig extracts configuration values from the evaluation result.

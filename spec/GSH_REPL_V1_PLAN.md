@@ -6,8 +6,8 @@ This document outlines the plan to create a new REPL implementation based on the
 
 1. **Consolidate** functionality currently spread across `pkg/` into `internal/repl/`
 2. **Preserve** all key REPL features from the current implementation
-3. **Enable** `.gshrc.gsh` configuration using the gsh scripting language
-4. **Maintain** backward compatibility with functionality supported by existing `.gshrc` file
+3. **Enable** `.gshrc.gsh` configuration using the gsh scripting language for all gsh-specific features
+4. **Maintain** bash compatibility via `.gshrc` (pure bash file, no gsh-specific features)
 
 The goal is a clean-slate implementation that leverages the script interpreter's infrastructure while maintaining feature parity with the existing REPL.
 
@@ -135,9 +135,9 @@ func (r *REPL) ExecuteCommand(ctx context.Context, input string) error
 ```go
 // internal/repl/config/config.go
 
-// Config holds all REPL configuration extracted from GSH_CONFIG and declarations
+// Config holds all REPL configuration extracted from GSH_CONFIG and declarations in .gshrc.gsh
 type Config struct {
-    // Prompt configuration (from GSH_CONFIG.prompt)
+    // Prompt configuration (from GSH_CONFIG.prompt in .gshrc.gsh)
     Prompt   string
     LogLevel string
 
@@ -155,6 +155,9 @@ type Config struct {
 
 // Reserved tool names (looked up in Tools map):
 //   - "GSH_UPDATE_PROMPT" - called before each prompt, signature: (exitCode: number, durationMs: number): string
+//
+// Note: .gshrc is pure bash (no GSH_* environment variables or functions). All gsh-specific
+// configuration must be done in .gshrc.gsh using the GSH_CONFIG object and gsh language syntax.
 ```
 
 ```go
@@ -385,6 +388,7 @@ direct streaming callbacks). The REPL now:
 - Streaming support becomes straightforward (add `ChatCompletionStream` to provider interface)
 - Full control over conversation management
 - Cleaner separation of concerns: script engine for config, provider for execution
+
 ### Phase 8: Agent Switching ✅
 
 **Goal:** Allow users to dynamically switch between configured agents
@@ -412,30 +416,67 @@ isolated conversation history.
 - [x] Switching preserves conversation state for all agents
 - [x] Comprehensive tests for all agent switching scenarios
 
-### Phase 9: Migration & Cleanup
+### Phase 9: Migration & Cleanup ✅
 
 **Goal:** Complete the transition
 
-- [ ] Implement backward compatibility layer for `.gshrc` bash files
-  - Run `.gshrc` through bash executor
-  - Map `GSH_*` environment variables to `Config` fields
-- [ ] Remove old implementation once new one is stable
-  - Remove `pkg/gline/`
-  - Remove `pkg/shellinput/`
-  - ~~Remove `pkg/debounce/`~~ (done in Phase 2)
-  - Remove `pkg/reverse/`
-  - Remove `internal/core/shell.go` (keep paths.go, prompter.go)
-  - Remove `internal/predict/`
-  - Remove old agent code if fully replaced
-- [ ] Update all imports
-- [ ] Update documentation
-- [ ] Final testing
+- [x] Ensure bash compatibility for `.gshrc` files
+- [x] Remove gsh specific features from `.gshrc.default`
+- [x] Remove old implementation once new one is stable
+- [x] Update all imports
+- [x] Update documentation
+- [x] Final testing
+
+### Phase 10: Default Configuration
+
+**Goal:** Provide comprehensive default gsh configuration
+
+- [ ] Create `.gshrc.default.gsh` with default gsh-specific settings
+  - Default model configurations (Ollama with qwen2.5)
+  - Default agent configurations
+  - Default GSH_CONFIG settings (prompt, logLevel, etc.)
+  - Default macros (gitdiff, gitpush, gitreview)
+  - Context configuration for RAG
+  - Agent approved bash command patterns
+- [ ] Load `.gshrc.default.gsh` during REPL initialization (before user's `.gshrc.gsh`)
+- [ ] Update documentation to reference both default files
 
 ---
 
-## .gshrc.gsh Configuration Design
+## Configuration Design
 
-### Configuration Schema
+### .gshrc vs .gshrc.gsh
+
+**`.gshrc` - Bash Compatibility Only**
+
+The `.gshrc` file is executed as pure bash for backward compatibility. It exists to make migration from bash/zsh easy - users can copy-paste their existing `.bashrc` content without modifications.
+
+Use `.gshrc` for:
+
+- Aliases: `alias ll='ls -la'`
+- PATH modifications: `export PATH="$HOME/bin:$PATH"`
+- Standard bash functions and environment variables
+- Anything that would work in a regular bash shell
+
+**Do NOT use `.gshrc` for:**
+
+- gsh-specific configuration (prompt customization, log levels, etc.)
+- Model, agent, or MCP server declarations
+- Any `GSH_*` variables or functions
+
+**`.gshrc.gsh` - All GSH-Specific Configuration**
+
+The `.gshrc.gsh` file is where all gsh-specific features are configured using the gsh scripting language.
+
+Use `.gshrc.gsh` for:
+
+- REPL configuration via `GSH_CONFIG` object
+- Model declarations: `model claude { ... }`
+- Agent declarations: `agent coder { ... }`
+- MCP server declarations: `mcp filesystem { ... }`
+- Tool declarations: `tool GSH_UPDATE_PROMPT(...) { ... }`
+
+### .gshrc.gsh Configuration Schema
 
 ```gsh
 # ~/.gshrc.gsh
@@ -486,43 +527,77 @@ tool GSH_UPDATE_PROMPT(exitCode: number, durationMs: number): string {
 
 ### Loading Priority
 
-1. Load embedded `.gshrc.default` (sets baseline defaults)
-2. Load `/etc/profile` and `~/.gsh_profile` (if login shell)
-3. Load `~/.gshrc` (bash format, for backward compatibility)
-4. Load `~/.gshenv` (bash format)
-5. Load `~/.gshrc.gsh` (gsh format, overrides previous settings)
+1. Load `/etc/profile` and `~/.gsh_profile` (if login shell)
+2. **Load `~/.gshrc` (pure bash - for bash/zsh compatibility)**
+3. Load `~/.gshenv` (bash format)
+4. **Load `~/.gshrc.gsh` (gsh-specific configuration)**
+
+The `.gshrc` file is loaded first via bash executor, then `.gshrc.gsh` is loaded via gsh interpreter. This means:
+
+- Standard shell setup (aliases, PATH) happens in bash
+- gsh-specific features are configured in gsh
+- `.gshrc.gsh` can access environment variables set in `.gshrc`
 
 ### Config Extraction
 
 The loader will:
 
-1. Execute `.gshrc.gsh` using the gsh interpreter
-2. Look for the `GSH_CONFIG` variable in the environment (reserved name)
-3. Convert the `GSH_CONFIG` object to `Config` struct
-4. Look for `GSH_UPDATE_PROMPT` tool and store reference
-5. Collect all `mcp`, `model`, and `agent` declarations (using gsh language syntax)
+1. Execute `.gshrc` using bash executor (skip if file doesn't exist)
+2. Execute `.gshrc.gsh` using the gsh interpreter (skip if file doesn't exist)
+3. Look for the `GSH_CONFIG` variable in the interpreter environment (reserved name)
+4. Convert the `GSH_CONFIG` object to `Config` struct
+5. Look for `GSH_UPDATE_PROMPT` tool and store reference
+6. Collect all `mcp`, `model`, and `agent` declarations (using gsh language syntax)
 
 ---
 
 ## Backward Compatibility
 
-### Environment Variable Mapping
+### Migration from Bash/Zsh
 
-For users who prefer bash-style configuration, we maintain full backward compatibility:
+Users migrating from bash or zsh can copy their existing configuration directly:
 
-| Env Variable          | .gshrc.gsh Equivalent                 |
-| --------------------- | ------------------------------------- |
-| `GSH_PROMPT`          | `GSH_CONFIG.prompt`                   |
-| `GSH_LOG_LEVEL`       | `GSH_CONFIG.logLevel`                 |
-| `GSH_UPDATE_PROMPT()` | `tool GSH_UPDATE_PROMPT(...) { ... }` |
+```bash
+# Simple migration:
+cp ~/.bashrc ~/.gshrc
+
+# Then optionally create ~/.gshrc.gsh for gsh-specific features
+```
+
+The `.gshrc` file will work exactly like `.bashrc` - it's pure bash with no special gsh behavior.
+
+### Prompt Customization
+
+**Static Prompts:**
+
+```gsh
+# ~/.gshrc.gsh
+GSH_CONFIG = {
+    prompt: "gsh> ",
+}
+```
+
+**Dynamic Prompts:**
+
+```gsh
+# ~/.gshrc.gsh
+tool GSH_UPDATE_PROMPT(exitCode: number, durationMs: number): string {
+    if (exitCode == 0) {
+        return "✓ gsh> "
+    }
+    return `✗ [${exitCode}] gsh> `
+}
+```
+
+**Note:** Prompt customization requires `.gshrc.gsh`. The old `GSH_PROMPT` environment variable and `GSH_UPDATE_PROMPT()` bash function are not supported. This keeps the implementation clean and encourages users to adopt the more powerful gsh scripting approach.
 
 ### Migration Path
 
-Users can migrate incrementally:
+1. **Start:** Copy your `.bashrc` to `.gshrc`
+2. **Basic gsh features:** Create `.gshrc.gsh` with `GSH_CONFIG` for prompt customization
+3. **Advanced features:** Add model/agent/MCP declarations to `.gshrc.gsh` as needed
 
-1. Keep using `.gshrc` - everything works as before
-2. Create `.gshrc.gsh` with partial config - overrides specific settings
-3. Eventually move all config to `.gshrc.gsh`
+No need to "port" bash functions to gsh - they continue to work in `.gshrc`. Only gsh-specific features require `.gshrc.gsh`.
 
 ---
 
@@ -544,22 +619,23 @@ Users can migrate incrementally:
 
 ### Compatibility Tests
 
-- Test with existing `.gshrc` files
-- Test with new `.gshrc.gsh` files
-- Test mixed configurations
-- Test all existing features work identically
+- Test with bash-style `.gshrc` files (aliases, PATH, env vars)
+- Test with gsh-specific `.gshrc.gsh` files
+- Test combined `.gshrc` + `.gshrc.gsh` configurations
+- Test that bash features in `.gshrc` work identically to standard shells
+- Test that gsh-specific features require `.gshrc.gsh`
 
 ---
 
 ## Success Criteria
 
-- [ ] All existing REPL features work identically
-- [ ] `.gshrc.gsh` configuration is fully supported
-- [ ] Backward compatibility with `.gshrc` maintained
-- [ ] `pkg/` directory can be removed (no external dependencies on it)
-- [ ] All tests pass
-- [ ] No performance regression
-- [ ] Documentation updated
+- [x] All existing REPL features work identically
+- [x] `.gshrc.gsh` configuration is fully supported
+- [x] Backward compatibility with `.gshrc` maintained
+- [x] `pkg/` directory can be removed (no external dependencies on it)
+- [x] All tests pass
+- [x] No performance regression
+- [x] Documentation updated
 
 ## Open Questions
 

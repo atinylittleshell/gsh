@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -81,10 +82,21 @@ func NewREPL(opts Options) (*REPL, error) {
 		logger = zap.NewNop()
 	}
 
-	// Load configuration
+	// Initialize executor first (needed for loading .gshrc)
+	exec, err := executor.NewREPLExecutor(logger, opts.ExecMiddleware...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create executor: %w", err)
+	}
+
+	// Load bash configuration files first (for bash/zsh compatibility)
+	ctx := context.Background()
+	if err := loadBashConfigs(ctx, exec, logger); err != nil {
+		logger.Warn("failed to load bash configs", zap.Error(err))
+	}
+
+	// Load gsh-specific configuration from .gshrc.gsh
 	loader := config.NewLoader(logger)
 	var loadResult *config.LoadResult
-	var err error
 
 	if opts.ConfigPath != "" {
 		loadResult, err = loader.LoadFromFile(opts.ConfigPath)
@@ -98,12 +110,6 @@ func NewREPL(opts Options) (*REPL, error) {
 	// Log any non-fatal config errors
 	for _, configErr := range loadResult.Errors {
 		logger.Warn("config warning", zap.Error(configErr))
-	}
-
-	// Initialize executor
-	exec, err := executor.NewREPLExecutor(logger, opts.ExecMiddleware...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create executor: %w", err)
 	}
 
 	// Initialize history manager
@@ -676,4 +682,28 @@ func (r *REPL) GetAgentNames() []string {
 // GetAgentCommands returns the list of valid agent commands for completion.
 func (r *REPL) GetAgentCommands() []string {
 	return AgentCommands
+}
+
+// loadBashConfigs loads bash configuration files in the correct order.
+// This maintains compatibility with bash/zsh configurations.
+func loadBashConfigs(ctx context.Context, exec *executor.REPLExecutor, logger *zap.Logger) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	// Files to load in order
+	configFiles := []string{
+		filepath.Join(homeDir, ".gshrc"),
+		filepath.Join(homeDir, ".gshenv"),
+	}
+
+	// Load each config file
+	for _, configFile := range configFiles {
+		if err := config.LoadBashRC(ctx, exec, configFile); err != nil {
+			logger.Warn("failed to load bash config", zap.String("file", configFile), zap.Error(err))
+		}
+	}
+
+	return nil
 }

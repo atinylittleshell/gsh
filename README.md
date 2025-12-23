@@ -81,19 +81,53 @@ This will compile the project and place the binary in the `./bin` directory.
 
 ## Configuration
 
-gsh can be configured through a configuration file located at `~/.gshrc`.
-Configuration options and default values can be found in [.gshrc.default](./cmd/gsh/.gshrc.default).
+gsh uses two configuration files:
 
-gsh also loads a `~/.gshenv` file, right after loading `~/.gshrc`.
-This file can be used to set environment variables that the gsh session will use.
+- **`~/.gshrc`** - Pure bash configuration for compatibility with bash/zsh. Use this for aliases, PATH modifications, and standard bash settings. This file is executed as bash and works identically to `.bashrc`.
 
-When launched as a login shell (`gsh -l`),
-gsh will also load `/etc/profile` and `~/.gsh_profile` at start (before `~/.gshrc`).
+- **`~/.gshrc.gsh`** - gsh-specific configuration using the gsh scripting language. Use this to configure models, agents, MCP servers, prompt customization, and other gsh-specific features.
 
-### Custom command prompt
+### Configuration Loading Order
 
-You can use [Starship.rs](https://starship.rs/) to render a custom command line prompt.
-See [.gshrc.starship](./cmd/gsh/.gshrc.starship) for an example configuration.
+When gsh starts, it loads configuration files in this order:
+
+1. `~/.gshrc` (bash configuration, if it exists)
+2. `~/.gshenv` (environment variables, if it exists)
+3. `~/.gshrc.gsh` (gsh-specific configuration, if it exists)
+
+When launched as a login shell (`gsh -l`), gsh also loads `/etc/profile` and `~/.gsh_profile` before `~/.gshrc`.
+
+### Example Configurations
+
+**`~/.gshrc` (Bash compatibility):**
+```bash
+# Standard bash configuration
+alias ll='ls -la'
+export PATH="$HOME/bin:$PATH"
+```
+
+**`~/.gshrc.gsh` (gsh-specific features):**
+```gsh
+# Define models
+model claude {
+    provider: "anthropic",
+    apiKey: env.ANTHROPIC_API_KEY,
+    model: "claude-sonnet-4-20250514",
+}
+
+# Configure agents
+agent coder {
+    model: claude,
+    systemPrompt: "You are a helpful coding assistant.",
+}
+
+# REPL configuration
+GSH_CONFIG = {
+    prompt: "gsh> ",
+    logLevel: "info",
+    defaultAgent: "coder",
+}
+```
 
 ## Usage
 

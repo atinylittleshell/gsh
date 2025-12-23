@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	_ "embed"
 	"flag"
 	"fmt"
 	"net/url"
@@ -32,9 +30,6 @@ import (
 )
 
 var BUILD_VERSION = "dev"
-
-//go:embed .gshrc.default
-var DEFAULT_VARS []byte
 
 var command = flag.String("c", "", "run a command")
 var loginShell = flag.Bool("l", false, "run as a login shell")
@@ -109,11 +104,11 @@ func main() {
 
 	logger.Info("-------- new gsh session --------", zap.Any("args", os.Args))
 
+	// Check for updates in background
 	appupdate.HandleSelfUpdate(
 		BUILD_VERSION,
 		logger,
 		filesystem.DefaultFileSystem{},
-		core.DefaultUserPrompter{},
 		appupdate.DefaultUpdater{},
 	)
 
@@ -335,16 +330,6 @@ func initializeRunner(analyticsManager *analytics.AnalyticsManager, historyManag
 		),
 	)
 	if err != nil {
-		panic(err)
-	}
-
-	// load default vars
-	if err := bash.RunBashScriptFromReader(
-		context.Background(),
-		runner,
-		bytes.NewReader(DEFAULT_VARS),
-		"gsh",
-	); err != nil {
 		panic(err)
 	}
 
