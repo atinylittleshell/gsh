@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.23.0](https://github.com/atinylittleshell/gsh/compare/v0.22.2...v0.23.0) (2025-12-23)
+
+
+### Features
+
+* prevent auto updater from doing major version upgrade ([31bc8d8](https://github.com/atinylittleshell/gsh/commit/31bc8d8182b4921f05963b2d1cd26c0a8afad13c))
+
+
+### Bug Fixes
+
+* attemp to fix ci ([849150d](https://github.com/atinylittleshell/gsh/commit/849150d65b722e5457c1a873836f8f066d7ee65b))
+* attemp to fix ci ([76189bc](https://github.com/atinylittleshell/gsh/commit/76189bc95bb80fa249b603d4b925561149c46134))
+* attemp to fix ci ([451276b](https://github.com/atinylittleshell/gsh/commit/451276b0bb9ecd43b58cded43c8e4fada468d6f9))
+
 ## [0.22.2](https://github.com/atinylittleshell/gsh/compare/v0.22.1...v0.22.2) (2025-02-08)
 
 
