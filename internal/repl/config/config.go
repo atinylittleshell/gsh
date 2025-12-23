@@ -23,6 +23,10 @@ type Config struct {
 	// This should reference a model defined in the Models map.
 	PredictModel string
 
+	// DefaultAgent is the name of the agent to use for agent mode (from GSH_CONFIG.defaultAgent)
+	// This should reference an agent defined in the Agents map.
+	DefaultAgent string
+
 	// All declarations from .gshrc.gsh (using gsh language syntax)
 	// These are available for use in scripts and agent mode
 
@@ -90,6 +94,15 @@ func (c *Config) GetPredictModel() *interpreter.ModelValue {
 		return nil
 	}
 	return c.GetModel(c.PredictModel)
+}
+
+// GetDefaultAgent returns the agent configured for agent mode.
+// Returns nil if no default agent is configured or the agent doesn't exist.
+func (c *Config) GetDefaultAgent() *interpreter.AgentValue {
+	if c.DefaultAgent == "" {
+		return nil
+	}
+	return c.GetAgent(c.DefaultAgent)
 }
 
 // GetMCPServer returns an MCP server by name, or nil if not found.

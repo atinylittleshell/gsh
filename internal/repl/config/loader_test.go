@@ -431,3 +431,56 @@ GSH_CONFIG = {
 	require.NotNil(t, slowModel)
 	assert.Equal(t, "slowModel", slowModel.Name)
 }
+
+func TestLoader_LoadFromString_DefaultAgent(t *testing.T) {
+	loader := NewLoader(nil)
+
+	source := `
+		model testModel {
+			provider: "openai",
+			model: "gpt-4",
+		}
+
+		agent myAgent {
+			model: testModel,
+			systemPrompt: "test",
+		}
+
+		GSH_CONFIG = {
+			defaultAgent: "myAgent",
+		}
+	`
+
+	result, err := loader.LoadFromString(source)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Config)
+	assert.Equal(t, 0, len(result.Errors))
+
+	// Verify defaultAgent is set
+	assert.Equal(t, "myAgent", result.Config.DefaultAgent)
+
+	// Verify GetDefaultAgent works
+	agent := result.Config.GetDefaultAgent()
+	require.NotNil(t, agent)
+	assert.Equal(t, "myAgent", agent.Name)
+}
+
+func TestLoader_LoadFromString_DefaultAgentInvalidType(t *testing.T) {
+	loader := NewLoader(nil)
+
+	source := `
+		GSH_CONFIG = {
+			defaultAgent: 123,
+		}
+	`
+
+	result, err := loader.LoadFromString(source)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Config)
+
+	// Should have error about invalid type
+	assert.Greater(t, len(result.Errors), 0)
+	assert.Contains(t, result.Errors[0].Error(), "defaultAgent must be a string")
+}

@@ -133,7 +133,7 @@ func TestModelDeclaration(t *testing.T) {
 			name: "Model declaration with Ollama (local)",
 			input: `model llama {
 				provider: "openai",
-				url: "http://localhost:11434",
+				baseURL: "http://localhost:11434/v1",
 				model: "llama3.2:3b",
 			}`,
 			checkFunc: func(t *testing.T, result *EvalResult, err error) {
@@ -151,17 +151,17 @@ func TestModelDeclaration(t *testing.T) {
 					t.Fatalf("expected *ModelValue, got %T", modelVal)
 				}
 
-				// Check url
-				url, ok := model.Config["url"]
+				// Check baseURL
+				baseURL, ok := model.Config["baseURL"]
 				if !ok {
-					t.Fatalf("model config missing 'url'")
+					t.Fatalf("model config missing 'baseURL'")
 				}
-				urlStr, ok := url.(*StringValue)
+				baseURLStr, ok := baseURL.(*StringValue)
 				if !ok {
-					t.Fatalf("expected url to be *StringValue, got %T", url)
+					t.Fatalf("expected baseURL to be *StringValue, got %T", baseURL)
 				}
-				if urlStr.Value != "http://localhost:11434" {
-					t.Errorf("expected url 'http://localhost:11434', got %q", urlStr.Value)
+				if baseURLStr.Value != "http://localhost:11434/v1" {
+					t.Errorf("expected baseURL 'http://localhost:11434/v1', got %q", baseURLStr.Value)
 				}
 			},
 		},
@@ -265,7 +265,7 @@ func TestModelDeclaration(t *testing.T) {
 			port = 11434
 			model mymodel {
 				provider: "openai",
-				url: baseUrl,
+				baseURL: baseUrl,
 			}`,
 			checkFunc: func(t *testing.T, result *EvalResult, err error) {
 				if err != nil {
@@ -282,17 +282,17 @@ func TestModelDeclaration(t *testing.T) {
 					t.Fatalf("expected *ModelValue, got %T", modelVal)
 				}
 
-				// Check url
-				url, ok := model.Config["url"]
+				// Check baseURL
+				baseURL, ok := model.Config["baseURL"]
 				if !ok {
-					t.Fatalf("model config missing 'url'")
+					t.Fatalf("model config missing 'baseURL'")
 				}
-				urlStr, ok := url.(*StringValue)
+				baseURLStr, ok := baseURL.(*StringValue)
 				if !ok {
-					t.Fatalf("expected url to be *StringValue, got %T", url)
+					t.Fatalf("expected baseURL to be *StringValue, got %T", baseURL)
 				}
-				if urlStr.Value != "http://localhost" {
-					t.Errorf("expected url 'http://localhost', got %q", urlStr.Value)
+				if baseURLStr.Value != "http://localhost" {
+					t.Errorf("expected baseURL 'http://localhost', got %q", baseURLStr.Value)
 				}
 			},
 		},
@@ -375,12 +375,12 @@ func TestModelDeclarationErrors(t *testing.T) {
 			expectedError: "model' must be a string",
 		},
 		{
-			name: "Model with invalid url type",
+			name: "Model with invalid baseURL type",
 			input: `model bad {
 				provider: "openai",
-				url: 123,
+				baseURL: 123,
 			}`,
-			expectedError: "url' must be a string",
+			expectedError: "baseURL' must be a string",
 		},
 		{
 			name: "Model with invalid temperature type",

@@ -279,10 +279,11 @@ model gpt4 {
     temperature: 0.5,
 }
 
-# Local model via Ollama
+# Local model via Ollama (uses OpenAI-compatible API)
 model llama {
-    provider: "ollama",
-    url: "http://localhost:11434",
+    provider: "openai",
+    apiKey: "ollama",
+    baseURL: "http://localhost:11434/v1",
     model: "llama3.2:3b",
 }
 ```

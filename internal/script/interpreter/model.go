@@ -32,9 +32,9 @@ func (i *Interpreter) evalModelDeclaration(node *parser.ModelDeclaration) (Value
 			if _, ok := value.(*StringValue); !ok {
 				return nil, fmt.Errorf("model config 'model' must be a string, got %s", value.Type())
 			}
-		case "url":
+		case "baseURL":
 			if _, ok := value.(*StringValue); !ok {
-				return nil, fmt.Errorf("model config 'url' must be a string, got %s", value.Type())
+				return nil, fmt.Errorf("model config 'baseURL' must be a string, got %s", value.Type())
 			}
 		case "temperature":
 			if _, ok := value.(*NumberValue); !ok {

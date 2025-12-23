@@ -170,4 +170,13 @@ func (l *Loader) extractGSHConfig(value interpreter.Value, result *LoadResult) {
 		}
 	}
 
+	// Extract defaultAgent
+	if defaultAgent, ok := obj.Properties["defaultAgent"]; ok {
+		if strVal, ok := defaultAgent.(*interpreter.StringValue); ok {
+			result.Config.DefaultAgent = strVal.Value
+		} else {
+			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.defaultAgent must be a string"))
+		}
+	}
+
 }

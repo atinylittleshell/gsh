@@ -21,6 +21,7 @@ import (
 	"github.com/atinylittleshell/gsh/internal/repl/executor"
 	"github.com/atinylittleshell/gsh/internal/repl/input"
 	"github.com/atinylittleshell/gsh/internal/repl/predict"
+	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
 // timeNow is a variable that can be overridden for testing.
@@ -35,6 +36,11 @@ type REPL struct {
 	contextProvider    *replcontext.Provider
 	completionProvider *completion.Provider
 	logger             *zap.Logger
+
+	// Agent mode support
+	agent             *interpreter.AgentValue
+	agentProvider     interpreter.ModelProvider
+	agentConversation []interpreter.ChatMessage
 
 	// Track last command exit code and duration for prompt updates
 	lastExitCode   int
@@ -120,6 +126,39 @@ func NewREPL(opts Options) (*REPL, error) {
 	// Initialize completion provider
 	completionProvider := completion.NewProvider(exec)
 
+	// Initialize agent if a default agent is configured
+	var agentVal *interpreter.AgentValue
+	var agentProvider interpreter.ModelProvider
+	if loadResult.Config != nil {
+		// Get the default agent from GSH_CONFIG.defaultAgent
+		defaultAgent := loadResult.Config.GetDefaultAgent()
+
+		// If no default agent is configured, but there's exactly one agent, use it as fallback
+		if defaultAgent == nil && len(loadResult.Config.Agents) == 1 {
+			for _, agent := range loadResult.Config.Agents {
+				defaultAgent = agent
+				logger.Info("using only available agent as default", zap.String("agent", defaultAgent.Name))
+				break
+			}
+		}
+
+		if defaultAgent != nil {
+			agentVal = defaultAgent
+
+			// Get the provider from the agent's model (stored in Config)
+			if modelVal, ok := defaultAgent.Config["model"]; ok {
+				if model, ok := modelVal.(*interpreter.ModelValue); ok && model.Provider != nil {
+					agentProvider = model.Provider
+					logger.Info("initialized agent", zap.String("agent", defaultAgent.Name))
+				} else {
+					logger.Warn("agent model has no provider configured", zap.String("agent", defaultAgent.Name))
+				}
+			} else {
+				logger.Warn("agent has no model configured", zap.String("agent", defaultAgent.Name))
+			}
+		}
+	}
+
 	return &REPL{
 		config:             loadResult.Config,
 		executor:           exec,
@@ -127,6 +166,9 @@ func NewREPL(opts Options) (*REPL, error) {
 		predictor:          predictor,
 		contextProvider:    contextProvider,
 		completionProvider: completionProvider,
+		agent:              agentVal,
+		agentProvider:      agentProvider,
+		agentConversation:  []interpreter.ChatMessage{},
 		logger:             logger,
 	}, nil
 }
@@ -247,6 +289,11 @@ func (r *REPL) processCommand(ctx context.Context, command string) error {
 		return nil
 	}
 
+	// Check if this is an agent command (starts with '#')
+	if strings.HasPrefix(command, "#") {
+		return r.handleAgentCommand(ctx, strings.TrimSpace(command[1:]))
+	}
+
 	// Handle built-in commands
 	if handled := r.handleBuiltinCommand(command); handled {
 		return nil
@@ -284,6 +331,87 @@ func (r *REPL) processCommand(ctx context.Context, command string) error {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gsh: %v\n", err)
 	}
+
+	return nil
+}
+
+// handleAgentCommand handles agent chat commands (prefixed with '#').
+func (r *REPL) handleAgentCommand(ctx context.Context, message string) error {
+	// Check if agent is available
+	if r.agent == nil || r.agentProvider == nil {
+		fmt.Fprintf(os.Stderr, "gsh: agent not available. Configure an agent in .gshrc.gsh\n")
+		return nil
+	}
+
+	// Handle special agent commands
+	switch message {
+	case "reset":
+		r.agentConversation = []interpreter.ChatMessage{}
+		fmt.Println("Agent conversation reset.")
+		return nil
+	case "":
+		fmt.Println("Agent mode: prefix your message with # to chat with the agent.")
+		fmt.Println("Special commands:")
+		fmt.Println("  # reset - reset the conversation")
+		return nil
+	}
+
+	// Build messages for the provider
+	messages := make([]interpreter.ChatMessage, 0, len(r.agentConversation)+2)
+
+	// Add system prompt if configured (from agent Config)
+	if systemPromptVal, ok := r.agent.Config["systemPrompt"]; ok {
+		if systemPrompt, ok := systemPromptVal.(*interpreter.StringValue); ok && systemPrompt.Value != "" {
+			messages = append(messages, interpreter.ChatMessage{
+				Role:    "system",
+				Content: systemPrompt.Value,
+			})
+		}
+	}
+
+	// Add conversation history
+	messages = append(messages, r.agentConversation...)
+
+	// Add new user message
+	messages = append(messages, interpreter.ChatMessage{
+		Role:    "user",
+		Content: message,
+	})
+
+	// Get the model from agent config
+	var model *interpreter.ModelValue
+	if modelVal, ok := r.agent.Config["model"]; ok {
+		model, _ = modelVal.(*interpreter.ModelValue)
+	}
+
+	// Call provider directly
+	startTime := timeNow()
+	response, err := r.agentProvider.ChatCompletion(interpreter.ChatRequest{
+		Model:    model,
+		Messages: messages,
+	})
+	duration := timeNow().Sub(startTime)
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "gsh: agent error: %v\n", err)
+		return nil
+	}
+
+	// Display response
+	fmt.Println(response.Content)
+
+	// Update conversation history (don't include system prompt in history)
+	r.agentConversation = append(r.agentConversation,
+		interpreter.ChatMessage{Role: "user", Content: message},
+		interpreter.ChatMessage{Role: "assistant", Content: response.Content},
+	)
+
+	// Log interaction
+	r.logger.Debug("agent interaction",
+		zap.String("message", message),
+		zap.String("response", response.Content),
+		zap.Duration("duration", duration),
+	)
 
 	return nil
 }

@@ -243,3 +243,29 @@ func TestConfig_GetPredictModel(t *testing.T) {
 		assert.Equal(t, "predict-model", result.Name)
 	})
 }
+
+func TestConfig_GetDefaultAgent(t *testing.T) {
+	t.Run("returns nil when DefaultAgent is empty", func(t *testing.T) {
+		cfg := DefaultConfig()
+		assert.Nil(t, cfg.GetDefaultAgent())
+	})
+
+	t.Run("returns nil when DefaultAgent references non-existent agent", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.DefaultAgent = "non-existent"
+		assert.Nil(t, cfg.GetDefaultAgent())
+	})
+
+	t.Run("returns agent when DefaultAgent references existing agent", func(t *testing.T) {
+		agent := &interpreter.AgentValue{
+			Name: "my-agent",
+		}
+		cfg := DefaultConfig()
+		cfg.Agents["my-agent"] = agent
+		cfg.DefaultAgent = "my-agent"
+
+		result := cfg.GetDefaultAgent()
+		require.NotNil(t, result)
+		assert.Equal(t, "my-agent", result.Name)
+	})
+}

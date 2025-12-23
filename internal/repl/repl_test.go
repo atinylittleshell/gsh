@@ -13,13 +13,14 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	// Import all subpackages to verify the directory structure is correct
-	_ "github.com/atinylittleshell/gsh/internal/repl/agent"
+	"fmt"
 	_ "github.com/atinylittleshell/gsh/internal/repl/completion"
 	_ "github.com/atinylittleshell/gsh/internal/repl/config"
 	_ "github.com/atinylittleshell/gsh/internal/repl/context"
 	_ "github.com/atinylittleshell/gsh/internal/repl/executor"
 	"github.com/atinylittleshell/gsh/internal/repl/input"
 	_ "github.com/atinylittleshell/gsh/internal/repl/predict"
+	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
 func TestDirectoryStructure(t *testing.T) {
@@ -618,4 +619,399 @@ func TestREPL_HistoryPredictionWithoutLLM(t *testing.T) {
 	case <-time.After(1 * time.Second):
 		t.Fatal("prediction timed out")
 	}
+}
+
+func TestNewREPL_AgentFallback(t *testing.T) {
+	// Test that when there's exactly one agent and no defaultAgent is configured,
+	// that agent is used as the default
+
+	configPath := filepath.Join(t.TempDir(), ".gshrc.gsh")
+	err := os.WriteFile(configPath, []byte(`
+		model testModel {
+			provider: "openai",
+			model: "gpt-4",
+		}
+
+		agent onlyAgent {
+			model: testModel,
+			systemPrompt: "test",
+		}
+
+		GSH_CONFIG = {
+			prompt: "test> ",
+		}
+	`), 0644)
+	require.NoError(t, err)
+
+	logger := zap.NewNop()
+	repl, err := NewREPL(Options{
+		ConfigPath: configPath,
+		Logger:     logger,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, repl)
+
+	// Verify agent adapter was initialized with the only available agent
+	assert.NotNil(t, repl.agent)
+	assert.Equal(t, "onlyAgent", repl.agent.Name)
+	assert.NotNil(t, repl.agentProvider)
+	assert.Equal(t, "onlyAgent", repl.agent.Name)
+}
+
+func TestNewREPL_NoAgentFallbackWithMultipleAgents(t *testing.T) {
+	// Test that when there are multiple agents and no defaultAgent is configured,
+	// no agent is selected automatically
+
+	configPath := filepath.Join(t.TempDir(), ".gshrc.gsh")
+	err := os.WriteFile(configPath, []byte(`
+		model testModel {
+			provider: "openai",
+			model: "gpt-4",
+		}
+
+		agent agent1 {
+			model: testModel,
+			systemPrompt: "test1",
+		}
+
+		agent agent2 {
+			model: testModel,
+			systemPrompt: "test2",
+		}
+
+		GSH_CONFIG = {
+			prompt: "test> ",
+		}
+	`), 0644)
+	require.NoError(t, err)
+
+	logger := zap.NewNop()
+	repl, err := NewREPL(Options{
+		ConfigPath: configPath,
+		Logger:     logger,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, repl)
+
+	// Verify agent adapter was NOT initialized (ambiguous which to use)
+	assert.Nil(t, repl.agent)
+	assert.Nil(t, repl.agentProvider)
+}
+
+func TestNewREPL_ExplicitDefaultAgentOverridesFallback(t *testing.T) {
+	// Test that an explicit defaultAgent configuration takes precedence
+	// over the single-agent fallback
+
+	configPath := filepath.Join(t.TempDir(), ".gshrc.gsh")
+	err := os.WriteFile(configPath, []byte(`
+		model testModel {
+			provider: "openai",
+			model: "gpt-4",
+		}
+
+		agent chosenAgent {
+			model: testModel,
+			systemPrompt: "chosen",
+		}
+
+		GSH_CONFIG = {
+			prompt: "test> ",
+			defaultAgent: "chosenAgent",
+		}
+	`), 0644)
+	require.NoError(t, err)
+
+	logger := zap.NewNop()
+	repl, err := NewREPL(Options{
+		ConfigPath: configPath,
+		Logger:     logger,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, repl)
+
+	// Verify the explicitly configured agent was used
+	assert.NotNil(t, repl.agent)
+	assert.Equal(t, "chosenAgent", repl.agent.Name)
+	assert.NotNil(t, repl.agentProvider)
+	assert.Equal(t, "chosenAgent", repl.agent.Name)
+}
+
+func TestHandleAgentCommand_NoAgent(t *testing.T) {
+	// Test that when no agent is configured, a helpful error is shown
+
+	logger := zap.NewNop()
+	repl := &REPL{
+		logger: logger,
+		agent:  nil, // No agent configured
+	}
+
+	ctx := context.Background()
+	err := repl.handleAgentCommand(ctx, "hello")
+
+	// Should not return error, just print message
+	assert.NoError(t, err)
+}
+
+func TestHandleAgentCommand_Reset(t *testing.T) {
+	// Test that reset command clears conversation history
+
+	logger := zap.NewNop()
+	mockProvider := &MockProvider{
+		responseContent: "dummy",
+		shouldError:     false,
+	}
+	repl := &REPL{
+		logger:        logger,
+		agent:         &interpreter.AgentValue{Name: "test"},
+		agentProvider: mockProvider, // Need provider for the agent check
+		agentConversation: []interpreter.ChatMessage{
+			{Role: "user", Content: "hello"},
+			{Role: "assistant", Content: "hi"},
+		},
+	}
+
+	ctx := context.Background()
+	err := repl.handleAgentCommand(ctx, "reset")
+
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(repl.agentConversation))
+}
+
+func TestHandleAgentCommand_Help(t *testing.T) {
+	// Test that empty message shows help
+
+	logger := zap.NewNop()
+	repl := &REPL{
+		logger:        logger,
+		agent:         &interpreter.AgentValue{Name: "test"},
+		agentProvider: nil,
+	}
+
+	ctx := context.Background()
+	err := repl.handleAgentCommand(ctx, "")
+
+	assert.NoError(t, err)
+}
+
+// MockProvider implements ModelProvider for testing
+type MockProvider struct {
+	responseContent    string
+	shouldError        bool
+	chatCompletionFunc func(request interpreter.ChatRequest) (*interpreter.ChatResponse, error)
+}
+
+func (m *MockProvider) Name() string {
+	return "mock"
+}
+
+func (m *MockProvider) ChatCompletion(request interpreter.ChatRequest) (*interpreter.ChatResponse, error) {
+	// If custom function is set, use it
+	if m.chatCompletionFunc != nil {
+		return m.chatCompletionFunc(request)
+	}
+
+	// Default behavior
+	if m.shouldError {
+		return nil, fmt.Errorf("mock error")
+	}
+	return &interpreter.ChatResponse{
+		Content: m.responseContent,
+	}, nil
+}
+
+func TestHandleAgentCommand_Success(t *testing.T) {
+	// Test successful agent chat interaction
+
+	logger := zap.NewNop()
+	mockProvider := &MockProvider{
+		responseContent: "Hello! How can I help?",
+		shouldError:     false,
+	}
+
+	// Create agent with model config
+	agent := &interpreter.AgentValue{
+		Name: "testAgent",
+		Config: map[string]interpreter.Value{
+			"model": &interpreter.ModelValue{
+				Name: "test-model",
+			},
+			"systemPrompt": &interpreter.StringValue{
+				Value: "You are helpful",
+			},
+		},
+	}
+
+	repl := &REPL{
+		logger:            logger,
+		agent:             agent,
+		agentProvider:     mockProvider,
+		agentConversation: []interpreter.ChatMessage{},
+	}
+
+	ctx := context.Background()
+	err := repl.handleAgentCommand(ctx, "hello")
+
+	assert.NoError(t, err)
+
+	// Verify conversation history was updated
+	assert.Equal(t, 2, len(repl.agentConversation))
+	assert.Equal(t, "user", repl.agentConversation[0].Role)
+	assert.Equal(t, "hello", repl.agentConversation[0].Content)
+	assert.Equal(t, "assistant", repl.agentConversation[1].Role)
+	assert.Equal(t, "Hello! How can I help?", repl.agentConversation[1].Content)
+}
+
+func TestHandleAgentCommand_ConversationHistory(t *testing.T) {
+	// Test that conversation history is maintained across messages
+
+	logger := zap.NewNop()
+
+	callCount := 0
+	var lastRequestMessages []interpreter.ChatMessage
+
+	mockProvider := &MockProvider{
+		responseContent: "Response",
+		shouldError:     false,
+	}
+
+	// Set custom ChatCompletion to capture request messages
+	mockProvider.chatCompletionFunc = func(request interpreter.ChatRequest) (*interpreter.ChatResponse, error) {
+		lastRequestMessages = request.Messages
+		callCount++
+		// Return mock response
+		return &interpreter.ChatResponse{
+			Content: mockProvider.responseContent,
+		}, nil
+	}
+
+	agent := &interpreter.AgentValue{
+		Name: "testAgent",
+		Config: map[string]interpreter.Value{
+			"model": &interpreter.ModelValue{
+				Name: "test-model",
+			},
+			"systemPrompt": &interpreter.StringValue{
+				Value: "You are helpful",
+			},
+		},
+	}
+
+	repl := &REPL{
+		logger:            logger,
+		agent:             agent,
+		agentProvider:     mockProvider,
+		agentConversation: []interpreter.ChatMessage{},
+	}
+
+	ctx := context.Background()
+
+	// First message
+	err := repl.handleAgentCommand(ctx, "first message")
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(repl.agentConversation))
+
+	// Verify first request had system prompt + user message
+	assert.Equal(t, 2, len(lastRequestMessages)) // system + user
+	assert.Equal(t, "system", lastRequestMessages[0].Role)
+	assert.Equal(t, "You are helpful", lastRequestMessages[0].Content)
+	assert.Equal(t, "user", lastRequestMessages[1].Role)
+	assert.Equal(t, "first message", lastRequestMessages[1].Content)
+
+	// Second message
+	err = repl.handleAgentCommand(ctx, "second message")
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(repl.agentConversation))
+
+	// Verify second request included conversation history
+	assert.Equal(t, 4, len(lastRequestMessages)) // system + history (2) + new user message
+	assert.Equal(t, "system", lastRequestMessages[0].Role)
+	assert.Equal(t, "user", lastRequestMessages[1].Role)
+	assert.Equal(t, "first message", lastRequestMessages[1].Content)
+	assert.Equal(t, "assistant", lastRequestMessages[2].Role)
+	assert.Equal(t, "Response", lastRequestMessages[2].Content)
+	assert.Equal(t, "user", lastRequestMessages[3].Role)
+	assert.Equal(t, "second message", lastRequestMessages[3].Content)
+}
+
+func TestHandleAgentCommand_ProviderError(t *testing.T) {
+	// Test error handling when provider fails
+
+	logger := zap.NewNop()
+	mockProvider := &MockProvider{
+		responseContent: "",
+		shouldError:     true,
+	}
+
+	agent := &interpreter.AgentValue{
+		Name: "testAgent",
+		Config: map[string]interpreter.Value{
+			"model": &interpreter.ModelValue{
+				Name: "test-model",
+			},
+		},
+	}
+
+	repl := &REPL{
+		logger:            logger,
+		agent:             agent,
+		agentProvider:     mockProvider,
+		agentConversation: []interpreter.ChatMessage{},
+	}
+
+	ctx := context.Background()
+	err := repl.handleAgentCommand(ctx, "hello")
+
+	// Should not return error (prints to stderr instead)
+	assert.NoError(t, err)
+
+	// Conversation should not be updated on error
+	assert.Equal(t, 0, len(repl.agentConversation))
+}
+
+func TestHandleAgentCommand_NoSystemPrompt(t *testing.T) {
+	// Test agent without system prompt
+
+	logger := zap.NewNop()
+
+	var lastRequestMessages []interpreter.ChatMessage
+	mockProvider := &MockProvider{
+		responseContent: "Response",
+		shouldError:     false,
+	}
+
+	mockProvider.chatCompletionFunc = func(request interpreter.ChatRequest) (*interpreter.ChatResponse, error) {
+		lastRequestMessages = request.Messages
+		return &interpreter.ChatResponse{
+			Content: mockProvider.responseContent,
+		}, nil
+	}
+
+	// Agent without systemPrompt in config
+	agent := &interpreter.AgentValue{
+		Name: "testAgent",
+		Config: map[string]interpreter.Value{
+			"model": &interpreter.ModelValue{
+				Name: "test-model",
+			},
+		},
+	}
+
+	repl := &REPL{
+		logger:            logger,
+		agent:             agent,
+		agentProvider:     mockProvider,
+		agentConversation: []interpreter.ChatMessage{},
+	}
+
+	ctx := context.Background()
+	err := repl.handleAgentCommand(ctx, "hello")
+
+	assert.NoError(t, err)
+
+	// Should not include system message
+	assert.Equal(t, 1, len(lastRequestMessages))
+	assert.Equal(t, "user", lastRequestMessages[0].Role)
 }

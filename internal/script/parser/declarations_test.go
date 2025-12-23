@@ -489,7 +489,7 @@ func TestParseModelDeclaration(t *testing.T) {
 		},
 		{
 			name:  "Model declaration with Ollama (local)",
-			input: "model llama {\n\tprovider: \"ollama\",\n\turl: \"http://localhost:11434\",\n\tmodel: \"llama3.2:3b\",\n}",
+			input: "model llama {\n\tprovider: \"openai\",\n\tapiKey: \"ollama\",\n\tbaseURL: \"http://localhost:11434/v1\",\n\tmodel: \"llama3.2:3b\",\n}",
 			expected: func(t *testing.T, stmt Statement) {
 				modelDecl, ok := stmt.(*ModelDeclaration)
 				if !ok {
@@ -500,17 +500,17 @@ func TestParseModelDeclaration(t *testing.T) {
 					t.Errorf("modelDecl.Name.Value not 'llama'. got=%q", modelDecl.Name.Value)
 				}
 
-				// Check url
-				urlVal, ok := modelDecl.Config["url"]
+				// Check baseURL
+				baseURLVal, ok := modelDecl.Config["baseURL"]
 				if !ok {
-					t.Fatalf("modelDecl.Config missing 'url' key")
+					t.Fatalf("modelDecl.Config missing 'baseURL' key")
 				}
-				urlStr, ok := urlVal.(*StringLiteral)
+				baseURLStr, ok := baseURLVal.(*StringLiteral)
 				if !ok {
-					t.Fatalf("url value is not *StringLiteral. got=%T", urlVal)
+					t.Fatalf("baseURL value is not *StringLiteral. got=%T", baseURLVal)
 				}
-				if urlStr.Value != "http://localhost:11434" {
-					t.Errorf("url not 'http://localhost:11434'. got=%q", urlStr.Value)
+				if baseURLStr.Value != "http://localhost:11434/v1" {
+					t.Errorf("baseURL not 'http://localhost:11434/v1'. got=%q", baseURLStr.Value)
 				}
 			},
 		},

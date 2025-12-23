@@ -93,6 +93,11 @@ func (i *Interpreter) Close() error {
 	return nil
 }
 
+// SetVariable defines or updates a variable in the interpreter's environment
+func (i *Interpreter) SetVariable(name string, value Value) error {
+	return i.env.Define(name, value)
+}
+
 // Eval evaluates a program and returns the result
 func (i *Interpreter) Eval(program *parser.Program) (*EvalResult, error) {
 	var finalResult Value = &NullValue{}

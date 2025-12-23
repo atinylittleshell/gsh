@@ -86,13 +86,6 @@ internal/repl/
 │   ├── prefix.go           # Prefix-based prediction
 │   ├── nullstate.go        # Empty input prediction
 │   └── router.go           # Prediction routing
-├── agent/
-│   ├── adapter.go          # Thin wrapper adapting script engine's agent for REPL
-│   └── adapter_test.go
-│   # NOTE: REPL-specific tools (bash execution, file ops, permissions) - TBD
-│   # These may be implemented as MCP servers rather than Go code, since tools
-│   # for agents in the gsh script language should be added via MCP. This needs
-│   # further investigation to determine the best approach.
 ├── context/
 │   ├── provider.go         # Context aggregation
 │   ├── retriever.go        # Retriever interface
@@ -347,37 +340,49 @@ func (c *NoOpCompleter) Complete(ctx context.Context, input string, pos int) ([]
 - [x] Port file completion
 - [x] Wire completion into REPL (replace no-op provider)
 
-### Phase 7: Agent Mode
+### Phase 7: Agent Mode ✅
 
-**Goal:** Create thin adapter for script engine's agent in REPL context
-
-**Pre-requisite:** Add `maxInputTokens` as a property on `ModelValue` in the script engine (`internal/script/interpreter/model.go`)
+**Goal:** Enable agent chat interactions in REPL with direct provider access
 
 The script engine (`internal/script/interpreter/`) already provides:
 
 - `agent.go` - Agent execution with tool calling loop
 - `conversation.go` - Conversation state and message history
 - `model.go` - Model/provider abstraction (OpenAI, Anthropic, etc.)
+- `provider_openai.go` - OpenAI-compatible provider implementation
 
-The REPL agent module should be a **minimal adapter** that:
+**Design Decision:** REPL directly uses providers instead of creating an adapter layer.
 
-- Provides REPL-specific tools (bash execution with permissions, file ops with confirmation)
-- Handles interactive I/O (streaming responses, user confirmations)
-- Manages the agent session lifecycle in REPL context
+Initially planned to create an adapter wrapper around the script engine's agent functionality,
+but this would block streaming support (adapter sits between REPL and provider, preventing
+direct streaming callbacks). The REPL now:
+- Loads agent config from script engine (model, systemPrompt, etc.)
+- Calls `ModelProvider.ChatCompletion()` directly
+- Manages conversation history in REPL state (`[]ChatMessage`)
+- Can easily add streaming support in the future by calling provider's stream method
 
 **Implementation:**
 
-- [ ] Create `internal/repl/agent/adapter.go` - thin wrapper around `interpreter.Agent`
-  - Extract GSH_DEFAULT_AGENT from config - use that for REPL
-  - Manage a Conversation instance
-- [ ] Hook agent into REPL - "#" prefix triggers agent mode
-- [ ] Handle agent streaming output to terminal
-- [ ] Implement REPL-specific tools (approach TBD - Go code vs MCP servers)
+- [x] Agent configuration loading via script engine
+  - Uses `GSH_CONFIG.defaultAgent` or single agent fallback
+  - Extracts model and provider from agent's Config map
+- [x] Direct provider integration in REPL
+  - Store `AgentValue`, `ModelProvider`, and conversation history
+  - Build chat requests with system prompt + history + new message
+  - Call provider directly for responses
+- [x] Hook agent into REPL - "#" prefix triggers agent mode
+- [x] Conversation state management
+  - System prompt included in each request (not stored in history)
+  - User/assistant messages tracked across interactions
+  - `# reset` command to clear conversation
+- [x] Write comprehensive tests for agent initialization and fallback logic
+- [x] Add `SetVariable()` method to interpreter (for future script-based agent usage)
 
-**NOTE:** REPL-specific agent tools (bash execution with permissions, file operations
-with confirmations, done signal, permissions menu) - implementation approach TBD.
-These may be better implemented as MCP servers rather than Go code, since the gsh
-script language uses MCP for tool integration. This needs further investigation.
+**Benefits of Direct Provider Approach:**
+- Simpler architecture (no adapter layer to maintain)
+- Streaming support becomes straightforward (add `ChatCompletionStream` to provider interface)
+- Full control over conversation management
+- Cleaner separation of concerns: script engine for config, provider for execution
 
 ### Phase 8: Migration & Cleanup
 
