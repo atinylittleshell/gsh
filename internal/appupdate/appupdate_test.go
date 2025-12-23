@@ -96,21 +96,27 @@ func TestHandleSelfUpdate_UpdateNeeded(t *testing.T) {
 	mockRemoteRelease := new(MockRelease)
 	logger := zap.NewNop()
 
+	// Mock file for reading latest version (empty - no previous version detected)
+	mockFileForRead, _ := os.CreateTemp("", "test-latest-version-read")
+	defer os.Remove(mockFileForRead.Name())
+	mockFileForRead.Seek(0, 0) // Empty file
+
 	mockFileForWrite, _ := os.CreateTemp("", "test-latest-version-write")
 	defer os.Remove(mockFileForWrite.Name())
 
+	mockFS.On("Open", core.LatestVersionFile()).Return(mockFileForRead, nil)
 	mockFS.On("Create", core.LatestVersionFile()).Return(mockFileForWrite, nil)
 
-	mockRemoteRelease.On("Version").Return("2.0.0")
+	mockRemoteRelease.On("Version").Return("1.2.0")
 
 	mockUpdater.On("DetectLatest", mock.Anything, "atinylittleshell/gsh").Return(mockRemoteRelease, true, nil)
 
-	resultChannel := HandleSelfUpdate("0.1.0", logger, mockFS, mockUpdater)
+	resultChannel := HandleSelfUpdate("1.0.0", logger, mockFS, mockUpdater)
 
 	remoteVersion, ok := <-resultChannel
 
 	assert.Equal(t, true, ok)
-	assert.Equal(t, "2.0.0", remoteVersion)
+	assert.Equal(t, "1.2.0", remoteVersion)
 
 	mockFS.AssertExpectations(t)
 	mockRemoteRelease.AssertExpectations(t)
@@ -123,19 +129,64 @@ func TestHandleSelfUpdate_NoUpdateNeeded(t *testing.T) {
 	mockRemoteRelease := new(MockRelease)
 	logger := zap.NewNop()
 
+	// Mock file for reading latest version (empty - no previous version detected)
+	mockFileForRead, _ := os.CreateTemp("", "test-latest-version-read")
+	defer os.Remove(mockFileForRead.Name())
+	mockFileForRead.Seek(0, 0) // Empty file
+
+	mockFileForWrite, _ := os.CreateTemp("", "test-latest-version-write")
+	defer os.Remove(mockFileForWrite.Name())
+
+	mockFS.On("Open", core.LatestVersionFile()).Return(mockFileForRead, nil)
+	mockFS.On("Create", core.LatestVersionFile()).Return(mockFileForWrite, nil)
+
 	mockRemoteRelease.On("Version").Return("1.2.4")
 	mockUpdater.On("DetectLatest", mock.Anything, "atinylittleshell/gsh").Return(mockRemoteRelease, true, nil)
 
 	resultChannel := HandleSelfUpdate("2.0.0", logger, mockFS, mockUpdater)
 
-	// Should not receive anything since version is not newer
 	remoteVersion, ok := <-resultChannel
 
-	assert.Equal(t, false, ok)
-	assert.Equal(t, "", remoteVersion)
+	assert.Equal(t, true, ok)
+	assert.Equal(t, "1.2.4", remoteVersion)
 
 	mockFS.AssertExpectations(t)
 	mockRemoteRelease.AssertExpectations(t)
 	mockUpdater.AssertExpectations(t)
 }
 
+func TestHandleSelfUpdate_MajorVersionBoundary(t *testing.T) {
+	mockFS := new(MockFileSystem)
+	mockUpdater := new(MockUpdater)
+	mockRemoteRelease := new(MockRelease)
+	logger := zap.NewNop()
+
+	mockFileForRead, _ := os.CreateTemp("", "test-latest-version-read")
+	defer os.Remove(mockFileForRead.Name())
+	mockFileForRead.Write([]byte("1.0.0"))
+	mockFileForRead.Seek(0, 0)
+
+	mockFileForWrite, _ := os.CreateTemp("", "test-latest-version-write")
+	defer os.Remove(mockFileForWrite.Name())
+
+	mockFS.On("Open", core.LatestVersionFile()).Return(mockFileForRead, nil)
+	mockFS.On("Create", core.LatestVersionFile()).Return(mockFileForWrite, nil)
+
+	// Major version bump: v0.9.0 -> v1.0.0
+	mockRemoteRelease.On("Version").Return("1.0.0")
+	mockUpdater.On("DetectLatest", mock.Anything, "atinylittleshell/gsh").Return(mockRemoteRelease, true, nil)
+
+	resultChannel := HandleSelfUpdate("0.9.0", logger, mockFS, mockUpdater)
+
+	remoteVersion, ok := <-resultChannel
+
+	assert.Equal(t, true, ok)
+	assert.Equal(t, "1.0.0", remoteVersion)
+
+	mockFS.AssertExpectations(t)
+	mockRemoteRelease.AssertExpectations(t)
+	mockUpdater.AssertExpectations(t)
+
+	// Should NOT update across major version boundary
+	mockUpdater.AssertNotCalled(t, "UpdateTo")
+}
