@@ -149,8 +149,12 @@ type Config struct {
     // These are available for use in scripts and agent mode
     MCPServers map[string]*mcp.MCPServer           // from `mcp` declarations
     Models     map[string]*interpreter.ModelValue  // from `model` declarations
-    Agents     map[string]*interpreter.AgentValue  // from `agent` declarations
+    Agents     map[string]*interpreter.AgentValue  // from `agent` declarations (custom agents only)
     Tools      map[string]*interpreter.ToolValue   // from `tool` declarations
+    
+    // NOTE: The built-in default agent is NOT in this map.
+    // It's hardcoded in the REPL and always available as "default".
+    // Custom agents defined in .gshrc.gsh are stored in the Agents map.
 }
 
 // Reserved tool names (looked up in Tools map):
@@ -365,10 +369,19 @@ direct streaming callbacks). The REPL now:
 - Manages conversation history in REPL state (`[]ChatMessage`)
 - Can easily add streaming support in the future by calling provider's stream method
 
+**Default Agent Design:**
+
+- **Built-in default agent is immutable** - cannot be overridden in configuration
+- Default agent is defined in code with sensible defaults (simple chat assistant, no tools)
+- Users wanting custom agents must define them in `.gshrc.gsh` and explicitly switch using `#/agent <name>`
+- No `GSH_CONFIG.defaultAgent` configuration option
+- This ensures consistent out-of-box experience while allowing full customization
+
 **Implementation:**
 
 - [x] Agent configuration loading via script engine
-  - Uses `GSH_CONFIG.defaultAgent` or single agent fallback
+  - ~~Uses `GSH_CONFIG.defaultAgent` or single agent fallback~~ (removed)
+  - Uses built-in default agent defined in code
   - Extracts model and provider from agent's Config map
 - [x] Direct provider integration in REPL
   - Store `AgentValue`, `ModelProvider`, and conversation history
@@ -394,16 +407,29 @@ direct streaming callbacks). The REPL now:
 **Goal:** Allow users to dynamically switch between configured agents
 
 Users can switch agents on-the-fly without editing config files, with each agent maintaining
-isolated conversation history.
+isolated conversation history. The shell always starts with the **built-in default agent**, and
+users must explicitly switch to custom agents defined in `.gshrc.gsh`.
 
 **Syntax:**
 
 ```bash
-#<message>              # Send message to current agent
+#<message>              # Send message to current agent (starts with built-in default)
 #/clear                 # Clear current agent's conversation
-#/agents                # List all available agents
-#/agent <name>          # Switch to a different agent
+#/agents                # List all available agents (built-in + custom from .gshrc.gsh)
+#/agent <name>          # Switch to a different agent (custom agents only)
+#/agent default         # Switch back to the built-in default agent
 ```
+
+**Agent Types:**
+
+- **Built-in default agent**: Hardcoded, immutable, always available as "default"
+  - Simple chat assistant with no tools
+  - Consistent out-of-box experience
+  - Cannot be overridden in configuration
+- **Custom agents**: Defined in `.gshrc.gsh` using `agent` declarations
+  - Can have custom system prompts, models, and tools
+  - Must be explicitly activated with `#/agent <name>`
+  - Each maintains isolated conversation history
 
 **Implementation:**
 
@@ -415,6 +441,10 @@ isolated conversation history.
 - [x] Each agent maintains isolated conversation history
 - [x] Switching preserves conversation state for all agents
 - [x] Comprehensive tests for all agent switching scenarios
+- [ ] **TODO**: Implement built-in default agent that can't be overridden
+- [ ] **TODO**: Remove `GSH_CONFIG.defaultAgent` configuration option
+- [ ] **TODO**: Update agent initialization to always start with built-in default
+- [ ] **TODO**: Add "default" as reserved agent name in command completion
 
 ### Phase 9: Migration & Cleanup ✅
 
@@ -429,17 +459,26 @@ isolated conversation history.
 
 ### Phase 10: Default Configuration
 
-**Goal:** Provide comprehensive default gsh configuration
+**Goal:** Provide comprehensive default gsh configuration and built-in default agent
 
-- [ ] Create `.gshrc.default.gsh` with default gsh-specific settings
-  - Default model configurations (Ollama with qwen2.5)
-  - Default agent configurations
+- [ ] **Implement built-in default agent in code**
+  - Define immutable default agent with simple chat assistant prompt
+  - No tools, no special capabilities - just basic chat
+  - Use default model (e.g., Ollama qwen2.5 or first available model)
+  - Cannot be overridden by user configuration
+  - Always available as "default" agent
+- [ ] Create `.gshrc.default.gsh` with example configurations
+  - Example model configurations (Ollama with qwen2.5, OpenAI, Anthropic)
+  - Example custom agent configurations (coder, reviewer, etc.)
   - Default GSH_CONFIG settings (prompt, logLevel, etc.)
-  - Default macros (gitdiff, gitpush, gitreview)
-  - Context configuration for RAG
-  - Agent approved bash command patterns
+  - Example macros (gitdiff, gitpush, gitreview)
+  - Context configuration examples for RAG
+  - Example MCP server declarations
+  - **NOTE**: No `defaultAgent` configuration - users must explicitly switch to custom agents
 - [ ] Load `.gshrc.default.gsh` during REPL initialization (before user's `.gshrc.gsh`)
-- [ ] Update documentation to reference both default files
+  - Default file provides examples only, not active configuration
+  - Users copy/modify examples into their own `.gshrc.gsh`
+- [ ] Update documentation to reference both default files and built-in agent
 
 ---
 
@@ -514,6 +553,10 @@ GSH_CONFIG = {
     # Prompt settings
     prompt: "gsh> ",
     logLevel: "info",
+    
+    # NOTE: No defaultAgent configuration
+    # The built-in default agent is always used on startup
+    # To use custom agents, switch explicitly with: #/agent <name>
 }
 
 # Optional: Custom prompt update tool (reserved name)
