@@ -260,21 +260,34 @@ gsh/
 - [x] Shebang support for `.gsh` files
 - [x] Add tests for clear error messages E2E through gsh CLI executing `.gsh` scripts
 - [x] Add help info in CLI for executing `.gsh` scripts
-- [x] Integrate log.\* functions with zap logger (currently outputs to stderr)
+- [x] Integrate log.\\* functions with zap logger (currently outputs to stderr)
 - [x] Pass logger context to interpreter for proper log file integration
-- [ ] Support `.gshrc.gsh` for user configuration that can fully replicate what the existing `.gshrc` can do
-  - This should utilize the new scripting language features natively
-  - We should then use the new implementation to support existing `.gshrc` features by mapping env vars there to a script that gets executed
+- [x] Support `.gshrc.gsh` for user configuration
+  - New REPL implementation completed (see spec/GSH_REPL_V1_PLAN.md)
+  - Configuration split: `.gshrc` for bash, `.gshrc.gsh` for gsh-specific features
+  - Old implementation removed, new REPL is now the default
+  - Remaining: Create `.gshrc.default.gsh` with default configuration (Phase 10 in REPL plan)
 
 ### Phase 7.2: Polish
 
+- [ ] Complete `.gshrc.default.gsh` with default gsh configuration
+  - Default model configurations (Ollama with qwen2.5)
+  - Default agent configurations
+  - Default macros and approved command patterns
+  - See spec/GSH_REPL_V1_PLAN.md Phase 10 for details
 - [ ] Write comprehensive documentation
+  - Update docs to reflect new REPL and configuration model
+  - Document `.gshrc` vs `.gshrc.gsh` split
+  - Migration guide for existing users
 - [ ] Create example scripts (10+ examples)
 - [ ] End-to-end testing with real workflows
 
 ### Phase 7.3: Release Preparation
 
-- [ ] Update README with gsh scripting features
+- [x] Update README with new configuration model (completed in REPL migration)
+- [ ] Update README with comprehensive gsh scripting features
+- [ ] Add examples showcasing agent workflows and MCP integration
+- [ ] Document migration path from bash/zsh to gsh
 
 ---
 
