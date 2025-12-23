@@ -401,6 +401,89 @@ Users upgrade explicitly with `brew upgrade gsh` or similar commands.
 
 ---
 
+## Phase 12: Analytics & Telemetry
+
+**Goal:** Implement analytics to measure product usage and engagement
+
+### Phase 12.1: Analytics Infrastructure
+
+- [ ] **Choose analytics service**
+  - Evaluate options: PostHog, Mixpanel, Amplitude, or self-hosted solution
+  - Consider privacy requirements and data residency
+  - Evaluate costs and integration complexity
+  - Decision: TBD
+- [ ] **Implement analytics client**
+  - Add analytics SDK dependency
+  - Create analytics abstraction layer in `internal/analytics/`
+  - Implement opt-in/opt-out mechanism (respect user privacy)
+  - Store user preference in `~/.local/share/gsh/analytics_consent`
+  - Never track without explicit user consent
+
+### Phase 12.2: Core Metrics
+
+- [ ] **Session tracking**
+  - Track gsh shell sessions (start/end)
+  - Session duration
+  - REPL vs script execution mode
+- [ ] **Usage metrics**
+  - Daily Active Users (DAU)
+  - Weekly Active Users (WAU)
+  - Monthly Active Users (MAU)
+  - Retention cohorts (D1, D7, D30 retention)
+- [ ] **Feature adoption**
+  - gsh scripting language usage (`.gsh` files executed)
+  - Agent usage (agent invocations, pipe operations)
+  - MCP integration usage (servers connected, tools called)
+  - Completion system usage
+  - Prediction system usage
+
+### Phase 12.3: Advanced Metrics
+
+- [ ] **Performance metrics**
+  - Startup time
+  - Command execution time
+  - Script execution time
+  - Agent response time
+- [ ] **Error tracking**
+  - Crash reports (with user consent)
+  - Error frequency and types
+  - Failed updates
+- [ ] **Configuration patterns**
+  - Most common agent configurations
+  - Most popular MCP servers
+  - Custom tool usage patterns
+
+### Phase 12.4: Privacy & Compliance
+
+- [ ] **Privacy-first design**
+  - Clear opt-in prompt on first run
+  - Easy opt-out at any time (`gsh analytics disable`)
+  - Anonymous user IDs (no PII collection)
+  - Local-only tracking if user declines
+- [ ] **Documentation**
+  - Privacy policy
+  - What data is collected and why
+  - How data is used
+  - Data retention policy
+- [ ] **Compliance**
+  - GDPR compliance (if applicable)
+  - User data export/deletion support
+
+### Phase 12.5: Dashboard & Insights
+
+- [ ] **Set up analytics dashboard**
+  - Real-time DAU/MAU tracking
+  - Retention cohort analysis
+  - Feature adoption funnels
+  - Error rate monitoring
+  - Geographic distribution
+- [ ] **Alerts and monitoring**
+  - Alert on unusual error rates
+  - Alert on significant DAU drops
+  - Monitor version adoption rates
+
+---
+
 ## Post-v1.0 Roadmap
 
 ### v1.1 - Type System
