@@ -244,28 +244,28 @@ func TestConfig_GetPredictModel(t *testing.T) {
 	})
 }
 
-func TestConfig_GetDefaultAgent(t *testing.T) {
-	t.Run("returns nil when DefaultAgent is empty", func(t *testing.T) {
+func TestConfig_GetDefaultAgentModel(t *testing.T) {
+	t.Run("returns nil when DefaultAgentModel is empty", func(t *testing.T) {
 		cfg := DefaultConfig()
-		assert.Nil(t, cfg.GetDefaultAgent())
+		assert.Nil(t, cfg.GetDefaultAgentModel())
 	})
 
-	t.Run("returns nil when DefaultAgent references non-existent agent", func(t *testing.T) {
+	t.Run("returns nil when DefaultAgentModel references non-existent model", func(t *testing.T) {
 		cfg := DefaultConfig()
-		cfg.DefaultAgent = "non-existent"
-		assert.Nil(t, cfg.GetDefaultAgent())
+		cfg.DefaultAgentModel = "non-existent"
+		assert.Nil(t, cfg.GetDefaultAgentModel())
 	})
 
-	t.Run("returns agent when DefaultAgent references existing agent", func(t *testing.T) {
-		agent := &interpreter.AgentValue{
-			Name: "my-agent",
+	t.Run("returns model when DefaultAgentModel references existing model", func(t *testing.T) {
+		model := &interpreter.ModelValue{
+			Name: "my-model",
 		}
 		cfg := DefaultConfig()
-		cfg.Agents["my-agent"] = agent
-		cfg.DefaultAgent = "my-agent"
+		cfg.Models["my-model"] = model
+		cfg.DefaultAgentModel = "my-model"
 
-		result := cfg.GetDefaultAgent()
+		result := cfg.GetDefaultAgentModel()
 		require.NotNil(t, result)
-		assert.Equal(t, "my-agent", result.Name)
+		assert.Equal(t, "my-model", result.Name)
 	})
 }

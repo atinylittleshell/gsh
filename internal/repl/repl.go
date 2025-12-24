@@ -148,8 +148,31 @@ func NewREPL(opts Options) (*REPL, error) {
 	agentStates := make(map[string]*AgentState)
 	var currentAgentName string
 
+	// Always initialize the built-in default agent if a model is configured
+	defaultAgentModel := loadResult.Config.GetDefaultAgentModel()
+	if defaultAgentModel != nil && defaultAgentModel.Provider != nil {
+		// Create the built-in default agent with a simple system prompt
+		defaultAgent := &interpreter.AgentValue{
+			Name: "default",
+			Config: map[string]interpreter.Value{
+				"model": defaultAgentModel,
+				"systemPrompt": &interpreter.StringValue{
+					Value: "You are gsh, an AI-powered shell program. You are friendly and helpful, assisting the user with their tasks in the shell.",
+				},
+			},
+		}
+
+		agentStates["default"] = &AgentState{
+			Agent:        defaultAgent,
+			Provider:     defaultAgentModel.Provider,
+			Conversation: []interpreter.ChatMessage{},
+		}
+		currentAgentName = "default"
+		logger.Info("initialized built-in default agent", zap.String("model", defaultAgentModel.Name))
+	}
+
+	// Initialize all custom agents from configuration
 	if loadResult.Config != nil && len(loadResult.Config.Agents) > 0 {
-		// Initialize all agents
 		for name, agentVal := range loadResult.Config.Agents {
 			// Get the provider from the agent's model (stored in Config)
 			var provider interpreter.ModelProvider
@@ -170,24 +193,16 @@ func NewREPL(opts Options) (*REPL, error) {
 				Provider:     provider,
 				Conversation: []interpreter.ChatMessage{},
 			}
-			logger.Info("initialized agent", zap.String("agent", name))
+			logger.Info("initialized custom agent", zap.String("agent", name))
 		}
+	}
 
-		// Determine the current agent
-		// Priority: GSH_CONFIG.defaultAgent > first agent alphabetically
-		defaultAgent := loadResult.Config.GetDefaultAgent()
-		if defaultAgent != nil {
-			currentAgentName = defaultAgent.Name
-		} else if len(agentStates) > 0 {
-			// Pick first agent (map iteration order is random, but we'll get one)
-			for name := range agentStates {
-				currentAgentName = name
-				break
-			}
-		}
-
-		if currentAgentName != "" {
-			logger.Info("using default agent", zap.String("agent", currentAgentName))
+	// If no current agent is set but we have agents, pick the first one as a fallback
+	if currentAgentName == "" && len(agentStates) > 0 {
+		for name := range agentStates {
+			currentAgentName = name
+			logger.Info("auto-selected agent as default", zap.String("agent", name))
+			break
 		}
 	}
 
@@ -390,7 +405,7 @@ func parseAgentInput(input string) (isCommand bool, content string) {
 func (r *REPL) handleAgentCommand(ctx context.Context, input string) error {
 	// Check if any agents are configured
 	if len(r.agentStates) == 0 {
-		fmt.Fprintf(os.Stderr, "gsh: no agents configured. Add agents in .gshrc.gsh\n")
+		fmt.Fprintf(os.Stderr, "gsh: no agents configured. Configure defaultAgentModel in .gshrc.gsh or add custom agents\n")
 		return nil
 	}
 
@@ -482,7 +497,9 @@ func (r *REPL) handleAgentsCommand() error {
 
 		// Try to get description from agent config
 		description := ""
-		if descVal, ok := state.Agent.Config["description"]; ok {
+		if name == "default" {
+			description = " - Built-in default agent"
+		} else if descVal, ok := state.Agent.Config["description"]; ok {
 			if descStr, ok := descVal.(*interpreter.StringValue); ok {
 				description = " - " + descStr.Value
 			}

@@ -206,17 +206,23 @@ func (l *Loader) extractGSHConfig(value interpreter.Value, result *LoadResult) {
 	if predictModel, ok := obj.Properties["predictModel"]; ok {
 		if strVal, ok := predictModel.(*interpreter.StringValue); ok {
 			result.Config.PredictModel = strVal.Value
+		} else if modelVal, ok := predictModel.(*interpreter.ModelValue); ok {
+			// Allow passing a model object directly, use its name
+			result.Config.PredictModel = modelVal.Name
 		} else {
-			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.predictModel must be a string"))
+			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.predictModel must be a string or model reference"))
 		}
 	}
 
-	// Extract defaultAgent
-	if defaultAgent, ok := obj.Properties["defaultAgent"]; ok {
-		if strVal, ok := defaultAgent.(*interpreter.StringValue); ok {
-			result.Config.DefaultAgent = strVal.Value
+	// Extract defaultAgentModel
+	if defaultAgentModel, ok := obj.Properties["defaultAgentModel"]; ok {
+		if strVal, ok := defaultAgentModel.(*interpreter.StringValue); ok {
+			result.Config.DefaultAgentModel = strVal.Value
+		} else if modelVal, ok := defaultAgentModel.(*interpreter.ModelValue); ok {
+			// Allow passing a model object directly, use its name
+			result.Config.DefaultAgentModel = modelVal.Name
 		} else {
-			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.defaultAgent must be a string"))
+			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.defaultAgentModel must be a string or model reference"))
 		}
 	}
 

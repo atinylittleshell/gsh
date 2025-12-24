@@ -444,13 +444,8 @@ func TestLoader_LoadFromString_DefaultAgent(t *testing.T) {
 			model: "gpt-4",
 		}
 
-		agent myAgent {
-			model: testModel,
-			systemPrompt: "test",
-		}
-
 		GSH_CONFIG = {
-			defaultAgent: "myAgent",
+			defaultAgentModel: "testModel",
 		}
 	`
 
@@ -460,21 +455,21 @@ func TestLoader_LoadFromString_DefaultAgent(t *testing.T) {
 	require.NotNil(t, result.Config)
 	assert.Equal(t, 0, len(result.Errors))
 
-	// Verify defaultAgent is set
-	assert.Equal(t, "myAgent", result.Config.DefaultAgent)
+	// Verify defaultAgentModel is set
+	assert.Equal(t, "testModel", result.Config.DefaultAgentModel)
 
-	// Verify GetDefaultAgent works
-	agent := result.Config.GetDefaultAgent()
-	require.NotNil(t, agent)
-	assert.Equal(t, "myAgent", agent.Name)
+	// Verify GetDefaultAgentModel works
+	model := result.Config.GetDefaultAgentModel()
+	require.NotNil(t, model)
+	assert.Equal(t, "testModel", model.Name)
 }
 
-func TestLoader_LoadFromString_DefaultAgentInvalidType(t *testing.T) {
+func TestLoader_LoadFromString_DefaultAgentModelInvalidType(t *testing.T) {
 	loader := NewLoader(nil)
 
 	source := `
 		GSH_CONFIG = {
-			defaultAgent: 123,
+			defaultAgentModel: 123,
 		}
 	`
 
@@ -485,7 +480,60 @@ func TestLoader_LoadFromString_DefaultAgentInvalidType(t *testing.T) {
 
 	// Should have error about invalid type
 	assert.Greater(t, len(result.Errors), 0)
-	assert.Contains(t, result.Errors[0].Error(), "defaultAgent must be a string")
+	assert.Contains(t, result.Errors[0].Error(), "defaultAgentModel must be a string or model reference")
+}
+
+func TestLoader_LoadFromString_DefaultAgentModelAsModelReference(t *testing.T) {
+	loader := NewLoader(nil)
+
+	source := `
+		model testModel {
+			provider: "openai",
+			model: "gpt-4",
+		}
+
+		GSH_CONFIG = {
+			defaultAgentModel: testModel,
+		}
+	`
+
+	result, err := loader.LoadFromString(source)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Config)
+	assert.Equal(t, 0, len(result.Errors))
+
+	// Verify defaultAgentModel is set to the model's name
+	assert.Equal(t, "testModel", result.Config.DefaultAgentModel)
+
+	// Verify GetDefaultAgentModel works
+	model := result.Config.GetDefaultAgentModel()
+	require.NotNil(t, model)
+	assert.Equal(t, "testModel", model.Name)
+}
+
+func TestLoader_LoadFromString_PredictModelAsModelReference(t *testing.T) {
+	loader := NewLoader(nil)
+
+	source := `
+		model testModel {
+			provider: "openai",
+			model: "gpt-4",
+		}
+
+		GSH_CONFIG = {
+			predictModel: testModel,
+		}
+	`
+
+	result, err := loader.LoadFromString(source)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Config)
+	assert.Equal(t, 0, len(result.Errors))
+
+	// Verify predictModel is set to the model's name
+	assert.Equal(t, "testModel", result.Config.PredictModel)
 }
 
 // mockBashExecutor is a mock implementation of BashExecutor for testing

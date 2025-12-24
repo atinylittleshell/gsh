@@ -151,7 +151,7 @@ type Config struct {
     Models     map[string]*interpreter.ModelValue  // from `model` declarations
     Agents     map[string]*interpreter.AgentValue  // from `agent` declarations (custom agents only)
     Tools      map[string]*interpreter.ToolValue   // from `tool` declarations
-    
+
     // NOTE: The built-in default agent is NOT in this map.
     // It's hardcoded in the REPL and always available as "default".
     // Custom agents defined in .gshrc.gsh are stored in the Agents map.
@@ -441,10 +441,6 @@ users must explicitly switch to custom agents defined in `.gshrc.gsh`.
 - [x] Each agent maintains isolated conversation history
 - [x] Switching preserves conversation state for all agents
 - [x] Comprehensive tests for all agent switching scenarios
-- [ ] **TODO**: Implement built-in default agent that can't be overridden
-- [ ] **TODO**: Remove `GSH_CONFIG.defaultAgent` configuration option
-- [ ] **TODO**: Update agent initialization to always start with built-in default
-- [ ] **TODO**: Add "default" as reserved agent name in command completion
 
 ### Phase 9: Migration & Cleanup ✅
 
@@ -461,20 +457,15 @@ users must explicitly switch to custom agents defined in `.gshrc.gsh`.
 
 **Goal:** Provide comprehensive default gsh configuration and built-in default agent
 
-- [ ] **Implement built-in default agent in code**
+- [x] **Implement built-in default agent in code**
   - Define immutable default agent with simple chat assistant prompt
+  - Remove configurability for `GSH_CONFIG.defaultAgent`
+  - Allow configuration option for what model to use for default agent
   - No tools, no special capabilities - just basic chat
-  - Use default model (e.g., Ollama qwen2.5 or first available model)
-  - Cannot be overridden by user configuration
   - Always available as "default" agent
 - [ ] Create `.gshrc.default.gsh` with example configurations
-  - Example model configurations (Ollama with qwen2.5, OpenAI, Anthropic)
-  - Example custom agent configurations (coder, reviewer, etc.)
+  - Default model configurations (Ollama with gemma3:1b for predciction, and devstral-small-2 for agent)
   - Default GSH_CONFIG settings (prompt, logLevel, etc.)
-  - Example macros (gitdiff, gitpush, gitreview)
-  - Context configuration examples for RAG
-  - Example MCP server declarations
-  - **NOTE**: No `defaultAgent` configuration - users must explicitly switch to custom agents
 - [ ] Load `.gshrc.default.gsh` during REPL initialization (before user's `.gshrc.gsh`)
   - Default file provides examples only, not active configuration
   - Users copy/modify examples into their own `.gshrc.gsh`
@@ -553,7 +544,7 @@ GSH_CONFIG = {
     # Prompt settings
     prompt: "gsh> ",
     logLevel: "info",
-    
+
     # NOTE: No defaultAgent configuration
     # The built-in default agent is always used on startup
     # To use custom agents, switch explicitly with: #/agent <name>

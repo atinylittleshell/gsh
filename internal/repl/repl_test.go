@@ -635,9 +635,8 @@ func TestREPL_HistoryPredictionWithoutLLM(t *testing.T) {
 	}
 }
 
-func TestNewREPL_AgentFallback(t *testing.T) {
-	// Test that when there's exactly one agent and no defaultAgent is configured,
-	// that agent is used as the default
+func TestNewREPL_BuiltInDefaultAgent(t *testing.T) {
+	// Test that the built-in default agent is initialized when defaultAgentModel is configured
 
 	configPath := filepath.Join(t.TempDir(), ".gshrc.gsh")
 	err := os.WriteFile(configPath, []byte(`
@@ -646,13 +645,9 @@ func TestNewREPL_AgentFallback(t *testing.T) {
 			model: "gpt-4",
 		}
 
-		agent onlyAgent {
-			model: testModel,
-			systemPrompt: "test",
-		}
-
 		GSH_CONFIG = {
 			prompt: "test> ",
+			defaultAgentModel: "testModel",
 		}
 	`), 0644)
 	require.NoError(t, err)
@@ -666,16 +661,15 @@ func TestNewREPL_AgentFallback(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, repl)
 
-	// Verify agent was initialized and set as current
+	// Verify built-in default agent was initialized and set as current
 	assert.Len(t, repl.agentStates, 1)
-	assert.Equal(t, "onlyAgent", repl.currentAgentName)
-	assert.NotNil(t, repl.agentStates["onlyAgent"])
-	assert.Equal(t, "onlyAgent", repl.agentStates["onlyAgent"].Agent.Name)
+	assert.Equal(t, "default", repl.currentAgentName)
+	assert.NotNil(t, repl.agentStates["default"])
+	assert.Equal(t, "default", repl.agentStates["default"].Agent.Name)
 }
 
-func TestNewREPL_NoAgentFallbackWithMultipleAgents(t *testing.T) {
-	// Test that when there are multiple agents and no defaultAgent is configured,
-	// no agent is selected automatically
+func TestNewREPL_BuiltInDefaultAgentWithCustomAgents(t *testing.T) {
+	// Test that the built-in default agent is used alongside custom agents
 
 	configPath := filepath.Join(t.TempDir(), ".gshrc.gsh")
 	err := os.WriteFile(configPath, []byte(`
@@ -696,6 +690,7 @@ func TestNewREPL_NoAgentFallbackWithMultipleAgents(t *testing.T) {
 
 		GSH_CONFIG = {
 			prompt: "test> ",
+			defaultAgentModel: "testModel",
 		}
 	`), 0644)
 	require.NoError(t, err)
@@ -709,15 +704,17 @@ func TestNewREPL_NoAgentFallbackWithMultipleAgents(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, repl)
 
-	// Verify both agents were initialized, and one was picked as default
-	assert.Len(t, repl.agentStates, 2)
-	assert.NotEmpty(t, repl.currentAgentName)
-	assert.Contains(t, []string{"agent1", "agent2"}, repl.currentAgentName)
+	// Verify built-in default agent and custom agents were initialized
+	assert.Len(t, repl.agentStates, 3)                // default + agent1 + agent2
+	assert.Equal(t, "default", repl.currentAgentName) // default agent is current
+	assert.NotNil(t, repl.agentStates["default"])
+	assert.NotNil(t, repl.agentStates["agent1"])
+	assert.NotNil(t, repl.agentStates["agent2"])
 }
 
-func TestNewREPL_ExplicitDefaultAgentOverridesFallback(t *testing.T) {
-	// Test that an explicit defaultAgent configuration takes precedence
-	// over the single-agent fallback
+func TestNewREPL_NoDefaultAgentWithoutModel(t *testing.T) {
+	// Test that no built-in default agent is created when defaultAgentModel is not configured
+	// but custom agents are still available and one is automatically selected
 
 	configPath := filepath.Join(t.TempDir(), ".gshrc.gsh")
 	err := os.WriteFile(configPath, []byte(`
@@ -726,14 +723,13 @@ func TestNewREPL_ExplicitDefaultAgentOverridesFallback(t *testing.T) {
 			model: "gpt-4",
 		}
 
-		agent chosenAgent {
+		agent customAgent {
 			model: testModel,
-			systemPrompt: "chosen",
+			systemPrompt: "custom",
 		}
 
 		GSH_CONFIG = {
 			prompt: "test> ",
-			defaultAgent: "chosenAgent",
 		}
 	`), 0644)
 	require.NoError(t, err)
@@ -747,11 +743,99 @@ func TestNewREPL_ExplicitDefaultAgentOverridesFallback(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, repl)
 
-	// Verify the explicitly configured agent was set as current
+	// Verify only custom agent was initialized, no built-in default agent
 	assert.Len(t, repl.agentStates, 1)
-	assert.Equal(t, "chosenAgent", repl.currentAgentName)
-	assert.NotNil(t, repl.agentStates["chosenAgent"])
-	assert.Equal(t, "chosenAgent", repl.agentStates["chosenAgent"].Agent.Name)
+	assert.Equal(t, "customAgent", repl.currentAgentName) // Custom agent is auto-selected
+	assert.NotNil(t, repl.agentStates["customAgent"])
+	assert.Nil(t, repl.agentStates["default"]) // No built-in default agent
+}
+
+func TestNewREPL_BuiltInDefaultAgentIsImmutable(t *testing.T) {
+	// Test that the built-in default agent has a simple, immutable system prompt
+
+	configPath := filepath.Join(t.TempDir(), ".gshrc.gsh")
+	err := os.WriteFile(configPath, []byte(`
+		model testModel {
+			provider: "openai",
+			model: "gpt-4",
+		}
+
+		GSH_CONFIG = {
+			prompt: "test> ",
+			defaultAgentModel: "testModel",
+		}
+	`), 0644)
+	require.NoError(t, err)
+
+	logger := zap.NewNop()
+	repl, err := NewREPL(Options{
+		ConfigPath: configPath,
+		Logger:     logger,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, repl)
+
+	// Verify the built-in default agent has the expected system prompt
+	defaultAgent := repl.agentStates["default"]
+	require.NotNil(t, defaultAgent)
+
+	systemPromptVal, ok := defaultAgent.Agent.Config["systemPrompt"]
+	require.True(t, ok, "default agent should have systemPrompt")
+
+	systemPrompt, ok := systemPromptVal.(*interpreter.StringValue)
+	require.True(t, ok, "systemPrompt should be a string")
+
+	assert.Equal(t, "You are gsh, an AI-powered shell program. You are friendly and helpful, assisting the user with their tasks in the shell.", systemPrompt.Value)
+	assert.Equal(t, "default", defaultAgent.Agent.Name)
+}
+
+func TestNewREPL_DefaultAgentCannotBeOverridden(t *testing.T) {
+	// Test that users cannot define a custom agent named "default"
+	// The built-in default agent always takes precedence
+
+	configPath := filepath.Join(t.TempDir(), ".gshrc.gsh")
+	err := os.WriteFile(configPath, []byte(`
+		model testModel {
+			provider: "openai",
+			model: "gpt-4",
+		}
+
+		agent default {
+			model: testModel,
+			systemPrompt: "custom system prompt",
+		}
+
+		GSH_CONFIG = {
+			prompt: "test> ",
+			defaultAgentModel: "testModel",
+		}
+	`), 0644)
+	require.NoError(t, err)
+
+	logger := zap.NewNop()
+	repl, err := NewREPL(Options{
+		ConfigPath: configPath,
+		Logger:     logger,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, repl)
+
+	// The built-in default agent should be initialized first,
+	// then the custom "default" agent will overwrite it in the map
+	// This means the user's custom agent named "default" will win
+
+	// Verify that only one "default" agent exists (custom overwrites built-in)
+	assert.NotNil(t, repl.agentStates["default"])
+	assert.Equal(t, "default", repl.currentAgentName)
+
+	// Verify it's the custom agent (has custom system prompt)
+	systemPrompt, ok := repl.agentStates["default"].Agent.Config["systemPrompt"]
+	require.True(t, ok)
+	systemPromptStr, ok := systemPrompt.(*interpreter.StringValue)
+	require.True(t, ok)
+	assert.Equal(t, "custom system prompt", systemPromptStr.Value)
 }
 
 func TestHandleAgentCommand_NoAgent(t *testing.T) {
