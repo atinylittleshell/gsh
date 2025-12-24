@@ -19,7 +19,7 @@ model GSH_AGENT_MODEL {
 
 # Default GSH configuration
 GSH_CONFIG = {
-    # Simple prompt (can be overridden in ~/.gshrc.gsh)
+    # Simple prompt (fallback if GSH_UPDATE_PROMPT fails)
     prompt: "gsh> ",
     
     # Log level: "debug", "info", "warn", "error"

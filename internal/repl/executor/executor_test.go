@@ -130,9 +130,12 @@ func TestREPLExecutor_ExecuteBashInSubshell(t *testing.T) {
 		defer exec.Close()
 
 		ctx := context.Background()
-		stdout, stderr, err := exec.ExecuteBashInSubshell(ctx, "echo hello")
+		stdout, stderr, exitCode, err := exec.ExecuteBashInSubshell(ctx, "echo hello")
 		if err != nil {
 			t.Fatalf("ExecuteBashInSubshell() error = %v", err)
+		}
+		if exitCode != 0 {
+			t.Errorf("ExecuteBashInSubshell() exitCode = %d, want 0", exitCode)
 		}
 		if strings.TrimSpace(stdout) != "hello" {
 			t.Errorf("ExecuteBashInSubshell() stdout = %q, want %q", stdout, "hello\n")
@@ -150,9 +153,12 @@ func TestREPLExecutor_ExecuteBashInSubshell(t *testing.T) {
 		defer exec.Close()
 
 		ctx := context.Background()
-		stdout, stderr, err := exec.ExecuteBashInSubshell(ctx, "echo error >&2")
+		stdout, stderr, exitCode, err := exec.ExecuteBashInSubshell(ctx, "echo error >&2")
 		if err != nil {
 			t.Fatalf("ExecuteBashInSubshell() error = %v", err)
+		}
+		if exitCode != 0 {
+			t.Errorf("ExecuteBashInSubshell() exitCode = %d, want 0", exitCode)
 		}
 		if stdout != "" {
 			t.Errorf("ExecuteBashInSubshell() stdout = %q, want empty", stdout)
@@ -170,9 +176,12 @@ func TestREPLExecutor_ExecuteBashInSubshell(t *testing.T) {
 		defer exec.Close()
 
 		ctx := context.Background()
-		stdout, stderr, err := exec.ExecuteBashInSubshell(ctx, "")
+		stdout, stderr, exitCode, err := exec.ExecuteBashInSubshell(ctx, "")
 		if err != nil {
 			t.Fatalf("ExecuteBashInSubshell() error = %v", err)
+		}
+		if exitCode != 0 {
+			t.Errorf("ExecuteBashInSubshell() exitCode = %d, want 0", exitCode)
 		}
 		if stdout != "" || stderr != "" {
 			t.Errorf("ExecuteBashInSubshell() = (%q, %q), want empty", stdout, stderr)
@@ -194,7 +203,7 @@ func TestREPLExecutor_ExecuteBashInSubshell(t *testing.T) {
 		}
 
 		// Run a subshell command that tries to modify it
-		_, _, err = exec.ExecuteBashInSubshell(ctx, "TEST_VAR_PARENT=modified")
+		_, _, _, err = exec.ExecuteBashInSubshell(ctx, "TEST_VAR_PARENT=modified")
 		if err != nil {
 			t.Fatalf("ExecuteBashInSubshell() error = %v", err)
 		}

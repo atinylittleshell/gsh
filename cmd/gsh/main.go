@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -118,8 +119,9 @@ func main() {
 	err = run(runner, historyManager, analyticsManager, completionManager, logger)
 
 	// Handle exit status
-	if code, ok := interp.IsExitStatus(err); ok {
-		os.Exit(int(code))
+	var exitStatus interp.ExitStatus
+	if errors.As(err, &exitStatus) {
+		os.Exit(int(exitStatus))
 	}
 
 	if err != nil {
@@ -218,6 +220,7 @@ func runGshScript(ctx context.Context, filePath string, logger *zap.Logger) erro
 	}
 
 	// Create interpreter with the zap logger for log.* function integration
+	// The interpreter has built-in bash execution capabilities for exec()
 	interp := interpreter.NewWithLogger(logger)
 	defer interp.Close()
 

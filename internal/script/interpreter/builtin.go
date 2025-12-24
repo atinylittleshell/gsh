@@ -1,12 +1,18 @@
 package interpreter
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"go.uber.org/zap/zapcore"
+	"mvdan.cc/sh/v3/expand"
+	"mvdan.cc/sh/v3/interp"
+	"mvdan.cc/sh/v3/syntax"
 )
 
 // builtinNames contains all the names of built-in functions and objects
@@ -17,6 +23,7 @@ var builtinNames = map[string]bool{
 	"env":   true,
 	"Map":   true,
 	"Set":   true,
+	"exec":  true,
 }
 
 // isBuiltin checks if a name is a built-in function or object
@@ -105,6 +112,12 @@ func (i *Interpreter) registerBuiltins() {
 	i.env.Set("Set", &BuiltinValue{
 		Name: "Set",
 		Fn:   builtinSet,
+	})
+
+	// Register exec function for executing shell commands
+	i.env.Set("exec", &BuiltinValue{
+		Name: "exec",
+		Fn:   i.builtinExec,
 	})
 }
 
@@ -266,6 +279,33 @@ func (e *EnvValue) GetProperty(name string) Value {
 	return &StringValue{Value: value}
 }
 
+// SetProperty sets an environment variable by name
+func (e *EnvValue) SetProperty(name string, value Value) error {
+	// Convert value to string
+	var strValue string
+	switch v := value.(type) {
+	case *StringValue:
+		strValue = v.Value
+	case *NumberValue:
+		strValue = fmt.Sprintf("%v", v.Value)
+	case *BoolValue:
+		if v.Value {
+			strValue = "true"
+		} else {
+			strValue = "false"
+		}
+	case *NullValue:
+		// Setting to null unsets the variable
+		return os.Unsetenv(name)
+	default:
+		strValue = v.String()
+	}
+
+	// Set in OS environment
+	// The exec() function will sync all OS environment variables to the subshell
+	return os.Setenv(name, strValue)
+}
+
 // builtinMap implements the Map() constructor
 // Map() creates an empty map
 // Map([[key1, val1], [key2, val2]]) creates a map from array of key-value pairs
@@ -331,4 +371,114 @@ func builtinSet(args []Value) (Value, error) {
 	}
 
 	return &SetValue{Elements: elements}, nil
+}
+
+// builtinExec implements the exec() function for executing shell commands
+// exec(command: string, options?: {timeout?: number}): {stdout: string, stderr: string, exitCode: number}
+func (i *Interpreter) builtinExec(args []Value) (Value, error) {
+	if len(args) == 0 || len(args) > 2 {
+		return nil, fmt.Errorf("exec() takes 1 or 2 arguments (command: string, options?: object), got %d", len(args))
+	}
+
+	// First argument: command (string)
+	cmdValue, ok := args[0].(*StringValue)
+	if !ok {
+		return nil, fmt.Errorf("exec() first argument must be a string, got %s", args[0].Type())
+	}
+	command := cmdValue.Value
+
+	// Second argument (optional): options object
+	timeout := 60 * time.Second // Default timeout
+	if len(args) == 2 {
+		optsValue, ok := args[1].(*ObjectValue)
+		if !ok {
+			return nil, fmt.Errorf("exec() second argument must be an object, got %s", args[1].Type())
+		}
+
+		// Parse timeout option if provided
+		if timeoutVal, ok := optsValue.Properties["timeout"]; ok {
+			if timeoutNum, ok := timeoutVal.(*NumberValue); ok {
+				timeout = time.Duration(timeoutNum.Value) * time.Millisecond
+			} else {
+				return nil, fmt.Errorf("exec() options.timeout must be a number (milliseconds), got %s", timeoutVal.Type())
+			}
+		}
+	}
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// Execute the command in a subshell
+	stdout, stderr, exitCode, err := i.executeBashInSubshell(ctx, command)
+
+	// Check for context timeout
+	if ctx.Err() == context.DeadlineExceeded {
+		return nil, fmt.Errorf("exec() command timed out after %v", timeout)
+	}
+
+	// If there's an execution error (not just non-zero exit code), return it
+	if err != nil {
+		return nil, fmt.Errorf("exec() failed: %w", err)
+	}
+
+	// Return result as an object with stdout, stderr, and exitCode
+	result := &ObjectValue{
+		Properties: map[string]Value{
+			"stdout":   &StringValue{Value: stdout},
+			"stderr":   &StringValue{Value: stderr},
+			"exitCode": &NumberValue{Value: float64(exitCode)},
+		},
+	}
+
+	return result, nil
+}
+
+// executeBashInSubshell executes a bash command in a subshell and returns stdout, stderr, and exit code
+func (i *Interpreter) executeBashInSubshell(ctx context.Context, command string) (string, string, int, error) {
+	// Create a fresh bash runner with the current OS environment
+	// This ensures that any env variables set via env.VAR = "value" (which uses os.Setenv)
+	// are available in the exec() call
+	currentEnv := expand.ListEnviron(os.Environ()...)
+
+	var outBuf, errBuf strings.Builder
+	runner, err := interp.New(
+		interp.Env(currentEnv),
+		interp.StdIO(nil, &outBuf, &errBuf),
+	)
+	if err != nil {
+		return "", "", 1, fmt.Errorf("failed to create bash runner: %w", err)
+	}
+
+	// Parse the command
+	var prog *syntax.Stmt
+	parseErr := syntax.NewParser().Stmts(strings.NewReader(command), func(stmt *syntax.Stmt) bool {
+		prog = stmt
+		return false
+	})
+	if parseErr != nil {
+		return "", "", 1, fmt.Errorf("failed to parse bash command: %w", parseErr)
+	}
+
+	if prog == nil {
+		return "", "", 0, nil
+	}
+
+	// Execute the command
+	err = runner.Run(ctx, prog)
+
+	// Extract exit code
+	exitCode := 0
+	if err != nil {
+		var exitStatus interp.ExitStatus
+		if errors.As(err, &exitStatus) {
+			exitCode = int(exitStatus)
+			// Non-zero exit code is not an execution error, just return the code
+			return outBuf.String(), errBuf.String(), exitCode, nil
+		}
+		// Real execution error (parse error, etc.)
+		return outBuf.String(), errBuf.String(), 1, err
+	}
+
+	return outBuf.String(), errBuf.String(), exitCode, nil
 }

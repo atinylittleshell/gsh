@@ -632,8 +632,25 @@ func (r *REPL) handleBuiltinCommand(command string) (bool, error) {
 
 // getPrompt returns the prompt string to display.
 func (r *REPL) getPrompt() string {
-	// For now, use static prompt from config
-	// TODO: Support GSH_UPDATE_PROMPT tool in later phases
+	// Check if GSH_UPDATE_PROMPT tool is defined
+	promptTool := r.config.GetUpdatePromptTool()
+	if promptTool != nil {
+		// Call the tool with exit code and duration
+		exitCodeValue := &interpreter.NumberValue{Value: float64(r.lastExitCode)}
+		durationValue := &interpreter.NumberValue{Value: float64(r.lastDurationMs)}
+
+		result, err := r.executor.Interpreter().CallTool(promptTool, []interpreter.Value{exitCodeValue, durationValue})
+		if err != nil {
+			r.logger.Warn("GSH_UPDATE_PROMPT tool failed, using static prompt", zap.Error(err))
+		} else if strValue, ok := result.(*interpreter.StringValue); ok {
+			return strValue.Value
+		} else {
+			r.logger.Warn("GSH_UPDATE_PROMPT tool did not return a string, using static prompt",
+				zap.String("returnType", result.Type().String()))
+		}
+	}
+
+	// Fall back to static prompt
 	return r.config.Prompt
 }
 

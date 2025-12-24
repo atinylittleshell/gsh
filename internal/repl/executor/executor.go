@@ -6,6 +6,7 @@ package executor
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -51,6 +52,7 @@ type REPLExecutor struct {
 	runner      *interp.Runner
 	interpreter *interpreter.Interpreter
 	logger      *zap.Logger
+	varsMutex   sync.RWMutex // Protects concurrent access to runner.Vars
 }
 
 // NewREPLExecutor creates a new REPLExecutor.
@@ -87,8 +89,9 @@ func (e *REPLExecutor) ExecuteBash(ctx context.Context, command string) (int, er
 
 	err = e.runner.Run(ctx, prog)
 	if err != nil {
-		if status, ok := interp.IsExitStatus(err); ok {
-			return int(status), nil
+		var exitStatus interp.ExitStatus
+		if errors.As(err, &exitStatus) {
+			return int(exitStatus), nil
 		}
 		return 1, err
 	}
@@ -97,8 +100,8 @@ func (e *REPLExecutor) ExecuteBash(ctx context.Context, command string) (int, er
 }
 
 // ExecuteBashInSubshell runs a bash command in a subshell, capturing output.
-// Returns stdout, stderr, and any execution error.
-func (e *REPLExecutor) ExecuteBashInSubshell(ctx context.Context, command string) (string, string, error) {
+// Returns stdout, stderr, exit code, and any execution error.
+func (e *REPLExecutor) ExecuteBashInSubshell(ctx context.Context, command string) (string, string, int, error) {
 	subShell := e.runner.Subshell()
 
 	outBuf := &threadSafeBuffer{}
@@ -111,20 +114,29 @@ func (e *REPLExecutor) ExecuteBashInSubshell(ctx context.Context, command string
 		return false
 	})
 	if err != nil {
-		return "", "", fmt.Errorf("failed to parse bash command: %w", err)
+		return "", "", 1, fmt.Errorf("failed to parse bash command: %w", err)
 	}
 
 	if prog == nil {
-		return "", "", nil
+		return "", "", 0, nil
 	}
 
 	err = subShell.Run(ctx, prog)
+
+	// Extract exit code
+	exitCode := 0
 	if err != nil {
-		// Still return output even on error
-		return outBuf.String(), errBuf.String(), err
+		var exitStatus interp.ExitStatus
+		if errors.As(err, &exitStatus) {
+			exitCode = int(exitStatus)
+			// Non-zero exit code is not an execution error, just return the code
+			return outBuf.String(), errBuf.String(), exitCode, nil
+		}
+		// Real execution error (parse error, etc.)
+		return outBuf.String(), errBuf.String(), 1, err
 	}
 
-	return outBuf.String(), errBuf.String(), nil
+	return outBuf.String(), errBuf.String(), exitCode, nil
 }
 
 // ExecuteGsh runs a gsh script.
@@ -152,6 +164,8 @@ func (e *REPLExecutor) ExecuteGsh(ctx context.Context, script string) error {
 // GetEnv gets an environment variable value.
 // This reads from the runner's Vars map, which is populated during command execution.
 func (e *REPLExecutor) GetEnv(name string) string {
+	e.varsMutex.RLock()
+	defer e.varsMutex.RUnlock()
 	if e.runner.Vars == nil {
 		return ""
 	}
@@ -161,6 +175,8 @@ func (e *REPLExecutor) GetEnv(name string) string {
 // SetEnv sets an environment variable directly in the runner's Vars map.
 // For variables that need to be available in subshells, use ExecuteBash with export.
 func (e *REPLExecutor) SetEnv(name, value string) {
+	e.varsMutex.Lock()
+	defer e.varsMutex.Unlock()
 	if e.runner.Vars == nil {
 		e.runner.Vars = make(map[string]expand.Variable)
 	}

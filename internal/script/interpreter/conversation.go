@@ -262,7 +262,7 @@ func (i *Interpreter) executeUserToolCall(tool *ToolValue, args map[string]inter
 	}
 
 	// Call the tool
-	result, err := i.callTool(tool, valueArgs)
+	result, err := i.CallTool(tool, valueArgs)
 	if err != nil {
 		return "", err
 	}

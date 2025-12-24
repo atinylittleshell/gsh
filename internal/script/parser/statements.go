@@ -38,8 +38,9 @@ func (p *Parser) parseStatement() Statement {
 			return p.parseAssignmentStatement()
 		}
 		// Check for index assignment: identifier[...] = value
+		// Check for member assignment: identifier.prop = value
 		// We need to parse as expression and check if it's followed by '='
-		if p.peekTokenIs(lexer.LBRACKET) {
+		if p.peekTokenIs(lexer.LBRACKET) || p.peekTokenIs(lexer.DOT) {
 			return p.parseAssignmentOrExpressionStatement()
 		}
 	}

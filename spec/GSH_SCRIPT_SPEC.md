@@ -249,6 +249,14 @@ Environment variables are accessed through the `env` object:
 token = env.GITHUB_TOKEN
 port = env.PORT ?? 3000  # Default if not set
 
+# Set environment variables
+env.MY_VAR = "some value"
+env.PORT = 8080
+env.DEBUG = true
+
+# Unset environment variables
+env.MY_VAR = null
+
 # In string interpolation
 message = `Token is: ${env.GITHUB_TOKEN}`
 path = `/home/${env.USER}_backup`
@@ -448,6 +456,51 @@ data = JSON.parse('{"key": "value"}')
 # Stringify
 json = JSON.stringify({name: "Alice", age: 30})
 ```
+
+### Shell Command Execution
+
+Execute shell commands and capture their output:
+
+```gsh
+# Basic usage - execute a command and get result
+result = exec("echo hello")
+print(result.stdout)      # "hello\n"
+print(result.stderr)      # ""
+print(result.exitCode)    # 0
+
+# With timeout (in milliseconds)
+result = exec("sleep 10", {timeout: 5000})  # Times out after 5 seconds
+
+# Check exit code for errors
+result = exec("ls /nonexistent")
+if (result.exitCode != 0) {
+    log.error(`Command failed: ${result.stderr}`)
+}
+
+# Practical examples
+branch = exec("git branch --show-current").stdout
+files = exec("ls -la").stdout
+hostname = exec("hostname").stdout
+```
+
+**Function signature:**
+```gsh
+exec(command: string, options?: {timeout?: number}): {stdout: string, stderr: string, exitCode: number}
+```
+
+**Options:**
+- `timeout` - Maximum execution time in milliseconds (default: 60000ms / 60 seconds)
+
+**Returns:** An object containing:
+- `stdout` - Standard output as a string
+- `stderr` - Standard error as a string  
+- `exitCode` - Exit code of the command (0 for success)
+
+**Notes:**
+- Commands are executed in a subshell (isolated from the main shell environment)
+- Non-zero exit codes do not throw errors; check `exitCode` in the result
+- Timeouts throw an error
+- Use string interpolation for dynamic commands: `exec("echo ${variable}")`
 
 ---
 

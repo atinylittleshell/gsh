@@ -119,6 +119,10 @@ func (i *Interpreter) evalAssignmentStatement(stmt *parser.AssignmentStatement) 
 		// Index assignment (arr[0] = value or obj["key"] = value)
 		return i.evalIndexAssignment(t, value)
 
+	case *parser.MemberExpression:
+		// Member assignment (obj.prop = value or env.VAR = value)
+		return i.evalMemberAssignment(t, value)
+
 	default:
 		return nil, fmt.Errorf("invalid assignment target: %T", target)
 	}
@@ -152,16 +156,50 @@ func (i *Interpreter) evalIndexAssignment(indexExpr *parser.IndexExpression, val
 	}
 
 	// Handle object index assignment
-	if objVal, ok := left.(*ObjectValue); ok {
-		if index.Type() != ValueTypeString {
-			return nil, fmt.Errorf("object index must be a string, got %s", index.Type())
-		}
+	if index.Type() == ValueTypeString {
 		key := index.(*StringValue).Value
+		// Reuse setProperty for consistent behavior (handles ObjectValue, EnvValue, etc.)
+		return i.setProperty(left, key, value)
+	}
+
+	return nil, fmt.Errorf("cannot assign to index of type %s", left.Type())
+}
+
+// evalMemberAssignment handles assignments to object properties (obj.prop = value)
+func (i *Interpreter) evalMemberAssignment(memberExpr *parser.MemberExpression, value Value) (Value, error) {
+	// Evaluate the object
+	obj, err := i.evalExpression(memberExpr.Object)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get property name
+	propertyName := memberExpr.Property.Value
+
+	// Delegate to setProperty which handles all property setting logic
+	return i.setProperty(obj, propertyName, value)
+}
+
+// setProperty sets a property on an object, handling different value types
+func (i *Interpreter) setProperty(obj Value, key string, value Value) (Value, error) {
+	// Handle regular objects
+	if objVal, ok := obj.(*ObjectValue); ok {
 		objVal.Properties[key] = value
 		return value, nil
 	}
 
-	return nil, fmt.Errorf("cannot assign to index of type %s", left.Type())
+	// Check if the object has a SetProperty method (for custom types like EnvValue)
+	type PropertySetter interface {
+		SetProperty(name string, value Value) error
+	}
+	if setter, ok := obj.(PropertySetter); ok {
+		if err := setter.SetProperty(key, value); err != nil {
+			return nil, fmt.Errorf("failed to set property %s: %w", key, err)
+		}
+		return value, nil
+	}
+
+	return nil, fmt.Errorf("cannot assign to property of type %s", obj.Type())
 }
 
 // evalIfStatement evaluates an if statement

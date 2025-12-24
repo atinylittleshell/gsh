@@ -466,7 +466,7 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 	}
 
 	// Call the tool
-	result, err := i.callTool(tool, args)
+	result, err := i.CallTool(tool, args)
 	if err != nil {
 		return nil, err
 	}
@@ -484,7 +484,8 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 }
 
 // callTool executes a tool with the given arguments
-func (i *Interpreter) callTool(tool *ToolValue, args []Value) (Value, error) {
+// CallTool calls a tool with the given arguments
+func (i *Interpreter) CallTool(tool *ToolValue, args []Value) (Value, error) {
 	// Get the body as a block statement
 	body, ok := tool.Body.(*parser.BlockStatement)
 	if !ok {
