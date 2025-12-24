@@ -83,14 +83,14 @@ func updateToLatestVersion(currentSemVer *semver.Version, logger *zap.Logger, fs
 	// Prompt user for confirmation
 	fmt.Printf("\nNew version of gsh available: %s (current: %s)\n", latestVersion, currentSemVer.String())
 	fmt.Print("Update now? (Y/n): ")
-	
+
 	reader := bufio.NewReader(os.Stdin)
 	confirm, err := reader.ReadString('\n')
 	if err != nil {
 		logger.Warn("failed to read user input", zap.Error(err))
 		return
 	}
-	
+
 	confirm = strings.TrimSpace(strings.ToLower(confirm))
 	if confirm == "n" || confirm == "no" {
 		return
