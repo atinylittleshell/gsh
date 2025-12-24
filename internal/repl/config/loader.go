@@ -95,7 +95,9 @@ func (l *Loader) LoadFromString(source string) (*LoadResult, error) {
 }
 
 // LoadDefaultConfigPath loads configuration from the default path (~/.gshrc.gsh).
-func (l *Loader) LoadDefaultConfigPath() (*LoadResult, error) {
+// It first loads .gshrc.default.gsh (system defaults), then merges user's ~/.gshrc.gsh.
+// defaultContent is the embedded content of .gshrc.default.gsh (can be empty).
+func (l *Loader) LoadDefaultConfigPath(defaultContent string) (*LoadResult, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return &LoadResult{
@@ -104,8 +106,35 @@ func (l *Loader) LoadDefaultConfigPath() (*LoadResult, error) {
 		}, nil
 	}
 
-	configPath := filepath.Join(homeDir, ".gshrc.gsh")
-	return l.LoadFromFile(configPath)
+	// Start with default configuration
+	result := &LoadResult{
+		Config: DefaultConfig(),
+		Errors: []error{},
+	}
+
+	// Load system default config from embedded content if provided
+	if defaultContent != "" {
+		defaultResult, err := l.LoadFromString(defaultContent)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Errorf("failed to load default config: %w", err))
+		} else {
+			// Merge default config into result
+			result = l.mergeResults(result, defaultResult)
+			l.logger.Debug("loaded embedded default configuration")
+		}
+	}
+
+	// Load user configuration (~/.gshrc.gsh)
+	userConfigPath := filepath.Join(homeDir, ".gshrc.gsh")
+	userResult, err := l.LoadFromFile(userConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load user config: %w", err)
+	}
+
+	// Merge user config into result (user config takes precedence)
+	result = l.mergeResults(result, userResult)
+
+	return result, nil
 }
 
 // LoadBashRC loads a bash configuration file (.gshrc) by executing it through
@@ -176,6 +205,47 @@ func (l *Loader) extractConfig(evalResult *interpreter.EvalResult, result *LoadR
 	}
 }
 
+// mergeResults merges two LoadResult objects, with the second result taking precedence.
+// This is used to merge default config with user config.
+func (l *Loader) mergeResults(base, override *LoadResult) *LoadResult {
+	result := &LoadResult{
+		Config:      base.Config.Clone(),
+		Interpreter: override.Interpreter, // Use the most recent interpreter
+		Errors:      append([]error{}, base.Errors...),
+	}
+	result.Errors = append(result.Errors, override.Errors...)
+
+	// Merge configuration fields (override takes precedence for non-empty values)
+	if override.Config.Prompt != "" && override.Config.Prompt != "gsh> " {
+		result.Config.Prompt = override.Config.Prompt
+	}
+	if override.Config.LogLevel != "" && override.Config.LogLevel != "info" {
+		result.Config.LogLevel = override.Config.LogLevel
+	}
+	if override.Config.PredictModel != "" {
+		result.Config.PredictModel = override.Config.PredictModel
+	}
+	if override.Config.DefaultAgentModel != "" {
+		result.Config.DefaultAgentModel = override.Config.DefaultAgentModel
+	}
+
+	// Merge maps (override takes precedence)
+	for name, model := range override.Config.Models {
+		result.Config.Models[name] = model
+	}
+	for name, agent := range override.Config.Agents {
+		result.Config.Agents[name] = agent
+	}
+	for name, tool := range override.Config.Tools {
+		result.Config.Tools[name] = tool
+	}
+	for name, server := range override.Config.MCPServers {
+		result.Config.MCPServers[name] = server
+	}
+
+	return result
+}
+
 // extractGSHConfig extracts values from the GSH_CONFIG object.
 func (l *Loader) extractGSHConfig(value interpreter.Value, result *LoadResult) {
 	obj, ok := value.(*interpreter.ObjectValue)
@@ -204,25 +274,21 @@ func (l *Loader) extractGSHConfig(value interpreter.Value, result *LoadResult) {
 
 	// Extract predictModel
 	if predictModel, ok := obj.Properties["predictModel"]; ok {
-		if strVal, ok := predictModel.(*interpreter.StringValue); ok {
-			result.Config.PredictModel = strVal.Value
-		} else if modelVal, ok := predictModel.(*interpreter.ModelValue); ok {
-			// Allow passing a model object directly, use its name
+		if modelVal, ok := predictModel.(*interpreter.ModelValue); ok {
+			// Only accept model reference, use its name
 			result.Config.PredictModel = modelVal.Name
 		} else {
-			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.predictModel must be a string or model reference"))
+			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.predictModel must be a model reference, got %s", predictModel.Type()))
 		}
 	}
 
 	// Extract defaultAgentModel
 	if defaultAgentModel, ok := obj.Properties["defaultAgentModel"]; ok {
-		if strVal, ok := defaultAgentModel.(*interpreter.StringValue); ok {
-			result.Config.DefaultAgentModel = strVal.Value
-		} else if modelVal, ok := defaultAgentModel.(*interpreter.ModelValue); ok {
-			// Allow passing a model object directly, use its name
+		if modelVal, ok := defaultAgentModel.(*interpreter.ModelValue); ok {
+			// Only accept model reference, use its name
 			result.Config.DefaultAgentModel = modelVal.Name
 		} else {
-			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.defaultAgentModel must be a string or model reference"))
+			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.defaultAgentModel must be a model reference, got %s", defaultAgentModel.Type()))
 		}
 	}
 

@@ -453,7 +453,7 @@ users must explicitly switch to custom agents defined in `.gshrc.gsh`.
 - [x] Update documentation
 - [x] Final testing
 
-### Phase 10: Default Configuration
+### Phase 10: Default Configuration ✅
 
 **Goal:** Provide comprehensive default gsh configuration and built-in default agent
 
@@ -463,13 +463,11 @@ users must explicitly switch to custom agents defined in `.gshrc.gsh`.
   - Allow configuration option for what model to use for default agent
   - No tools, no special capabilities - just basic chat
   - Always available as "default" agent
-- [ ] Create `.gshrc.default.gsh` with example configurations
-  - Default model configurations (Ollama with gemma3:1b for predciction, and devstral-small-2 for agent)
-  - Default GSH_CONFIG settings (prompt, logLevel, etc.)
-- [ ] Load `.gshrc.default.gsh` during REPL initialization (before user's `.gshrc.gsh`)
-  - Default file provides examples only, not active configuration
-  - Users copy/modify examples into their own `.gshrc.gsh`
-- [ ] Update documentation to reference both default files and built-in agent
+- [x] Create `.gshrc.default.gsh` with example configurations
+  - Default model configurations (Ollama with gemma2:2b for prediction, and qwen2.5-coder:3b for agent)
+  - Default GSH_CONFIG settings (prompt, logLevel, predictModel, defaultAgentModel)
+  - Embedded in binary using `//go:embed` directive in cmd/gsh/main.go
+  - Loaded during REPL initialization (before user's ~/.gshrc.gsh)
 
 ---
 

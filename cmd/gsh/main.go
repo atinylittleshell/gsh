@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"flag"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,7 +22,6 @@ import (
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 	"github.com/atinylittleshell/gsh/internal/script/lexer"
 	"github.com/atinylittleshell/gsh/internal/script/parser"
-	"github.com/atinylittleshell/gsh/internal/styles"
 	"go.uber.org/zap"
 	"golang.org/x/term"
 	"mvdan.cc/sh/v3/expand"
@@ -30,6 +29,9 @@ import (
 )
 
 var BUILD_VERSION = "dev"
+
+//go:embed .gshrc.default.gsh
+var defaultGshrcContent string
 
 var command = flag.String("c", "", "run a command")
 var loginShell = flag.Bool("l", false, "run as a login shell")
@@ -168,7 +170,8 @@ func run(
 // runInteractiveShell starts the new REPL implementation.
 func runInteractiveShell(ctx context.Context, logger *zap.Logger) error {
 	r, err := repl.NewREPL(repl.Options{
-		Logger: logger,
+		Logger:               logger,
+		DefaultConfigContent: defaultGshrcContent,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to initialize REPL: %w", err)
@@ -229,23 +232,6 @@ func runGshScript(ctx context.Context, filePath string, logger *zap.Logger) erro
 	return nil
 }
 
-// grayStderrWriter wraps stderr and applies gray styling to output
-type grayStderrWriter struct{}
-
-func (w grayStderrWriter) Write(p []byte) (n int, err error) {
-	// Apply gray styling to the log output
-	styled := styles.LOG(string(p))
-	return os.Stderr.WriteString(styled)
-}
-
-func (w grayStderrWriter) Sync() error {
-	return os.Stderr.Sync()
-}
-
-func (w grayStderrWriter) Close() error {
-	return nil
-}
-
 func initializeLogger(runner *interp.Runner) (*zap.Logger, error) {
 	logLevel := environment.GetLogLevel(runner)
 	if BUILD_VERSION == "dev" {
@@ -263,18 +249,8 @@ func initializeLogger(runner *interp.Runner) (*zap.Logger, error) {
 		core.LogFile(),
 	}
 
-	// In dev builds, also log to stderr for easier debugging with gray styling
-	if BUILD_VERSION == "dev" {
-		// Register a custom sink for gray stderr output
-		err := zap.RegisterSink("graystderr", func(u *url.URL) (zap.Sink, error) {
-			return grayStderrWriter{}, nil
-		})
-		if err != nil {
-			// Sink may already be registered, ignore the error
-			_ = err
-		}
-		loggerConfig.OutputPaths = append(loggerConfig.OutputPaths, "graystderr://")
-	}
+	// In dev builds, logs only go to file to avoid interfering with Bubble Tea UI
+	// Use `tail -f ~/.gsh/gsh.log` to monitor logs in real-time
 
 	logger, err := loggerConfig.Build()
 	if err != nil {

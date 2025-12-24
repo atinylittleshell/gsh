@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/atinylittleshell/gsh/internal/script/interpreter"
+	"github.com/atinylittleshell/gsh/internal/script/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -360,7 +362,7 @@ model predictModel {
 }
 
 GSH_CONFIG = {
-	predictModel: "predictModel"
+	predictModel: predictModel
 }
 `
 	loader := NewLoader(nil)
@@ -389,7 +391,28 @@ GSH_CONFIG = {
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.NotEmpty(t, result.Errors)
-	assert.Contains(t, result.Errors[0].Error(), "GSH_CONFIG.predictModel must be a string")
+	assert.Contains(t, result.Errors[0].Error(), "GSH_CONFIG.predictModel must be a model reference")
+}
+
+func TestLoader_LoadFromString_PredictModelRejectsString(t *testing.T) {
+	source := `
+model predictModel {
+	provider: "openai",
+	model: "gpt-4o-mini",
+	apiKey: "test-key"
+}
+
+GSH_CONFIG = {
+	predictModel: "predictModel"
+}
+`
+	loader := NewLoader(nil)
+	result, err := loader.LoadFromString(source)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.NotEmpty(t, result.Errors)
+	assert.Contains(t, result.Errors[0].Error(), "GSH_CONFIG.predictModel must be a model reference")
 }
 
 func TestLoader_LoadFromString_PredictModelWithFullConfig(t *testing.T) {
@@ -410,7 +433,7 @@ model slowModel {
 GSH_CONFIG = {
 	prompt: "myshell> ",
 	logLevel: "debug",
-	predictModel: "fastModel"
+	predictModel: fastModel
 }
 `
 	loader := NewLoader(nil)
@@ -445,7 +468,7 @@ func TestLoader_LoadFromString_DefaultAgent(t *testing.T) {
 		}
 
 		GSH_CONFIG = {
-			defaultAgentModel: "testModel",
+			defaultAgentModel: testModel,
 		}
 	`
 
@@ -480,7 +503,31 @@ func TestLoader_LoadFromString_DefaultAgentModelInvalidType(t *testing.T) {
 
 	// Should have error about invalid type
 	assert.Greater(t, len(result.Errors), 0)
-	assert.Contains(t, result.Errors[0].Error(), "defaultAgentModel must be a string or model reference")
+	assert.Contains(t, result.Errors[0].Error(), "defaultAgentModel must be a model reference")
+}
+
+func TestLoader_LoadFromString_DefaultAgentModelRejectsString(t *testing.T) {
+	loader := NewLoader(nil)
+
+	source := `
+		model testModel {
+			provider: "openai",
+			model: "gpt-4",
+		}
+
+		GSH_CONFIG = {
+			defaultAgentModel: "testModel",
+		}
+	`
+
+	result, err := loader.LoadFromString(source)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Config)
+
+	// Should have error about invalid type (string not allowed)
+	assert.Greater(t, len(result.Errors), 0)
+	assert.Contains(t, result.Errors[0].Error(), "defaultAgentModel must be a model reference")
 }
 
 func TestLoader_LoadFromString_DefaultAgentModelAsModelReference(t *testing.T) {
@@ -534,6 +581,134 @@ func TestLoader_LoadFromString_PredictModelAsModelReference(t *testing.T) {
 
 	// Verify predictModel is set to the model's name
 	assert.Equal(t, "testModel", result.Config.PredictModel)
+}
+
+func TestLoader_MergeResults(t *testing.T) {
+	loader := NewLoader(nil)
+
+	// Create base config
+	base := &LoadResult{
+		Config: &Config{
+			Prompt:            "base> ",
+			LogLevel:          "info",
+			PredictModel:      "baseModel",
+			DefaultAgentModel: "baseAgent",
+			Models: map[string]*interpreter.ModelValue{
+				"baseModel": {Name: "baseModel"},
+			},
+			Agents:     make(map[string]*interpreter.AgentValue),
+			Tools:      make(map[string]*interpreter.ToolValue),
+			MCPServers: make(map[string]*mcp.MCPServer),
+		},
+		Errors: []error{},
+	}
+
+	// Create override config
+	override := &LoadResult{
+		Config: &Config{
+			Prompt:            "override> ",
+			LogLevel:          "debug",
+			PredictModel:      "",
+			DefaultAgentModel: "overrideAgent",
+			Models: map[string]*interpreter.ModelValue{
+				"overrideModel": {Name: "overrideModel"},
+			},
+			Agents:     make(map[string]*interpreter.AgentValue),
+			Tools:      make(map[string]*interpreter.ToolValue),
+			MCPServers: make(map[string]*mcp.MCPServer),
+		},
+		Errors: []error{},
+	}
+
+	// Merge
+	result := loader.mergeResults(base, override)
+
+	// Verify merged values
+	assert.Equal(t, "override> ", result.Config.Prompt)
+	assert.Equal(t, "debug", result.Config.LogLevel)
+	assert.Equal(t, "baseModel", result.Config.PredictModel) // base preserved when override is empty
+	assert.Equal(t, "overrideAgent", result.Config.DefaultAgentModel)
+
+	// Verify models are merged
+	assert.Len(t, result.Config.Models, 2)
+	assert.NotNil(t, result.Config.Models["baseModel"])
+	assert.NotNil(t, result.Config.Models["overrideModel"])
+}
+
+func TestLoader_MergeResults_WithDefaultValues(t *testing.T) {
+	loader := NewLoader(nil)
+
+	// Create base config with non-default values
+	base := &LoadResult{
+		Config: &Config{
+			Prompt:            "custom> ",
+			LogLevel:          "warn",
+			PredictModel:      "baseModel",
+			DefaultAgentModel: "baseAgent",
+			Models:            make(map[string]*interpreter.ModelValue),
+			Agents:            make(map[string]*interpreter.AgentValue),
+			Tools:             make(map[string]*interpreter.ToolValue),
+			MCPServers:        make(map[string]*mcp.MCPServer),
+		},
+		Errors: []error{},
+	}
+
+	// Create override config with default values (should not override)
+	override := &LoadResult{
+		Config: &Config{
+			Prompt:            "gsh> ", // default value
+			LogLevel:          "info",  // default value
+			PredictModel:      "",
+			DefaultAgentModel: "",
+			Models:            make(map[string]*interpreter.ModelValue),
+			Agents:            make(map[string]*interpreter.AgentValue),
+			Tools:             make(map[string]*interpreter.ToolValue),
+			MCPServers:        make(map[string]*mcp.MCPServer),
+		},
+		Errors: []error{},
+	}
+
+	// Merge
+	result := loader.mergeResults(base, override)
+
+	// Verify base values are preserved when override has default values
+	assert.Equal(t, "custom> ", result.Config.Prompt)
+	assert.Equal(t, "warn", result.Config.LogLevel)
+	assert.Equal(t, "baseModel", result.Config.PredictModel)
+	assert.Equal(t, "baseAgent", result.Config.DefaultAgentModel)
+}
+
+func TestConfig_Clone(t *testing.T) {
+	original := &Config{
+		Prompt:            "test> ",
+		LogLevel:          "debug",
+		PredictModel:      "testModel",
+		DefaultAgentModel: "testAgent",
+		Models: map[string]*interpreter.ModelValue{
+			"model1": {Name: "model1"},
+		},
+		Agents:     make(map[string]*interpreter.AgentValue),
+		Tools:      make(map[string]*interpreter.ToolValue),
+		MCPServers: make(map[string]*mcp.MCPServer),
+	}
+
+	cloned := original.Clone()
+
+	// Verify values are copied
+	assert.Equal(t, original.Prompt, cloned.Prompt)
+	assert.Equal(t, original.LogLevel, cloned.LogLevel)
+	assert.Equal(t, original.PredictModel, cloned.PredictModel)
+	assert.Equal(t, original.DefaultAgentModel, cloned.DefaultAgentModel)
+
+	// Verify maps are independent
+	cloned.Models["model2"] = &interpreter.ModelValue{Name: "model2"}
+	assert.Len(t, original.Models, 1)
+	assert.Len(t, cloned.Models, 2)
+
+	// Verify changing cloned values doesn't affect original
+	cloned.Prompt = "changed> "
+	assert.Equal(t, "test> ", original.Prompt)
+	assert.Equal(t, "changed> ", cloned.Prompt)
 }
 
 // mockBashExecutor is a mock implementation of BashExecutor for testing

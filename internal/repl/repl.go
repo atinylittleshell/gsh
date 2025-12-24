@@ -64,6 +64,10 @@ type Options struct {
 	// If empty, the default path (~/.gshrc.gsh) is used.
 	ConfigPath string
 
+	// DefaultConfigContent is the embedded content of .gshrc.default.gsh.
+	// This is loaded before the user's .gshrc.gsh file.
+	DefaultConfigContent string
+
 	// HistoryPath is the path to the history database file.
 	// If empty, the default path is used.
 	HistoryPath string
@@ -101,7 +105,7 @@ func NewREPL(opts Options) (*REPL, error) {
 	if opts.ConfigPath != "" {
 		loadResult, err = loader.LoadFromFile(opts.ConfigPath)
 	} else {
-		loadResult, err = loader.LoadDefaultConfigPath()
+		loadResult, err = loader.LoadDefaultConfigPath(opts.DefaultConfigContent)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
@@ -265,9 +269,6 @@ func (r *REPL) Run(ctx context.Context) error {
 		// Get history values for navigation
 		historyValues := r.getHistoryValues()
 
-		// Update predictor context before each input session
-		r.updatePredictorContext()
-
 		// Reset prediction state for new input
 		if predictionState != nil {
 			predictionState.Reset()
@@ -281,6 +282,9 @@ func (r *REPL) Run(ctx context.Context) error {
 			PredictionState:    predictionState,
 			Logger:             r.logger,
 		})
+
+		// Update predictor context asynchronously (don't block prompt display)
+		go r.updatePredictorContext()
 
 		// Run the input loop
 		p := tea.NewProgram(inputModel,

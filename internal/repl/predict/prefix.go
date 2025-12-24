@@ -124,9 +124,12 @@ Respond with JSON in this format: {"predicted_command": "your prediction here"}
 		return "", err
 	}
 
+	// Extract JSON from response (may be wrapped in markdown code blocks)
+	jsonContent := extractJSON(response.Content)
+
 	// Parse JSON response
 	var prediction prefixPredictionResponse
-	if err := json.Unmarshal([]byte(response.Content), &prediction); err != nil {
+	if err := json.Unmarshal([]byte(jsonContent), &prediction); err != nil {
 		p.logger.Debug("failed to parse prediction JSON", zap.Error(err), zap.String("content", response.Content))
 		return "", nil
 	}

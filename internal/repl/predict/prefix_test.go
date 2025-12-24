@@ -203,4 +203,38 @@ func TestPrefixPredictor_Predict(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "", result) // Discarded because doesn't match prefix
 	})
+
+	t.Run("JSON wrapped in markdown code block", func(t *testing.T) {
+		provider := &mockModelProvider{
+			response: &interpreter.ChatResponse{
+				Content: "```json\n{\"predicted_command\": \"git status\"}\n```\n",
+			},
+		}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
+
+		predictor := NewPrefixPredictor(PrefixPredictorConfig{
+			Model: model,
+		})
+
+		result, err := predictor.Predict(context.Background(), "git")
+		assert.NoError(t, err)
+		assert.Equal(t, "git status", result)
+	})
+
+	t.Run("JSON wrapped in plain code block", func(t *testing.T) {
+		provider := &mockModelProvider{
+			response: &interpreter.ChatResponse{
+				Content: "```\n{\"predicted_command\": \"git push origin main\"}\n```",
+			},
+		}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
+
+		predictor := NewPrefixPredictor(PrefixPredictorConfig{
+			Model: model,
+		})
+
+		result, err := predictor.Predict(context.Background(), "git push")
+		assert.NoError(t, err)
+		assert.Equal(t, "git push origin main", result)
+	})
 }

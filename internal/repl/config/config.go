@@ -20,11 +20,13 @@ type Config struct {
 	LogLevel string
 
 	// PredictModel is the name of the model to use for predictions (from GSH_CONFIG.predictModel)
-	// This should reference a model defined in the Models map.
+	// GSH_CONFIG.predictModel must be a model value reference (e.g., predictModel: myModel), not a string.
+	// This field stores the name of the referenced model.
 	PredictModel string
 
 	// DefaultAgentModel is the name of the model to use for the built-in default agent (from GSH_CONFIG.defaultAgentModel)
-	// This should reference a model defined in the Models map.
+	// GSH_CONFIG.defaultAgentModel must be a model value reference (e.g., defaultAgentModel: myModel), not a string.
+	// This field stores the name of the referenced model.
 	// If empty, the default agent will not be available (no model configured).
 	DefaultAgentModel string
 
@@ -112,4 +114,34 @@ func (c *Config) GetMCPServer(name string) *mcp.MCPServer {
 		return nil
 	}
 	return c.MCPServers[name]
+}
+
+// Clone creates a deep copy of the Config.
+func (c *Config) Clone() *Config {
+	clone := &Config{
+		Prompt:            c.Prompt,
+		LogLevel:          c.LogLevel,
+		PredictModel:      c.PredictModel,
+		DefaultAgentModel: c.DefaultAgentModel,
+		MCPServers:        make(map[string]*mcp.MCPServer, len(c.MCPServers)),
+		Models:            make(map[string]*interpreter.ModelValue, len(c.Models)),
+		Agents:            make(map[string]*interpreter.AgentValue, len(c.Agents)),
+		Tools:             make(map[string]*interpreter.ToolValue, len(c.Tools)),
+	}
+
+	// Copy maps (shallow copy of values, which are pointers)
+	for k, v := range c.MCPServers {
+		clone.MCPServers[k] = v
+	}
+	for k, v := range c.Models {
+		clone.Models[k] = v
+	}
+	for k, v := range c.Agents {
+		clone.Agents[k] = v
+	}
+	for k, v := range c.Tools {
+		clone.Tools[k] = v
+	}
+
+	return clone
 }

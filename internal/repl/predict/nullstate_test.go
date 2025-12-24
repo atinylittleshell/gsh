@@ -151,4 +151,114 @@ func TestNullStatePredictor_Predict(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "", result)
 	})
+
+	t.Run("JSON wrapped in markdown code block", func(t *testing.T) {
+		provider := &mockModelProvider{
+			response: &interpreter.ChatResponse{
+				Content: "```json\n{\"predicted_command\": \"git commit -m \\\"Fix: Update .gitignore\\\"\"}\n```\n",
+			},
+		}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
+
+		predictor := NewNullStatePredictor(NullStatePredictorConfig{
+			Model: model,
+		})
+
+		result, err := predictor.Predict(context.Background(), "")
+		assert.NoError(t, err)
+		assert.Equal(t, "git commit -m \"Fix: Update .gitignore\"", result)
+	})
+
+	t.Run("JSON wrapped in plain code block", func(t *testing.T) {
+		provider := &mockModelProvider{
+			response: &interpreter.ChatResponse{
+				Content: "```\n{\"predicted_command\": \"ls -la\"}\n```",
+			},
+		}
+		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
+
+		predictor := NewNullStatePredictor(NullStatePredictorConfig{
+			Model: model,
+		})
+
+		result, err := predictor.Predict(context.Background(), "")
+		assert.NoError(t, err)
+		assert.Equal(t, "ls -la", result)
+	})
+}
+
+func TestExtractJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "plain JSON",
+			input:    `{"predicted_command": "ls -la"}`,
+			expected: `{"predicted_command": "ls -la"}`,
+		},
+		{
+			name:     "JSON with whitespace",
+			input:    "  \n  {\"predicted_command\": \"ls -la\"}  \n  ",
+			expected: `{"predicted_command": "ls -la"}`,
+		},
+		{
+			name:     "JSON in markdown code block",
+			input:    "```json\n{\"predicted_command\": \"git status\"}\n```",
+			expected: `{"predicted_command": "git status"}`,
+		},
+		{
+			name:     "JSON in plain code block",
+			input:    "```\n{\"predicted_command\": \"ls -la\"}\n```",
+			expected: `{"predicted_command": "ls -la"}`,
+		},
+		{
+			name:     "JSON in markdown code block with trailing text",
+			input:    "```json\n{\"predicted_command\": \"git commit\"}\n```\nSome explanation text",
+			expected: `{"predicted_command": "git commit"}`,
+		},
+		{
+			name:     "JSON in code block with escaped quotes",
+			input:    "```json\n{\"predicted_command\": \"git commit -m \\\"Fix: Update\\\"\"}\n```\n",
+			expected: `{"predicted_command": "git commit -m \"Fix: Update\""}`,
+		},
+		{
+			name:     "multiline JSON in code block",
+			input:    "```json\n{\n  \"predicted_command\": \"ls -la\"\n}\n```",
+			expected: "{\n  \"predicted_command\": \"ls -la\"\n}",
+		},
+		{
+			name:     "JSON containing triple backticks in string value",
+			input:    "```json\n{\"predicted_command\": \"echo \\\"code: ``` example\\\"\"}\n```",
+			expected: "{\"predicted_command\": \"echo \\\"code: ``` example\\\"\"}",
+		},
+		{
+			name:     "JSON with triple backticks on same line (edge case)",
+			input:    "```json\n{\"predicted_command\": \"ls```-la\"}\n```",
+			expected: "{\"predicted_command\": \"ls```-la\"}",
+		},
+		{
+			name:     "code block without closing backticks",
+			input:    "```json\n{\"predicted_command\": \"ls -la\"}",
+			expected: `{"predicted_command": "ls -la"}`,
+		},
+		{
+			name:     "code block with closing backticks at end without newline",
+			input:    "```json\n{\"predicted_command\": \"ls -la\"}```",
+			expected: `{"predicted_command": "ls -la"}`,
+		},
+		{
+			name:     "code block with CRLF line endings",
+			input:    "```json\r\n{\"predicted_command\": \"git status\"}\r\n```",
+			expected: `{"predicted_command": "git status"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractJSON(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

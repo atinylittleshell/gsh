@@ -647,7 +647,7 @@ func TestNewREPL_BuiltInDefaultAgent(t *testing.T) {
 
 		GSH_CONFIG = {
 			prompt: "test> ",
-			defaultAgentModel: "testModel",
+			defaultAgentModel: testModel,
 		}
 	`), 0644)
 	require.NoError(t, err)
@@ -690,7 +690,7 @@ func TestNewREPL_BuiltInDefaultAgentWithCustomAgents(t *testing.T) {
 
 		GSH_CONFIG = {
 			prompt: "test> ",
-			defaultAgentModel: "testModel",
+			defaultAgentModel: testModel,
 		}
 	`), 0644)
 	require.NoError(t, err)
@@ -762,7 +762,7 @@ func TestNewREPL_BuiltInDefaultAgentIsImmutable(t *testing.T) {
 
 		GSH_CONFIG = {
 			prompt: "test> ",
-			defaultAgentModel: "testModel",
+			defaultAgentModel: testModel,
 		}
 	`), 0644)
 	require.NoError(t, err)
@@ -808,7 +808,7 @@ func TestNewREPL_DefaultAgentCannotBeOverridden(t *testing.T) {
 
 		GSH_CONFIG = {
 			prompt: "test> ",
-			defaultAgentModel: "testModel",
+			defaultAgentModel: testModel,
 		}
 	`), 0644)
 	require.NoError(t, err)

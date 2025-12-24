@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
@@ -115,9 +116,12 @@ Now predict what my next command should be.`, BestPractices, contextText)
 		return "", err
 	}
 
+	// Extract JSON from response (may be wrapped in markdown code blocks)
+	jsonContent := extractJSON(response.Content)
+
 	// Parse JSON response
 	var prediction nullStatePredictionResponse
-	if err := json.Unmarshal([]byte(response.Content), &prediction); err != nil {
+	if err := json.Unmarshal([]byte(jsonContent), &prediction); err != nil {
 		p.logger.Debug("failed to parse prediction JSON", zap.Error(err), zap.String("content", response.Content))
 		return "", nil
 	}
@@ -125,4 +129,41 @@ Now predict what my next command should be.`, BestPractices, contextText)
 	p.logger.Debug("null state prediction response", zap.String("prediction", prediction.PredictedCommand))
 
 	return prediction.PredictedCommand, nil
+}
+
+// extractJSON extracts JSON content from a string, handling markdown code blocks.
+// If the content is wrapped in ```json ... ``` or ``` ... ```, it extracts the inner content.
+// Otherwise, it returns the content as-is after trimming whitespace.
+func extractJSON(content string) string {
+	content = strings.TrimSpace(content)
+
+	// Check for ```json ... ``` format
+	if strings.HasPrefix(content, "```json") {
+		content = strings.TrimPrefix(content, "```json")
+		content = strings.TrimLeft(content, "\n\r")
+
+		// Find the last occurrence of ``` (closing marker)
+		// Use LastIndex to find the rightmost ``` which should be the closing marker
+		if idx := strings.LastIndex(content, "```"); idx != -1 {
+			content = content[:idx]
+		}
+
+		return strings.TrimSpace(content)
+	}
+
+	// Check for ``` ... ``` format (without language specifier)
+	if strings.HasPrefix(content, "```") {
+		content = strings.TrimPrefix(content, "```")
+		content = strings.TrimLeft(content, "\n\r")
+
+		// Find the last occurrence of ``` (closing marker)
+		// Use LastIndex to find the rightmost ``` which should be the closing marker
+		if idx := strings.LastIndex(content, "```"); idx != -1 {
+			content = content[:idx]
+		}
+
+		return strings.TrimSpace(content)
+	}
+
+	return content
 }
