@@ -18,7 +18,7 @@ The ebook is organized into 6 parts, progressing from absolute basics through ag
 - **Part 6: AI Agents** (3 chapters) - LLMs, agents, and multi-turn conversations
 - **Part 7: Reference** (3 chapters) - Complete API reference and cheat sheets
 
-**Total: 22 chapters**
+**Total: 21 chapters**
 
 ---
 
@@ -334,20 +334,6 @@ The ebook is organized into 6 parts, progressing from absolute basics through ag
   - Complete signatures and examples
   - Error conditions
 - **Audience:** Quick lookup reference
-
-#### Chapter 22: Syntax Quick Reference
-
-- **Status:** TODO
-- **File:** `22-syntax-quick-reference.md`
-- **Goal:** Grammar and syntax at a glance
-- **Key Topics:**
-  - Keywords and reserved words
-  - Operators (all types)
-  - Declaration syntax (mcp, model, agent, tool)
-  - Control flow syntax
-  - Type annotations
-  - Operator precedence table
-- **Audience:** Quick lookup for syntax questions
 
 ---
 

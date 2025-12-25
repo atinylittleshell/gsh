@@ -55,38 +55,6 @@ After: inside tool
 
 ---
 
-## Anthropic Model Provider Not Implemented
-
-**Description:** The spec (GSH_SCRIPT_SPEC.md) documents support for Anthropic Claude models via `provider: "anthropic"`, but this provider is not implemented in the interpreter.
-
-**Expected Behavior:** Users should be able to declare models with `provider: "anthropic"` and use Claude models in agents, as documented in the spec.
-
-**Actual Behavior:** Scripts that declare `provider: "anthropic"` fail with error: "unknown model provider: anthropic"
-
-**Test Case:**
-
-```gsh
-model claude {
-    provider: "anthropic",
-    apiKey: env.ANTHROPIC_API_KEY,
-    model: "claude-3-5-sonnet-20241022",
-}
-```
-
-**Error:** `Runtime error: unknown model provider: anthropic`
-
-**Impact:** Users cannot use Anthropic models despite the spec promising support. Only OpenAI provider is currently implemented.
-
-**Related Code:**
-
-- `internal/script/interpreter/interpreter.go` - Only `NewOpenAIProvider()` is registered (lines 60, 81)
-- `internal/script/interpreter/provider.go` - Provider registry interface
-- No `provider_anthropic.go` file exists
-
-**Fix Notes:** Need to implement `NewAnthropicProvider()` following the same pattern as `NewOpenAIProvider()` and register it in the interpreter initialization.
-
----
-
 ## Missing Property Access Returns Error Instead of Null
 
 **Description:** Accessing a property that doesn't exist on an object throws a runtime error instead of returning null.
@@ -120,3 +88,37 @@ email is null
 - `internal/script/interpreter/value.go` - Object property lookup
 
 **Fix Notes:** Property access should check if the property exists and return `null` instead of throwing an error, similar to JavaScript's behavior.
+
+---
+
+## Map Bracket Notation Not Supported
+
+**Description:** The specification (Chapter 22 and GSH_SCRIPT_SPEC.md) documents that Maps can be accessed using bracket notation (`map["key"]`), but this is not implemented. Only the `.get()` and `.set()` method calls work.
+
+**Expected Behavior:** Maps should support bracket notation for element access, consistent with arrays and objects:
+
+```gsh
+userAges = Map([["alice", 25]])
+age = userAges["alice"]  # Should work
+```
+
+**Actual Behavior:** Bracket notation throws a runtime error:
+
+```
+Runtime error: cannot index type map
+```
+
+**Workaround:** Use `.get()` and `.set()` methods instead:
+
+```gsh
+age = userAges.get("alice")
+userAges.set("alice", 26)
+```
+
+**Impact:** Inconsistent API - arrays and objects use bracket notation, but maps require method calls. This makes code less uniform and is confusing to users following the documentation.
+
+**Related Code:**
+
+- `internal/script/interpreter/expressions.go` - Index expression evaluation
+
+**Fix Notes:** Map indexing should be implemented to support bracket notation alongside the existing `.get()` and `.set()` methods.
