@@ -160,16 +160,18 @@ func NewREPL(opts Options) (*REPL, error) {
 			Config: map[string]interpreter.Value{
 				"model": defaultAgentModel,
 				"systemPrompt": &interpreter.StringValue{
-					Value: "You are gsh, an AI-powered shell program. You are friendly and helpful, assisting the user with their tasks in the shell.",
+					Value: "You are gsh, an AI-powered shell program.",
 				},
 			},
 		}
 
-		agentManager.AddAgent("default", &agent.State{
+		defaultState := &agent.State{
 			Agent:        defaultAgent,
 			Provider:     defaultAgentModel.Provider,
 			Conversation: []interpreter.ChatMessage{},
-		})
+		}
+		agent.SetupAgentWithDefaultTools(defaultState)
+		agentManager.AddAgent("default", defaultState)
 		_ = agentManager.SetCurrentAgent("default")
 		logger.Info("initialized built-in default agent", zap.String("model", defaultAgentModel.Name))
 	}
@@ -191,11 +193,13 @@ func NewREPL(opts Options) (*REPL, error) {
 				continue
 			}
 
-			agentManager.AddAgent(name, &agent.State{
+			customState := &agent.State{
 				Agent:        agentVal,
 				Provider:     provider,
 				Conversation: []interpreter.ChatMessage{},
-			})
+			}
+			agent.SetupAgentWithDefaultTools(customState)
+			agentManager.AddAgent(name, customState)
 			logger.Info("initialized custom agent", zap.String("agent", name))
 		}
 	}

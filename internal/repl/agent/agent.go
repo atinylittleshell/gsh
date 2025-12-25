@@ -264,10 +264,6 @@ func (m *Manager) buildMessagesWithPendingUser(state *State, userMessage string,
 // executeToolCalls executes all tool calls and adds results to the conversation.
 func (m *Manager) executeToolCalls(ctx context.Context, state *State, toolCalls []interpreter.ChatToolCall, onChunk func(string)) error {
 	for _, toolCall := range toolCalls {
-		// Notify about tool execution start
-		if onChunk != nil {
-			onChunk(fmt.Sprintf("\n[Executing tool: %s]\n", toolCall.Name))
-		}
 
 		var result string
 		var err error
@@ -297,15 +293,6 @@ func (m *Manager) executeToolCalls(ctx context.Context, state *State, toolCalls 
 			ToolCallID: toolCall.ID,
 		})
 
-		// Notify about tool result
-		if onChunk != nil {
-			// Truncate long results for display
-			displayResult := result
-			if len(displayResult) > 500 {
-				displayResult = displayResult[:500] + "... (truncated)"
-			}
-			onChunk(fmt.Sprintf("[Tool result: %s]\n", displayResult))
-		}
 	}
 
 	return nil
