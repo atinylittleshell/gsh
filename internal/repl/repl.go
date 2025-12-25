@@ -16,6 +16,7 @@ import (
 
 	"github.com/atinylittleshell/gsh/internal/core"
 	"github.com/atinylittleshell/gsh/internal/history"
+	"github.com/atinylittleshell/gsh/internal/repl/agent"
 	"github.com/atinylittleshell/gsh/internal/repl/completion"
 	"github.com/atinylittleshell/gsh/internal/repl/config"
 	replcontext "github.com/atinylittleshell/gsh/internal/repl/context"
@@ -32,13 +33,6 @@ var AgentCommands = []string{"clear", "agents", "agent"}
 // timeNow is a variable that can be overridden for testing.
 var timeNow = time.Now
 
-// AgentState holds the state for a single agent.
-type AgentState struct {
-	Agent        *interpreter.AgentValue
-	Provider     interpreter.ModelProvider
-	Conversation []interpreter.ChatMessage
-}
-
 // REPL is the main interactive shell interface.
 type REPL struct {
 	config             *config.Config
@@ -50,8 +44,7 @@ type REPL struct {
 	logger             *zap.Logger
 
 	// Agent mode support - multiple agents
-	agentStates      map[string]*AgentState
-	currentAgentName string
+	agentManager *agent.Manager
 
 	// Track last command exit code and duration for prompt updates
 	lastExitCode   int
@@ -148,9 +141,8 @@ func NewREPL(opts Options) (*REPL, error) {
 
 	// Note: We'll set the agent provider after initializing agents below
 
-	// Initialize all agents from configuration
-	agentStates := make(map[string]*AgentState)
-	var currentAgentName string
+	// Initialize agent manager
+	agentManager := agent.NewManager(logger)
 
 	// Always initialize the built-in default agent if a model is configured
 	defaultAgentModel := loadResult.Config.GetDefaultAgentModel()
@@ -166,12 +158,12 @@ func NewREPL(opts Options) (*REPL, error) {
 			},
 		}
 
-		agentStates["default"] = &AgentState{
+		agentManager.AddAgent("default", &agent.State{
 			Agent:        defaultAgent,
 			Provider:     defaultAgentModel.Provider,
 			Conversation: []interpreter.ChatMessage{},
-		}
-		currentAgentName = "default"
+		})
+		_ = agentManager.SetCurrentAgent("default")
 		logger.Info("initialized built-in default agent", zap.String("model", defaultAgentModel.Name))
 	}
 
@@ -192,19 +184,19 @@ func NewREPL(opts Options) (*REPL, error) {
 				continue
 			}
 
-			agentStates[name] = &AgentState{
+			agentManager.AddAgent(name, &agent.State{
 				Agent:        agentVal,
 				Provider:     provider,
 				Conversation: []interpreter.ChatMessage{},
-			}
+			})
 			logger.Info("initialized custom agent", zap.String("agent", name))
 		}
 	}
 
 	// If no current agent is set but we have agents, pick the first one as a fallback
-	if currentAgentName == "" && len(agentStates) > 0 {
-		for name := range agentStates {
-			currentAgentName = name
+	if agentManager.CurrentAgentName() == "" && agentManager.HasAgents() {
+		for name := range agentManager.AllStates() {
+			_ = agentManager.SetCurrentAgent(name)
 			logger.Info("auto-selected agent as default", zap.String("agent", name))
 			break
 		}
@@ -217,8 +209,7 @@ func NewREPL(opts Options) (*REPL, error) {
 		predictor:          predictor,
 		contextProvider:    contextProvider,
 		completionProvider: completionProvider,
-		agentStates:        agentStates,
-		currentAgentName:   currentAgentName,
+		agentManager:       agentManager,
 		logger:             logger,
 	}
 
@@ -408,7 +399,7 @@ func parseAgentInput(input string) (isCommand bool, content string) {
 // handleAgentCommand handles agent chat commands (prefixed with '#').
 func (r *REPL) handleAgentCommand(ctx context.Context, input string) error {
 	// Check if any agents are configured
-	if len(r.agentStates) == 0 {
+	if !r.agentManager.HasAgents() {
 		fmt.Fprintf(os.Stderr, "gsh: no agents configured. Configure defaultAgentModel in .gshrc.gsh or add custom agents\n")
 		return nil
 	}
@@ -432,7 +423,7 @@ func (r *REPL) handleAgentCommand(ctx context.Context, input string) error {
 	}
 
 	// Send message to current agent
-	return r.sendMessageToCurrentAgent(ctx, content)
+	return r.agentManager.SendMessageToCurrentAgent(ctx, content)
 }
 
 // handleAgentCommandAction handles agent commands (/clear, /agents, /agent).
@@ -466,36 +457,32 @@ func (r *REPL) handleAgentCommandAction(commandLine string) error {
 
 // handleClearCommand clears the current agent's conversation.
 func (r *REPL) handleClearCommand() error {
-	if r.currentAgentName == "" {
-		fmt.Fprintf(os.Stderr, "gsh: no current agent\n")
+	if err := r.agentManager.ClearCurrentConversation(); err != nil {
+		fmt.Fprintf(os.Stderr, "gsh: %v\n", err)
 		return nil
 	}
-
-	state := r.agentStates[r.currentAgentName]
-	if state != nil {
-		state.Conversation = []interpreter.ChatMessage{}
-		fmt.Println("→ Conversation cleared")
-	}
+	fmt.Println("→ Conversation cleared")
 	return nil
 }
 
 // handleAgentsCommand lists all available agents.
 func (r *REPL) handleAgentsCommand() error {
-	if len(r.agentStates) == 0 {
+	if !r.agentManager.HasAgents() {
 		fmt.Println("No agents configured.")
 		return nil
 	}
 
+	currentName := r.agentManager.CurrentAgentName()
 	fmt.Println("Available agents:")
-	for name, state := range r.agentStates {
+	for name, state := range r.agentManager.AllStates() {
 		marker := " "
-		if name == r.currentAgentName {
+		if name == currentName {
 			marker = "•"
 		}
 
 		msgCount := len(state.Conversation)
 		status := fmt.Sprintf("(%d messages)", msgCount)
-		if name == r.currentAgentName {
+		if name == currentName {
 			status = fmt.Sprintf("(current, %d messages)", msgCount)
 		}
 
@@ -516,101 +503,20 @@ func (r *REPL) handleAgentsCommand() error {
 
 // handleSwitchAgentCommand switches to a different agent.
 func (r *REPL) handleSwitchAgentCommand(agentName string) error {
-	// Check if agent exists
-	state, exists := r.agentStates[agentName]
-	if !exists {
+	// Check if agent exists and switch to it
+	if err := r.agentManager.SetCurrentAgent(agentName); err != nil {
 		fmt.Fprintf(os.Stderr, "gsh: agent '%s' not found. Use /agents to see available agents\n", agentName)
 		return nil
 	}
 
-	// Switch to the agent
-	r.currentAgentName = agentName
+	// Get the state to show message count
+	state := r.agentManager.GetAgent(agentName)
 	msgCount := len(state.Conversation)
 	if msgCount > 0 {
 		fmt.Printf("→ Switched to agent '%s' (%d messages in history)\n", agentName, msgCount)
 	} else {
 		fmt.Printf("→ Switched to agent '%s'\n", agentName)
 	}
-	return nil
-}
-
-// sendMessageToCurrentAgent sends a message to the current agent.
-func (r *REPL) sendMessageToCurrentAgent(ctx context.Context, message string) error {
-	if r.currentAgentName == "" {
-		fmt.Fprintf(os.Stderr, "gsh: no current agent\n")
-		return nil
-	}
-
-	state := r.agentStates[r.currentAgentName]
-	if state == nil {
-		fmt.Fprintf(os.Stderr, "gsh: current agent state not found\n")
-		return nil
-	}
-
-	// Build messages for the provider
-	messages := make([]interpreter.ChatMessage, 0, len(state.Conversation)+2)
-
-	// Add system prompt if configured (from agent Config)
-	if systemPromptVal, ok := state.Agent.Config["systemPrompt"]; ok {
-		if systemPrompt, ok := systemPromptVal.(*interpreter.StringValue); ok && systemPrompt.Value != "" {
-			messages = append(messages, interpreter.ChatMessage{
-				Role:    "system",
-				Content: systemPrompt.Value,
-			})
-		}
-	}
-
-	// Add conversation history
-	messages = append(messages, state.Conversation...)
-
-	// Add new user message
-	messages = append(messages, interpreter.ChatMessage{
-		Role:    "user",
-		Content: message,
-	})
-
-	// Get the model from agent config
-	var model *interpreter.ModelValue
-	if modelVal, ok := state.Agent.Config["model"]; ok {
-		model, _ = modelVal.(*interpreter.ModelValue)
-	}
-
-	// Call provider with streaming to display response in real-time
-	startTime := timeNow()
-	response, err := state.Provider.StreamingChatCompletion(
-		interpreter.ChatRequest{
-			Model:    model,
-			Messages: messages,
-		},
-		func(content string) {
-			// Print each chunk immediately without newline
-			fmt.Print(content)
-		},
-	)
-	duration := timeNow().Sub(startTime)
-
-	// Print final newline after streaming completes
-	fmt.Println()
-
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "gsh: agent error: %v\n", err)
-		return nil
-	}
-
-	// Update conversation history (don't include system prompt in history)
-	state.Conversation = append(state.Conversation,
-		interpreter.ChatMessage{Role: "user", Content: message},
-		interpreter.ChatMessage{Role: "assistant", Content: response.Content},
-	)
-
-	// Log interaction
-	r.logger.Debug("agent interaction",
-		zap.String("agent", r.currentAgentName),
-		zap.String("message", message),
-		zap.String("response", response.Content),
-		zap.Duration("duration", duration),
-	)
-
 	return nil
 }
 
@@ -716,11 +622,7 @@ func (r *REPL) History() *history.HistoryManager {
 
 // GetAgentNames returns all configured agent names for completion.
 func (r *REPL) GetAgentNames() []string {
-	names := make([]string, 0, len(r.agentStates))
-	for name := range r.agentStates {
-		names = append(names, name)
-	}
-	return names
+	return r.agentManager.GetAgentNames()
 }
 
 // GetAgentCommands returns the list of valid agent commands for completion.

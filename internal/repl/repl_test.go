@@ -14,6 +14,7 @@ import (
 
 	// Import all subpackages to verify the directory structure is correct
 	"fmt"
+	"github.com/atinylittleshell/gsh/internal/repl/agent"
 	_ "github.com/atinylittleshell/gsh/internal/repl/completion"
 	_ "github.com/atinylittleshell/gsh/internal/repl/config"
 	_ "github.com/atinylittleshell/gsh/internal/repl/context"
@@ -662,10 +663,10 @@ func TestNewREPL_BuiltInDefaultAgent(t *testing.T) {
 	require.NotNil(t, repl)
 
 	// Verify built-in default agent was initialized and set as current
-	assert.Len(t, repl.agentStates, 1)
-	assert.Equal(t, "default", repl.currentAgentName)
-	assert.NotNil(t, repl.agentStates["default"])
-	assert.Equal(t, "default", repl.agentStates["default"].Agent.Name)
+	assert.Equal(t, 1, repl.agentManager.AgentCount())
+	assert.Equal(t, "default", repl.agentManager.CurrentAgentName())
+	assert.NotNil(t, repl.agentManager.GetAgent("default"))
+	assert.Equal(t, "default", repl.agentManager.GetAgent("default").Agent.Name)
 }
 
 func TestNewREPL_BuiltInDefaultAgentWithCustomAgents(t *testing.T) {
@@ -705,11 +706,11 @@ func TestNewREPL_BuiltInDefaultAgentWithCustomAgents(t *testing.T) {
 	require.NotNil(t, repl)
 
 	// Verify built-in default agent and custom agents were initialized
-	assert.Len(t, repl.agentStates, 3)                // default + agent1 + agent2
-	assert.Equal(t, "default", repl.currentAgentName) // default agent is current
-	assert.NotNil(t, repl.agentStates["default"])
-	assert.NotNil(t, repl.agentStates["agent1"])
-	assert.NotNil(t, repl.agentStates["agent2"])
+	assert.Equal(t, 3, repl.agentManager.AgentCount())               // default + agent1 + agent2
+	assert.Equal(t, "default", repl.agentManager.CurrentAgentName()) // default agent is current
+	assert.NotNil(t, repl.agentManager.GetAgent("default"))
+	assert.NotNil(t, repl.agentManager.GetAgent("agent1"))
+	assert.NotNil(t, repl.agentManager.GetAgent("agent2"))
 }
 
 func TestNewREPL_NoDefaultAgentWithoutModel(t *testing.T) {
@@ -744,10 +745,10 @@ func TestNewREPL_NoDefaultAgentWithoutModel(t *testing.T) {
 	require.NotNil(t, repl)
 
 	// Verify only custom agent was initialized, no built-in default agent
-	assert.Len(t, repl.agentStates, 1)
-	assert.Equal(t, "customAgent", repl.currentAgentName) // Custom agent is auto-selected
-	assert.NotNil(t, repl.agentStates["customAgent"])
-	assert.Nil(t, repl.agentStates["default"]) // No built-in default agent
+	assert.Equal(t, 1, repl.agentManager.AgentCount())
+	assert.Equal(t, "customAgent", repl.agentManager.CurrentAgentName()) // Custom agent is auto-selected
+	assert.NotNil(t, repl.agentManager.GetAgent("customAgent"))
+	assert.Nil(t, repl.agentManager.GetAgent("default")) // No built-in default agent
 }
 
 func TestNewREPL_BuiltInDefaultAgentIsImmutable(t *testing.T) {
@@ -777,7 +778,7 @@ func TestNewREPL_BuiltInDefaultAgentIsImmutable(t *testing.T) {
 	require.NotNil(t, repl)
 
 	// Verify the built-in default agent has the expected system prompt
-	defaultAgent := repl.agentStates["default"]
+	defaultAgent := repl.agentManager.GetAgent("default")
 	require.NotNil(t, defaultAgent)
 
 	systemPromptVal, ok := defaultAgent.Agent.Config["systemPrompt"]
@@ -827,11 +828,11 @@ func TestNewREPL_DefaultAgentCannotBeOverridden(t *testing.T) {
 	// This means the user's custom agent named "default" will win
 
 	// Verify that only one "default" agent exists (custom overwrites built-in)
-	assert.NotNil(t, repl.agentStates["default"])
-	assert.Equal(t, "default", repl.currentAgentName)
+	assert.NotNil(t, repl.agentManager.GetAgent("default"))
+	assert.Equal(t, "default", repl.agentManager.CurrentAgentName())
 
 	// Verify it's the custom agent (has custom system prompt)
-	systemPrompt, ok := repl.agentStates["default"].Agent.Config["systemPrompt"]
+	systemPrompt, ok := repl.agentManager.GetAgent("default").Agent.Config["systemPrompt"]
 	require.True(t, ok)
 	systemPromptStr, ok := systemPrompt.(*interpreter.StringValue)
 	require.True(t, ok)
@@ -842,10 +843,7 @@ func TestHandleAgentCommand_NoAgent(t *testing.T) {
 	// Test that when no agent is configured, a helpful error is shown
 
 	logger := zap.NewNop()
-	repl := &REPL{
-		logger:      logger,
-		agentStates: make(map[string]*AgentState), // No agents configured
-	}
+	repl := createTestREPLWithAgents(logger, map[string]*agent.State{}, "") // No agents configured
 
 	ctx := context.Background()
 	err := repl.handleAgentCommand(ctx, "hello")
@@ -863,7 +861,7 @@ func TestHandleAgentCommand_Clear(t *testing.T) {
 		shouldError:     false,
 	}
 
-	agentState := &AgentState{
+	agentState := &agent.State{
 		Agent:    &interpreter.AgentValue{Name: "test"},
 		Provider: mockProvider,
 		Conversation: []interpreter.ChatMessage{
@@ -872,11 +870,7 @@ func TestHandleAgentCommand_Clear(t *testing.T) {
 		},
 	}
 
-	repl := &REPL{
-		logger:           logger,
-		agentStates:      map[string]*AgentState{"test": agentState},
-		currentAgentName: "test",
-	}
+	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"test": agentState}, "test")
 
 	ctx := context.Background()
 	err := repl.handleAgentCommand(ctx, "/clear")
@@ -894,17 +888,13 @@ func TestHandleAgentCommand_Help(t *testing.T) {
 		shouldError:     false,
 	}
 
-	agentState := &AgentState{
+	agentState := &agent.State{
 		Agent:        &interpreter.AgentValue{Name: "test"},
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
 	}
 
-	repl := &REPL{
-		logger:           logger,
-		agentStates:      map[string]*AgentState{"test": agentState},
-		currentAgentName: "test",
-	}
+	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"test": agentState}, "test")
 
 	ctx := context.Background()
 	err := repl.handleAgentCommand(ctx, "")
@@ -982,7 +972,7 @@ func TestHandleAgentCommand_Success(t *testing.T) {
 	}
 
 	// Create agent with model config
-	agent := &interpreter.AgentValue{
+	agentVal := &interpreter.AgentValue{
 		Name: "testAgent",
 		Config: map[string]interpreter.Value{
 			"model": &interpreter.ModelValue{
@@ -994,17 +984,13 @@ func TestHandleAgentCommand_Success(t *testing.T) {
 		},
 	}
 
-	agentState := &AgentState{
-		Agent:        agent,
+	agentState := &agent.State{
+		Agent:        agentVal,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
 	}
 
-	repl := &REPL{
-		logger:           logger,
-		agentStates:      map[string]*AgentState{"testAgent": agentState},
-		currentAgentName: "testAgent",
-	}
+	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"testAgent": agentState}, "testAgent")
 
 	ctx := context.Background()
 	err := repl.handleAgentCommand(ctx, "hello")
@@ -1042,7 +1028,7 @@ func TestHandleAgentCommand_ConversationHistory(t *testing.T) {
 		}, nil
 	}
 
-	agent := &interpreter.AgentValue{
+	agentVal := &interpreter.AgentValue{
 		Name: "testAgent",
 		Config: map[string]interpreter.Value{
 			"model": &interpreter.ModelValue{
@@ -1054,17 +1040,13 @@ func TestHandleAgentCommand_ConversationHistory(t *testing.T) {
 		},
 	}
 
-	agentState := &AgentState{
-		Agent:        agent,
+	agentState := &agent.State{
+		Agent:        agentVal,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
 	}
 
-	repl := &REPL{
-		logger:           logger,
-		agentStates:      map[string]*AgentState{"testAgent": agentState},
-		currentAgentName: "testAgent",
-	}
+	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"testAgent": agentState}, "testAgent")
 
 	ctx := context.Background()
 
@@ -1105,7 +1087,7 @@ func TestHandleAgentCommand_ProviderError(t *testing.T) {
 		shouldError:     true,
 	}
 
-	agent := &interpreter.AgentValue{
+	agentVal := &interpreter.AgentValue{
 		Name: "testAgent",
 		Config: map[string]interpreter.Value{
 			"model": &interpreter.ModelValue{
@@ -1114,17 +1096,13 @@ func TestHandleAgentCommand_ProviderError(t *testing.T) {
 		},
 	}
 
-	agentState := &AgentState{
-		Agent:        agent,
+	agentState := &agent.State{
+		Agent:        agentVal,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
 	}
 
-	repl := &REPL{
-		logger:           logger,
-		agentStates:      map[string]*AgentState{"testAgent": agentState},
-		currentAgentName: "testAgent",
-	}
+	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"testAgent": agentState}, "testAgent")
 
 	ctx := context.Background()
 	err := repl.handleAgentCommand(ctx, "hello")
@@ -1155,7 +1133,7 @@ func TestHandleAgentCommand_NoSystemPrompt(t *testing.T) {
 	}
 
 	// Agent without systemPrompt in config
-	agent := &interpreter.AgentValue{
+	agentVal := &interpreter.AgentValue{
 		Name: "testAgent",
 		Config: map[string]interpreter.Value{
 			"model": &interpreter.ModelValue{
@@ -1164,17 +1142,13 @@ func TestHandleAgentCommand_NoSystemPrompt(t *testing.T) {
 		},
 	}
 
-	agentState := &AgentState{
-		Agent:        agent,
+	agentState := &agent.State{
+		Agent:        agentVal,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
 	}
 
-	repl := &REPL{
-		logger:           logger,
-		agentStates:      map[string]*AgentState{"testAgent": agentState},
-		currentAgentName: "testAgent",
-	}
+	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"testAgent": agentState}, "testAgent")
 
 	ctx := context.Background()
 	err := repl.handleAgentCommand(ctx, "hello")

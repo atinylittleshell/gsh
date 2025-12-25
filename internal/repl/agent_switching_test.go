@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/atinylittleshell/gsh/internal/repl/agent"
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,6 +71,21 @@ func TestParseAgentInput(t *testing.T) {
 	}
 }
 
+// createTestREPLWithAgents is a helper to create a REPL with agents for testing
+func createTestREPLWithAgents(logger *zap.Logger, agents map[string]*agent.State, currentAgent string) *REPL {
+	mgr := agent.NewManager(logger)
+	for name, state := range agents {
+		mgr.AddAgent(name, state)
+	}
+	if currentAgent != "" {
+		_ = mgr.SetCurrentAgent(currentAgent)
+	}
+	return &REPL{
+		logger:       logger,
+		agentManager: mgr,
+	}
+}
+
 func TestHandleAgentCommand_SwitchAgent(t *testing.T) {
 	logger := zap.NewNop()
 	mockProvider := &MockProvider{
@@ -91,32 +107,28 @@ func TestHandleAgentCommand_SwitchAgent(t *testing.T) {
 		},
 	}
 
-	state1 := &AgentState{
+	state1 := &agent.State{
 		Agent:        agent1,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
 	}
-	state2 := &AgentState{
+	state2 := &agent.State{
 		Agent:        agent2,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
 	}
 
-	repl := &REPL{
-		logger: logger,
-		agentStates: map[string]*AgentState{
-			"agent1": state1,
-			"agent2": state2,
-		},
-		currentAgentName: "agent1",
-	}
+	repl := createTestREPLWithAgents(logger, map[string]*agent.State{
+		"agent1": state1,
+		"agent2": state2,
+	}, "agent1")
 
 	ctx := context.Background()
 
 	// Switch to agent2
 	err := repl.handleAgentCommand(ctx, "/agent agent2")
 	assert.NoError(t, err)
-	assert.Equal(t, "agent2", repl.currentAgentName)
+	assert.Equal(t, "agent2", repl.agentManager.CurrentAgentName())
 }
 
 func TestHandleAgentCommand_SwitchToInvalidAgent(t *testing.T) {
@@ -133,19 +145,15 @@ func TestHandleAgentCommand_SwitchToInvalidAgent(t *testing.T) {
 		},
 	}
 
-	state1 := &AgentState{
+	state1 := &agent.State{
 		Agent:        agent1,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
 	}
 
-	repl := &REPL{
-		logger: logger,
-		agentStates: map[string]*AgentState{
-			"agent1": state1,
-		},
-		currentAgentName: "agent1",
-	}
+	repl := createTestREPLWithAgents(logger, map[string]*agent.State{
+		"agent1": state1,
+	}, "agent1")
 
 	ctx := context.Background()
 
@@ -153,7 +161,7 @@ func TestHandleAgentCommand_SwitchToInvalidAgent(t *testing.T) {
 	err := repl.handleAgentCommand(ctx, "/agent nonexistent")
 	assert.NoError(t, err)
 	// Should stay on current agent
-	assert.Equal(t, "agent1", repl.currentAgentName)
+	assert.Equal(t, "agent1", repl.agentManager.CurrentAgentName())
 }
 
 func TestHandleAgentCommand_ListAgents(t *testing.T) {
@@ -177,27 +185,23 @@ func TestHandleAgentCommand_ListAgents(t *testing.T) {
 		},
 	}
 
-	state1 := &AgentState{
+	state1 := &agent.State{
 		Agent:    agent1,
 		Provider: mockProvider,
 		Conversation: []interpreter.ChatMessage{
 			{Role: "user", Content: "hello"},
 		},
 	}
-	state2 := &AgentState{
+	state2 := &agent.State{
 		Agent:        agent2,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
 	}
 
-	repl := &REPL{
-		logger: logger,
-		agentStates: map[string]*AgentState{
-			"agent1": state1,
-			"agent2": state2,
-		},
-		currentAgentName: "agent1",
-	}
+	repl := createTestREPLWithAgents(logger, map[string]*agent.State{
+		"agent1": state1,
+		"agent2": state2,
+	}, "agent1")
 
 	ctx := context.Background()
 
@@ -228,25 +232,21 @@ func TestHandleAgentCommand_ConversationIsolation(t *testing.T) {
 		},
 	}
 
-	state1 := &AgentState{
+	state1 := &agent.State{
 		Agent:        agent1,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
 	}
-	state2 := &AgentState{
+	state2 := &agent.State{
 		Agent:        agent2,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
 	}
 
-	repl := &REPL{
-		logger: logger,
-		agentStates: map[string]*AgentState{
-			"agent1": state1,
-			"agent2": state2,
-		},
-		currentAgentName: "agent1",
-	}
+	repl := createTestREPLWithAgents(logger, map[string]*agent.State{
+		"agent1": state1,
+		"agent2": state2,
+	}, "agent1")
 
 	ctx := context.Background()
 
@@ -306,7 +306,7 @@ func TestHandleAgentCommand_ClearCurrentAgent(t *testing.T) {
 		},
 	}
 
-	state1 := &AgentState{
+	state1 := &agent.State{
 		Agent:    agent1,
 		Provider: mockProvider,
 		Conversation: []interpreter.ChatMessage{
@@ -314,7 +314,7 @@ func TestHandleAgentCommand_ClearCurrentAgent(t *testing.T) {
 			{Role: "assistant", Content: "response1"},
 		},
 	}
-	state2 := &AgentState{
+	state2 := &agent.State{
 		Agent:    agent2,
 		Provider: mockProvider,
 		Conversation: []interpreter.ChatMessage{
@@ -323,14 +323,10 @@ func TestHandleAgentCommand_ClearCurrentAgent(t *testing.T) {
 		},
 	}
 
-	repl := &REPL{
-		logger: logger,
-		agentStates: map[string]*AgentState{
-			"agent1": state1,
-			"agent2": state2,
-		},
-		currentAgentName: "agent1",
-	}
+	repl := createTestREPLWithAgents(logger, map[string]*agent.State{
+		"agent1": state1,
+		"agent2": state2,
+	}, "agent1")
 
 	ctx := context.Background()
 
@@ -352,24 +348,20 @@ func TestHandleAgentCommand_UnknownCommand(t *testing.T) {
 		shouldError:     false,
 	}
 
-	agent := &interpreter.AgentValue{
+	agentVal := &interpreter.AgentValue{
 		Name: "agent1",
 		Config: map[string]interpreter.Value{
 			"model": &interpreter.ModelValue{Name: "model1"},
 		},
 	}
 
-	state := &AgentState{
-		Agent:        agent,
+	state := &agent.State{
+		Agent:        agentVal,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
 	}
 
-	repl := &REPL{
-		logger:           logger,
-		agentStates:      map[string]*AgentState{"agent1": state},
-		currentAgentName: "agent1",
-	}
+	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"agent1": state}, "agent1")
 
 	ctx := context.Background()
 
@@ -385,24 +377,20 @@ func TestHandleAgentCommand_AgentCommandMissingName(t *testing.T) {
 		shouldError:     false,
 	}
 
-	agent := &interpreter.AgentValue{
+	agentVal := &interpreter.AgentValue{
 		Name: "agent1",
 		Config: map[string]interpreter.Value{
 			"model": &interpreter.ModelValue{Name: "model1"},
 		},
 	}
 
-	state := &AgentState{
-		Agent:        agent,
+	state := &agent.State{
+		Agent:        agentVal,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
 	}
 
-	repl := &REPL{
-		logger:           logger,
-		agentStates:      map[string]*AgentState{"agent1": state},
-		currentAgentName: "agent1",
-	}
+	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"agent1": state}, "agent1")
 
 	ctx := context.Background()
 
@@ -410,7 +398,7 @@ func TestHandleAgentCommand_AgentCommandMissingName(t *testing.T) {
 	err := repl.handleAgentCommand(ctx, "/agent")
 	assert.NoError(t, err)
 	// Should still be on agent1
-	assert.Equal(t, "agent1", repl.currentAgentName)
+	assert.Equal(t, "agent1", repl.agentManager.CurrentAgentName())
 }
 
 func TestGetAgentNames(t *testing.T) {
@@ -424,15 +412,11 @@ func TestGetAgentNames(t *testing.T) {
 	agent2 := &interpreter.AgentValue{Name: "agent2"}
 	agent3 := &interpreter.AgentValue{Name: "agent3"}
 
-	repl := &REPL{
-		logger: logger,
-		agentStates: map[string]*AgentState{
-			"agent1": {Agent: agent1, Provider: mockProvider},
-			"agent2": {Agent: agent2, Provider: mockProvider},
-			"agent3": {Agent: agent3, Provider: mockProvider},
-		},
-		currentAgentName: "agent1",
-	}
+	repl := createTestREPLWithAgents(logger, map[string]*agent.State{
+		"agent1": {Agent: agent1, Provider: mockProvider},
+		"agent2": {Agent: agent2, Provider: mockProvider},
+		"agent3": {Agent: agent3, Provider: mockProvider},
+	}, "agent1")
 
 	names := repl.GetAgentNames()
 	assert.Len(t, names, 3)
@@ -444,10 +428,7 @@ func TestGetAgentNames(t *testing.T) {
 func TestGetAgentNames_NoAgents(t *testing.T) {
 	logger := zap.NewNop()
 
-	repl := &REPL{
-		logger:      logger,
-		agentStates: make(map[string]*AgentState),
-	}
+	repl := createTestREPLWithAgents(logger, map[string]*agent.State{}, "")
 
 	names := repl.GetAgentNames()
 	assert.Len(t, names, 0)
