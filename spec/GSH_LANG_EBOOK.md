@@ -60,7 +60,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 03: Values and Types
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `03-values-and-types.md`
 - **Goal:** Understand gsh's type system
 - **Key Topics:**
