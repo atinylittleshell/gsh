@@ -756,8 +756,9 @@ func (m Model) handlePredictionResult(msg predictionResultMsg) (tea.Model, tea.C
 
 // renderFinalView renders the view after input is complete.
 func (m Model) renderFinalView() string {
-	// For interrupt, we don't render anything (shell will handle it)
-	if m.result.Type == ResultInterrupt {
+	// For interrupt and submit, we don't render anything
+	// The REPL will handle printing the final line so it persists in terminal history
+	if m.result.Type == ResultInterrupt || m.result.Type == ResultSubmit {
 		return ""
 	}
 

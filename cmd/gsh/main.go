@@ -174,6 +174,7 @@ func runInteractiveShell(ctx context.Context, logger *zap.Logger) error {
 	r, err := repl.NewREPL(repl.Options{
 		Logger:               logger,
 		DefaultConfigContent: defaultGshrcContent,
+		BuildVersion:         BUILD_VERSION,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to initialize REPL: %w", err)

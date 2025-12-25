@@ -49,6 +49,9 @@ type REPL struct {
 	// Track last command exit code and duration for prompt updates
 	lastExitCode   int
 	lastDurationMs int64
+
+	// Build version for dev mode indicator
+	buildVersion string
 }
 
 // Options holds configuration options for creating a new REPL.
@@ -70,6 +73,10 @@ type Options struct {
 
 	// ExecMiddleware is optional middleware for command execution.
 	ExecMiddleware []executor.ExecMiddleware
+
+	// BuildVersion is the build version string (e.g., "dev" or "1.0.0").
+	// Used to show [dev] indicator in prompt for development builds.
+	BuildVersion string
 }
 
 // NewREPL creates a new REPL instance.
@@ -211,6 +218,7 @@ func NewREPL(opts Options) (*REPL, error) {
 		completionProvider: completionProvider,
 		agentManager:       agentManager,
 		logger:             logger,
+		buildVersion:       opts.BuildVersion,
 	}
 
 	// Set the REPL as the agent provider for completions
@@ -312,8 +320,8 @@ func (r *REPL) Run(ctx context.Context) error {
 			continue
 
 		case input.ResultSubmit:
-			// Print the prompt + user input before executing (like old REPL)
-			// This shows the user what command is being executed
+			// Print the prompt + user input so it persists in terminal history
+			// We use \r to return to start of line since Bubble Tea may leave cursor mid-line
 			fmt.Print("\r" + model.Prompt() + result.Value + "\n")
 
 			// Process the command
@@ -544,6 +552,8 @@ func (r *REPL) handleBuiltinCommand(command string) (bool, error) {
 
 // getPrompt returns the prompt string to display.
 func (r *REPL) getPrompt() string {
+	var prompt string
+
 	// Check if GSH_UPDATE_PROMPT tool is defined
 	promptTool := r.config.GetUpdatePromptTool()
 	if promptTool != nil {
@@ -554,16 +564,25 @@ func (r *REPL) getPrompt() string {
 		result, err := r.executor.Interpreter().CallTool(promptTool, []interpreter.Value{exitCodeValue, durationValue})
 		if err != nil {
 			r.logger.Warn("GSH_UPDATE_PROMPT tool failed, using static prompt", zap.Error(err))
+			prompt = r.config.Prompt
 		} else if strValue, ok := result.(*interpreter.StringValue); ok {
-			return strValue.Value
+			prompt = strValue.Value
 		} else {
 			r.logger.Warn("GSH_UPDATE_PROMPT tool did not return a string, using static prompt",
 				zap.String("returnType", result.Type().String()))
+			prompt = r.config.Prompt
 		}
+	} else {
+		// Fall back to static prompt
+		prompt = r.config.Prompt
 	}
 
-	// Fall back to static prompt
-	return r.config.Prompt
+	// Add [dev] prefix for development builds
+	if r.buildVersion == "dev" {
+		prompt = "[dev] " + prompt
+	}
+
+	return prompt
 }
 
 // updatePredictorContext updates the predictor with current context information.
