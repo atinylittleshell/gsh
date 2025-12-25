@@ -418,6 +418,21 @@ The spec is comprehensive but dense. The ebook translates it into a digestible l
 
 ---
 
+## Writing Examples
+
+When writing a code example that requires a custom model, always use a model from ollama like this:
+
+```gsh
+model exampleModel {
+    provider: "openai",
+    apiKey: "ollama",
+    baseURL: "http://localhost:11434/v1",
+    model: "devstral-small-2",
+}
+```
+
+---
+
 ## Success Criteria
 
 - [ ] All 25 chapters written and reviewed
