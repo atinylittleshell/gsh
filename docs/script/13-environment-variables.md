@@ -267,8 +267,8 @@ print(result.stdout)
 
 Now that you can read and write environment variables, you're ready to integrate with external systems. In Chapter 14, you'll learn about **MCP Servers**—the gateway to powerful external tools. MCP servers often use environment variables for configuration (like API keys), so the patterns you learned here will come in handy.
 
-Ready to connect to external tools? → [Chapter 14: MCP Servers](14-mcp-servers.md)
-
 ---
 
-**Previous:** [Chapter 12: Tool Calls and Composition](12-tool-calls-and-composition.md)
+**Previous Chapter:** [Chapter 12: Tool Calls and Composition](12-tool-calls-and-composition.md)
+
+**Next Chapter:** [Chapter 14: MCP Servers](14-mcp-servers.md)

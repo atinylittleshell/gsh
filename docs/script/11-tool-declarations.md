@@ -683,3 +683,9 @@ Now that you can write tools, you're ready to use them with the rest of gsh's po
 - **[Chapter 14: MCP Servers](14-mcp-servers.md)** - Connect your tools to external services
 
 Tools are the foundation of gsh scripts. Everything you build from here on out will use them.
+
+---
+
+**Previous Chapter:** [Chapter 10: Error Handling](10-error-handling.md)
+
+**Next Chapter:** [Chapter 12: Tool Calls and Composition](12-tool-calls-and-composition.md)

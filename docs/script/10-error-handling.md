@@ -581,3 +581,9 @@ But first, try writing a script that:
 3. Logs what succeeded and what failed
 
 This reinforces the patterns you've learned.
+
+---
+
+**Previous Chapter:** [Chapter 09: Loops](09-loops.md)
+
+**Next Chapter:** [Chapter 11: Tool Declarations](11-tool-declarations.md)

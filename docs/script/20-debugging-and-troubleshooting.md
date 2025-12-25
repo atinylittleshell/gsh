@@ -455,4 +455,8 @@ tool safeGetUser(userId: string) {
 
 You now have practical debugging skills. In the next chapter, we'll look at the complete reference for all built-in functions so you know exactly what tools are available. After that, you'll find a quick syntax reference for the entire language.
 
-[← Chapter 19: Conversations and the Pipe Operator](19-conversations-and-pipes.md) | [Chapter 21: Built-in Functions Reference →](21-builtin-functions.md)
+---
+
+**Previous Chapter:** [Chapter 19: Conversations and the Pipe Operator](19-conversations-and-pipes.md)
+
+**Next Chapter:** [Chapter 21: Built-in Functions Reference](21-builtin-functions.md)

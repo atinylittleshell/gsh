@@ -564,8 +564,8 @@ The `+` operator's behavior depends on the types involved. We'll explore operato
 
 Now that you understand types and values, Chapter 04 dives into **Variables and Assignment**—how to store these values, name them, and use them throughout your scripts.
 
-Ready to continue? → [Chapter 04: Variables and Assignment](04-variables-and-assignment.md)
-
 ---
 
-**Previous:** [Chapter 02: Hello World](02-hello-world.md)
+**Previous Chapter:** [Chapter 02: Hello World](02-hello-world.md)
+
+**Next Chapter:** [Chapter 04: Variables and Assignment](04-variables-and-assignment.md)

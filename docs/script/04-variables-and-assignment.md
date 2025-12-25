@@ -409,8 +409,8 @@ Notice that changing `x` afterward doesn't affect `y`. The expression `x + 10` w
 
 Now that you can store and use values in variables, Chapter 05 teaches you **Operators and Expressions**—how to perform calculations, comparisons, and logical operations with your variables.
 
-Ready to continue? → [Chapter 05: Operators and Expressions](05-operators-and-expressions.md)
-
 ---
 
-**Previous:** [Chapter 03: Values and Types](03-values-and-types.md)
+**Previous Chapter:** [Chapter 03: Values and Types](03-values-and-types.md)
+
+**Next Chapter:** [Chapter 05: Operators and Expressions](05-operators-and-expressions.md)

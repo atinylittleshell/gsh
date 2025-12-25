@@ -8,7 +8,7 @@
 
 ## Overall Structure
 
-The ebook is organized into 6 parts, progressing from absolute basics through agentic patterns:
+The ebook is organized into 8 parts, progressing from absolute basics through agentic patterns:
 
 - **Part 1: Getting Started** (2 chapters) - Orientation and first steps
 - **Part 2: Core Language Fundamentals** (5 chapters) - Sequential building blocks
@@ -16,7 +16,8 @@ The ebook is organized into 6 parts, progressing from absolute basics through ag
 - **Part 4: Functions & Reusability** (2 chapters) - Custom tools and organization
 - **Part 5: External Integration** (4 chapters) - Environment, MCP, shell commands
 - **Part 6: AI Agents** (3 chapters) - LLMs, agents, and multi-turn conversations
-- **Part 7: Reference** (3 chapters) - Complete API reference and cheat sheets
+- **Part 7: Advanced Topics** (1 chapter) - Debugging and troubleshooting
+- **Part 8: Reference** (1 chapter) - Complete API reference and cheat sheets
 
 **Total: 21 chapters**
 
@@ -305,7 +306,7 @@ The ebook is organized into 6 parts, progressing from absolute basics through ag
 
 ---
 
-### Part 7: Reference
+### Part 7: Advanced Topics
 
 #### Chapter 20: Debugging and Troubleshooting
 
@@ -320,6 +321,10 @@ The ebook is organized into 6 parts, progressing from absolute basics through ag
   - Debugging MCP integration
   - Performance troubleshooting
 - **Audience:** Become self-sufficient
+
+---
+
+### Part 8: Reference
 
 #### Chapter 21: Built-in Functions Reference
 

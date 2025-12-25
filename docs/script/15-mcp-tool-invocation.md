@@ -429,4 +429,8 @@ Found 3 .txt files in listing
 
 You've learned how to call MCP tools and handle their results. In the next chapter, we'll explore **Shell Commands**, learning how to execute arbitrary shell commands and integrate their output into your scripts. This gives you the power to leverage existing command-line tools alongside MCP integration.
 
-See you in [Chapter 16: Shell Commands](16-shell-commands.md)!
+---
+
+**Previous Chapter:** [Chapter 14: MCP Servers](14-mcp-servers.md)
+
+**Next Chapter:** [Chapter 16: Shell Commands](16-shell-commands.md)

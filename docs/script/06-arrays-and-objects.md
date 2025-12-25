@@ -648,3 +648,9 @@ Output:
 Now that you can work with structured data, you're ready to make decisions based on that data. In the next chapter, [**Conditionals**](07-string-manipulation.md), you'll learn how to write `if` statements to control what your script does based on conditions.
 
 But first, you might want to practice with strings, which appear everywhere in gsh scripts. The chapter after next covers [**String Manipulation**](07-string-manipulation.md) in depth—string methods, templates, and multi-line strings.
+
+---
+
+**Previous Chapter:** [Chapter 05: Operators and Expressions](05-operators-and-expressions.md)
+
+**Next Chapter:** [Chapter 07: String Manipulation](07-string-manipulation.md)

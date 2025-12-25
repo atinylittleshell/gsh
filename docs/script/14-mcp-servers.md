@@ -281,22 +281,6 @@ In the next chapter, **Shell Commands**, you'll learn how to use the `exec()` fu
 
 ---
 
-## Debugging Tips
+**Previous Chapter:** [Chapter 13: Environment Variables](13-environment-variables.md)
 
-**Server won't start?**
-
-- Check that the command exists (e.g., is `npx` installed?)
-- Check the args are correct for the server
-- Try running the command manually in your terminal
-
-**Tool not found?**
-
-- Use `log.info()` to verify the server is declared
-- Check the tool name spelling
-- Some servers expose different tools based on their configuration
-
-**Permission denied?**
-
-- For filesystem servers, ensure the path is accessible
-- For remote servers, check your API keys and headers
-- Use try-catch to capture permission errors gracefully
+**Next Chapter:** [Chapter 15: MCP Tool Invocation](15-mcp-tool-invocation.md)

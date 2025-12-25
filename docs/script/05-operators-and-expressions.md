@@ -484,8 +484,8 @@ Light clothing recommended
 
 You now understand how to perform operations and create expressions. But real programs need to work with collections of data. Chapter 06 covers **Arrays and Objects**—how to structure and manipulate multiple values together.
 
-Ready to continue? → [Chapter 06: Arrays and Objects](06-arrays-and-objects.md)
-
 ---
 
-**Previous:** [Chapter 04: Variables and Assignment](04-variables-and-assignment.md)
+**Previous Chapter:** [Chapter 04: Variables and Assignment](04-variables-and-assignment.md)
+
+**Next Chapter:** [Chapter 06: Arrays and Objects](06-arrays-and-objects.md)

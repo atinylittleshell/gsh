@@ -517,8 +517,8 @@ Both use conditions, but they behave very differently.
 
 In Chapter 09, you'll learn **Loops**—how to repeat actions over and over. You'll use `while` loops and `for-of` loops to process data, build collections, and automate repetitive tasks.
 
-Ready to continue? → [Chapter 09: Loops](09-loops.md)
-
 ---
 
-**Previous:** [Chapter 07: String Manipulation](07-string-manipulation.md)
+**Previous Chapter:** [Chapter 07: String Manipulation](07-string-manipulation.md)
+
+**Next Chapter:** [Chapter 09: Loops](09-loops.md)

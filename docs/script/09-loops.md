@@ -522,7 +522,6 @@ Now that you can iterate over data, the next chapter is **Chapter 10: Error Hand
 
 ---
 
-**Navigation:**
+**Previous Chapter:** [Chapter 08: Conditionals](08-conditionals.md)
 
-- [← Chapter 08: Conditionals](08-conditionals.md)
-- [Chapter 10: Error Handling →](10-error-handling.md)
+**Next Chapter:** [Chapter 10: Error Handling](10-error-handling.md)

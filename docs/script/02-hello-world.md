@@ -62,8 +62,8 @@ The shebang (`#!/usr/bin/env gsh`) tells your system to use gsh to run the scrip
 
 You've just run your first gsh script! In Chapter 03, we'll explore **Values and Types**—learning about the different kinds of data gsh can work with and how to use them.
 
-Ready to continue? → [Chapter 03: Values and Types](03-values-and-types.md)
-
 ---
 
-**Previous:** [Chapter 01: Introduction](01-introduction.md)
+**Previous Chapter:** [Chapter 01: Introduction](01-introduction.md)
+
+**Next Chapter:** [Chapter 03: Values and Types](03-values-and-types.md)

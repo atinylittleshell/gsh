@@ -418,6 +418,8 @@ conv2 = "How would you solve this problem?" | Expert2
 
 You now understand how to build sophisticated conversations with agents. In the next chapter, we'll explore **Debugging and Troubleshooting**—how to diagnose and fix problems in your gsh scripts, debug agents, and troubleshoot MCP integration.
 
-**Previous chapter:** [Chapter 18: Agent Declarations](./18-agent-declarations.md)
+---
 
-**Next chapter:** [Chapter 20: Debugging and Troubleshooting](./20-debugging-and-troubleshooting.md)
+**Previous Chapter:** [Chapter 18: Agent Declarations](18-agent-declarations.md)
+
+**Next Chapter:** [Chapter 20: Debugging and Troubleshooting](20-debugging-and-troubleshooting.md)

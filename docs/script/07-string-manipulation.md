@@ -612,4 +612,8 @@ Now that you can manipulate strings fluently, you're ready to **make decisions**
 
 You'll learn `if`, `else if`, and `else` to make your scripts respond intelligently to different inputs and conditions.
 
-[← Previous Chapter: Chapter 06 - Arrays and Objects](06-arrays-and-objects.md)
+---
+
+**Previous Chapter:** [Chapter 06: Arrays and Objects](06-arrays-and-objects.md)
+
+**Next Chapter:** [Chapter 08: Conditionals](08-conditionals.md)

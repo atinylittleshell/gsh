@@ -224,4 +224,6 @@ All with type safety and clear error handling.
 
 In Chapter 02, you'll set up your environment and write your first gsh script from scratch. You'll learn how to run it and understand the basic structure. By the end of that chapter, you'll have a working script and understand exactly what happens when you run it.
 
-Ready? Let's write some code! → [Chapter 02: Hello World](02-hello-world.md)
+---
+
+**Next Chapter:** [Chapter 02: Hello World](02-hello-world.md)

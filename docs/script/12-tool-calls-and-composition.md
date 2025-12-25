@@ -589,4 +589,6 @@ Then you'll learn about **MCP servers** and **shell commands**, which give you a
 
 ---
 
-**Next Chapter: [Chapter 13: Environment Variables](13-environment-variables.md)**
+**Previous Chapter:** [Chapter 11: Tool Declarations](11-tool-declarations.md)
+
+**Next Chapter:** [Chapter 13: Environment Variables](13-environment-variables.md)

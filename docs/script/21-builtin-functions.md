@@ -778,4 +778,6 @@ You've now completed the full language reference! You understand:
 - ✅ Debugging (Chapter 20)
 - ✅ Built-in functions (Chapter 21 - this chapter)
 
-The final chapter, **Chapter 22: Syntax Quick Reference**, is a cheat sheet of grammar, operators, and declarations—your quick lookup for when you need to remember exact syntax. Check it out when you need to refresh your memory on keywords and operator precedence!
+---
+
+**Previous Chapter:** [Chapter 20: Debugging and Troubleshooting](20-debugging-and-troubleshooting.md)
