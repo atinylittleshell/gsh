@@ -93,6 +93,40 @@ func TestProviderGetCompletionsFileCompletion(t *testing.T) {
 	assert.ElementsMatch(t, []string{"file1.txt", "file2.txt"}, completions)
 }
 
+func TestProviderGetCompletionsFileCompletionMultipleArgs(t *testing.T) {
+	// Create a temporary directory for testing
+	tmpDir, err := os.MkdirTemp("", "provider_test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// Create test files
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte("test"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file2.txt"), []byte("test"), 0644))
+	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, "subdir"), 0755))
+
+	rp := &mockRunnerProvider{pwd: tmpDir}
+	p := NewProvider(rp)
+
+	// Test file completion after multiple arguments with trailing space
+	// This was a bug where "git ls-files " wouldn't complete because
+	// the trailing space check was in an else-if that was never reached
+	// when len(words) > 1
+	completions := p.GetCompletions("git ls-files ", 13)
+	assert.Contains(t, completions, "file1.txt")
+	assert.Contains(t, completions, "file2.txt")
+	assert.Contains(t, completions, "subdir/")
+
+	// Test with even more arguments
+	completions = p.GetCompletions("command arg1 arg2 ", 18)
+	assert.Contains(t, completions, "file1.txt")
+	assert.Contains(t, completions, "file2.txt")
+	assert.Contains(t, completions, "subdir/")
+
+	// Test with partial file prefix after multiple args
+	completions = p.GetCompletions("git ls-files file", 17)
+	assert.ElementsMatch(t, []string{"file1.txt", "file2.txt"}, completions)
+}
+
 func TestProviderGetCompletionsBuiltinCommands(t *testing.T) {
 	rp := &mockRunnerProvider{pwd: "/tmp"}
 	p := NewProvider(rp)

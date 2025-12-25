@@ -126,12 +126,12 @@ func (p *Provider) GetCompletions(line string, pos int) []string {
 
 	// No command matches or multiple words, try file path completion
 	var prefix string
-	if len(words) > 1 {
-		// Get the last word as the prefix for file completion
-		prefix = words[len(words)-1]
-	} else if strings.HasSuffix(line, " ") {
+	if strings.HasSuffix(line, " ") {
 		// If line ends with space, use empty prefix to list all files
 		prefix = ""
+	} else if len(words) > 1 {
+		// Get the last word as the prefix for file completion
+		prefix = words[len(words)-1]
 	} else {
 		return make([]string, 0)
 	}
