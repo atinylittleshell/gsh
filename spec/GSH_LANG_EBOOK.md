@@ -278,7 +278,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 18: Agent Declarations
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `18-agent-declarations.md`
 - **Goal:** Define intelligent agents
 - **Key Topics:**
