@@ -186,7 +186,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 12: Tool Calls and Composition
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `12-tool-calls-and-composition.md`
 - **Goal:** Use tools effectively
 - **Key Topics:**
