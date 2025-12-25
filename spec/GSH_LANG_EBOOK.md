@@ -291,7 +291,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 19: Conversations and the Pipe Operator
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `19-conversations-and-pipes.md`
 - **Goal:** Master agent interaction
 - **Key Topics:**
