@@ -1,10 +1,12 @@
 package interpreter
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -18,6 +20,7 @@ import (
 // builtinNames contains all the names of built-in functions and objects
 var builtinNames = map[string]bool{
 	"print": true,
+	"input": true,
 	"JSON":  true,
 	"log":   true,
 	"env":   true,
@@ -119,6 +122,12 @@ func (i *Interpreter) registerBuiltins() {
 		Name: "exec",
 		Fn:   i.builtinExec,
 	})
+
+	// Register input function for reading user input
+	i.env.Set("input", &BuiltinValue{
+		Name: "input",
+		Fn:   i.builtinInput,
+	})
 }
 
 // builtinPrint implements the print() function
@@ -132,6 +141,37 @@ func builtinPrint(args []Value) (Value, error) {
 	}
 	fmt.Println()
 	return &NullValue{}, nil
+}
+
+// builtinInput implements the input() function
+// Reads a line from stdin and returns it as a string
+// Optional prompt argument is printed to stdout before reading
+func (i *Interpreter) builtinInput(args []Value) (Value, error) {
+	if len(args) > 1 {
+		return nil, fmt.Errorf("input() takes 0 or 1 argument (prompt?: string), got %d", len(args))
+	}
+
+	// If a prompt is provided, print it without newline
+	if len(args) == 1 {
+		promptValue, ok := args[0].(*StringValue)
+		if !ok {
+			return nil, fmt.Errorf("input() prompt must be a string, got %s", args[0].Type())
+		}
+		fmt.Print(promptValue.Value)
+	}
+
+	// Read a line from stdin
+	reader := bufio.NewReader(i.stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return nil, fmt.Errorf("input() failed to read: %w", err)
+	}
+
+	// Trim the trailing newline (handle both \n and \r\n)
+	line = strings.TrimSuffix(line, "\n")
+	line = strings.TrimSuffix(line, "\r")
+
+	return &StringValue{Value: line}, nil
 }
 
 // makeLogFunc creates a log function that uses the zap logger if available,

@@ -1,6 +1,9 @@
 package interpreter
 
 import (
+	"io"
+	"os"
+
 	"github.com/atinylittleshell/gsh/internal/script/mcp"
 	"github.com/atinylittleshell/gsh/internal/script/parser"
 	"go.uber.org/zap"
@@ -13,6 +16,7 @@ type Interpreter struct {
 	providerRegistry *ProviderRegistry
 	callStack        []StackFrame // Track call stack for error reporting
 	logger           *zap.Logger  // Optional zap logger for log.* functions
+	stdin            io.Reader    // Reader for input() function, defaults to os.Stdin
 }
 
 // EvalResult represents the result of evaluating a program
@@ -60,6 +64,7 @@ func NewWithLogger(logger *zap.Logger) *Interpreter {
 		mcpManager:       mcp.NewManager(),
 		providerRegistry: registry,
 		logger:           logger,
+		stdin:            os.Stdin,
 	}
 	interp.registerBuiltins()
 	return interp
@@ -80,9 +85,16 @@ func NewWithEnvironmentAndLogger(env *Environment, logger *zap.Logger) *Interpre
 		mcpManager:       mcp.NewManager(),
 		providerRegistry: registry,
 		logger:           logger,
+		stdin:            os.Stdin,
 	}
 	interp.registerBuiltins()
 	return interp
+}
+
+// SetStdin sets the stdin reader for the input() function
+// This is useful for testing or for providing custom input sources
+func (i *Interpreter) SetStdin(r io.Reader) {
+	i.stdin = r
 }
 
 // Close cleans up resources used by the interpreter

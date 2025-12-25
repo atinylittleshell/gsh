@@ -447,6 +447,38 @@ print("Hello, world!")
 print(`Value: ${count}`)
 ```
 
+### Input
+
+Read user input from stdin:
+
+```gsh
+# With prompt
+name = input("What is your name? ")
+print(`Hello, ${name}!`)
+
+# Without prompt
+print("Enter a value:")
+value = input()
+```
+
+**Function signature:**
+
+```gsh
+input(prompt?: string): string
+```
+
+**Parameters:**
+
+- `prompt` (optional) - A string to display before waiting for input
+
+**Returns:** The user's input as a string (without trailing newline)
+
+**Notes:**
+
+- The prompt is printed to stdout without a trailing newline
+- Input is read until a newline character
+- Both `\n` and `\r\n` line endings are trimmed from the result
+
 ### JSON Utilities
 
 ```gsh
@@ -484,19 +516,23 @@ hostname = exec("hostname").stdout
 ```
 
 **Function signature:**
+
 ```gsh
 exec(command: string, options?: {timeout?: number}): {stdout: string, stderr: string, exitCode: number}
 ```
 
 **Options:**
+
 - `timeout` - Maximum execution time in milliseconds (default: 60000ms / 60 seconds)
 
 **Returns:** An object containing:
+
 - `stdout` - Standard output as a string
-- `stderr` - Standard error as a string  
+- `stderr` - Standard error as a string
 - `exitCode` - Exit code of the command (0 for success)
 
 **Notes:**
+
 - Commands are executed in a subshell (isolated from the main shell environment)
 - Non-zero exit codes do not throw errors; check `exitCode` in the result
 - Timeouts throw an error

@@ -29,7 +29,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 01: Introduction
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `01-introduction.md`
 - **Goal:** Orient readers to gsh scripting and why it matters
 - **Key Topics:**
@@ -42,7 +42,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 02: Hello World
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `02-hello-world.md`
 - **Goal:** Get readers running their first script
 - **Key Topics:**

@@ -8,3 +8,4 @@
 - Link to previous/next chapters with relative markdown links
 - The chapter file should already exist with empty content - you need to overwrite it
 - Mark the chapter as DONE in `spec/GSH_LANG_EBOOK.md` when finished
+- Delete any temp test files you created

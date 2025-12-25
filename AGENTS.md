@@ -10,3 +10,9 @@ model exampleModel {
     model: "devstral-small-2",
 }
 ```
+
+## Testing the binary
+
+If you need to build the gsh binary for testing, you can just run `make build` or a custom build command outputting to `./bin/gsh`.
+
+It's okay to overwrite the existing binary during testing.

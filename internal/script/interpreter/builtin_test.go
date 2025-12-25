@@ -596,3 +596,114 @@ func TestJSONRoundTrip(t *testing.T) {
 		t.Errorf("round trip failed: original = %v, parsed = %v", original, parsed)
 	}
 }
+
+func TestInputFunction(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		stdin    string
+		expected string
+	}{
+		{
+			name:     "input without prompt",
+			input:    `name = input()`,
+			stdin:    "Alice\n",
+			expected: "Alice",
+		},
+		{
+			name:     "input with prompt",
+			input:    `name = input("Enter name: ")`,
+			stdin:    "Bob\n",
+			expected: "Bob",
+		},
+		{
+			name:     "input trims newline",
+			input:    `value = input()`,
+			stdin:    "hello world\n",
+			expected: "hello world",
+		},
+		{
+			name:     "input trims CRLF",
+			input:    `value = input()`,
+			stdin:    "test\r\n",
+			expected: "test",
+		},
+		{
+			name:     "input handles EOF without newline",
+			input:    `value = input()`,
+			stdin:    "no newline",
+			expected: "no newline",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := parser.New(l)
+			program := p.ParseProgram()
+
+			interp := New()
+			interp.SetStdin(strings.NewReader(tt.stdin))
+
+			evalResult, err := interp.Eval(program)
+			if err != nil {
+				t.Fatalf("eval error: %v", err)
+			}
+
+			vars := evalResult.Variables()
+			var result Value
+			for _, v := range vars {
+				result = v
+				break
+			}
+
+			strResult, ok := result.(*StringValue)
+			if !ok {
+				t.Fatalf("expected StringValue, got %T", result)
+			}
+
+			if strResult.Value != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, strResult.Value)
+			}
+		})
+	}
+}
+
+func TestInputFunctionErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectedErr string
+	}{
+		{
+			name:        "too many arguments",
+			input:       `name = input("prompt", "extra")`,
+			expectedErr: "input() takes 0 or 1 argument",
+		},
+		{
+			name:        "non-string prompt",
+			input:       `name = input(42)`,
+			expectedErr: "input() prompt must be a string",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := parser.New(l)
+			program := p.ParseProgram()
+
+			interp := New()
+			interp.SetStdin(strings.NewReader("test\n"))
+
+			_, err := interp.Eval(program)
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+
+			if !strings.Contains(err.Error(), tt.expectedErr) {
+				t.Errorf("expected error containing %q, got %q", tt.expectedErr, err.Error())
+			}
+		})
+	}
+}
