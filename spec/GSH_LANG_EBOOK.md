@@ -264,7 +264,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 17: Model Declarations
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `17-model-declarations.md`
 - **Goal:** Configure LLM providers
 - **Key Topics:**

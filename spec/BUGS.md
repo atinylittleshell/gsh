@@ -52,3 +52,35 @@ After: inside tool
 1. Create a new local environment for the tool execution
 2. When assigning to a variable that exists in parent scope, create a new local binding instead of modifying the parent
 3. When reading a variable, follow the scope chain upward if not found locally
+
+---
+
+## Anthropic Model Provider Not Implemented
+
+**Description:** The spec (GSH_SCRIPT_SPEC.md) documents support for Anthropic Claude models via `provider: "anthropic"`, but this provider is not implemented in the interpreter.
+
+**Expected Behavior:** Users should be able to declare models with `provider: "anthropic"` and use Claude models in agents, as documented in the spec.
+
+**Actual Behavior:** Scripts that declare `provider: "anthropic"` fail with error: "unknown model provider: anthropic"
+
+**Test Case:**
+
+```gsh
+model claude {
+    provider: "anthropic",
+    apiKey: env.ANTHROPIC_API_KEY,
+    model: "claude-3-5-sonnet-20241022",
+}
+```
+
+**Error:** `Runtime error: unknown model provider: anthropic`
+
+**Impact:** Users cannot use Anthropic models despite the spec promising support. Only OpenAI provider is currently implemented.
+
+**Related Code:**
+
+- `internal/script/interpreter/interpreter.go` - Only `NewOpenAIProvider()` is registered (lines 60, 81)
+- `internal/script/interpreter/provider.go` - Provider registry interface
+- No `provider_anthropic.go` file exists
+
+**Fix Notes:** Need to implement `NewAnthropicProvider()` following the same pattern as `NewOpenAIProvider()` and register it in the interpreter initialization.
