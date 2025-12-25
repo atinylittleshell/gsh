@@ -156,7 +156,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 10: Error Handling
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `10-error-handling.md`
 - **Goal:** Handle failures gracefully
 - **Key Topics:**
