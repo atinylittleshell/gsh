@@ -10,4 +10,4 @@ Create TODO items tracking the top level bullet points below.
   - Call create_file tool with overwrite=true to write the chapter file
 - Every code example must be complete, tested, and actually runnable in gsh
 - Mark the chapter as DONE in `spec/GSH_LANG_EBOOK.md` when finished
-- If you discovered any real bugs in our language implementation, report them in spec/BUGS.md
+- If you discovered any real bugs in our language implementation, report them in spec/BUGS.md, and continue writing the chapter assuming the bug is already fixed

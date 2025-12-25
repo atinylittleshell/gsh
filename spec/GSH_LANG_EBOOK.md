@@ -173,7 +173,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 11: Tool Declarations
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `11-tool-declarations.md`
 - **Goal:** Define custom functions/tools
 - **Key Topics:**
