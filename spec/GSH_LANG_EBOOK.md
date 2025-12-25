@@ -130,7 +130,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 08: Conditionals
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `08-conditionals.md`
 - **Goal:** Make decisions in scripts
 - **Key Topics:**
