@@ -143,7 +143,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 09: Loops
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `09-loops.md`
 - **Goal:** Repeat actions and iterate over data
 - **Key Topics:**
