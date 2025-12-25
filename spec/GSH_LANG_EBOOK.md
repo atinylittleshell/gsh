@@ -309,7 +309,7 @@ The ebook is organized into 6 parts, progressing from absolute basics through ag
 
 #### Chapter 20: Debugging and Troubleshooting
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `20-debugging-and-troubleshooting.md`
 - **Goal:** Solve problems effectively
 - **Key Topics:**
