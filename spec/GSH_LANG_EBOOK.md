@@ -203,7 +203,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 13: Environment Variables
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `13-environment-variables.md`
 - **Goal:** Interact with the system environment
 - **Key Topics:**

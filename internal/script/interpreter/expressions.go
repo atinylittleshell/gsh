@@ -270,6 +270,14 @@ func (i *Interpreter) applyBinaryOperator(op string, left, right Value) (Value, 
 		return &BoolValue{Value: left.IsTruthy() || right.IsTruthy()}, nil
 	}
 
+	// Handle nullish coalescing (??)
+	if op == "??" {
+		if left.Type() == ValueTypeNull {
+			return right, nil
+		}
+		return left, nil
+	}
+
 	return nil, fmt.Errorf("unsupported operator '%s' for types %s and %s", op, left.Type(), right.Type())
 }
 
