@@ -100,6 +100,22 @@ func (m *MockProvider) GetLastRequest() *ChatRequest {
 	return &m.CallHistory[len(m.CallHistory)-1]
 }
 
+// StreamingChatCompletion simulates streaming by calling the callback with the full response
+func (m *MockProvider) StreamingChatCompletion(request ChatRequest, callback StreamCallback) (*ChatResponse, error) {
+	// Get the non-streaming response
+	response, err := m.ChatCompletion(request)
+	if err != nil {
+		return nil, err
+	}
+
+	// Simulate streaming by calling callback with full content at once
+	if callback != nil && response.Content != "" {
+		callback(response.Content)
+	}
+
+	return response, nil
+}
+
 // SmartMockProvider is a more intelligent mock that can handle basic math and tool calls
 type SmartMockProvider struct {
 	name        string
@@ -302,6 +318,22 @@ func (s *SmartMockProvider) GetLastRequest() *ChatRequest {
 		return nil
 	}
 	return &s.CallHistory[len(s.CallHistory)-1]
+}
+
+// StreamingChatCompletion simulates streaming by calling the callback with the full response
+func (s *SmartMockProvider) StreamingChatCompletion(request ChatRequest, callback StreamCallback) (*ChatResponse, error) {
+	// Get the non-streaming response
+	response, err := s.ChatCompletion(request)
+	if err != nil {
+		return nil, err
+	}
+
+	// Simulate streaming by calling callback with full content at once
+	if callback != nil && response.Content != "" {
+		callback(response.Content)
+	}
+
+	return response, nil
 }
 
 // MarshalJSON is needed for tool call arguments

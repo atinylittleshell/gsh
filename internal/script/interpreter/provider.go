@@ -7,7 +7,16 @@ type ModelProvider interface {
 
 	// ChatCompletion sends a chat completion request
 	ChatCompletion(request ChatRequest) (*ChatResponse, error)
+
+	// StreamingChatCompletion sends a chat completion request with streaming response.
+	// The callback is called for each chunk of content received.
+	// Returns the final complete response after streaming is done.
+	StreamingChatCompletion(request ChatRequest, callback StreamCallback) (*ChatResponse, error)
 }
+
+// StreamCallback is called for each chunk of streamed content.
+// The content parameter contains the incremental text delta.
+type StreamCallback func(content string)
 
 // ChatRequest represents a chat completion request
 type ChatRequest struct {

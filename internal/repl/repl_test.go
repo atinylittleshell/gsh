@@ -914,9 +914,10 @@ func TestHandleAgentCommand_Help(t *testing.T) {
 
 // MockProvider implements ModelProvider for testing
 type MockProvider struct {
-	responseContent    string
-	shouldError        bool
-	chatCompletionFunc func(request interpreter.ChatRequest) (*interpreter.ChatResponse, error)
+	responseContent             string
+	shouldError                 bool
+	chatCompletionFunc          func(request interpreter.ChatRequest) (*interpreter.ChatResponse, error)
+	streamingChatCompletionFunc func(request interpreter.ChatRequest, callback interpreter.StreamCallback) (*interpreter.ChatResponse, error)
 }
 
 func (m *MockProvider) Name() string {
@@ -933,6 +934,39 @@ func (m *MockProvider) ChatCompletion(request interpreter.ChatRequest) (*interpr
 	if m.shouldError {
 		return nil, fmt.Errorf("mock error")
 	}
+	return &interpreter.ChatResponse{
+		Content: m.responseContent,
+	}, nil
+}
+
+func (m *MockProvider) StreamingChatCompletion(request interpreter.ChatRequest, callback interpreter.StreamCallback) (*interpreter.ChatResponse, error) {
+	// If custom streaming function is set, use it
+	if m.streamingChatCompletionFunc != nil {
+		return m.streamingChatCompletionFunc(request, callback)
+	}
+
+	// If custom chat completion function is set, use it but simulate streaming
+	if m.chatCompletionFunc != nil {
+		response, err := m.chatCompletionFunc(request)
+		if err != nil {
+			return nil, err
+		}
+		if callback != nil && response.Content != "" {
+			callback(response.Content)
+		}
+		return response, nil
+	}
+
+	// Default behavior
+	if m.shouldError {
+		return nil, fmt.Errorf("mock error")
+	}
+
+	// Simulate streaming by calling callback with full content
+	if callback != nil && m.responseContent != "" {
+		callback(m.responseContent)
+	}
+
 	return &interpreter.ChatResponse{
 		Content: m.responseContent,
 	}, nil

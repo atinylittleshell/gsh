@@ -1,11 +1,13 @@
 package interpreter
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 // OpenAIProvider implements the ModelProvider interface for OpenAI
@@ -196,7 +198,269 @@ func (p *OpenAIProvider) ChatCompletion(request ChatRequest) (*ChatResponse, err
 	return response, nil
 }
 
+// StreamingChatCompletion sends a chat completion request with streaming response
+func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callback StreamCallback) (*ChatResponse, error) {
+	if request.Model == nil {
+		return nil, fmt.Errorf("OpenAI provider requires a model")
+	}
+
+	// Get API key from model config
+	apiKeyVal, ok := request.Model.Config["apiKey"]
+	if !ok {
+		return nil, fmt.Errorf("OpenAI provider requires 'apiKey' in model config")
+	}
+	apiKeyStr, ok := apiKeyVal.(*StringValue)
+	if !ok || apiKeyStr.Value == "" {
+		return nil, fmt.Errorf("OpenAI provider requires 'apiKey' to be a non-empty string")
+	}
+	apiKey := apiKeyStr.Value
+
+	// Get model ID from model config
+	modelIDVal, ok := request.Model.Config["model"]
+	if !ok {
+		return nil, fmt.Errorf("OpenAI provider requires 'model' in model config")
+	}
+	modelIDStr, ok := modelIDVal.(*StringValue)
+	if !ok || modelIDStr.Value == "" {
+		return nil, fmt.Errorf("OpenAI provider requires 'model' to be a non-empty string")
+	}
+	modelID := modelIDStr.Value
+
+	// Get base URL (default to OpenAI)
+	baseURL := "https://api.openai.com/v1"
+	if baseURLVal, ok := request.Model.Config["baseURL"]; ok {
+		if baseURLStr, ok := baseURLVal.(*StringValue); ok && baseURLStr.Value != "" {
+			baseURL = baseURLStr.Value
+		}
+	}
+
+	// Append the chat completions endpoint
+	apiURL := baseURL + "/chat/completions"
+
+	// Build OpenAI-specific request with streaming enabled
+	openaiReq := openAIStreamingChatCompletionRequest{
+		Model:    modelID,
+		Messages: make([]openAIMessage, len(request.Messages)),
+		Stream:   true,
+	}
+
+	// Convert messages
+	for i, msg := range request.Messages {
+		openaiReq.Messages[i] = openAIMessage{
+			Role:    msg.Role,
+			Content: msg.Content,
+		}
+		if msg.Name != "" {
+			openaiReq.Messages[i].Name = &msg.Name
+		}
+	}
+
+	// Add optional parameters from model config
+	if tempVal, ok := request.Model.Config["temperature"]; ok {
+		if tempNum, ok := tempVal.(*NumberValue); ok {
+			temp := tempNum.Value
+			openaiReq.Temperature = &temp
+		}
+	}
+	if maxTokensVal, ok := request.Model.Config["maxTokens"]; ok {
+		if maxTokensNum, ok := maxTokensVal.(*NumberValue); ok {
+			maxTokens := int(maxTokensNum.Value)
+			openaiReq.MaxTokens = &maxTokens
+		}
+	}
+	if topPVal, ok := request.Model.Config["topP"]; ok {
+		if topPNum, ok := topPVal.(*NumberValue); ok {
+			topP := topPNum.Value
+			openaiReq.TopP = &topP
+		}
+	}
+
+	// Convert tools if present
+	if len(request.Tools) > 0 {
+		openaiReq.Tools = make([]openAITool, len(request.Tools))
+		for i, tool := range request.Tools {
+			openaiReq.Tools[i] = openAITool{
+				Type: "function",
+				Function: openAIFunction{
+					Name:        tool.Name,
+					Description: tool.Description,
+					Parameters:  tool.Parameters,
+				},
+			}
+		}
+	}
+
+	// Marshal request
+	reqBody, err := json.Marshal(openaiReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	// Create HTTP request
+	httpReq, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+	httpReq.Header.Set("Accept", "text/event-stream")
+
+	// Send request
+	resp, err := p.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check status code
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("OpenAI API returned status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	// Parse SSE stream
+	var fullContent strings.Builder
+	var finishReason string
+	var toolCalls []ChatToolCall
+
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Skip empty lines
+		if line == "" {
+			continue
+		}
+
+		// SSE format: "data: {json}" or "data: [DONE]"
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+
+		data := strings.TrimPrefix(line, "data: ")
+
+		// Check for stream end
+		if data == "[DONE]" {
+			break
+		}
+
+		// Parse chunk
+		var chunk openAIStreamingChunk
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			// Skip malformed chunks
+			continue
+		}
+
+		// Process choices
+		if len(chunk.Choices) > 0 {
+			choice := chunk.Choices[0]
+
+			// Accumulate content
+			if choice.Delta.Content != "" {
+				fullContent.WriteString(choice.Delta.Content)
+				// Call the callback with the delta
+				if callback != nil {
+					callback(choice.Delta.Content)
+				}
+			}
+
+			// Capture finish reason
+			if choice.FinishReason != "" {
+				finishReason = choice.FinishReason
+			}
+
+			// Handle tool calls (accumulated across chunks)
+			for _, tc := range choice.Delta.ToolCalls {
+				// Find or create the tool call entry
+				for len(toolCalls) <= tc.Index {
+					toolCalls = append(toolCalls, ChatToolCall{})
+				}
+				if tc.ID != "" {
+					toolCalls[tc.Index].ID = tc.ID
+				}
+				if tc.Function.Name != "" {
+					toolCalls[tc.Index].Name = tc.Function.Name
+				}
+				if tc.Function.Arguments != "" {
+					// Accumulate arguments (they may be streamed in chunks)
+					if toolCalls[tc.Index].Arguments == nil {
+						toolCalls[tc.Index].Arguments = make(map[string]interface{})
+					}
+					// Store raw arguments for later parsing
+					if existingArgs, ok := toolCalls[tc.Index].Arguments["__raw__"].(string); ok {
+						toolCalls[tc.Index].Arguments["__raw__"] = existingArgs + tc.Function.Arguments
+					} else {
+						toolCalls[tc.Index].Arguments["__raw__"] = tc.Function.Arguments
+					}
+				}
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading stream: %w", err)
+	}
+
+	// Parse accumulated tool call arguments
+	for i := range toolCalls {
+		if rawArgs, ok := toolCalls[i].Arguments["__raw__"].(string); ok {
+			delete(toolCalls[i].Arguments, "__raw__")
+			var args map[string]interface{}
+			if err := json.Unmarshal([]byte(rawArgs), &args); err == nil {
+				toolCalls[i].Arguments = args
+			}
+		}
+	}
+
+	// Build final response
+	response := &ChatResponse{
+		Content:      fullContent.String(),
+		FinishReason: finishReason,
+		ToolCalls:    toolCalls,
+	}
+
+	return response, nil
+}
+
 // OpenAI-specific types
+
+type openAIStreamingChatCompletionRequest struct {
+	Model       string          `json:"model"`
+	Messages    []openAIMessage `json:"messages"`
+	Stream      bool            `json:"stream"`
+	Temperature *float64        `json:"temperature,omitempty"`
+	MaxTokens   *int            `json:"max_tokens,omitempty"`
+	TopP        *float64        `json:"top_p,omitempty"`
+	Tools       []openAITool    `json:"tools,omitempty"`
+}
+
+type openAIStreamingChunk struct {
+	ID      string               `json:"id"`
+	Object  string               `json:"object"`
+	Created int64                `json:"created"`
+	Model   string               `json:"model"`
+	Choices []openAIStreamChoice `json:"choices"`
+}
+
+type openAIStreamChoice struct {
+	Index        int               `json:"index"`
+	Delta        openAIStreamDelta `json:"delta"`
+	FinishReason string            `json:"finish_reason"`
+}
+
+type openAIStreamDelta struct {
+	Role      string                      `json:"role,omitempty"`
+	Content   string                      `json:"content,omitempty"`
+	ToolCalls []openAIStreamDeltaToolCall `json:"tool_calls,omitempty"`
+}
+
+type openAIStreamDeltaToolCall struct {
+	Index    int            `json:"index"`
+	ID       string         `json:"id,omitempty"`
+	Type     string         `json:"type,omitempty"`
+	Function openAIFunction `json:"function,omitempty"`
+}
 
 type openAIChatCompletionRequest struct {
 	Model       string          `json:"model"`

@@ -29,6 +29,17 @@ func (m *mockModelProvider) ChatCompletion(request interpreter.ChatRequest) (*in
 	return m.response, nil
 }
 
+func (m *mockModelProvider) StreamingChatCompletion(request interpreter.ChatRequest, callback interpreter.StreamCallback) (*interpreter.ChatResponse, error) {
+	response, err := m.ChatCompletion(request)
+	if err != nil {
+		return nil, err
+	}
+	if callback != nil && response.Content != "" {
+		callback(response.Content)
+	}
+	return response, nil
+}
+
 func TestNewPrefixPredictor(t *testing.T) {
 	t.Run("default values", func(t *testing.T) {
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{})

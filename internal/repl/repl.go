@@ -575,21 +575,27 @@ func (r *REPL) sendMessageToCurrentAgent(ctx context.Context, message string) er
 		model, _ = modelVal.(*interpreter.ModelValue)
 	}
 
-	// Call provider directly
+	// Call provider with streaming to display response in real-time
 	startTime := timeNow()
-	response, err := state.Provider.ChatCompletion(interpreter.ChatRequest{
-		Model:    model,
-		Messages: messages,
-	})
+	response, err := state.Provider.StreamingChatCompletion(
+		interpreter.ChatRequest{
+			Model:    model,
+			Messages: messages,
+		},
+		func(content string) {
+			// Print each chunk immediately without newline
+			fmt.Print(content)
+		},
+	)
 	duration := timeNow().Sub(startTime)
+
+	// Print final newline after streaming completes
+	fmt.Println()
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gsh: agent error: %v\n", err)
 		return nil
 	}
-
-	// Display response
-	fmt.Println(response.Content)
 
 	// Update conversation history (don't include system prompt in history)
 	state.Conversation = append(state.Conversation,
