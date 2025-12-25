@@ -1,0 +1,9 @@
+- Look at `spec/GSH_LANG_EBOOK.md` to find the chapter plan
+- Identify the next chapter marked as TODO - that's the one to write
+- Read `spec/GSH_SCRIPT_SPEC.md` and relevant code files for language details needed for the chapter
+- Write the chapter following the structure: opening → core concepts → examples → key takeaways → what's next
+- Use conversational tone, concrete examples before abstraction, active voice
+- Every code example must be complete, tested, and actually runnable in gsh
+- Include output/results for all examples
+- Link to previous/next chapters with relative markdown links
+- Mark the chapter as DONE in `spec/GSH_LANG_EBOOK.md` when finished
