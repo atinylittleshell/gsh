@@ -323,7 +323,7 @@ The ebook is organized into 6 parts, progressing from absolute basics through ag
 
 #### Chapter 21: Built-in Functions Reference
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `21-builtin-functions.md`
 - **Goal:** Complete API documentation
 - **Key Topics:**
