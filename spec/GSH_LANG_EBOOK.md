@@ -99,7 +99,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 06: Arrays and Objects
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `06-arrays-and-objects.md`
 - **Goal:** Work with structured data
 - **Key Topics:**
