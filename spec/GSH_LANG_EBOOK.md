@@ -217,7 +217,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 14: MCP Servers
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `14-mcp-servers.md`
 - **Goal:** Understand and declare MCP servers
 - **Key Topics:**
