@@ -5,6 +5,3 @@ prompts:
   - name: cm
     description: Commit staged changes with a conventional commit message
     content_file: cm.md
-  - name: ebook
-    description: Write a chapter for the gsh scripting language ebook
-    content_file: ebook.md
