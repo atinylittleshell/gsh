@@ -58,7 +58,7 @@ type ChatMessage struct {
 
 ## Implementation Plan
 
-### Phase 1: Extend Message Types for Tool Calls
+### [DONE] Phase 1: Extend Message Types for Tool Calls
 
 #### 1.1 Update `ChatMessage` struct
 
@@ -86,7 +86,7 @@ Update `openAIMessage` struct and message conversion to:
 
 ---
 
-### Phase 2: Implement Proper Agentic Loop
+### [DONE] Phase 2: Implement Proper Agentic Loop
 
 #### 2.1 Fix Script Interpreter Loop
 

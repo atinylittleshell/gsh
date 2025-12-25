@@ -109,6 +109,10 @@ func (i *Interpreter) executeAgentWithConversation(conv *ConversationValue, agen
 	return i.executeAgent(execConv, agent)
 }
 
+// DefaultMaxIterations is the default maximum number of tool call iterations
+// if not specified in the agent config.
+const DefaultMaxIterations = 100
+
 // executeAgent executes an agent with a conversation and returns the updated conversation
 func (i *Interpreter) executeAgent(conv *ConversationValue, agent *AgentValue) (Value, error) {
 	// Get model from agent config
@@ -119,6 +123,17 @@ func (i *Interpreter) executeAgent(conv *ConversationValue, agent *AgentValue) (
 	model, ok := modelVal.(*ModelValue)
 	if !ok {
 		return nil, fmt.Errorf("agent '%s' model config is not a model", agent.Name)
+	}
+
+	// Get max iterations from agent config, or use default
+	maxIterations := DefaultMaxIterations
+	if maxIterVal, ok := agent.Config["maxIterations"]; ok {
+		if numVal, ok := maxIterVal.(*NumberValue); ok {
+			maxIterations = int(numVal.Value)
+			if maxIterations <= 0 {
+				maxIterations = DefaultMaxIterations
+			}
+		}
 	}
 
 	// Prepare tools for the agent
@@ -146,19 +161,6 @@ func (i *Interpreter) executeAgent(conv *ConversationValue, agent *AgentValue) (
 		}
 	}
 
-	// Create chat request
-	request := ChatRequest{
-		Model:    model,
-		Messages: conv.Messages,
-		Tools:    tools,
-	}
-
-	// Call the model directly (provider is resolved at model creation time)
-	response, err := model.ChatCompletion(request)
-	if err != nil {
-		return nil, fmt.Errorf("agent execution failed: %w", err)
-	}
-
 	// Create new conversation with response (excluding system messages)
 	// System prompts should not be stored in conversations
 	userMessages := []ChatMessage{}
@@ -173,44 +175,75 @@ func (i *Interpreter) executeAgent(conv *ConversationValue, agent *AgentValue) (
 	}
 	copy(newConv.Messages, userMessages)
 
-	// Handle tool calls if present
-	if len(response.ToolCalls) > 0 {
+	// Build messages for the request (include system prompt for the model)
+	buildRequestMessages := func() []ChatMessage {
+		messages := []ChatMessage{}
+		// Add system prompt if configured
+		if systemPromptVal, ok := agent.Config["systemPrompt"]; ok {
+			if systemPromptStr, ok := systemPromptVal.(*StringValue); ok {
+				messages = append(messages, ChatMessage{
+					Role:    "system",
+					Content: systemPromptStr.Value,
+				})
+			}
+		}
+		// Add all messages from the conversation
+		messages = append(messages, newConv.Messages...)
+		return messages
+	}
+
+	// Agentic loop - continue until no tool calls or max iterations reached
+	for iteration := 0; iteration < maxIterations; iteration++ {
+		// Create chat request
+		request := ChatRequest{
+			Model:    model,
+			Messages: buildRequestMessages(),
+			Tools:    tools,
+		}
+
+		// Call the model directly (provider is resolved at model creation time)
+		response, err := model.ChatCompletion(request)
+		if err != nil {
+			return nil, fmt.Errorf("agent execution failed: %w", err)
+		}
+
+		// If no tool calls, add final response and return
+		if len(response.ToolCalls) == 0 {
+			newConv.Messages = append(newConv.Messages, ChatMessage{
+				Role:    "assistant",
+				Content: response.Content,
+			})
+			return newConv, nil
+		}
+
 		// Add assistant message with tool calls
 		newConv.Messages = append(newConv.Messages, ChatMessage{
-			Role:    "assistant",
-			Content: response.Content,
+			Role:      "assistant",
+			Content:   response.Content,
+			ToolCalls: response.ToolCalls,
 		})
 
-		// Execute tool calls
+		// Execute tool calls and add results
 		for _, toolCall := range response.ToolCalls {
 			toolResult, err := i.executeToolCall(agent, toolCall)
 			if err != nil {
 				return nil, fmt.Errorf("tool call failed: %w", err)
 			}
 
-			// Add tool result to conversation
+			// Add tool result to conversation with proper tool_call_id
 			newConv.Messages = append(newConv.Messages, ChatMessage{
-				Role:    "tool",
-				Content: toolResult,
-				Name:    toolCall.Name,
+				Role:       "tool",
+				Content:    toolResult,
+				Name:       toolCall.Name,
+				ToolCallID: toolCall.ID,
 			})
 		}
 
-		// Make another call to get final response after tool execution
-		request.Messages = newConv.Messages
-		response, err = model.ChatCompletion(request)
-		if err != nil {
-			return nil, fmt.Errorf("agent execution after tool calls failed: %w", err)
-		}
+		// Continue loop to make another call
 	}
 
-	// Add assistant response to conversation
-	newConv.Messages = append(newConv.Messages, ChatMessage{
-		Role:    "assistant",
-		Content: response.Content,
-	})
-
-	return newConv, nil
+	// If we reach here, we hit max iterations - return what we have
+	return newConv, fmt.Errorf("agent reached maximum iterations (%d) without completing", maxIterations)
 }
 
 // executeToolCall executes a tool call from the agent

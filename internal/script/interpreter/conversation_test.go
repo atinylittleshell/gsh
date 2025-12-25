@@ -442,3 +442,230 @@ conv = "Analyze: sales up 20%" | Analyzer | "Write a one-sentence summary" | Wri
 		t.Errorf("Expected at least 2 calls to provider (one per agent), got %d", mockProvider.GetCallCount())
 	}
 }
+
+// TestAgenticLoopMultipleIterations tests that the agentic loop continues until no tool calls
+func TestAgenticLoopMultipleIterations(t *testing.T) {
+	// Create a custom mock provider that returns chained tool calls
+	mock := &chainedToolCallMockProvider{
+		callCount: 0,
+	}
+
+	interp := New()
+	interp.providerRegistry.Register(mock)
+
+	input := `
+model testModel {
+	provider: "chained-mock",
+	model: "test"
+}
+
+tool step1(input: string): string {
+	return "step1_result"
+}
+
+tool step2(input: string): string {
+	return "step2_result"
+}
+
+tool step3(input: string): string {
+	return "step3_result"
+}
+
+agent TestAgent {
+	model: testModel,
+	tools: [step1, step2, step3],
+	systemPrompt: "You are a test agent."
+}
+
+conv = "Process this through all steps" | TestAgent
+`
+
+	l := lexer.New(input)
+	p := parser.New(l)
+	program := p.ParseProgram()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+
+	result, err := interp.Eval(program)
+	if err != nil {
+		t.Fatalf("Interpreter error: %v", err)
+	}
+
+	conv, ok := result.Value().(*ConversationValue)
+	if !ok {
+		t.Fatalf("Expected ConversationValue, got %T", result.Value())
+	}
+
+	// Should have 4 calls: initial + 3 tool call iterations
+	if mock.callCount != 4 {
+		t.Errorf("Expected 4 provider calls, got %d", mock.callCount)
+	}
+
+	// Verify the conversation has the right structure
+	// Expected: user, assistant+tool1, tool1_result, assistant+tool2, tool2_result, assistant+tool3, tool3_result, assistant
+	toolResults := 0
+	assistantMsgs := 0
+	for _, msg := range conv.Messages {
+		if msg.Role == "tool" {
+			toolResults++
+		}
+		if msg.Role == "assistant" {
+			assistantMsgs++
+		}
+	}
+
+	if toolResults != 3 {
+		t.Errorf("Expected 3 tool results, got %d", toolResults)
+	}
+
+	if assistantMsgs != 4 {
+		t.Errorf("Expected 4 assistant messages (3 with tool calls + 1 final), got %d", assistantMsgs)
+	}
+}
+
+// TestAgenticLoopMaxIterations tests that the loop stops at max iterations
+func TestAgenticLoopMaxIterations(t *testing.T) {
+	mock := &infiniteToolCallMockProvider{}
+
+	interp := New()
+	interp.providerRegistry.Register(mock)
+
+	// Use a small maxIterations value for testing (5 instead of default 100)
+	input := `
+model testModel {
+	provider: "infinite-mock",
+	model: "test"
+}
+
+tool infiniteTool(): string {
+	return "result"
+}
+
+agent TestAgent {
+	model: testModel,
+	tools: [infiniteTool],
+	maxIterations: 5
+}
+
+conv = "Do something infinite" | TestAgent
+`
+
+	l := lexer.New(input)
+	p := parser.New(l)
+	program := p.ParseProgram()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+
+	_, err := interp.Eval(program)
+
+	// Should return max iterations error
+	if err == nil {
+		t.Fatal("Expected max iterations error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "maximum iterations") {
+		t.Errorf("Expected max iterations error, got: %v", err)
+	}
+
+	// Should have exactly 5 calls (the configured maxIterations)
+	expectedIterations := 5
+	if mock.callCount != expectedIterations {
+		t.Errorf("Expected %d provider calls, got %d", expectedIterations, mock.callCount)
+	}
+}
+
+// chainedToolCallMockProvider returns tool calls in sequence: step1 -> step2 -> step3 -> done
+type chainedToolCallMockProvider struct {
+	callCount int
+}
+
+func (c *chainedToolCallMockProvider) Name() string { return "chained-mock" }
+
+func (c *chainedToolCallMockProvider) ChatCompletion(request ChatRequest) (*ChatResponse, error) {
+	c.callCount++
+
+	// Check which tools have been called based on conversation history
+	toolsCalled := make(map[string]bool)
+	for _, msg := range request.Messages {
+		if msg.Role == "tool" {
+			toolsCalled[msg.Name] = true
+		}
+	}
+
+	// Sequence: step1 -> step2 -> step3 -> final response
+	if !toolsCalled["step1"] {
+		return &ChatResponse{
+			Content: "I'll start with step1.",
+			ToolCalls: []ChatToolCall{
+				{ID: "call_1", Name: "step1", Arguments: map[string]interface{}{"input": "start"}},
+			},
+		}, nil
+	}
+
+	if !toolsCalled["step2"] {
+		return &ChatResponse{
+			Content: "Now step2.",
+			ToolCalls: []ChatToolCall{
+				{ID: "call_2", Name: "step2", Arguments: map[string]interface{}{"input": "continue"}},
+			},
+		}, nil
+	}
+
+	if !toolsCalled["step3"] {
+		return &ChatResponse{
+			Content: "Finally step3.",
+			ToolCalls: []ChatToolCall{
+				{ID: "call_3", Name: "step3", Arguments: map[string]interface{}{"input": "finish"}},
+			},
+		}, nil
+	}
+
+	// All tools called, return final response
+	return &ChatResponse{
+		Content:   "All steps completed successfully!",
+		ToolCalls: []ChatToolCall{},
+	}, nil
+}
+
+func (c *chainedToolCallMockProvider) StreamingChatCompletion(request ChatRequest, callback StreamCallback) (*ChatResponse, error) {
+	response, err := c.ChatCompletion(request)
+	if err != nil {
+		return nil, err
+	}
+	if callback != nil && response.Content != "" {
+		callback(response.Content)
+	}
+	return response, nil
+}
+
+// infiniteToolCallMockProvider always returns a tool call (for testing max iterations)
+type infiniteToolCallMockProvider struct {
+	callCount int
+}
+
+func (i *infiniteToolCallMockProvider) Name() string { return "infinite-mock" }
+
+func (i *infiniteToolCallMockProvider) ChatCompletion(request ChatRequest) (*ChatResponse, error) {
+	i.callCount++
+	return &ChatResponse{
+		Content: "I need to use a tool.",
+		ToolCalls: []ChatToolCall{
+			{ID: "call_" + string(rune(i.callCount)), Name: "infiniteTool", Arguments: map[string]interface{}{}},
+		},
+	}, nil
+}
+
+func (i *infiniteToolCallMockProvider) StreamingChatCompletion(request ChatRequest, callback StreamCallback) (*ChatResponse, error) {
+	response, err := i.ChatCompletion(request)
+	if err != nil {
+		return nil, err
+	}
+	if callback != nil && response.Content != "" {
+		callback(response.Content)
+	}
+	return response, nil
+}

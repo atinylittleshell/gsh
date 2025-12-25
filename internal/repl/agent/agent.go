@@ -12,14 +12,25 @@ import (
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
+// DefaultMaxIterations is the default maximum number of tool call iterations
+// if not specified in the agent state.
+const DefaultMaxIterations = 100
+
 // timeNow is a variable that can be overridden for testing.
 var timeNow = time.Now
 
+// ToolExecutor is a function that executes a tool call and returns the result.
+// It receives the tool name and arguments, and returns the result as a string.
+type ToolExecutor func(ctx context.Context, toolName string, args map[string]interface{}) (string, error)
+
 // State holds the state for a single agent.
 type State struct {
-	Agent        *interpreter.AgentValue
-	Provider     interpreter.ModelProvider
-	Conversation []interpreter.ChatMessage
+	Agent         *interpreter.AgentValue
+	Provider      interpreter.ModelProvider
+	Conversation  []interpreter.ChatMessage
+	Tools         []interpreter.ChatTool // Available tools for this agent
+	ToolExecutor  ToolExecutor           // Function to execute tool calls
+	MaxIterations int                    // Maximum iterations for the agentic loop (0 uses default)
 }
 
 // Manager manages multiple agents and handles messaging to the current agent.
@@ -112,6 +123,8 @@ func (m *Manager) ClearCurrentConversation() error {
 
 // SendMessage sends a message to the current agent and streams the response.
 // The onChunk callback is called for each chunk of the response as it streams.
+// This implements an agentic loop that continues until no tool calls are returned
+// or the maximum number of iterations is reached.
 func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(string)) error {
 	if m.currentAgentName == "" {
 		return fmt.Errorf("no current agent")
@@ -122,8 +135,98 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 		return fmt.Errorf("current agent state not found")
 	}
 
-	// Build messages for the provider
-	messages := make([]interpreter.ChatMessage, 0, len(state.Conversation)+2)
+	// Get the model from agent config
+	var model *interpreter.ModelValue
+	if modelVal, ok := state.Agent.Config["model"]; ok {
+		model, _ = modelVal.(*interpreter.ModelValue)
+	}
+
+	// Get max iterations from state, or use default
+	maxIterations := state.MaxIterations
+	if maxIterations <= 0 {
+		maxIterations = DefaultMaxIterations
+	}
+
+	startTime := timeNow()
+
+	// Track if we've added the user message (only add on first successful iteration)
+	userMessageAdded := false
+
+	// Agentic loop - continue until no tool calls or max iterations reached
+	for iteration := 0; iteration < maxIterations; iteration++ {
+		// Build messages for the provider
+		messages := m.buildMessagesWithPendingUser(state, message, userMessageAdded)
+
+		// Create request with tools if available
+		request := interpreter.ChatRequest{
+			Model:    model,
+			Messages: messages,
+			Tools:    state.Tools,
+		}
+
+		// Call provider with streaming to display response in real-time
+		response, err := state.Provider.StreamingChatCompletion(
+			request,
+			func(content string) {
+				if onChunk != nil {
+					onChunk(content)
+				}
+			},
+		)
+
+		if err != nil {
+			return fmt.Errorf("agent error: %w", err)
+		}
+
+		// On first successful response, add the user message to conversation history
+		if !userMessageAdded {
+			state.Conversation = append(state.Conversation, interpreter.ChatMessage{
+				Role:    "user",
+				Content: message,
+			})
+			userMessageAdded = true
+		}
+
+		// If no tool calls, add final response and return
+		if len(response.ToolCalls) == 0 {
+			state.Conversation = append(state.Conversation, interpreter.ChatMessage{
+				Role:    "assistant",
+				Content: response.Content,
+			})
+
+			duration := timeNow().Sub(startTime)
+			m.logger.Debug("agent interaction",
+				zap.String("agent", m.currentAgentName),
+				zap.String("message", message),
+				zap.String("response", response.Content),
+				zap.Duration("duration", duration),
+			)
+
+			return nil
+		}
+
+		// Add assistant message with tool calls to conversation
+		state.Conversation = append(state.Conversation, interpreter.ChatMessage{
+			Role:      "assistant",
+			Content:   response.Content,
+			ToolCalls: response.ToolCalls,
+		})
+
+		// Execute tool calls and add results to conversation
+		if err := m.executeToolCalls(ctx, state, response.ToolCalls, onChunk); err != nil {
+			return fmt.Errorf("tool execution error: %w", err)
+		}
+
+		// Continue loop to make another call with tool results
+	}
+
+	// If we reach here, we hit max iterations
+	return fmt.Errorf("agent reached maximum iterations (%d) without completing", maxIterations)
+}
+
+// buildMessages constructs the message array for the provider, including system prompt.
+func (m *Manager) buildMessages(state *State) []interpreter.ChatMessage {
+	messages := make([]interpreter.ChatMessage, 0, len(state.Conversation)+1)
 
 	// Add system prompt if configured (from agent Config)
 	if systemPromptVal, ok := state.Agent.Config["systemPrompt"]; ok {
@@ -138,50 +241,72 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 	// Add conversation history
 	messages = append(messages, state.Conversation...)
 
-	// Add new user message
-	messages = append(messages, interpreter.ChatMessage{
-		Role:    "user",
-		Content: message,
-	})
+	return messages
+}
 
-	// Get the model from agent config
-	var model *interpreter.ModelValue
-	if modelVal, ok := state.Agent.Config["model"]; ok {
-		model, _ = modelVal.(*interpreter.ModelValue)
+// buildMessagesWithPendingUser constructs the message array including a pending user message
+// that hasn't been added to conversation history yet.
+func (m *Manager) buildMessagesWithPendingUser(state *State, userMessage string, userMessageAdded bool) []interpreter.ChatMessage {
+	// Start with base messages
+	messages := m.buildMessages(state)
+
+	// If user message hasn't been added to conversation yet, add it to the request
+	if !userMessageAdded {
+		messages = append(messages, interpreter.ChatMessage{
+			Role:    "user",
+			Content: userMessage,
+		})
 	}
 
-	// Call provider with streaming to display response in real-time
-	startTime := timeNow()
-	response, err := state.Provider.StreamingChatCompletion(
-		interpreter.ChatRequest{
-			Model:    model,
-			Messages: messages,
-		},
-		func(content string) {
-			if onChunk != nil {
-				onChunk(content)
+	return messages
+}
+
+// executeToolCalls executes all tool calls and adds results to the conversation.
+func (m *Manager) executeToolCalls(ctx context.Context, state *State, toolCalls []interpreter.ChatToolCall, onChunk func(string)) error {
+	for _, toolCall := range toolCalls {
+		// Notify about tool execution start
+		if onChunk != nil {
+			onChunk(fmt.Sprintf("\n[Executing tool: %s]\n", toolCall.Name))
+		}
+
+		var result string
+		var err error
+
+		if state.ToolExecutor != nil {
+			// Use custom tool executor if provided
+			result, err = state.ToolExecutor(ctx, toolCall.Name, toolCall.Arguments)
+		} else {
+			// Default: return error indicating no executor
+			err = fmt.Errorf("no tool executor configured for tool '%s'", toolCall.Name)
+		}
+
+		if err != nil {
+			// On error, add error message as tool result so the model can recover
+			result = fmt.Sprintf("Error executing tool: %v", err)
+			m.logger.Warn("tool execution failed",
+				zap.String("tool", toolCall.Name),
+				zap.Error(err),
+			)
+		}
+
+		// Add tool result to conversation
+		state.Conversation = append(state.Conversation, interpreter.ChatMessage{
+			Role:       "tool",
+			Content:    result,
+			Name:       toolCall.Name,
+			ToolCallID: toolCall.ID,
+		})
+
+		// Notify about tool result
+		if onChunk != nil {
+			// Truncate long results for display
+			displayResult := result
+			if len(displayResult) > 500 {
+				displayResult = displayResult[:500] + "... (truncated)"
 			}
-		},
-	)
-	duration := timeNow().Sub(startTime)
-
-	if err != nil {
-		return fmt.Errorf("agent error: %w", err)
+			onChunk(fmt.Sprintf("[Tool result: %s]\n", displayResult))
+		}
 	}
-
-	// Update conversation history (don't include system prompt in history)
-	state.Conversation = append(state.Conversation,
-		interpreter.ChatMessage{Role: "user", Content: message},
-		interpreter.ChatMessage{Role: "assistant", Content: response.Content},
-	)
-
-	// Log interaction
-	m.logger.Debug("agent interaction",
-		zap.String("agent", m.currentAgentName),
-		zap.String("message", message),
-		zap.String("response", response.Content),
-		zap.Duration("duration", duration),
-	)
 
 	return nil
 }
