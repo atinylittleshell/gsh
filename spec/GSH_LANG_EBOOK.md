@@ -85,7 +85,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 05: Operators and Expressions
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `05-operators-and-expressions.md`
 - **Goal:** Perform computations and comparisons
 - **Key Topics:**
