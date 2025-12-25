@@ -172,34 +172,28 @@ func TestEnvironment_Shadowing(t *testing.T) {
 	}
 }
 
-func TestEnvironment_Define(t *testing.T) {
+func TestEnvironment_Set(t *testing.T) {
 	env := NewEnvironment()
 
-	// Define a new variable
-	err := env.Define("x", &NumberValue{Value: 42})
-	if err != nil {
-		t.Errorf("Define() should not return error, got %v", err)
-	}
+	// Set a new variable
+	env.Set("x", &NumberValue{Value: 42})
 
-	// Get the defined variable
+	// Get the set variable
 	value, ok := env.Get("x")
 	if !ok {
-		t.Error("Get() should return true for defined variable")
+		t.Error("Get() should return true for set variable")
 	}
 	if numVal, ok := value.(*NumberValue); !ok || numVal.Value != 42 {
 		t.Errorf("Expected x=42, got %v", value)
 	}
 
-	// Try to define the same variable again
-	err = env.Define("x", &NumberValue{Value: 100})
-	if err == nil {
-		t.Error("Define() should return error when variable already exists")
-	}
+	// Set the same variable again (should overwrite)
+	env.Set("x", &NumberValue{Value: 100})
 
-	// Original value should remain unchanged
+	// Value should be updated
 	value, _ = env.Get("x")
-	if numVal, ok := value.(*NumberValue); !ok || numVal.Value != 42 {
-		t.Errorf("Expected x=42 (unchanged), got %v", value)
+	if numVal, ok := value.(*NumberValue); !ok || numVal.Value != 100 {
+		t.Errorf("Expected x=100 (overwritten), got %v", value)
 	}
 }
 

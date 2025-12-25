@@ -9,9 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
-	"github.com/atinylittleshell/gsh/internal/script/lexer"
 	"github.com/atinylittleshell/gsh/internal/script/mcp"
-	"github.com/atinylittleshell/gsh/internal/script/parser"
 	"go.uber.org/zap"
 )
 
@@ -63,39 +61,25 @@ func (l *Loader) LoadFromString(source string) (*LoadResult, error) {
 		Errors: []error{},
 	}
 
-	// Parse the source
-	lex := lexer.New(source)
-	p := parser.New(lex)
-	program := p.ParseProgram()
-
-	// Check for parser errors
-	if len(p.Errors()) > 0 {
-		for _, errMsg := range p.Errors() {
-			result.Errors = append(result.Errors, fmt.Errorf("parse error: %s", errMsg))
-		}
-		// Continue with defaults on parse errors
-		return result, nil
-	}
-
 	// Create interpreter and evaluate
 	interp := interpreter.NewWithLogger(l.logger)
-	evalResult, err := interp.Eval(program)
+	_, err := interp.EvalString(source)
 	if err != nil {
-		result.Errors = append(result.Errors, fmt.Errorf("eval error: %w", err))
-		// Continue with defaults on eval errors
+		result.Errors = append(result.Errors, err)
 		return result, nil
 	}
 
 	result.Interpreter = interp
 
-	// Extract configuration from the environment
-	l.extractConfig(evalResult, result)
+	// Extract configuration from the interpreter
+	l.extractConfigFromInterpreter(interp, result)
 
 	return result, nil
 }
 
 // LoadDefaultConfigPath loads configuration from the default path (~/.gshrc.gsh).
-// It first loads .gshrc.default.gsh (system defaults), then merges user's ~/.gshrc.gsh.
+// It first loads .gshrc.default.gsh (system defaults), then loads user's ~/.gshrc.gsh
+// into the SAME interpreter, allowing user-defined tools to shadow default tools.
 // defaultContent is the embedded content of .gshrc.default.gsh (can be empty).
 func (l *Loader) LoadDefaultConfigPath(defaultContent string) (*LoadResult, error) {
 	homeDir, err := os.UserHomeDir()
@@ -112,27 +96,49 @@ func (l *Loader) LoadDefaultConfigPath(defaultContent string) (*LoadResult, erro
 		Errors: []error{},
 	}
 
-	// Load system default config from embedded content if provided
+	// Create ONE interpreter for both configs
+	interp := interpreter.NewWithLogger(l.logger)
+
+	// 1. Load default config first
 	if defaultContent != "" {
-		defaultResult, err := l.LoadFromString(defaultContent)
+		_, err := interp.EvalString(defaultContent)
 		if err != nil {
-			result.Errors = append(result.Errors, fmt.Errorf("failed to load default config: %w", err))
-		} else {
-			// Merge default config into result
-			result = l.mergeResults(result, defaultResult)
+			result.Errors = append(result.Errors, err)
+			// Log but continue - user config might still work
+			if l.logger != nil {
+				l.logger.Warn("errors loading default config", zap.Error(err))
+			}
+		} else if l.logger != nil {
 			l.logger.Debug("loaded embedded default configuration")
 		}
 	}
 
-	// Load user configuration (~/.gshrc.gsh)
+	// 2. Load user config into SAME interpreter (shadows defaults)
 	userConfigPath := filepath.Join(homeDir, ".gshrc.gsh")
-	userResult, err := l.LoadFromFile(userConfigPath)
+	userContent, err := os.ReadFile(userConfigPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load user config: %w", err)
+		if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("failed to read user config: %w", err)
+		}
+		// File doesn't exist, that's fine - continue with defaults only
+		if l.logger != nil {
+			l.logger.Debug("no user configuration file found", zap.String("path", userConfigPath))
+		}
+	} else {
+		_, err := interp.EvalString(string(userContent))
+		if err != nil {
+			result.Errors = append(result.Errors, err)
+			if l.logger != nil {
+				l.logger.Warn("errors loading user config", zap.Error(err))
+			}
+		} else if l.logger != nil {
+			l.logger.Debug("loaded user configuration", zap.String("path", userConfigPath))
+		}
 	}
 
-	// Merge user config into result (user config takes precedence)
-	result = l.mergeResults(result, userResult)
+	// 3. Extract final state from the interpreter
+	result.Interpreter = interp
+	l.extractConfigFromInterpreter(interp, result)
 
 	return result, nil
 }
@@ -176,9 +182,11 @@ type BashExecutor interface {
 	RunBashScriptFromReader(ctx context.Context, reader io.Reader, name string) error
 }
 
-// extractConfig extracts configuration values from the evaluation result.
-func (l *Loader) extractConfig(evalResult *interpreter.EvalResult, result *LoadResult) {
-	vars := evalResult.Variables()
+// extractConfigFromInterpreter extracts configuration values from the interpreter's environment.
+// This is used when we want to extract config from an interpreter that has already evaluated code.
+func (l *Loader) extractConfigFromInterpreter(interp *interpreter.Interpreter, result *LoadResult) {
+	// Get all variables from the interpreter's environment
+	vars := interp.GetVariables()
 
 	// Extract GSH_CONFIG if present
 	if gshConfig, ok := vars["GSH_CONFIG"]; ok {

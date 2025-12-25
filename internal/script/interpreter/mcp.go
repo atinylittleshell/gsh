@@ -181,10 +181,7 @@ func (i *Interpreter) evalMcpDeclaration(node *parser.McpDeclaration) (Value, er
 	}
 
 	// Register the proxy in the environment
-	err = i.env.Define(serverName, proxy)
-	if err != nil {
-		return nil, err
-	}
+	i.env.Set(serverName, proxy)
 
 	return proxy, nil
 }

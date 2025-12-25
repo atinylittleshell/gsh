@@ -1,9 +1,12 @@
 package interpreter
 
 import (
+	"fmt"
 	"io"
 	"os"
+	"strings"
 
+	"github.com/atinylittleshell/gsh/internal/script/lexer"
 	"github.com/atinylittleshell/gsh/internal/script/mcp"
 	"github.com/atinylittleshell/gsh/internal/script/parser"
 	"go.uber.org/zap"
@@ -97,6 +100,21 @@ func (i *Interpreter) SetStdin(r io.Reader) {
 	i.stdin = r
 }
 
+// EvalString parses and evaluates a source string in the interpreter
+// This is useful for evaluating multiple scripts into the same interpreter
+func (i *Interpreter) EvalString(source string) (*EvalResult, error) {
+	lex := lexer.New(source)
+	p := parser.New(lex)
+	program := p.ParseProgram()
+
+	// Check for parser errors
+	if len(p.Errors()) > 0 {
+		return nil, fmt.Errorf("parse errors: %s", strings.Join(p.Errors(), "; "))
+	}
+
+	return i.Eval(program)
+}
+
 // Close cleans up resources used by the interpreter
 func (i *Interpreter) Close() error {
 	if i.mcpManager != nil {
@@ -106,8 +124,21 @@ func (i *Interpreter) Close() error {
 }
 
 // SetVariable defines or updates a variable in the interpreter's environment
-func (i *Interpreter) SetVariable(name string, value Value) error {
-	return i.env.Define(name, value)
+func (i *Interpreter) SetVariable(name string, value Value) {
+	i.env.Set(name, value)
+}
+
+// GetVariables returns all top-level variables from the interpreter's environment (excluding built-ins)
+func (i *Interpreter) GetVariables() map[string]Value {
+	vars := make(map[string]Value)
+	for k, v := range i.env.store {
+		// Skip built-in functions and objects
+		if isBuiltin(k) {
+			continue
+		}
+		vars[k] = v
+	}
+	return vars
 }
 
 // Eval evaluates a program and returns the result

@@ -391,22 +391,6 @@ func TestAgentDeclarationErrors(t *testing.T) {
 				}`,
 			expectedError: "tools' must be an array",
 		},
-		{
-			name: "Agent redeclaration",
-			input: `
-				model gpt4 {
-					provider: "openai",
-					apiKey: "test-key",
-					model: "gpt-4",
-				}
-				agent Duplicate {
-					model: gpt4,
-				}
-				agent Duplicate {
-					model: gpt4,
-				}`,
-			expectedError: "already defined",
-		},
 	}
 
 	for _, tt := range tests {

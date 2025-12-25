@@ -49,16 +49,6 @@ func (e *Environment) Set(name string, value Value) {
 	e.store[name] = value
 }
 
-// Define creates a new variable in the current scope
-// It returns an error if the variable already exists in the current scope
-func (e *Environment) Define(name string, value Value) error {
-	if _, ok := e.store[name]; ok {
-		return fmt.Errorf("variable '%s' already defined in current scope", name)
-	}
-	e.store[name] = value
-	return nil
-}
-
 // Update updates an existing variable's value
 // It returns an error if the variable doesn't exist
 // For isolated environments (tool scopes), updates to parent variables create local shadows

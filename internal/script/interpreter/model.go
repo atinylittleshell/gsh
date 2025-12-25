@@ -70,10 +70,7 @@ func (i *Interpreter) evalModelDeclaration(node *parser.ModelDeclaration) (Value
 	}
 
 	// Register the model in the environment
-	err := i.env.Define(modelName, model)
-	if err != nil {
-		return nil, err
-	}
+	i.env.Set(modelName, model)
 
 	return model, nil
 }

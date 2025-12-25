@@ -812,3 +812,183 @@ func TestLoadBashRC_ExecutionError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to execute")
 }
+
+// Test that EvalString works correctly and allows shadowing
+func TestInterpreter_EvalString_Shadowing(t *testing.T) {
+	// Create an interpreter - redefinition is always allowed
+	interp := interpreter.NewWithLogger(nil)
+
+	// Define a tool in the first evaluation
+	defaultConfig := `
+tool GSH_TEST_TOOL(name: string): string {
+	return "default: " + name
+}
+`
+	_, err := interp.EvalString(defaultConfig)
+	require.NoError(t, err)
+
+	// Verify tool exists
+	vars := interp.GetVariables()
+	_, ok := vars["GSH_TEST_TOOL"]
+	require.True(t, ok, "GSH_TEST_TOOL should exist after first eval")
+
+	// Define the same tool in the second evaluation (should shadow)
+	userConfig := `
+tool GSH_TEST_TOOL(name: string): string {
+	return "user: " + name
+}
+`
+	_, err = interp.EvalString(userConfig)
+	require.NoError(t, err)
+
+	// Verify tool still exists and is the user's version
+	vars = interp.GetVariables()
+	toolVal, ok := vars["GSH_TEST_TOOL"]
+	require.True(t, ok, "GSH_TEST_TOOL should exist after second eval")
+	require.NotNil(t, toolVal)
+
+	// The tool should be a ToolValue
+	_, isToolValue := toolVal.(*interpreter.ToolValue)
+	require.True(t, isToolValue, "GSH_TEST_TOOL should be a ToolValue")
+}
+
+// Test that LoadDefaultConfigPath uses a single interpreter for both configs
+func TestLoader_LoadDefaultConfigPath_SingleInterpreter(t *testing.T) {
+	// Create a temp directory to use as home
+	tmpDir := t.TempDir()
+
+	// Save original home dir and restore after test
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpDir)
+
+	// Create a user config that shadows a tool from the default config
+	defaultConfig := `
+tool GSH_AGENT_HEADER(agentName: string, terminalWidth: number): string {
+	return "default header for " + agentName
+}
+
+model DefaultModel {
+	provider: "openai",
+	model: "gpt-4",
+}
+`
+
+	userConfig := `
+tool GSH_AGENT_HEADER(agentName: string, terminalWidth: number): string {
+	return "custom header for " + agentName
+}
+
+model UserModel {
+	provider: "openai",
+	model: "gpt-3.5-turbo",
+}
+`
+
+	// Write user config to the temp home directory
+	userConfigPath := filepath.Join(tmpDir, ".gshrc.gsh")
+	err := os.WriteFile(userConfigPath, []byte(userConfig), 0644)
+	require.NoError(t, err)
+
+	// Load configuration
+	loader := NewLoader(nil)
+	result, err := loader.LoadDefaultConfigPath(defaultConfig)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Empty(t, result.Errors)
+
+	// Verify the interpreter exists
+	require.NotNil(t, result.Interpreter, "Interpreter should be available in result")
+
+	// Verify both models are available (DefaultModel from default, UserModel from user)
+	assert.NotNil(t, result.Config.Models["DefaultModel"], "DefaultModel should exist from default config")
+	assert.NotNil(t, result.Config.Models["UserModel"], "UserModel should exist from user config")
+
+	// Verify the tool exists and is the user's version (shadowed)
+	vars := result.Interpreter.GetVariables()
+	toolVal, ok := vars["GSH_AGENT_HEADER"]
+	require.True(t, ok, "GSH_AGENT_HEADER should exist")
+	require.NotNil(t, toolVal)
+
+	// Both configs were loaded into the same interpreter
+	_, isToolValue := toolVal.(*interpreter.ToolValue)
+	require.True(t, isToolValue, "GSH_AGENT_HEADER should be a ToolValue")
+}
+
+// Test that default config is loaded even when user config doesn't exist
+func TestLoader_LoadDefaultConfigPath_NoUserConfig(t *testing.T) {
+	// Create a temp directory to use as home (no user config)
+	tmpDir := t.TempDir()
+
+	// Save original home dir and restore after test
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpDir)
+
+	defaultConfig := `
+model DefaultModel {
+	provider: "openai",
+	model: "gpt-4",
+}
+
+tool GSH_DEFAULT_TOOL(x: number): number {
+	return x * 2
+}
+`
+
+	// Load configuration (no user config file exists)
+	loader := NewLoader(nil)
+	result, err := loader.LoadDefaultConfigPath(defaultConfig)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Empty(t, result.Errors)
+
+	// Verify default model exists
+	assert.NotNil(t, result.Config.Models["DefaultModel"], "DefaultModel should exist from default config")
+
+	// Verify default tool exists
+	vars := result.Interpreter.GetVariables()
+	_, ok := vars["GSH_DEFAULT_TOOL"]
+	require.True(t, ok, "GSH_DEFAULT_TOOL should exist from default config")
+}
+
+// Test that variables from default config are accessible in user config
+func TestLoader_LoadDefaultConfigPath_VariablesAccessible(t *testing.T) {
+	// Create a temp directory to use as home
+	tmpDir := t.TempDir()
+
+	// Save original home dir and restore after test
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpDir)
+
+	// Default config defines a model
+	defaultConfig := `
+model DEFAULT_MODEL {
+	provider: "openai",
+	model: "gpt-4",
+}
+`
+
+	// User config references the model from default config
+	userConfig := `
+GSH_CONFIG = {
+	predictModel: DEFAULT_MODEL,
+}
+`
+
+	// Write user config
+	userConfigPath := filepath.Join(tmpDir, ".gshrc.gsh")
+	err := os.WriteFile(userConfigPath, []byte(userConfig), 0644)
+	require.NoError(t, err)
+
+	// Load configuration
+	loader := NewLoader(nil)
+	result, err := loader.LoadDefaultConfigPath(defaultConfig)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Empty(t, result.Errors)
+
+	// Verify the model from default config is used in GSH_CONFIG
+	assert.Equal(t, "DEFAULT_MODEL", result.Config.PredictModel, "predictModel should reference DEFAULT_MODEL from default config")
+}

@@ -52,10 +52,7 @@ func (i *Interpreter) evalAgentDeclaration(node *parser.AgentDeclaration) (Value
 	}
 
 	// Register the agent in the environment
-	err := i.env.Define(agentName, agent)
-	if err != nil {
-		return nil, err
-	}
+	i.env.Set(agentName, agent)
 
 	return agent, nil
 }

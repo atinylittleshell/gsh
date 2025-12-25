@@ -383,10 +383,7 @@ func (i *Interpreter) evalToolDeclaration(node *parser.ToolDeclaration) (Value, 
 	}
 
 	// Register the tool in the environment
-	err := i.env.Define(node.Name.Value, tool)
-	if err != nil {
-		return nil, err
-	}
+	i.env.Set(node.Name.Value, tool)
 
 	return tool, nil
 }
