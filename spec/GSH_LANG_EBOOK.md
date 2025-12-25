@@ -8,7 +8,7 @@
 
 ## Overall Structure
 
-The ebook is organized into 8 parts, progressing from absolute basics through real-world patterns:
+The ebook is organized into 6 parts, progressing from absolute basics through agentic patterns:
 
 - **Part 1: Getting Started** (2 chapters) - Orientation and first steps
 - **Part 2: Core Language Fundamentals** (5 chapters) - Sequential building blocks
@@ -16,10 +16,9 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 - **Part 4: Functions & Reusability** (2 chapters) - Custom tools and organization
 - **Part 5: External Integration** (4 chapters) - Environment, MCP, shell commands
 - **Part 6: AI Agents** (3 chapters) - LLMs, agents, and multi-turn conversations
-- **Part 7: Real-World Patterns** (3 chapters) - Practical strategies and examples
-- **Part 8: Reference** (3 chapters) - Complete API reference and cheat sheets
+- **Part 7: Reference** (3 chapters) - Complete API reference and cheat sheets
 
-**Total: 25 chapters**
+**Total: 22 chapters**
 
 ---
 
@@ -306,39 +305,12 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 ---
 
-### Part 7: Real-World Patterns
+### Part 7: Reference
 
-#### Chapter 20: Common Patterns and Best Practices
-
-- **Status:** TODO
-- **File:** `20-common-patterns.md`
-- **Goal:** Learn proven strategies
-- **Key Topics:**
-  - Error handling patterns (validation, fallbacks, retries)
-  - Logging patterns (structured, levels, context)
-  - Configuration patterns (from env, files, defaults)
-  - Data validation and type checking
-  - Testing considerations
-  - Performance tips
-- **Audience:** Write production-quality scripts
-
-#### Chapter 21: Case Studies
+#### Chapter 20: Debugging and Troubleshooting
 
 - **Status:** TODO
-- **File:** `21-case-studies.md`
-- **Goal:** See complete real-world examples
-- **Key Topics:**
-  - PR analyzer (GitHub + AI agents)
-  - Data pipeline (file I/O + processing + agents)
-  - System automation (exec + error handling)
-  - Multi-agent workflow
-  - Integration challenges and solutions
-- **Audience:** Practical inspiration and learning
-
-#### Chapter 22: Debugging and Troubleshooting
-
-- **Status:** TODO
-- **File:** `22-debugging-and-troubleshooting.md`
+- **File:** `20-debugging-and-troubleshooting.md`
 - **Goal:** Solve problems effectively
 - **Key Topics:**
   - Common errors and their meanings
@@ -349,14 +321,10 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
   - Performance troubleshooting
 - **Audience:** Become self-sufficient
 
----
-
-### Part 8: Reference
-
-#### Chapter 23: Built-in Functions Reference
+#### Chapter 21: Built-in Functions Reference
 
 - **Status:** TODO
-- **File:** `23-builtin-functions.md`
+- **File:** `21-builtin-functions.md`
 - **Goal:** Complete API documentation
 - **Key Topics:**
   - Output: `print()`
@@ -367,10 +335,10 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
   - Error conditions
 - **Audience:** Quick lookup reference
 
-#### Chapter 24: Syntax Quick Reference
+#### Chapter 22: Syntax Quick Reference
 
 - **Status:** TODO
-- **File:** `24-syntax-quick-reference.md`
+- **File:** `22-syntax-quick-reference.md`
 - **Goal:** Grammar and syntax at a glance
 - **Key Topics:**
   - Keywords and reserved words
@@ -380,19 +348,6 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
   - Type annotations
   - Operator precedence table
 - **Audience:** Quick lookup for syntax questions
-
-#### Chapter 25: MCP Ecosystem
-
-- **Status:** TODO
-- **File:** `25-mcp-ecosystem.md`
-- **Goal:** Discover available tools
-- **Key Topics:**
-  - Popular MCP servers and what they provide
-  - How to find and evaluate MCP servers
-  - Setting up common servers (filesystem, GitHub, etc.)
-  - Creating custom MCP servers (brief intro)
-  - Troubleshooting MCP integration
-- **Audience:** Expand capabilities with new tools
 
 ---
 

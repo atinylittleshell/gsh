@@ -416,8 +416,8 @@ conv2 = "How would you solve this problem?" | Expert2
 
 ## What's Next
 
-You now understand how to build sophisticated conversations with agents. In the next chapter, we'll explore **Common Patterns and Best Practices**—proven strategies for handling errors, logging, configuration, and testing your gsh scripts.
+You now understand how to build sophisticated conversations with agents. In the next chapter, we'll explore **Debugging and Troubleshooting**—how to diagnose and fix problems in your gsh scripts, debug agents, and troubleshoot MCP integration.
 
 **Previous chapter:** [Chapter 18: Agent Declarations](./18-agent-declarations.md)
 
-**Next chapter:** [Chapter 20: Common Patterns and Best Practices](./20-common-patterns.md)
+**Next chapter:** [Chapter 20: Debugging and Troubleshooting](./20-debugging-and-troubleshooting.md)

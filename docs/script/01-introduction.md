@@ -173,17 +173,11 @@ This ebook is designed to teach you gsh scripting in the order you need each con
 - [Chapter 18: Agent Declarations](18-agent-declarations.md)
 - [Chapter 19: Conversations and Pipes](19-conversations-and-pipes.md)
 
-**Part 7: Real-World Patterns** (3 chapters)
+**Part 7: Reference** (3 chapters)
 
-- [Chapter 20: Common Patterns](20-common-patterns.md)
-- [Chapter 21: Case Studies](21-case-studies.md)
-- [Chapter 22: Debugging and Troubleshooting](22-debugging-and-troubleshooting.md)
-
-**Part 8: Reference** (3 chapters)
-
-- [Chapter 23: Built-in Functions](23-builtin-functions.md)
-- [Chapter 24: Syntax Quick Reference](24-syntax-quick-reference.md)
-- [Chapter 25: MCP Ecosystem](25-mcp-ecosystem.md)
+- [Chapter 20: Debugging and Troubleshooting](20-debugging-and-troubleshooting.md)
+- [Chapter 21: Built-in Functions](21-builtin-functions.md)
+- [Chapter 22: Syntax Quick Reference](22-syntax-quick-reference.md)
 
 Each chapter builds on previous ones. You'll write your first script in Chapter 02, and by Chapter 19 you'll be orchestrating multi-agent workflows with MCP tools and AI models.
 

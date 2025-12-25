@@ -84,3 +84,39 @@ model claude {
 - No `provider_anthropic.go` file exists
 
 **Fix Notes:** Need to implement `NewAnthropicProvider()` following the same pattern as `NewOpenAIProvider()` and register it in the interpreter initialization.
+
+---
+
+## Missing Property Access Returns Error Instead of Null
+
+**Description:** Accessing a property that doesn't exist on an object throws a runtime error instead of returning null.
+
+**Expected Behavior:** When accessing a non-existent property on an object (e.g., `user.email` where `user` is `{name: "Alice"}`), the expression should evaluate to `null`, allowing defensive null checks with `??` operator or `== null` comparisons.
+
+**Actual Behavior:** Accessing a non-existent property throws a runtime error: "property 'X' not found on object"
+
+**Test Case:**
+
+```gsh
+user = {name: "Alice"}
+if (user.email == null) {
+    print("email is null")
+}
+```
+
+**Error:** `Runtime error: property 'email' not found on object (line 2, column 9)`
+
+**Expected Output:**
+
+```
+email is null
+```
+
+**Impact:** Cannot safely check for optional fields on objects. This prevents common validation patterns and forces users to assume all properties exist. Workaround: explicitly set all properties to null when creating objects, or restructure code to avoid property access on potentially incomplete objects.
+
+**Related Code:**
+
+- `internal/script/interpreter/expressions.go` - Property access evaluation
+- `internal/script/interpreter/value.go` - Object property lookup
+
+**Fix Notes:** Property access should check if the property exists and return `null` instead of throwing an error, similar to JavaScript's behavior.
