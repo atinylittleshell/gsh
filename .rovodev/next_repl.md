@@ -1,4 +1,0 @@
-- Look at the full content of spec/GSH_REPL_V1_PLAN.md
-- Implement only the next pending work item in the plan, cover it with test cases, make sure all tests pass
-- Run "make build" and ensure no issues
-- Update spec/GSH_REPL_V1_PLAN.md to mark the work item done - do NOT leave any implementation notes while doing so
