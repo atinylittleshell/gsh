@@ -231,7 +231,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 15: MCP Tool Invocation
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `15-mcp-tool-invocation.md`
 - **Goal:** Call and use MCP tools
 - **Key Topics:**

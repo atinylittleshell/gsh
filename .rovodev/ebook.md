@@ -1,4 +1,4 @@
-Create TODO items tracking the top level bullet points below.
+Create TODO items tracking the top level bullet points below, and then proceed to do it.
 
 - Read `spec/GSH_LANG_EBOOK.md` to find the chapter plan
 - Identify the next chapter marked as TODO - that's the one for you to write. And only need to write this one.
