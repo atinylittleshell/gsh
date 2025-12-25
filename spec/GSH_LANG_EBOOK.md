@@ -245,7 +245,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 16: Shell Commands
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `16-shell-commands.md`
 - **Goal:** Execute and integrate shell commands
 - **Key Topics:**
