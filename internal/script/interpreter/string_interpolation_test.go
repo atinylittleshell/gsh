@@ -255,6 +255,13 @@ result`,
 			expected: "Value: null",
 		},
 		{
+			name: "missing property returns null",
+			input: `obj = {name: "test"}
+result = ` + "`Value: ${obj.unknown}`" + `
+result`,
+			expected: "Value: null",
+		},
+		{
 			name: "number types",
 			input: `int = 42
 float = 3.14
@@ -357,14 +364,6 @@ result = ` + "`${arr[10]}`" + `
 result`,
 			expectError: true,
 			errorMsg:    "out of bounds",
-		},
-		{
-			name: "property not found",
-			input: `obj = {name: "test"}
-result = ` + "`${obj.unknown}`" + `
-result`,
-			expectError: true,
-			errorMsg:    "not found",
 		},
 	}
 

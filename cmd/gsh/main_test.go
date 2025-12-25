@@ -627,14 +627,6 @@ result = arr[10]`,
 			description:        "Should report index out of bounds error with location",
 		},
 		{
-			name: "object property not found",
-			script: `obj = {name: "Alice", age: 30}
-result = obj.nonexistent`,
-			expectError:        true,
-			errorShouldContain: []string{"property", "nonexistent", "not found", "line 2", "column"},
-			description:        "Should report property not found error with location",
-		},
-		{
 			name:               "invalid JSON parse",
 			script:             `data = JSON.parse("{invalid json}")`,
 			expectError:        true,

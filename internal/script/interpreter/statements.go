@@ -101,17 +101,14 @@ func (i *Interpreter) evalAssignmentStatement(stmt *parser.AssignmentStatement) 
 		// Simple variable assignment
 		varName := t.Value
 		if i.env.Has(varName) {
-			// Variable exists, update it
+			// Variable exists in current or parent scope, update it
 			err := i.env.Update(varName, value)
 			if err != nil {
 				return nil, err
 			}
 		} else {
-			// Variable doesn't exist, define it
-			err := i.env.Define(varName, value)
-			if err != nil {
-				return nil, err
-			}
+			// Variable doesn't exist, define it in current scope
+			i.env.Set(varName, value)
 		}
 		return value, nil
 

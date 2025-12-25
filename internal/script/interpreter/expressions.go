@@ -510,9 +510,10 @@ func (i *Interpreter) CallTool(tool *ToolValue, args []Value) (Value, error) {
 		i.popStackFrame()
 	}()
 
-	// Create a new environment for the tool execution (closure)
-	// Start with the tool's captured environment
-	toolEnv := NewEnclosedEnvironment(tool.Env)
+	// Create a new isolated environment for the tool execution (closure)
+	// Start with the tool's captured environment, but use isolated mode
+	// so assignments inside the tool don't leak to parent scopes
+	toolEnv := NewIsolatedEnvironment(tool.Env)
 
 	// Bind parameters to arguments
 	for idx, paramName := range tool.Parameters {
@@ -708,8 +709,8 @@ func (i *Interpreter) getObjectProperty(obj *ObjectValue, property string, node 
 		return prop, nil
 	}
 
-	return nil, NewRuntimeError("property '%s' not found on object (line %d, column %d)",
-		property, node.Token.Line, node.Token.Column)
+	// Return null for missing properties (like JavaScript)
+	return &NullValue{}, nil
 }
 
 // getMapProperty returns map properties and methods
@@ -754,7 +755,7 @@ func (i *Interpreter) getSetProperty(s *SetValue, property string, node *parser.
 	}
 }
 
-// evalIndexExpression evaluates an index expression (array[index] or object[key])
+// evalIndexExpression evaluates an index expression (array[index] or object[key] or map[key])
 func (i *Interpreter) evalIndexExpression(node *parser.IndexExpression) (Value, error) {
 	left, err := i.evalExpression(node.Left)
 	if err != nil {
@@ -790,8 +791,22 @@ func (i *Interpreter) evalIndexExpression(node *parser.IndexExpression) (Value, 
 		if prop, exists := objVal.Properties[key]; exists {
 			return prop, nil
 		}
-		return nil, NewRuntimeError("property '%s' not found on object (line %d, column %d)",
-			key, node.Token.Line, node.Token.Column)
+		// Return null for missing properties (like JavaScript)
+		return &NullValue{}, nil
+	}
+
+	// Handle map indexing with string keys
+	if mapVal, ok := left.(*MapValue); ok {
+		if index.Type() != ValueTypeString {
+			return nil, NewRuntimeError("map index must be a string, got %s (line %d, column %d)",
+				index.Type(), node.Token.Line, node.Token.Column)
+		}
+		key := index.(*StringValue).Value
+		if val, exists := mapVal.Entries[key]; exists {
+			return val, nil
+		}
+		// Return null for missing keys (consistent with map.get() behavior)
+		return &NullValue{}, nil
 	}
 
 	return nil, NewRuntimeError("cannot index type %s (line %d, column %d)",

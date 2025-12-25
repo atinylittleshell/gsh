@@ -4,8 +4,9 @@ import "fmt"
 
 // Environment represents a scope for variable bindings
 type Environment struct {
-	store map[string]Value
-	outer *Environment // parent scope for nested scopes
+	store    map[string]Value
+	outer    *Environment // parent scope for nested scopes
+	isolated bool         // if true, Update() won't propagate to parent scopes (for tool isolation)
 }
 
 // NewEnvironment creates a new environment
@@ -20,6 +21,15 @@ func NewEnvironment() *Environment {
 func NewEnclosedEnvironment(outer *Environment) *Environment {
 	env := NewEnvironment()
 	env.outer = outer
+	return env
+}
+
+// NewIsolatedEnvironment creates a new environment that can read from parent but
+// writes (updates) stay local. This is used for tool scopes to prevent scope leakage.
+func NewIsolatedEnvironment(outer *Environment) *Environment {
+	env := NewEnvironment()
+	env.outer = outer
+	env.isolated = true
 	return env
 }
 
@@ -51,6 +61,7 @@ func (e *Environment) Define(name string, value Value) error {
 
 // Update updates an existing variable's value
 // It returns an error if the variable doesn't exist
+// For isolated environments (tool scopes), updates to parent variables create local shadows
 func (e *Environment) Update(name string, value Value) error {
 	// Check current scope
 	if _, ok := e.store[name]; ok {
@@ -58,7 +69,16 @@ func (e *Environment) Update(name string, value Value) error {
 		return nil
 	}
 
-	// Check parent scopes
+	// For isolated environments, if variable exists in parent scope,
+	// create a local shadow instead of modifying parent
+	if e.isolated && e.outer != nil {
+		if _, exists := e.outer.Get(name); exists {
+			e.store[name] = value
+			return nil
+		}
+	}
+
+	// Check parent scopes (non-isolated behavior)
 	if e.outer != nil {
 		return e.outer.Update(name, value)
 	}
@@ -69,6 +89,12 @@ func (e *Environment) Update(name string, value Value) error {
 // Has checks if a variable exists in the current scope or any parent scope
 func (e *Environment) Has(name string) bool {
 	_, ok := e.Get(name)
+	return ok
+}
+
+// HasLocal checks if a variable exists in the current scope only (not parent scopes)
+func (e *Environment) HasLocal(name string) bool {
+	_, ok := e.store[name]
 	return ok
 }
 
