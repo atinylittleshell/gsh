@@ -113,7 +113,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 07: String Manipulation
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `07-string-manipulation.md`
 - **Goal:** Master working with text
 - **Key Topics:**
