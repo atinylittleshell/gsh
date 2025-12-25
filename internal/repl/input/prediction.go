@@ -225,6 +225,9 @@ func (ps *PredictionState) SetPrediction(stateID int64, prediction string) bool 
 // It returns a channel that will receive the prediction result, or nil if
 // no prediction should be made (e.g., prediction already matches input).
 // The caller should handle the result asynchronously.
+//
+// History-based predictions are checked synchronously for instant feedback,
+// while LLM predictions are debounced to avoid API spam.
 func (ps *PredictionState) OnInputChanged(input string) <-chan PredictionResult {
 	ps.mu.Lock()
 
@@ -245,8 +248,8 @@ func (ps *PredictionState) OnInputChanged(input string) <-chan PredictionResult 
 		ps.inputForPrediction = ""
 		ps.mu.Unlock()
 
-		// Still need to potentially get a null-state prediction
-		return ps.startPrediction(newStateID, input)
+		// Still need to potentially get a null-state prediction (LLM only)
+		return ps.startLLMPrediction(newStateID, input)
 	}
 
 	// If current prediction already starts with input, keep it
@@ -259,15 +262,58 @@ func (ps *PredictionState) OnInputChanged(input string) <-chan PredictionResult 
 		return nil
 	}
 
-	// Clear current prediction and start new one
+	// Clear current prediction
 	ps.prediction = ""
 	ps.mu.Unlock()
 
-	return ps.startPrediction(newStateID, input)
+	// Don't predict for agent chat messages
+	if strings.HasPrefix(input, "#") {
+		return nil
+	}
+
+	// Try history-based prediction synchronously (instant feedback)
+	if input != "" && ps.historyProvider != nil {
+		entries, err := ps.historyProvider.GetRecentEntriesByPrefix(input, ps.historyPrefixLimit)
+		if err == nil && len(entries) > 0 {
+			// Use the most recent matching entry
+			historyPrediction := entries[0].Command
+
+			ps.logger.Debug("instant history prediction",
+				zap.String("input", input),
+				zap.String("prediction", historyPrediction),
+			)
+
+			// Set prediction immediately
+			ps.mu.Lock()
+			ps.prediction = historyPrediction
+			ps.inputForPrediction = input
+			ps.mu.Unlock()
+
+			// Return result synchronously via a pre-filled channel
+			resultCh := make(chan PredictionResult, 1)
+			resultCh <- PredictionResult{
+				Prediction: historyPrediction,
+				StateID:    newStateID,
+				Source:     PredictionSourceHistory,
+			}
+			close(resultCh)
+			return resultCh
+		}
+	}
+
+	// No history match, fall back to debounced LLM prediction
+	return ps.startLLMPrediction(newStateID, input)
 }
 
-// startPrediction starts an async prediction request with debouncing.
-func (ps *PredictionState) startPrediction(stateID int64, input string) <-chan PredictionResult {
+// startLLMPrediction starts a debounced async LLM prediction request.
+// History-based predictions are handled synchronously in OnInputChanged,
+// so this function only handles LLM fallback predictions.
+func (ps *PredictionState) startLLMPrediction(stateID int64, input string) <-chan PredictionResult {
+	// If no LLM provider, nothing to do
+	if ps.llmProvider == nil {
+		return nil
+	}
+
 	resultCh := make(chan PredictionResult, 1)
 
 	// Create a cancellable context
@@ -280,7 +326,7 @@ func (ps *PredictionState) startPrediction(stateID int64, input string) <-chan P
 	go func() {
 		defer close(resultCh)
 
-		// Debounce
+		// Debounce LLM calls to avoid API spam
 		select {
 		case <-ctx.Done():
 			return
@@ -292,8 +338,8 @@ func (ps *PredictionState) startPrediction(stateID int64, input string) <-chan P
 			return
 		}
 
-		// Make prediction
-		result := ps.predict(ctx, stateID, input)
+		// Make LLM prediction
+		result := ps.predictLLM(ctx, stateID, input)
 
 		// Send result if still valid
 		if ps.stateID.Load() == stateID {
@@ -307,8 +353,9 @@ func (ps *PredictionState) startPrediction(stateID int64, input string) <-chan P
 	return resultCh
 }
 
-// predict makes a prediction using history first, then LLM as fallback.
-func (ps *PredictionState) predict(ctx context.Context, stateID int64, input string) PredictionResult {
+// predictLLM makes a prediction using the LLM provider.
+// History-based predictions are handled synchronously in OnInputChanged.
+func (ps *PredictionState) predictLLM(ctx context.Context, stateID int64, input string) PredictionResult {
 	result := PredictionResult{
 		StateID: stateID,
 		Source:  PredictionSourceNone,
@@ -319,41 +366,25 @@ func (ps *PredictionState) predict(ctx context.Context, stateID int64, input str
 		return result
 	}
 
-	// Try history-based prediction first (if input is not empty)
-	if input != "" && ps.historyProvider != nil {
-		entries, err := ps.historyProvider.GetRecentEntriesByPrefix(input, ps.historyPrefixLimit)
-		if err == nil && len(entries) > 0 {
-			// Use the most recent matching entry
-			result.Prediction = entries[0].Command
-			result.Source = PredictionSourceHistory
-
-			ps.logger.Debug("history prediction",
-				zap.String("input", input),
-				zap.String("prediction", result.Prediction),
-			)
-
-			return result
-		}
+	if ps.llmProvider == nil {
+		return result
 	}
 
-	// Fall back to LLM prediction
-	if ps.llmProvider != nil {
-		prediction, err := ps.llmProvider.Predict(ctx, input)
-		if err != nil {
-			ps.logger.Debug("LLM prediction failed", zap.Error(err))
-			result.Error = err
-			return result
-		}
+	prediction, err := ps.llmProvider.Predict(ctx, input)
+	if err != nil {
+		ps.logger.Debug("LLM prediction failed", zap.Error(err))
+		result.Error = err
+		return result
+	}
 
-		if prediction != "" {
-			result.Prediction = prediction
-			result.Source = PredictionSourceLLM
+	if prediction != "" {
+		result.Prediction = prediction
+		result.Source = PredictionSourceLLM
 
-			ps.logger.Debug("LLM prediction",
-				zap.String("input", input),
-				zap.String("prediction", prediction),
-			)
-		}
+		ps.logger.Debug("LLM prediction",
+			zap.String("input", input),
+			zap.String("prediction", prediction),
+		)
 	}
 
 	return result

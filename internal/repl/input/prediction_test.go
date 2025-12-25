@@ -258,6 +258,89 @@ func TestPredictionState_HistoryPrediction(t *testing.T) {
 	}
 }
 
+func TestPredictionState_HistoryPredictionIsInstant(t *testing.T) {
+	// This test verifies that history-based predictions bypass the debounce delay
+	// and return immediately (synchronously).
+
+	historyProvider := &mockHistoryProvider{
+		entries: map[string][]history.HistoryEntry{
+			"git": {
+				{Command: "git status"},
+			},
+		},
+	}
+
+	// Use a very long debounce delay to make the test obvious
+	// If history predictions were debounced, this test would timeout
+	ps := NewPredictionState(PredictionStateConfig{
+		DebounceDelay:   10 * time.Second, // Very long debounce
+		HistoryProvider: historyProvider,
+	})
+
+	start := time.Now()
+	ch := ps.OnInputChanged("git")
+	require.NotNil(t, ch)
+
+	// The channel should already have a result (synchronous)
+	select {
+	case result := <-ch:
+		elapsed := time.Since(start)
+
+		// Should complete in under 10ms (well under the 10s debounce)
+		assert.Less(t, elapsed, 10*time.Millisecond,
+			"history prediction should be instant, not debounced")
+
+		assert.Equal(t, "git status", result.Prediction)
+		assert.Equal(t, PredictionSourceHistory, result.Source)
+
+		// Verify prediction was also set synchronously on the state
+		assert.Equal(t, "git status", ps.Prediction())
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("history prediction should be instant, but timed out")
+	}
+}
+
+func TestPredictionState_LLMPredictionIsDebounced(t *testing.T) {
+	// This test verifies that LLM predictions (when no history match) ARE debounced
+
+	// Empty history - no matches
+	historyProvider := &mockHistoryProvider{
+		entries: map[string][]history.HistoryEntry{},
+	}
+
+	llmProvider := &mockPredictionProvider{
+		predictions: map[string]string{
+			"docker": "docker ps",
+		},
+	}
+
+	debounceDelay := 50 * time.Millisecond
+	ps := NewPredictionState(PredictionStateConfig{
+		DebounceDelay:   debounceDelay,
+		HistoryProvider: historyProvider,
+		LLMProvider:     llmProvider,
+	})
+
+	start := time.Now()
+	ch := ps.OnInputChanged("docker")
+	require.NotNil(t, ch)
+
+	// Wait for result
+	select {
+	case result := <-ch:
+		elapsed := time.Since(start)
+
+		// Should take at least the debounce delay
+		assert.GreaterOrEqual(t, elapsed, debounceDelay,
+			"LLM prediction should be debounced")
+
+		assert.Equal(t, "docker ps", result.Prediction)
+		assert.Equal(t, PredictionSourceLLM, result.Source)
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timeout waiting for LLM prediction")
+	}
+}
+
 func TestPredictionState_LLMFallback(t *testing.T) {
 	// Empty history provider
 	historyProvider := &mockHistoryProvider{
@@ -330,16 +413,14 @@ func TestPredictionState_AgentChatSkipped(t *testing.T) {
 	})
 
 	ch := ps.OnInputChanged("#hello")
-	require.NotNil(t, ch)
+	// Agent chat messages should return nil immediately (no prediction needed)
+	assert.Nil(t, ch)
 
-	// Wait for result
-	select {
-	case result := <-ch:
-		assert.Equal(t, "", result.Prediction)
-		assert.Equal(t, PredictionSourceNone, result.Source)
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("timeout waiting for prediction")
-	}
+	// Verify no prediction was set
+	assert.Equal(t, "", ps.Prediction())
+
+	// Verify LLM was never called
+	assert.Equal(t, 0, llmProvider.getCallCount())
 }
 
 func TestPredictionState_Debouncing(t *testing.T) {
