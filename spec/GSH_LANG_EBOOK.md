@@ -72,7 +72,7 @@ The ebook is organized into 8 parts, progressing from absolute basics through re
 
 #### Chapter 04: Variables and Assignment
 
-- **Status:** TODO
+- **Status:** DONE
 - **File:** `04-variables-and-assignment.md`
 - **Goal:** Learn how to store and work with data
 - **Key Topics:**
