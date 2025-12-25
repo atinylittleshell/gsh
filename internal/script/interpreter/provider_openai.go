@@ -81,6 +81,28 @@ func (p *OpenAIProvider) ChatCompletion(request ChatRequest) (*ChatResponse, err
 		if msg.Name != "" {
 			openaiReq.Messages[i].Name = &msg.Name
 		}
+		// Include tool_call_id for tool result messages
+		if msg.ToolCallID != "" {
+			openaiReq.Messages[i].ToolCallID = &msg.ToolCallID
+		}
+		// Include tool_calls for assistant messages that requested tool calls
+		if len(msg.ToolCalls) > 0 {
+			openaiReq.Messages[i].ToolCalls = make([]openAIMessageToolCall, len(msg.ToolCalls))
+			for j, tc := range msg.ToolCalls {
+				argsJSON, err := json.Marshal(tc.Arguments)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal tool call arguments: %w", err)
+				}
+				openaiReq.Messages[i].ToolCalls[j] = openAIMessageToolCall{
+					ID:   tc.ID,
+					Type: "function",
+					Function: openAIFunction{
+						Name:      tc.Name,
+						Arguments: string(argsJSON),
+					},
+				}
+			}
+		}
 	}
 
 	// Add optional parameters from model config
@@ -252,6 +274,28 @@ func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callback S
 		}
 		if msg.Name != "" {
 			openaiReq.Messages[i].Name = &msg.Name
+		}
+		// Include tool_call_id for tool result messages
+		if msg.ToolCallID != "" {
+			openaiReq.Messages[i].ToolCallID = &msg.ToolCallID
+		}
+		// Include tool_calls for assistant messages that requested tool calls
+		if len(msg.ToolCalls) > 0 {
+			openaiReq.Messages[i].ToolCalls = make([]openAIMessageToolCall, len(msg.ToolCalls))
+			for j, tc := range msg.ToolCalls {
+				argsJSON, err := json.Marshal(tc.Arguments)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal tool call arguments: %w", err)
+				}
+				openaiReq.Messages[i].ToolCalls[j] = openAIMessageToolCall{
+					ID:   tc.ID,
+					Type: "function",
+					Function: openAIFunction{
+						Name:      tc.Name,
+						Arguments: string(argsJSON),
+					},
+				}
+			}
 		}
 	}
 
@@ -472,10 +516,11 @@ type openAIChatCompletionRequest struct {
 }
 
 type openAIMessage struct {
-	Role      string                  `json:"role"`
-	Content   string                  `json:"content"`
-	Name      *string                 `json:"name,omitempty"`
-	ToolCalls []openAIMessageToolCall `json:"tool_calls,omitempty"`
+	Role       string                  `json:"role"`
+	Content    string                  `json:"content"`
+	Name       *string                 `json:"name,omitempty"`
+	ToolCallID *string                 `json:"tool_call_id,omitempty"` // Required for tool result messages
+	ToolCalls  []openAIMessageToolCall `json:"tool_calls,omitempty"`
 }
 
 type openAIMessageToolCall struct {

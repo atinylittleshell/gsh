@@ -294,6 +294,132 @@ func TestOpenAIProviderChatCompletion(t *testing.T) {
 	}
 }
 
+func TestOpenAIProviderToolCallMessageFields(t *testing.T) {
+	// Test that tool_call_id is included in tool result messages
+	// and tool_calls are included in assistant messages
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Parse request body
+		var reqBody map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+			t.Errorf("failed to decode request body: %v", err)
+		}
+
+		// Verify messages
+		messages, ok := reqBody["messages"].([]interface{})
+		if !ok {
+			t.Fatal("messages field not found or not an array")
+		}
+
+		// Check assistant message with tool_calls
+		assistantMsg, ok := messages[1].(map[string]interface{})
+		if !ok {
+			t.Fatal("assistant message not found")
+		}
+		if assistantMsg["role"] != "assistant" {
+			t.Errorf("expected role 'assistant', got %v", assistantMsg["role"])
+		}
+		toolCalls, ok := assistantMsg["tool_calls"].([]interface{})
+		if !ok {
+			t.Fatal("tool_calls not found in assistant message")
+		}
+		if len(toolCalls) != 1 {
+			t.Errorf("expected 1 tool call, got %d", len(toolCalls))
+		}
+		toolCall, ok := toolCalls[0].(map[string]interface{})
+		if !ok {
+			t.Fatal("tool call not a map")
+		}
+		if toolCall["id"] != "call_abc123" {
+			t.Errorf("expected tool call id 'call_abc123', got %v", toolCall["id"])
+		}
+		if toolCall["type"] != "function" {
+			t.Errorf("expected tool call type 'function', got %v", toolCall["type"])
+		}
+		function, ok := toolCall["function"].(map[string]interface{})
+		if !ok {
+			t.Fatal("function not found in tool call")
+		}
+		if function["name"] != "get_weather" {
+			t.Errorf("expected function name 'get_weather', got %v", function["name"])
+		}
+
+		// Check tool result message with tool_call_id
+		toolMsg, ok := messages[2].(map[string]interface{})
+		if !ok {
+			t.Fatal("tool message not found")
+		}
+		if toolMsg["role"] != "tool" {
+			t.Errorf("expected role 'tool', got %v", toolMsg["role"])
+		}
+		if toolMsg["tool_call_id"] != "call_abc123" {
+			t.Errorf("expected tool_call_id 'call_abc123', got %v", toolMsg["tool_call_id"])
+		}
+		if toolMsg["content"] != `{"temperature": 72}` {
+			t.Errorf("expected content '{\"temperature\": 72}', got %v", toolMsg["content"])
+		}
+
+		// Send mock response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"id": "chatcmpl-tooltest",
+			"object": "chat.completion",
+			"created": 1677652288,
+			"model": "gpt-4",
+			"choices": [{
+				"index": 0,
+				"message": {
+					"role": "assistant",
+					"content": "The temperature is 72 degrees."
+				},
+				"finish_reason": "stop"
+			}]
+		}`))
+	}))
+	defer server.Close()
+
+	provider := NewOpenAIProvider()
+	req := ChatRequest{
+		Model: &ModelValue{
+			Name: "gpt4",
+			Config: map[string]Value{
+				"provider": &StringValue{Value: "openai"},
+				"apiKey":   &StringValue{Value: "test-key"},
+				"model":    &StringValue{Value: "gpt-4"},
+				"baseURL":  &StringValue{Value: server.URL},
+			},
+		},
+		Messages: []ChatMessage{
+			{Role: "user", Content: "What's the weather?"},
+			{
+				Role:    "assistant",
+				Content: "",
+				ToolCalls: []ChatToolCall{
+					{
+						ID:        "call_abc123",
+						Name:      "get_weather",
+						Arguments: map[string]interface{}{"location": "San Francisco"},
+					},
+				},
+			},
+			{
+				Role:       "tool",
+				Content:    `{"temperature": 72}`,
+				ToolCallID: "call_abc123",
+				Name:       "get_weather",
+			},
+		},
+	}
+
+	resp, err := provider.ChatCompletion(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Content != "The temperature is 72 degrees." {
+		t.Errorf("expected content 'The temperature is 72 degrees.', got %q", resp.Content)
+	}
+}
+
 func TestOpenAIProviderCustomBaseURL(t *testing.T) {
 	// This test verifies the custom base URL is used correctly
 	// We'll use a mock server to verify

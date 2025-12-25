@@ -32,9 +32,11 @@ type ChatRequest struct {
 
 // ChatMessage represents a single message in the conversation
 type ChatMessage struct {
-	Role    string // "system", "user", "assistant", "tool"
-	Content string
-	Name    string // Optional: name of the tool or user
+	Role       string         // "system", "user", "assistant", "tool"
+	Content    string
+	Name       string         // Optional: name of the tool or user
+	ToolCallID string         // For tool result messages (required by OpenAI API)
+	ToolCalls  []ChatToolCall // For assistant messages that request tool calls
 }
 
 // ChatTool represents a tool that can be called by the model
