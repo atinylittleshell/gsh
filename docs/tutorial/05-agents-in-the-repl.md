@@ -200,10 +200,12 @@ agent CodeReviewer {
 
 ### Using a Custom Agent
 
-Once defined, invoke it with `# /agent <name>` to switch to it, then use `#`:
+Once defined, switch to it with `# /agent <name>`, then send messages with `#`:
 
 ```bash
 gsh> # /agent CodeReviewer
+→ Switched to agent 'CodeReviewer'
+
 gsh> # review this Python script
 gsh> cat app.py | # review this
 ```
@@ -292,7 +294,10 @@ agent FileAssistant {
 Then:
 
 ```bash
-gsh> @FileAssistant look at my project structure and summarize it
+gsh> # /agent FileAssistant
+→ Switched to agent 'FileAssistant'
+
+gsh> # look at my project structure and summarize it
 # Agent explores files and provides summary
 ```
 
@@ -383,13 +388,13 @@ This animates to show the agent is processing your request.
 Instead of:
 
 ```bash
-gsh> @agent help me with this
+gsh> # help me with this
 ```
 
 Try:
 
 ```bash
-gsh> @agent I need to convert all JPEG files in ~/images to PNG format. Show me the command.
+gsh> # I need to convert all JPEG files in ~/images to PNG format. Show me the command.
 ```
 
 ### 2. Ask Step by Step
@@ -397,15 +402,15 @@ gsh> @agent I need to convert all JPEG files in ~/images to PNG format. Show me 
 Instead of:
 
 ```bash
-gsh> @agent teach me Kubernetes
+gsh> # teach me Kubernetes
 ```
 
 Try:
 
 ```bash
-gsh> @agent what are the basic concepts of Kubernetes?
-gsh> @agent now explain pods and containers
-gsh> @agent show me how to create a pod definition
+gsh> # what are the basic concepts of Kubernetes?
+gsh> # now explain pods and containers
+gsh> # show me how to create a pod definition
 ```
 
 ### 3. Provide Context
@@ -413,7 +418,7 @@ gsh> @agent show me how to create a pod definition
 Include relevant information:
 
 ```bash
-gsh> @agent I'm using Node.js 18.x and want to add TypeScript to my project. What's the best approach?
+gsh> # I'm using Node.js 18.x and want to add TypeScript to my project. What's the best approach?
 ```
 
 ### 4. Verify Output
@@ -421,18 +426,21 @@ gsh> @agent I'm using Node.js 18.x and want to add TypeScript to my project. Wha
 Always review agent suggestions before running them:
 
 ```bash
-gsh> @agent write a script to delete old log files
+gsh> # write a script to delete old log files
 # Review the script before running
 gsh> bash delete_logs.sh
 ```
 
 ### 5. Use the Right Agent
 
-If you defined specialized agents, use the appropriate one:
+If you defined specialized agents, switch to the appropriate one:
 
 ```bash
-gsh> @SecurityReviewer review this Node.js API
-# Better than @agent for security-specific concerns
+gsh> # /agent SecurityReviewer
+→ Switched to agent 'SecurityReviewer'
+
+gsh> # review this Node.js API
+# Better than the default agent for security-specific concerns
 ```
 
 ## Troubleshooting
@@ -481,7 +489,7 @@ gsh> @SecurityReviewer review this Node.js API
 
 3. Provide more context in your request:
    ```bash
-   gsh> @agent I'm in /home/user/projects/python/ml-project. I need to...
+   gsh> # I'm in /home/user/projects/python/ml-project. I need to...
    ```
 
 ### Agent Takes Too Long
@@ -527,10 +535,16 @@ Using OpenAI, Anthropic, etc.:
 Agents can work together:
 
 ```bash
-gsh> @DataAnalyst write a query to get monthly revenue
+gsh> # /agent DataAnalyst
+→ Switched to agent 'DataAnalyst'
+
+gsh> # write a query to get monthly revenue
 # Agent generates query
 
-gsh> @DevOpsExpert how should I schedule this query to run daily?
+gsh> # /agent DevOpsExpert
+→ Switched to agent 'DevOpsExpert'
+
+gsh> # how should I schedule this query to run daily?
 # Different agent helps with scheduling
 ```
 
