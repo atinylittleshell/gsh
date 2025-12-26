@@ -220,3 +220,23 @@ func (e *REPLExecutor) RunBashScriptFromReader(ctx context.Context, reader io.Re
 	}
 	return e.runner.Run(ctx, prog)
 }
+
+// SyncEnvToOS syncs all exported environment variables from the bash runner
+// to the OS environment. This is useful after loading bash config files like
+// ~/.gshrc so that variables set there are available to the gsh interpreter
+// via env.VAR_NAME.
+func (e *REPLExecutor) SyncEnvToOS() {
+	e.varsMutex.RLock()
+	defer e.varsMutex.RUnlock()
+
+	if e.runner.Vars == nil {
+		return
+	}
+
+	for name, variable := range e.runner.Vars {
+		// Only sync exported variables
+		if variable.Exported {
+			os.Setenv(name, variable.String())
+		}
+	}
+}

@@ -107,6 +107,11 @@ func NewREPL(opts Options) (*REPL, error) {
 		logger.Warn("failed to load bash configs", zap.Error(err))
 	}
 
+	// Sync environment variables from bash runner to OS environment
+	// This ensures variables exported in ~/.gshrc are available to gsh scripts
+	// via env.VAR_NAME when loading ~/.gshrc.gsh
+	exec.SyncEnvToOS()
+
 	// Load gsh-specific configuration from .gshrc.gsh
 	loader := config.NewLoader(logger)
 	var loadResult *config.LoadResult

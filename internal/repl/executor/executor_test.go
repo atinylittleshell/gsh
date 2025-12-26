@@ -465,6 +465,90 @@ func TestREPLExecutor_RunBashScriptFromReader(t *testing.T) {
 	})
 }
 
+func TestREPLExecutor_SyncEnvToOS(t *testing.T) {
+	t.Run("syncs exported variables to OS environment", func(t *testing.T) {
+		exec, err := NewREPLExecutor(nil)
+		if err != nil {
+			t.Fatalf("NewREPLExecutor() error = %v", err)
+		}
+		defer exec.Close()
+
+		// Clean up env var after test
+		testVarName := "GSH_TEST_SYNC_VAR"
+		os.Unsetenv(testVarName)
+		defer os.Unsetenv(testVarName)
+
+		// Run a bash script that exports a variable
+		ctx := context.Background()
+		reader := strings.NewReader("export " + testVarName + "=synced_value")
+		err = exec.RunBashScriptFromReader(ctx, reader, "test.sh")
+		if err != nil {
+			t.Fatalf("RunBashScriptFromReader() error = %v", err)
+		}
+
+		// Before sync, OS env should not have the variable
+		if got := os.Getenv(testVarName); got != "" {
+			t.Errorf("os.Getenv(%s) before sync = %q, want empty", testVarName, got)
+		}
+
+		// Sync to OS
+		exec.SyncEnvToOS()
+
+		// After sync, OS env should have the variable
+		if got := os.Getenv(testVarName); got != "synced_value" {
+			t.Errorf("os.Getenv(%s) after sync = %q, want %q", testVarName, got, "synced_value")
+		}
+	})
+
+	t.Run("does not sync non-exported variables", func(t *testing.T) {
+		exec, err := NewREPLExecutor(nil)
+		if err != nil {
+			t.Fatalf("NewREPLExecutor() error = %v", err)
+		}
+		defer exec.Close()
+
+		// Clean up env var after test
+		testVarName := "GSH_TEST_NON_EXPORTED_VAR"
+		os.Unsetenv(testVarName)
+		defer os.Unsetenv(testVarName)
+
+		// Run a bash script that sets a variable WITHOUT export
+		ctx := context.Background()
+		reader := strings.NewReader(testVarName + "=local_value")
+		err = exec.RunBashScriptFromReader(ctx, reader, "test.sh")
+		if err != nil {
+			t.Fatalf("RunBashScriptFromReader() error = %v", err)
+		}
+
+		// Variable should be in runner but not exported
+		if got := exec.GetEnv(testVarName); got != "local_value" {
+			t.Errorf("GetEnv(%s) = %q, want %q", testVarName, got, "local_value")
+		}
+
+		// Sync to OS
+		exec.SyncEnvToOS()
+
+		// After sync, OS env should NOT have the non-exported variable
+		if got := os.Getenv(testVarName); got != "" {
+			t.Errorf("os.Getenv(%s) after sync = %q, want empty (non-exported var)", testVarName, got)
+		}
+	})
+
+	t.Run("handles nil Vars map", func(t *testing.T) {
+		exec, err := NewREPLExecutor(nil)
+		if err != nil {
+			t.Fatalf("NewREPLExecutor() error = %v", err)
+		}
+		defer exec.Close()
+
+		// Manually set Vars to nil to test nil handling
+		exec.runner.Vars = nil
+
+		// Should not panic
+		exec.SyncEnvToOS()
+	})
+}
+
 func TestThreadSafeBuffer(t *testing.T) {
 	t.Run("write and string are thread-safe", func(t *testing.T) {
 		buf := &threadSafeBuffer{}
