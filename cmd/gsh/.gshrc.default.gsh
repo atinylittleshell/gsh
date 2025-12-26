@@ -40,15 +40,23 @@ GSH_CONFIG = {
 # =============================================================================
 # These tools customize how agent interactions are displayed in the REPL.
 # Override any of these in your ~/.gshrc.gsh to customize the appearance.
+#
+# All hooks receive a single `ctx` parameter - a RenderContext object with:
+#   ctx.terminal: { width, height }
+#   ctx.agent: { name } or null
+#   ctx.query: { durationMs, inputTokens, outputTokens } or null
+#   ctx.exec: { command, commandFirstWord, durationMs, exitCode } or null
+#   ctx.toolCall: { name, status, args, durationMs, output } or null
 
 # Renders the header line when an agent starts responding
 # Example output: "── agent: default ─────────────────────────────"
-tool GSH_AGENT_HEADER(agentName: string, terminalWidth: number): string {
-    width = terminalWidth
+# Note: "agent" is a keyword in gsh, so we use bracket notation ctx["agent"]
+tool GSH_AGENT_HEADER(ctx: object): string {
+    width = ctx.terminal.width
     if (width > 80) {
         width = 80
     }
-    text = agentName
+    text = ctx["agent"].name
     if (text == "default") {
         text = "gsh"
     }
@@ -61,14 +69,14 @@ tool GSH_AGENT_HEADER(agentName: string, terminalWidth: number): string {
 
 # Renders the footer line when an agent finishes responding
 # Example output: "── 523 in · 324 out · 1.2s ────────────────────"
-tool GSH_AGENT_FOOTER(inputTokens: number, outputTokens: number, durationMs: number, terminalWidth: number): string {
-    width = terminalWidth
+tool GSH_AGENT_FOOTER(ctx: object): string {
+    width = ctx.terminal.width
     if (width > 80) {
         width = 80
     }
     # Format duration: convert ms to seconds with 1 decimal place
-    durationSec = durationMs / 1000
-    text = "" + inputTokens + " in · " + outputTokens + " out · " + durationSec + "s"
+    durationSec = ctx.query.durationMs / 1000
+    text = "" + ctx.query.inputTokens + " in · " + ctx.query.outputTokens + " out · " + durationSec + "s"
     padding = width - 4 - text.length
     if (padding < 3) {
         padding = 3
@@ -78,33 +86,33 @@ tool GSH_AGENT_FOOTER(inputTokens: number, outputTokens: number, durationMs: num
 
 # Renders the start line for exec (shell command) tool calls
 # Example output: "▶ ls -la"
-tool GSH_EXEC_START(command: string): string {
-    return "▶ " + command
+tool GSH_EXEC_START(ctx: object): string {
+    return "▶ " + ctx.exec.command
 }
 
 # Renders the completion line for exec (shell command) tool calls
 # Example output (success): "✓ ls (0.1s)"
 # Example output (failure): "✗ cat (0.1s) exit code 1"
-tool GSH_EXEC_END(commandFirstWord: string, durationMs: number, exitCode: number): string {
-    durationSec = durationMs / 1000
-    if (exitCode == 0) {
-        return "✓ " + commandFirstWord + " (" + durationSec + "s)"
+tool GSH_EXEC_END(ctx: object): string {
+    durationSec = ctx.exec.durationMs / 1000
+    if (ctx.exec.exitCode == 0) {
+        return "✓ " + ctx.exec.commandFirstWord + " (" + durationSec + "s)"
     }
-    return "✗ " + commandFirstWord + " (" + durationSec + "s) exit code " + exitCode
+    return "✗ " + ctx.exec.commandFirstWord + " (" + durationSec + "s) exit code " + ctx.exec.exitCode
 }
 
 # Renders the status line for non-exec tool calls
-# status is one of: "pending", "executing", "success", "error"
+# ctx.toolCall.status is one of: "pending", "executing", "success", "error"
 # Example output (pending):   "○ read_file"
 # Example output (executing): "○ read_file\n   path: \"/config.json\""
 # Example output (success):   "● read_file ✓ (0.02s)\n   path: \"/config.json\""
 # Example output (error):     "● read_file ✗ (0.01s)\n   path: \"/missing.txt\""
-tool GSH_TOOL_STATUS(toolName: string, status: string, args: object, durationMs: number): string {
+tool GSH_TOOL_STATUS(ctx: object): string {
     # Format arguments - one per line, indented
     argsStr = ""
-    keys = args.keys()
+    keys = ctx.toolCall.args.keys()
     for (key of keys) {
-        value = args[key]
+        value = ctx.toolCall.args[key]
         # Truncate long values
         valueStr = "" + value
         if (valueStr.length > 60) {
@@ -113,33 +121,33 @@ tool GSH_TOOL_STATUS(toolName: string, status: string, args: object, durationMs:
         argsStr = argsStr + "   " + key + ": " + valueStr + "\n"
     }
     
-    durationSec = durationMs / 1000
+    durationSec = ctx.toolCall.durationMs / 1000
     
-    if (status == "pending") {
-        return "○ " + toolName
+    if (ctx.toolCall.status == "pending") {
+        return "○ " + ctx.toolCall.name
     }
-    if (status == "executing") {
+    if (ctx.toolCall.status == "executing") {
         if (argsStr == "") {
-            return "○ " + toolName
+            return "○ " + ctx.toolCall.name
         }
-        return "○ " + toolName + "\n" + argsStr
+        return "○ " + ctx.toolCall.name + "\n" + argsStr
     }
-    if (status == "success") {
+    if (ctx.toolCall.status == "success") {
         if (argsStr == "") {
-            return "● " + toolName + " ✓ (" + durationSec + "s)"
+            return "● " + ctx.toolCall.name + " ✓ (" + durationSec + "s)"
         }
-        return "● " + toolName + " ✓ (" + durationSec + "s)\n" + argsStr
+        return "● " + ctx.toolCall.name + " ✓ (" + durationSec + "s)\n" + argsStr
     }
     # error status
     if (argsStr == "") {
-        return "● " + toolName + " ✗ (" + durationSec + "s)"
+        return "● " + ctx.toolCall.name + " ✗ (" + durationSec + "s)"
     }
-    return "● " + toolName + " ✗ (" + durationSec + "s)\n" + argsStr
+    return "● " + ctx.toolCall.name + " ✗ (" + durationSec + "s)\n" + argsStr
 }
 
 # Renders the output of non-exec tool calls
 # Default returns empty string (no output shown)
 # Override to display tool output if desired
-tool GSH_TOOL_OUTPUT(toolName: string, output: string, terminalWidth: number): string {
+tool GSH_TOOL_OUTPUT(ctx: object): string {
     return ""  # Default: show nothing
 }

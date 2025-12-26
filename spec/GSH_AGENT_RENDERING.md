@@ -206,19 +206,92 @@ Long string values are truncated with `...`:
 
 ## Customization Hooks
 
-All rendering is controlled via customizable tools defined in `.gshrc.gsh`. These override the defaults from `.gshrc.default.gsh`. The renderer passes all necessary context (including terminal width) to these tools, giving users full control over formatting.
+All rendering is controlled via customizable tools defined in `.gshrc.gsh`. These override the defaults from `.gshrc.default.gsh`. Every hook receives a single `ctx` parameter - a consistent **RenderContext** object containing all available context. This design provides maximum flexibility: hooks can access any information they need without being constrained by a specific parameter list.
+
+### RenderContext Structure
+
+The RenderContext is an object with the following top-level groups:
+
+```gsh
+ctx = {
+    terminal: {
+        width: 120,      # Current terminal width in columns
+        height: 40       # Current terminal height in rows
+    },
+    agent: {
+        name: "default"  # Name of the current agent (null if no agent active)
+    },
+    repl: {
+        lastExitCode: 0,     # Exit code of the last command
+        lastDurationMs: 150  # Duration of the last command in milliseconds
+    },
+    query: {
+        durationMs: 1234,    # Overall query/turn duration in milliseconds
+        inputTokens: 523,    # Number of input/prompt tokens used
+        outputTokens: 324    # Number of output/completion tokens used
+    },
+    exec: {
+        command: "ls -la",       # Full shell command being executed
+        commandFirstWord: "ls",  # First word of the command
+        durationMs: 100,         # Execution duration in milliseconds
+        exitCode: 0              # Exit code of the command
+    },
+    toolCall: {
+        name: "read_file",           # Name of the tool being called
+        status: "success",           # One of: "pending", "executing", "success", "error"
+        args: { path: "/config.json" },  # Tool arguments object
+        durationMs: 20,              # Tool execution duration in milliseconds
+        output: "file contents..."   # Tool output/result as a string
+    }
+}
+```
+
+**Nullability by Hook:**
+
+| Hook               | `terminal` | `agent`   | `repl` | `query` | `exec`      | `toolCall` |
+| ------------------ | ---------- | --------- | ------ | ------- | ----------- | ---------- |
+| `GSH_PROMPT`       | ✓          | ✓ or null | ✓      | null    | null        | null       |
+| `GSH_AGENT_HEADER` | ✓          | ✓         | null   | null    | null        | null       |
+| `GSH_AGENT_FOOTER` | ✓          | ✓         | null   | ✓       | null        | null       |
+| `GSH_EXEC_START`   | ✓          | ✓         | null   | null    | ✓ (partial) | null       |
+| `GSH_EXEC_END`     | ✓          | ✓         | null   | null    | ✓           | null       |
+| `GSH_TOOL_STATUS`  | ✓          | ✓         | null   | null    | null        | ✓          |
+| `GSH_TOOL_OUTPUT`  | ✓          | ✓         | null   | null    | null        | ✓          |
+
+Fields are `null` when not applicable to the current hook context.
+
+### GSH_PROMPT
+
+Customize the shell prompt. Called before each command input.
+
+```gsh
+tool GSH_PROMPT(ctx: object): string {
+    # Access ctx.repl.lastExitCode, ctx.repl.lastDurationMs
+    # Access ctx.terminal.width, ctx["agent"].name, etc.
+
+    # Show a different prompt symbol based on last exit code
+    symbol = "❯"
+    if (ctx.repl.lastExitCode != 0) {
+        symbol = "✗"
+    }
+
+    return symbol + " "
+}
+```
+
+**Returns:** The prompt string to display
 
 ### GSH_AGENT_HEADER
 
-Customize the agent header line. The tool receives terminal width and is responsible for the entire line including padding.
+Customize the agent header line displayed when an agent starts responding.
 
 ```gsh
-tool GSH_AGENT_HEADER(agentName: string, terminalWidth: number): string {
-    width = terminalWidth
+tool GSH_AGENT_HEADER(ctx: object): string {
+    width = ctx.terminal.width
     if (width > 80) {
         width = 80
     }
-    text = "agent: " + agentName
+    text = "agent: " + ctx.agent.name
     padding = width - 4 - len(text)  # "── " prefix (3) + " " before padding (1)
     if (padding < 3) {
         padding = 3
@@ -227,24 +300,20 @@ tool GSH_AGENT_HEADER(agentName: string, terminalWidth: number): string {
 }
 ```
 
-**Parameters:**
-
-- `agentName`: Name of the responding agent (e.g., "default", "coder")
-- `terminalWidth`: Current terminal width in columns
-
 **Returns:** Complete header line to display
 
 ### GSH_AGENT_FOOTER
 
-Customize the agent footer line. The tool decides what stats to show and handles all formatting.
+Customize the agent footer line displayed when an agent finishes responding.
 
 ```gsh
-tool GSH_AGENT_FOOTER(inputTokens: number, outputTokens: number, durationMs: number, terminalWidth: number): string {
-    width = terminalWidth
+tool GSH_AGENT_FOOTER(ctx: object): string {
+    width = ctx.terminal.width
     if (width > 80) {
         width = 80
     }
-    text = "" + inputTokens + " in · " + outputTokens + " out · " + durationMs + "ms"
+    durationSec = ctx.query.durationMs / 1000
+    text = "" + ctx.query.inputTokens + " in · " + ctx.query.outputTokens + " out · " + durationSec + "s"
     padding = width - 4 - len(text)
     if (padding < 3) {
         padding = 3
@@ -253,13 +322,6 @@ tool GSH_AGENT_FOOTER(inputTokens: number, outputTokens: number, durationMs: num
 }
 ```
 
-**Parameters:**
-
-- `inputTokens`: Number of input/prompt tokens used
-- `outputTokens`: Number of output/completion tokens used
-- `durationMs`: Total duration in milliseconds
-- `terminalWidth`: Current terminal width in columns
-
 **Returns:** Complete footer line to display
 
 ### GSH_EXEC_START
@@ -267,14 +329,10 @@ tool GSH_AGENT_FOOTER(inputTokens: number, outputTokens: number, durationMs: num
 Customize the exec tool start line.
 
 ```gsh
-tool GSH_EXEC_START(command: string): string {
-    return "▶ " + command
+tool GSH_EXEC_START(ctx: object): string {
+    return "▶ " + ctx.exec.command
 }
 ```
-
-**Parameters:**
-
-- `command`: The full shell command being executed
 
 **Returns:** The start line to display
 
@@ -283,32 +341,28 @@ tool GSH_EXEC_START(command: string): string {
 Customize the exec tool completion line.
 
 ```gsh
-tool GSH_EXEC_END(commandFirstWord: string, durationMs: number, exitCode: number): string {
-    if (exitCode == 0) {
-        return "✓ " + commandFirstWord + " (" + durationMs + "ms)"
+tool GSH_EXEC_END(ctx: object): string {
+    durationSec = ctx.exec.durationMs / 1000
+    if (ctx.exec.exitCode == 0) {
+        return "✓ " + ctx.exec.commandFirstWord + " (" + durationSec + "s)"
     }
-    return "✗ " + commandFirstWord + " (" + durationMs + "ms) exit code " + exitCode
+    return "✗ " + ctx.exec.commandFirstWord + " (" + durationSec + "s) exit code " + ctx.exec.exitCode
 }
 ```
-
-**Parameters:**
-
-- `commandFirstWord`: First word of the command (e.g., "ls" from "ls -la")
-- `durationMs`: Execution duration in milliseconds
-- `exitCode`: Exit code of the command
 
 **Returns:** The completion line to display
 
 ### GSH_TOOL_STATUS
 
-Customize how non-exec tool status is rendered. Receives raw arguments as an object for full formatting control.
+Customize how non-exec tool status is rendered.
 
 ```gsh
-tool GSH_TOOL_STATUS(toolName: string, status: string, args: object, durationMs: number): string {
+tool GSH_TOOL_STATUS(ctx: object): string {
     # Format arguments - one per line, indented
     argsStr = ""
-    for (key in args) {
-        value = args[key]
+    keys = ctx.toolCall.args.keys()
+    for (key of keys) {
+        value = ctx.toolCall.args[key]
         # Truncate long values
         valueStr = "" + value
         if (len(valueStr) > 60) {
@@ -317,26 +371,21 @@ tool GSH_TOOL_STATUS(toolName: string, status: string, args: object, durationMs:
         argsStr = argsStr + "   " + key + ": " + valueStr + "\n"
     }
 
-    if (status == "pending") {
-        return "○ " + toolName
+    durationSec = ctx.toolCall.durationMs / 1000
+
+    if (ctx.toolCall.status == "pending") {
+        return "○ " + ctx.toolCall.name
     }
-    if (status == "executing") {
-        return "○ " + toolName + "\n" + argsStr
+    if (ctx.toolCall.status == "executing") {
+        return "○ " + ctx.toolCall.name + "\n" + argsStr
     }
-    if (status == "success") {
-        return "● " + toolName + " ✓ (" + durationMs + "ms)\n" + argsStr
+    if (ctx.toolCall.status == "success") {
+        return "● " + ctx.toolCall.name + " ✓ (" + durationSec + "s)\n" + argsStr
     }
     # error
-    return "● " + toolName + " ✗ (" + durationMs + "ms)\n" + argsStr
+    return "● " + ctx.toolCall.name + " ✗ (" + durationSec + "s)\n" + argsStr
 }
 ```
-
-**Parameters:**
-
-- `toolName`: Name of the tool being called (e.g., "read_file", "search")
-- `status`: One of "pending", "executing", "success", or "error"
-- `args`: Raw arguments object (e.g., `{path: "/config.json", encoding: "utf-8"}`)
-- `durationMs`: Execution duration in milliseconds (0 for pending/executing)
 
 **Returns:** Full status block including arguments
 
@@ -347,16 +396,10 @@ tool GSH_TOOL_STATUS(toolName: string, status: string, args: object, durationMs:
 Customize how non-exec tool output/results are displayed. Default returns empty (no output shown).
 
 ```gsh
-tool GSH_TOOL_OUTPUT(toolName: string, output: string, terminalWidth: number): string {
+tool GSH_TOOL_OUTPUT(ctx: object): string {
     return ""  # Default: show nothing
 }
 ```
-
-**Parameters:**
-
-- `toolName`: Name of the tool
-- `output`: The tool's output/result as a string
-- `terminalWidth`: Current terminal width in columns
 
 **Returns:** String to display (empty = show nothing)
 

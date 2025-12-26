@@ -14,7 +14,10 @@ if (_starship_session.exitCode == 0) {
 
 # GSH_PROMPT tool using Starship
 # This overrides the default simple prompt with starship's dynamic prompt
-tool GSH_PROMPT(exitCode: number, durationMs: number): string {
+# ctx.repl contains: { lastExitCode, lastDurationMs }
+tool GSH_PROMPT(ctx: object): string {
+    exitCode = ctx.repl.lastExitCode
+    durationMs = ctx.repl.lastDurationMs
     result = exec(`starship prompt --status=${exitCode} --cmd-duration=${durationMs} 2>/dev/null`)
     if (result.exitCode == 0) {
         return result.stdout

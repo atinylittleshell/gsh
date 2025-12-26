@@ -13,9 +13,11 @@ import (
 // Renderer handles all agent-related output rendering in the REPL.
 // It delegates formatting decisions to customizable hook tools defined in .gshrc.gsh
 type Renderer struct {
-	interp    *interpreter.Interpreter // For calling custom hooks
-	writer    io.Writer
-	termWidth func() int // Function to get current terminal width
+	interp       *interpreter.Interpreter // For calling custom hooks
+	writer       io.Writer
+	termWidth    func() int // Function to get current terminal width
+	termHeight   func() int // Function to get current terminal height
+	currentAgent string     // Name of the current agent
 
 	// Track lines printed by RenderToolExecuting so RenderToolComplete can replace them
 	lastToolExecutingLines int
@@ -30,14 +32,193 @@ func New(interp *interpreter.Interpreter, writer io.Writer, termWidth func() int
 	}
 }
 
+// SetTermHeight sets the function to get terminal height
+func (r *Renderer) SetTermHeight(termHeight func() int) {
+	r.termHeight = termHeight
+}
+
+// SetCurrentAgent sets the current agent name for the render context
+func (r *Renderer) SetCurrentAgent(agentName string) {
+	r.currentAgent = agentName
+}
+
+// RenderContext represents the context passed to all render hooks.
+// All fields except terminal may be null depending on the hook being called.
+type RenderContext struct {
+	Terminal *TerminalContext `json:"terminal"`
+	Agent    *AgentContext    `json:"agent"`
+	Repl     *ReplContext     `json:"repl"`
+	Query    *QueryContext    `json:"query"`
+	Exec     *ExecContext     `json:"exec"`
+	ToolCall *ToolCallContext `json:"toolCall"`
+}
+
+// ReplContext contains REPL state information (e.g., for prompt rendering)
+type ReplContext struct {
+	LastExitCode   int   `json:"lastExitCode"`
+	LastDurationMs int64 `json:"lastDurationMs"`
+}
+
+// TerminalContext contains terminal information
+type TerminalContext struct {
+	Width  int `json:"width"`
+	Height int `json:"height"`
+}
+
+// AgentContext contains agent information
+type AgentContext struct {
+	Name string `json:"name"`
+}
+
+// QueryContext contains query/turn statistics
+type QueryContext struct {
+	DurationMs   int64 `json:"durationMs"`
+	InputTokens  int   `json:"inputTokens"`
+	OutputTokens int   `json:"outputTokens"`
+}
+
+// ExecContext contains exec tool information
+type ExecContext struct {
+	Command          string `json:"command"`
+	CommandFirstWord string `json:"commandFirstWord"`
+	DurationMs       int64  `json:"durationMs"`
+	ExitCode         int    `json:"exitCode"`
+}
+
+// ToolCallContext contains non-exec tool call information
+type ToolCallContext struct {
+	Name       string                 `json:"name"`
+	Status     string                 `json:"status"` // "pending", "executing", "success", "error"
+	Args       map[string]interface{} `json:"args"`
+	DurationMs int64                  `json:"durationMs"`
+	Output     string                 `json:"output"`
+}
+
+// newBaseContext creates a RenderContext with terminal and agent info populated
+func (r *Renderer) newBaseContext() *RenderContext {
+	ctx := &RenderContext{
+		Terminal: &TerminalContext{
+			Width:  r.getTerminalWidth(),
+			Height: r.getTerminalHeight(),
+		},
+	}
+
+	if r.currentAgent != "" {
+		ctx.Agent = &AgentContext{Name: r.currentAgent}
+	}
+
+	return ctx
+}
+
+// NewPromptContext creates a RenderContext for GSH_PROMPT with last command info
+func (r *Renderer) NewPromptContext(lastExitCode int, lastDurationMs int64) *RenderContext {
+	ctx := r.newBaseContext()
+	ctx.Repl = &ReplContext{
+		LastExitCode:   lastExitCode,
+		LastDurationMs: lastDurationMs,
+	}
+	return ctx
+}
+
+// CallPromptHook calls the GSH_PROMPT hook with the given context and returns the prompt string
+func (r *Renderer) CallPromptHook(ctx *RenderContext) string {
+	return r.callHookWithContext("GSH_PROMPT", ctx)
+}
+
+// toInterpreterObject converts a RenderContext to an interpreter ObjectValue
+func (r *Renderer) contextToInterpreterObject(ctx *RenderContext) *interpreter.ObjectValue {
+	props := make(map[string]interpreter.Value)
+
+	// Terminal is always present
+	if ctx.Terminal != nil {
+		props["terminal"] = &interpreter.ObjectValue{
+			Properties: map[string]interpreter.Value{
+				"width":  &interpreter.NumberValue{Value: float64(ctx.Terminal.Width)},
+				"height": &interpreter.NumberValue{Value: float64(ctx.Terminal.Height)},
+			},
+		}
+	}
+
+	// Agent may be null
+	if ctx.Agent != nil {
+		props["agent"] = &interpreter.ObjectValue{
+			Properties: map[string]interpreter.Value{
+				"name": &interpreter.StringValue{Value: ctx.Agent.Name},
+			},
+		}
+	} else {
+		props["agent"] = &interpreter.NullValue{}
+	}
+
+	// Repl may be null
+	if ctx.Repl != nil {
+		props["repl"] = &interpreter.ObjectValue{
+			Properties: map[string]interpreter.Value{
+				"lastExitCode":   &interpreter.NumberValue{Value: float64(ctx.Repl.LastExitCode)},
+				"lastDurationMs": &interpreter.NumberValue{Value: float64(ctx.Repl.LastDurationMs)},
+			},
+		}
+	} else {
+		props["repl"] = &interpreter.NullValue{}
+	}
+
+	// Query may be null
+	if ctx.Query != nil {
+		props["query"] = &interpreter.ObjectValue{
+			Properties: map[string]interpreter.Value{
+				"durationMs":   &interpreter.NumberValue{Value: float64(ctx.Query.DurationMs)},
+				"inputTokens":  &interpreter.NumberValue{Value: float64(ctx.Query.InputTokens)},
+				"outputTokens": &interpreter.NumberValue{Value: float64(ctx.Query.OutputTokens)},
+			},
+		}
+	} else {
+		props["query"] = &interpreter.NullValue{}
+	}
+
+	// Exec may be null
+	if ctx.Exec != nil {
+		props["exec"] = &interpreter.ObjectValue{
+			Properties: map[string]interpreter.Value{
+				"command":          &interpreter.StringValue{Value: ctx.Exec.Command},
+				"commandFirstWord": &interpreter.StringValue{Value: ctx.Exec.CommandFirstWord},
+				"durationMs":       &interpreter.NumberValue{Value: float64(ctx.Exec.DurationMs)},
+				"exitCode":         &interpreter.NumberValue{Value: float64(ctx.Exec.ExitCode)},
+			},
+		}
+	} else {
+		props["exec"] = &interpreter.NullValue{}
+	}
+
+	// ToolCall may be null
+	if ctx.ToolCall != nil {
+		argsObj := make(map[string]interpreter.Value)
+		for k, v := range ctx.ToolCall.Args {
+			argsObj[k] = toInterpreterValue(v)
+		}
+
+		props["toolCall"] = &interpreter.ObjectValue{
+			Properties: map[string]interpreter.Value{
+				"name":       &interpreter.StringValue{Value: ctx.ToolCall.Name},
+				"status":     &interpreter.StringValue{Value: ctx.ToolCall.Status},
+				"args":       &interpreter.ObjectValue{Properties: argsObj},
+				"durationMs": &interpreter.NumberValue{Value: float64(ctx.ToolCall.DurationMs)},
+				"output":     &interpreter.StringValue{Value: ctx.ToolCall.Output},
+			},
+		}
+	} else {
+		props["toolCall"] = &interpreter.NullValue{}
+	}
+
+	return &interpreter.ObjectValue{Properties: props}
+}
+
 // RenderAgentHeader renders the agent header line using the GSH_AGENT_HEADER hook
 func (r *Renderer) RenderAgentHeader(agentName string) {
-	width := r.getTerminalWidth()
+	// Update current agent for context
+	r.currentAgent = agentName
 
-	header := r.callStringHook("GSH_AGENT_HEADER", map[string]interface{}{
-		"agentName":     agentName,
-		"terminalWidth": float64(width),
-	})
+	ctx := r.newBaseContext()
+	header := r.callHookWithContext("GSH_AGENT_HEADER", ctx)
 
 	if header == "" {
 		// Fallback if hook fails
@@ -49,15 +230,14 @@ func (r *Renderer) RenderAgentHeader(agentName string) {
 
 // RenderAgentFooter renders the agent footer line using the GSH_AGENT_FOOTER hook
 func (r *Renderer) RenderAgentFooter(inputTokens, outputTokens int, duration time.Duration) {
-	width := r.getTerminalWidth()
-	durationMs := duration.Milliseconds()
+	ctx := r.newBaseContext()
+	ctx.Query = &QueryContext{
+		DurationMs:   duration.Milliseconds(),
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+	}
 
-	footer := r.callStringHook("GSH_AGENT_FOOTER", map[string]interface{}{
-		"inputTokens":   float64(inputTokens),
-		"outputTokens":  float64(outputTokens),
-		"durationMs":    float64(durationMs),
-		"terminalWidth": float64(width),
-	})
+	footer := r.callHookWithContext("GSH_AGENT_FOOTER", ctx)
 
 	if footer == "" {
 		// Fallback if hook fails
@@ -83,9 +263,21 @@ func (r *Renderer) RenderAgentText(text string) {
 
 // RenderExecStart renders the start of an exec tool call using GSH_EXEC_START hook
 func (r *Renderer) RenderExecStart(command string) {
-	output := r.callStringHook("GSH_EXEC_START", map[string]interface{}{
-		"command": command,
-	})
+	// Extract first word of command
+	commandFirstWord := command
+	if idx := strings.Index(command, " "); idx > 0 {
+		commandFirstWord = command[:idx]
+	}
+
+	ctx := r.newBaseContext()
+	ctx.Exec = &ExecContext{
+		Command:          command,
+		CommandFirstWord: commandFirstWord,
+		DurationMs:       0,
+		ExitCode:         0,
+	}
+
+	output := r.callHookWithContext("GSH_EXEC_START", ctx)
 
 	if output == "" {
 		// Fallback if hook fails
@@ -109,13 +301,15 @@ func (r *Renderer) RenderExecEnd(command string, duration time.Duration, exitCod
 		commandFirstWord = command[:idx]
 	}
 
-	durationMs := duration.Milliseconds()
+	ctx := r.newBaseContext()
+	ctx.Exec = &ExecContext{
+		Command:          command,
+		CommandFirstWord: commandFirstWord,
+		DurationMs:       duration.Milliseconds(),
+		ExitCode:         exitCode,
+	}
 
-	output := r.callStringHook("GSH_EXEC_END", map[string]interface{}{
-		"commandFirstWord": commandFirstWord,
-		"durationMs":       float64(durationMs),
-		"exitCode":         float64(exitCode),
-	})
+	output := r.callHookWithContext("GSH_EXEC_END", ctx)
 
 	if output == "" {
 		// Fallback if hook fails
@@ -140,7 +334,16 @@ func (r *Renderer) RenderExecEnd(command string, duration time.Duration, exitCod
 
 // RenderToolPending renders a tool in pending state (streaming args from LLM)
 func (r *Renderer) RenderToolPending(toolName string) {
-	output := r.callToolStatusHook(toolName, "pending", nil, 0)
+	ctx := r.newBaseContext()
+	ctx.ToolCall = &ToolCallContext{
+		Name:       toolName,
+		Status:     "pending",
+		Args:       make(map[string]interface{}),
+		DurationMs: 0,
+		Output:     "",
+	}
+
+	output := r.callHookWithContext("GSH_TOOL_STATUS", ctx)
 
 	if output == "" {
 		output = fmt.Sprintf("%s %s", SymbolToolPending, toolName)
@@ -167,7 +370,16 @@ func (r *Renderer) StartToolSpinner(ctx context.Context, toolName string) func()
 
 // RenderToolExecuting renders a tool in executing state (args complete, running)
 func (r *Renderer) RenderToolExecuting(toolName string, args map[string]interface{}) {
-	output := r.callToolStatusHook(toolName, "executing", args, 0)
+	ctx := r.newBaseContext()
+	ctx.ToolCall = &ToolCallContext{
+		Name:       toolName,
+		Status:     "executing",
+		Args:       args,
+		DurationMs: 0,
+		Output:     "",
+	}
+
+	output := r.callHookWithContext("GSH_TOOL_STATUS", ctx)
 
 	if output == "" {
 		output = r.formatToolStatus(toolName, "executing", args, 0)
@@ -187,11 +399,19 @@ func (r *Renderer) RenderToolComplete(toolName string, args map[string]interface
 		status = "error"
 	}
 
-	durationMs := duration.Milliseconds()
-	output := r.callToolStatusHook(toolName, status, args, durationMs)
+	ctx := r.newBaseContext()
+	ctx.ToolCall = &ToolCallContext{
+		Name:       toolName,
+		Status:     status,
+		Args:       args,
+		DurationMs: duration.Milliseconds(),
+		Output:     "",
+	}
+
+	output := r.callHookWithContext("GSH_TOOL_STATUS", ctx)
 
 	if output == "" {
-		output = r.formatToolStatus(toolName, status, args, durationMs)
+		output = r.formatToolStatus(toolName, status, args, duration.Milliseconds())
 	}
 
 	// Move cursor up and clear the lines printed by RenderToolExecuting
@@ -208,13 +428,16 @@ func (r *Renderer) RenderToolComplete(toolName string, args map[string]interface
 
 // RenderToolOutput renders tool output using the GSH_TOOL_OUTPUT hook
 func (r *Renderer) RenderToolOutput(toolName string, output string) {
-	width := r.getTerminalWidth()
+	ctx := r.newBaseContext()
+	ctx.ToolCall = &ToolCallContext{
+		Name:       toolName,
+		Status:     "",
+		Args:       make(map[string]interface{}),
+		DurationMs: 0,
+		Output:     output,
+	}
 
-	rendered := r.callStringHook("GSH_TOOL_OUTPUT", map[string]interface{}{
-		"toolName":      toolName,
-		"output":        output,
-		"terminalWidth": float64(width),
-	})
+	rendered := r.callHookWithContext("GSH_TOOL_OUTPUT", ctx)
 
 	// Only print if hook returns non-empty
 	if rendered != "" {
@@ -227,82 +450,39 @@ func (r *Renderer) RenderSystemMessage(message string) {
 	fmt.Fprintln(r.writer, SystemMessageStyle.Render(fmt.Sprintf("%s %s", SymbolSystemMessage, message)))
 }
 
-// callStringHook calls a hook tool and returns its string result
-func (r *Renderer) callStringHook(hookName string, args map[string]interface{}) string {
+// callHookWithContext calls a hook tool with the RenderContext and returns its string result
+func (r *Renderer) callHookWithContext(hookName string, ctx *RenderContext) string {
 	if r.interp == nil {
 		return ""
 	}
 
-	// Build the tool call expression
-	result, err := r.callTool(hookName, args)
-	if err != nil {
-		return ""
-	}
-
-	if strVal, ok := result.(*interpreter.StringValue); ok {
-		return strVal.Value
-	}
-
-	return ""
-}
-
-// callToolStatusHook calls the GSH_TOOL_STATUS hook
-func (r *Renderer) callToolStatusHook(toolName, status string, args map[string]interface{}, durationMs int64) string {
-	if r.interp == nil {
-		return ""
-	}
-
-	// Convert args to an object value
-	argsObj := make(map[string]interface{})
-	for k, v := range args {
-		argsObj[k] = v
-	}
-
-	hookArgs := map[string]interface{}{
-		"toolName":   toolName,
-		"status":     status,
-		"args":       argsObj,
-		"durationMs": float64(durationMs),
-	}
-
-	result, err := r.callTool("GSH_TOOL_STATUS", hookArgs)
-	if err != nil {
-		return ""
-	}
-
-	if strVal, ok := result.(*interpreter.StringValue); ok {
-		return strVal.Value
-	}
-
-	return ""
-}
-
-// callTool invokes a tool defined in the interpreter
-func (r *Renderer) callTool(toolName string, args map[string]interface{}) (interpreter.Value, error) {
 	// Look up the tool in the interpreter's environment
 	vars := r.interp.GetVariables()
-	toolVal, exists := vars[toolName]
+	toolVal, exists := vars[hookName]
 	if !exists {
-		return nil, fmt.Errorf("tool %s not found", toolName)
+		return ""
 	}
 
 	tool, ok := toolVal.(*interpreter.ToolValue)
 	if !ok {
-		return nil, fmt.Errorf("%s is not a tool", toolName)
+		return ""
 	}
 
-	// Convert args map to interpreter values in parameter order
-	interpArgs := make([]interpreter.Value, len(tool.Parameters))
-	for i, paramName := range tool.Parameters {
-		if val, exists := args[paramName]; exists {
-			interpArgs[i] = toInterpreterValue(val)
-		} else {
-			interpArgs[i] = &interpreter.NullValue{}
-		}
-	}
+	// Convert context to interpreter object and pass as single argument
+	ctxObj := r.contextToInterpreterObject(ctx)
+	interpArgs := []interpreter.Value{ctxObj}
 
 	// Call the tool
-	return r.interp.CallTool(tool, interpArgs)
+	result, err := r.interp.CallTool(tool, interpArgs)
+	if err != nil {
+		return ""
+	}
+
+	if strVal, ok := result.(*interpreter.StringValue); ok {
+		return strVal.Value
+	}
+
+	return ""
 }
 
 // toInterpreterValue converts a Go value to an interpreter Value
@@ -421,6 +601,17 @@ func (r *Renderer) getTerminalWidth() int {
 		}
 	}
 	return 80 // Default fallback
+}
+
+// getTerminalHeight returns the current terminal height, with a sensible default
+func (r *Renderer) getTerminalHeight() int {
+	if r.termHeight != nil {
+		height := r.termHeight()
+		if height > 0 {
+			return height
+		}
+	}
+	return 24 // Default fallback
 }
 
 // GetVariable retrieves a variable from the interpreter's environment

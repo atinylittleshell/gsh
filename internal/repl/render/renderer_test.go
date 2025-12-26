@@ -38,10 +38,11 @@ func TestRenderAgentHeader_WithHook(t *testing.T) {
 	var buf bytes.Buffer
 	interp := interpreter.New()
 
-	// Define a custom hook
+	// Define a custom hook with RenderContext
+	// Note: "agent" is a keyword, so we use bracket notation to access it
 	_, err := interp.EvalString(`
-		tool GSH_AGENT_HEADER(agentName: string, terminalWidth: number): string {
-			return "== " + agentName + " =="
+		tool GSH_AGENT_HEADER(ctx: object): string {
+			return "== " + ctx["agent"].name + " =="
 		}
 	`)
 	require.NoError(t, err)
@@ -69,8 +70,8 @@ func TestRenderAgentFooter_WithHook(t *testing.T) {
 	interp := interpreter.New()
 
 	_, err := interp.EvalString(`
-		tool GSH_AGENT_FOOTER(inputTokens: number, outputTokens: number, durationMs: number, terminalWidth: number): string {
-			return "tokens: " + inputTokens + "/" + outputTokens
+		tool GSH_AGENT_FOOTER(ctx: object): string {
+			return "tokens: " + ctx.query.inputTokens + "/" + ctx.query.outputTokens
 		}
 	`)
 	require.NoError(t, err)
@@ -125,8 +126,8 @@ func TestRenderExecStart_WithHook(t *testing.T) {
 	interp := interpreter.New()
 
 	_, err := interp.EvalString(`
-		tool GSH_EXEC_START(command: string): string {
-			return "▶ running: " + command
+		tool GSH_EXEC_START(ctx: object): string {
+			return "▶ running: " + ctx.exec.command
 		}
 	`)
 	require.NoError(t, err)
@@ -166,11 +167,11 @@ func TestRenderExecEnd_WithHook(t *testing.T) {
 	interp := interpreter.New()
 
 	_, err := interp.EvalString(`
-		tool GSH_EXEC_END(commandFirstWord: string, durationMs: number, exitCode: number): string {
-			if (exitCode == 0) {
-				return "✓ " + commandFirstWord + " ok"
+		tool GSH_EXEC_END(ctx: object): string {
+			if (ctx.exec.exitCode == 0) {
+				return "✓ " + ctx.exec.commandFirstWord + " ok"
 			}
-			return "✗ " + commandFirstWord + " failed"
+			return "✗ " + ctx.exec.commandFirstWord + " failed"
 		}
 	`)
 	require.NoError(t, err)
@@ -267,7 +268,7 @@ func TestRenderToolOutput_DefaultEmpty(t *testing.T) {
 
 	// Define default hook that returns empty
 	_, err := interp.EvalString(`
-		tool GSH_TOOL_OUTPUT(toolName: string, output: string, terminalWidth: number): string {
+		tool GSH_TOOL_OUTPUT(ctx: object): string {
 			return ""
 		}
 	`)
@@ -285,8 +286,8 @@ func TestRenderToolOutput_CustomHook(t *testing.T) {
 	interp := interpreter.New()
 
 	_, err := interp.EvalString(`
-		tool GSH_TOOL_OUTPUT(toolName: string, output: string, terminalWidth: number): string {
-			return "Output: " + output
+		tool GSH_TOOL_OUTPUT(ctx: object): string {
+			return "Output: " + ctx.toolCall.output
 		}
 	`)
 	require.NoError(t, err)

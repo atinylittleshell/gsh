@@ -48,6 +48,9 @@ type REPL struct {
 	// Agent mode support - multiple agents
 	agentManager *agent.Manager
 
+	// Renderer for prompt and agent output
+	renderer *render.Renderer
+
 	// Track last command exit code and duration for prompt updates
 	lastExitCode   int
 	lastDurationMs int64
@@ -157,7 +160,7 @@ func NewREPL(opts Options) (*REPL, error) {
 	// Initialize agent manager
 	agentManager := agent.NewManager(logger)
 
-	// Create renderer for agent output
+	// Create renderer for agent output and prompt rendering
 	// Terminal width function that queries the terminal
 	termWidthFunc := func() int {
 		width, _, err := term.GetSize(int(os.Stdout.Fd()))
@@ -166,7 +169,16 @@ func NewREPL(opts Options) (*REPL, error) {
 		}
 		return width
 	}
+	// Terminal height function that queries the terminal
+	termHeightFunc := func() int {
+		_, height, err := term.GetSize(int(os.Stdout.Fd()))
+		if err != nil || height <= 0 {
+			return 24 // Default fallback
+		}
+		return height
+	}
 	agentRenderer := render.New(loadResult.Interpreter, os.Stdout, termWidthFunc)
+	agentRenderer.SetTermHeight(termHeightFunc)
 	agentManager.SetRenderer(agentRenderer)
 
 	// Always initialize the built-in default agent if a model is configured
@@ -239,6 +251,7 @@ func NewREPL(opts Options) (*REPL, error) {
 		contextProvider:    contextProvider,
 		completionProvider: completionProvider,
 		agentManager:       agentManager,
+		renderer:           agentRenderer,
 		logger:             logger,
 		buildVersion:       opts.BuildVersion,
 	}
@@ -576,22 +589,16 @@ func (r *REPL) handleBuiltinCommand(command string) (bool, error) {
 func (r *REPL) getPrompt() string {
 	var prompt string
 
-	// Check if GSH_PROMPT tool is defined
+	// Check if GSH_PROMPT tool is defined and renderer is available
 	promptTool := r.config.GetUpdatePromptTool()
-	if promptTool != nil {
-		// Call the tool with exit code and duration
-		exitCodeValue := &interpreter.NumberValue{Value: float64(r.lastExitCode)}
-		durationValue := &interpreter.NumberValue{Value: float64(r.lastDurationMs)}
-
-		result, err := r.executor.Interpreter().CallTool(promptTool, []interpreter.Value{exitCodeValue, durationValue})
-		if err != nil {
-			r.logger.Warn("GSH_PROMPT tool failed, using static prompt", zap.Error(err))
-			prompt = r.config.Prompt
-		} else if strValue, ok := result.(*interpreter.StringValue); ok {
-			prompt = strValue.Value
+	if promptTool != nil && r.renderer != nil {
+		// Use the renderer to call GSH_PROMPT with RenderContext
+		ctx := r.renderer.NewPromptContext(r.lastExitCode, r.lastDurationMs)
+		result := r.renderer.CallPromptHook(ctx)
+		if result != "" {
+			prompt = result
 		} else {
-			r.logger.Warn("GSH_PROMPT tool did not return a string, using static prompt",
-				zap.String("returnType", result.Type().String()))
+			// Hook returned empty or failed, use static prompt
 			prompt = r.config.Prompt
 		}
 	} else {
