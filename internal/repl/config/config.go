@@ -23,6 +23,10 @@ type Config struct {
 	// when it's detected in PATH. Defaults to true. Set to false in GSH_CONFIG to disable.
 	StarshipIntegration *bool
 
+	// ShowWelcome controls whether the welcome screen is displayed on startup.
+	// Defaults to true. Set to false in GSH_CONFIG to disable.
+	ShowWelcome *bool
+
 	// PredictModel is the name of the model to use for predictions (from GSH_CONFIG.predictModel)
 	// GSH_CONFIG.predictModel must be a model value reference (e.g., predictModel: myModel), not a string.
 	// This field stores the name of the referenced model.
@@ -129,12 +133,22 @@ func (c *Config) StarshipIntegrationEnabled() bool {
 	return *c.StarshipIntegration
 }
 
+// ShowWelcomeEnabled returns whether the welcome screen should be shown on startup.
+// Returns true by default (when ShowWelcome is nil or explicitly true).
+func (c *Config) ShowWelcomeEnabled() bool {
+	if c.ShowWelcome == nil {
+		return true // Default to enabled
+	}
+	return *c.ShowWelcome
+}
+
 // Clone creates a deep copy of the Config.
 func (c *Config) Clone() *Config {
 	clone := &Config{
 		Prompt:              c.Prompt,
 		LogLevel:            c.LogLevel,
 		StarshipIntegration: c.StarshipIntegration,
+		ShowWelcome:         c.ShowWelcome,
 		PredictModel:        c.PredictModel,
 		DefaultAgentModel:   c.DefaultAgentModel,
 		MCPServers:          make(map[string]*mcp.MCPServer, len(c.MCPServers)),

@@ -340,4 +340,13 @@ func (l *Loader) extractGSHConfig(value interpreter.Value, result *LoadResult) {
 			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.starshipIntegration must be a boolean"))
 		}
 	}
+
+	// Extract showWelcome
+	if showWelcome, ok := obj.Properties["showWelcome"]; ok {
+		if boolVal, ok := showWelcome.(*interpreter.BoolValue); ok {
+			result.Config.ShowWelcome = &boolVal.Value
+		} else {
+			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.showWelcome must be a boolean"))
+		}
+	}
 }

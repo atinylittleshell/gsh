@@ -269,3 +269,24 @@ func TestConfig_GetDefaultAgentModel(t *testing.T) {
 		assert.Equal(t, "my-model", result.Name)
 	})
 }
+
+func TestConfig_ShowWelcomeEnabled(t *testing.T) {
+	t.Run("returns true when ShowWelcome is nil (default)", func(t *testing.T) {
+		cfg := DefaultConfig()
+		assert.True(t, cfg.ShowWelcomeEnabled())
+	})
+
+	t.Run("returns true when ShowWelcome is explicitly true", func(t *testing.T) {
+		cfg := DefaultConfig()
+		showWelcome := true
+		cfg.ShowWelcome = &showWelcome
+		assert.True(t, cfg.ShowWelcomeEnabled())
+	})
+
+	t.Run("returns false when ShowWelcome is explicitly false", func(t *testing.T) {
+		cfg := DefaultConfig()
+		showWelcome := false
+		cfg.ShowWelcome = &showWelcome
+		assert.False(t, cfg.ShowWelcomeEnabled())
+	})
+}

@@ -25,6 +25,9 @@ GSH_CONFIG = {
     # Enable automatic starship integration
     starshipIntegration: true,
     
+    # Show welcome screen on startup
+    showWelcome: true,
+    
     # Log level: "debug", "info", "warn", "error"
     logLevel: "info",
     

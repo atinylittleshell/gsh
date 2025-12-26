@@ -1,0 +1,2 @@
+- Ctrl+R - Search Command History
+- Ctrl+D prints "exit" twice

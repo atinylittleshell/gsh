@@ -266,6 +266,11 @@ func NewREPL(opts Options) (*REPL, error) {
 func (r *REPL) Run(ctx context.Context) error {
 	r.logger.Info("starting REPL")
 
+	// Show welcome screen if enabled
+	if r.config.ShowWelcomeEnabled() {
+		r.showWelcomeScreen()
+	}
+
 	// Create prediction state if history or LLM predictor is available
 	// History-based prediction doesn't require an LLM model
 	var predictionState *input.PredictionState
@@ -643,6 +648,45 @@ func (r *REPL) getHistoryValues() []string {
 	}
 
 	return values
+}
+
+// showWelcomeScreen displays the welcome screen with configuration info.
+func (r *REPL) showWelcomeScreen() {
+	// Get terminal width
+	termWidth, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || termWidth <= 0 {
+		termWidth = 80 // Default fallback
+	}
+
+	// Gather welcome info
+	info := render.WelcomeInfo{
+		Version: r.buildVersion,
+	}
+
+	// Get predict model info
+	if predictModel := r.config.GetPredictModel(); predictModel != nil {
+		info.PredictModel = getModelID(predictModel)
+	}
+
+	// Get agent model info
+	if agentModel := r.config.GetDefaultAgentModel(); agentModel != nil {
+		info.AgentModel = getModelID(agentModel)
+	}
+
+	render.RenderWelcome(os.Stdout, info, termWidth)
+}
+
+// getModelID extracts the model ID string from a ModelValue's config.
+func getModelID(model *interpreter.ModelValue) string {
+	if model == nil || model.Config == nil {
+		return ""
+	}
+	if modelVal, ok := model.Config["model"]; ok {
+		if strVal, ok := modelVal.(*interpreter.StringValue); ok {
+			return strVal.Value
+		}
+	}
+	return model.Name // Fallback to the declaration name
 }
 
 // Close cleans up REPL resources.
