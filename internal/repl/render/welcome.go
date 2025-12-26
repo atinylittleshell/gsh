@@ -105,7 +105,7 @@ func RenderWelcome(w io.Writer, info WelcomeInfo, termWidth int) {
 	var infoLines []string
 
 	// Title
-	infoLines = append(infoLines, titleStyle.Render("The Generative Shell"))
+	infoLines = append(infoLines, titleStyle.Render("The G Shell"))
 	infoLines = append(infoLines, "")
 
 	// Version

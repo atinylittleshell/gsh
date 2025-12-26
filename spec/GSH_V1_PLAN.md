@@ -274,28 +274,10 @@ gsh/
   - Default model configurations (Ollama with OpenAI-compatible models)
   - Default agent configurations (built-in default agent)
   - See spec/GSH_REPL_DESIGN.md for implementation details
-- [ ] Write comprehensive documentation
-  - Update docs to reflect new REPL and configuration model
-  - Document `.gshrc` vs `.gshrc.gsh` split
-  - Migration guide for existing users
-  - Quick start guide for gsh scripting language
-- [ ] Create example scripts (10+ examples)
-  - Basic `.gsh` script examples
-  - MCP integration examples
-  - Agent workflow examples
-  - Real-world automation tasks
-- [ ] End-to-end testing with real workflows
-
-### Phase 7.3: Release Preparation
-
-- [x] Update README with new configuration model (completed in REPL migration)
-- [ ] Update README with comprehensive gsh scripting features
-  - Add section on `.gsh` scripting language
-  - Add section on agent chat interface (`#` prefix)
-  - Document available built-in functions
-- [ ] Add examples showcasing agent workflows and MCP integration
-- [ ] Document migration path from bash/zsh to gsh
-- [ ] Create comprehensive help text for common tasks
+- [ ] Update README
+  - v1 breaking change notice
+  - Migration guide for v0 users
+  - Point to tutorial and language docs
 
 ---
 
@@ -323,35 +305,17 @@ The below phases are **not blockers for v1.0** and should be reassessed post-rel
 ### Phase 11.1: First-Run Migration Detection & Helper
 
 **Context:** Updates are manual (via Homebrew/AUR/direct download). No auto-update risk exists.
-Users upgrade explicitly with `brew upgrade gsh` or similar commands.
 
 - [ ] **Add first-run detection for v1.0**
   - Create `~/.local/share/gsh/version_marker` to track last used version
   - On first v1.0 startup, detect if upgrading from v0.x
-  - Show prominent one-time welcome message explaining v1.0 changes
-- [ ] **Implement smart migration assistant**
-  - Scan for old configuration patterns (environment variables, bash functions)
-  - Offer to generate `.gshrc.gsh` with equivalent configuration
-  - Interactive prompts: "Found `GSH_PROMPT='%s'`. Create `.gshrc.gsh`? [Y/n]"
-  - Preserve original files, create new ones alongside
-- [ ] **Add `gsh migrate` command**
-  - `gsh migrate check` - analyze current config and show what needs migration
-  - `gsh migrate config` - interactively migrate configuration
-  - `gsh migrate preview` - show what the generated `.gshrc.gsh` would look like
-  - Idempotent - can run multiple times safely
+  - Show prominent migration message if upgrade available, linking to github repo
 
 ### Phase 11.2: Breaking Changes Documentation
 
 - [ ] **Create MIGRATION_GUIDE.md**
-  - Document all breaking changes clearly
-  - Step-by-step migration instructions
+  - Document breaking changes clearly
   - Before/after configuration examples
-  - Common migration scenarios (bash user, existing gsh user with custom prompt, etc.)
-  - Troubleshooting section
-- [ ] **Update CHANGELOG.md with breaking changes section**
-  - Clear "⚠️ BREAKING CHANGES" header
-  - List each breaking change with migration path
-  - Link to migration guide
 - [ ] **Document specific breaking changes:**
   - `GSH_PROMPT` environment variable → `GSH_CONFIG.prompt` in `.gshrc.gsh`
   - `GSH_PROMPT()` bash function → `tool GSH_PROMPT()` in `.gshrc.gsh`
@@ -363,66 +327,9 @@ Users upgrade explicitly with `brew upgrade gsh` or similar commands.
 - [ ] **Update Homebrew formula description for v1.0**
   - Add prominent note: "⚠️ v1.0 is a major release with configuration changes"
   - Include link to migration guide in formula
-  - Consider `caveats` section in Homebrew formula with upgrade instructions
 - [ ] **Update AUR package descriptions**
   - Add upgrade notice to AUR package comments
   - Link to migration documentation
-- [ ] **Create `.gshrc.migration.example` file**
-  - Show common v0.x patterns and their v1.0 equivalents side-by-side
-  - Include prompt customization examples (env vars → `.gshrc.gsh`)
-  - Include agent configuration examples
-  - Install to `/usr/share/doc/gsh/` via package managers
-- [ ] **Consider v0.x deprecation release (optional)**
-  - Release v0.x.y with deprecation warnings before v1.0
-  - Show notices when old patterns are detected
-  - Preview what v1.0 will require
-  - Give users heads-up to prepare for migration
-
-### Phase 11.4: Release Communication
-
-- [ ] **Create release announcement blog post/document**
-  - Highlight new features (gsh scripting language, MCP integration, improved agents)
-  - Clearly mark as major version with breaking changes
-  - Link to migration guide prominently
-  - Provide upgrade timeline and support information
-- [ ] **Update README.md with v1.0 migration notice**
-  - Add prominent notice at top for existing users
-  - Link to migration guide
-  - Show "Upgrading from v0.x?" section
-- [ ] **Prepare release notes**
-  - What's new section
-  - Breaking changes section
-  - Migration instructions
-  - Known issues and workarounds
-
-### Phase 11.5: Rollback & Fallback Support
-
-- [ ] **Document downgrade procedure**
-  - Homebrew: `brew install atinylittleshell/gsh/gsh@0.x`
-  - AUR: Specify version in package manager
-  - Direct download: Link to v0.x releases on GitHub
-- [ ] **Preserve v0.x configuration during upgrade**
-  - Never delete or modify old config files automatically
-  - `.gshrc.gsh` is additive - doesn't replace `.gshrc`
-  - Users can continue using v0.x config as-is (with warnings)
-- [ ] **Graceful degradation**
-  - If `.gshrc.gsh` has errors, fall back to basic shell functionality
-  - Never prevent shell startup due to config errors
-  - Show clear error messages with links to docs
-
-### Phase 11.6: Testing & Validation
-
-- [ ] **Create upgrade test scenarios**
-  - Test upgrade from v0.x with default configuration
-  - Test upgrade with custom `GSH_PROMPT`
-  - Test upgrade with custom agent configuration
-  - Test upgrade with bash-only `.gshrc`
-  - Verify migration tool generates correct configurations
-- [ ] **Beta testing program**
-  - Release v1.0-beta for early adopters
-  - Gather feedback on migration experience
-  - Iterate on migration tools and documentation
-  - Collect common pain points and add to FAQ
 
 ---
 
