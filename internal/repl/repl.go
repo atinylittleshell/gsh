@@ -178,7 +178,7 @@ func NewREPL(opts Options) (*REPL, error) {
 			Config: map[string]interpreter.Value{
 				"model": defaultAgentModel,
 				"systemPrompt": &interpreter.StringValue{
-					Value: "You are gsh, an AI-powered shell program.",
+					Value: "You are gsh (generative shell), an AI-powered shell assistant. You use tools available to you to help the user with their questions and tasks.",
 				},
 			},
 		}
