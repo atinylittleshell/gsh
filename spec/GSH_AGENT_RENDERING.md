@@ -413,134 +413,22 @@ func (r *Renderer) RenderToolOutput(toolName string, output string)
 - **No Bubble Tea**: Agent output rendering happens outside the input TUI loop
 - **Hook-driven**: All formatting decisions delegated to customizable tools
 
-### Hook Invocation
-
-```go
-func (r *Renderer) RenderAgentHeader(agentName string) {
-    // Get the hook tool
-    hook := r.interp.GetTool("GSH_AGENT_HEADER")
-    if hook == nil {
-        // Fallback to basic rendering
-        fmt.Fprintf(r.writer, "── agent: %s ───\n", agentName)
-        return
-    }
-
-    // Call hook with context
-    result, err := r.interp.CallTool(hook, []interpreter.Value{
-        &interpreter.StringValue{Value: agentName},
-        &interpreter.NumberValue{Value: float64(r.termWidth())},
-    })
-
-    if err != nil {
-        r.logger.Warn("GSH_AGENT_HEADER hook failed", zap.Error(err))
-        fmt.Fprintf(r.writer, "── agent: %s ───\n", agentName)
-        return
-    }
-
-    if str, ok := result.(*interpreter.StringValue); ok {
-        fmt.Fprintln(r.writer, styles.AgentHeader(str.Value))
-    }
-}
-```
-
-### Spinner Implementation
-
-```go
-func (r *Renderer) spinnerLoop(ctx context.Context, prefix string) {
-    frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-    ticker := time.NewTicker(80 * time.Millisecond)
-    defer ticker.Stop()
-
-    i := 0
-    for {
-        select {
-        case <-ctx.Done():
-            fmt.Print("\r\033[K")  // Clear line
-            return
-        case <-ticker.C:
-            fmt.Printf("\r%s %s", prefix, frames[i%len(frames)])
-            i++
-        }
-    }
-}
-```
-
-### Passing Arguments to Hooks
-
-The renderer converts Go `map[string]any` to a gsh object value before passing to hooks:
-
-```go
-func (r *Renderer) argsToValue(args map[string]any) *interpreter.ObjectValue {
-    obj := &interpreter.ObjectValue{
-        Properties: make(map[string]interpreter.Value),
-    }
-    for key, value := range args {
-        obj.Properties[key] = toInterpreterValue(value)
-    }
-    return obj
-}
-
-func toInterpreterValue(v any) interpreter.Value {
-    switch val := v.(type) {
-    case string:
-        return &interpreter.StringValue{Value: val}
-    case float64:
-        return &interpreter.NumberValue{Value: val}
-    case bool:
-        return &interpreter.BoolValue{Value: val}
-    // ... handle arrays, nested objects, etc.
-    default:
-        return &interpreter.StringValue{Value: fmt.Sprintf("%v", v)}
-    }
-}
-```
-
----
-
-## Config Loading Changes
-
-To support tool overrides, the config loader must use a **single interpreter** for both default and user configs:
-
-```go
-func (l *Loader) LoadDefaultConfigPath(defaultContent string) (*LoadResult, error) {
-    // Create ONE interpreter for both configs
-    interp := interpreter.NewWithLogger(l.logger)
-
-    // 1. Load default config first
-    if defaultContent != "" {
-        l.evalIntoInterpreter(interp, defaultContent)
-    }
-
-    // 2. Load user config into SAME interpreter (shadows defaults)
-    userContent, _ := os.ReadFile(userConfigPath)
-    l.evalIntoInterpreter(interp, string(userContent))
-
-    // 3. Extract final state
-    result.Interpreter = interp
-    l.extractConfigFromInterpreter(interp, result)
-
-    return result, nil
-}
-```
-
-This ensures that if a user defines `GSH_AGENT_HEADER` in `.gshrc.gsh`, it shadows the default definition from `.gshrc.default.gsh`.
-
 ---
 
 ## Reserved Names
 
 The following names are reserved for REPL configuration:
 
-| Name                | Type   | Purpose                             |
-| ------------------- | ------ | ----------------------------------- |
-| `GSH_CONFIG`        | Object | REPL configuration settings         |
-| `GSH_UPDATE_PROMPT` | Tool   | Dynamic prompt generation           |
-| `GSH_AGENT_HEADER`  | Tool   | Agent header line rendering         |
-| `GSH_AGENT_FOOTER`  | Tool   | Agent footer line rendering         |
-| `GSH_EXEC_START`    | Tool   | Exec tool start line rendering      |
-| `GSH_EXEC_END`      | Tool   | Exec tool completion line rendering |
-| `GSH_TOOL_STATUS`   | Tool   | Non-exec tool status rendering      |
-| `GSH_TOOL_OUTPUT`   | Tool   | Non-exec tool output display        |
+| Name               | Type   | Purpose                             |
+| ------------------ | ------ | ----------------------------------- |
+| `GSH_CONFIG`       | Object | REPL configuration settings         |
+| `GSH_PROMPT`       | Tool   | Dynamic prompt generation           |
+| `GSH_AGENT_HEADER` | Tool   | Agent header line rendering         |
+| `GSH_AGENT_FOOTER` | Tool   | Agent footer line rendering         |
+| `GSH_EXEC_START`   | Tool   | Exec tool start line rendering      |
+| `GSH_EXEC_END`     | Tool   | Exec tool completion line rendering |
+| `GSH_TOOL_STATUS`  | Tool   | Non-exec tool status rendering      |
+| `GSH_TOOL_OUTPUT`  | Tool   | Non-exec tool output display        |
 
 ---
 
@@ -562,13 +450,13 @@ Users can easily select just the content they need without capturing visual arti
 
 Implementation should proceed in this sequence:
 
-1. **DONE**: Fix config loader to use single interpreter\*\*
+1. **DONE: Fix config loader to use single interpreter**
 
    - Modify `internal/repl/config/loader.go` to load `.gshrc.default.gsh` and `.gshrc.gsh` into the same interpreter
    - Ensure user-defined tools shadow default tools
    - Add tests for override behavior
 
-2. **TODO: Add default render tool definitions to `.gshrc.default.gsh`**
+2. **DONE: Add default render tool definitions to `.gshrc.default.gsh`**
 
    - `GSH_AGENT_HEADER`
    - `GSH_AGENT_FOOTER`
@@ -577,18 +465,13 @@ Implementation should proceed in this sequence:
    - `GSH_TOOL_STATUS`
    - `GSH_TOOL_OUTPUT`
 
-3. **TODO: Create `internal/repl/render` package**
+3. **DONE: Create `internal/repl/render` package**
 
    - `renderer.go` - Core `Renderer` struct with hook invocation logic
    - `styles.go` - Lip Gloss style definitions for colors
    - `spinner.go` - Spinner animation with goroutine/ticker
 
-4. **TODO: Update config to extract render hooks**
-
-   - Add fields to `Config` struct for each render tool
-   - Extract tools from interpreter in loader
-
-5. **TODO: Integrate renderer with agent execution**
+4. **TODO: Integrate renderer with agent execution**
 
    - Inject `Renderer` into `agent.Manager`
    - Call `RenderAgentHeader` when agent message starts
@@ -596,13 +479,13 @@ Implementation should proceed in this sequence:
    - Call `RenderAgentText` as response streams
    - Call `RenderAgentFooter` when turn completes
 
-6. **TODO: Implement exec tool rendering**
+5. **TODO: Implement exec tool rendering**
 
    - Call `RenderExecStart` before command execution
    - Let output stream directly to stdout (no capture)
    - Call `RenderExecEnd` after command completes
 
-7. **TODO: Implement non-exec tool rendering**
+6. **TODO: Implement non-exec tool rendering**
 
    - Call `RenderToolPending` when tool call starts streaming
    - Call `StartToolSpinner` during argument streaming
@@ -610,13 +493,13 @@ Implementation should proceed in this sequence:
    - Call `RenderToolComplete` when tool finishes
    - Call `RenderToolOutput` if hook returns non-empty
 
-8. **TODO: Add tests**
+7. **TODO: Add tests**
 
    - Unit tests for renderer with mocked hooks
    - Integration tests for full agent interaction flow
    - Tests for hook override behavior
 
-9. **TODO: Update documentation**
+8. **TODO: Update documentation**
    - Update `docs/tutorial/` with agent rendering info
    - Add examples to `.gshrc.default.gsh` comments
 

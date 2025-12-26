@@ -354,7 +354,7 @@ Users upgrade explicitly with `brew upgrade gsh` or similar commands.
   - Link to migration guide
 - [ ] **Document specific breaking changes:**
   - `GSH_PROMPT` environment variable → `GSH_CONFIG.prompt` in `.gshrc.gsh`
-  - `GSH_UPDATE_PROMPT()` bash function → `tool GSH_UPDATE_PROMPT()` in `.gshrc.gsh`
+  - `GSH_PROMPT()` bash function → `tool GSH_PROMPT()` in `.gshrc.gsh`
   - Agent configuration from env vars → `agent` declarations in `.gshrc.gsh`
   - Default agent configuration changes (see Phase 11.3)
 

@@ -44,7 +44,7 @@ type Config struct {
 
 	// Tools holds tool definitions from `tool` declarations
 	// Reserved tool names:
-	//   - "GSH_UPDATE_PROMPT" - called before each prompt, signature: (exitCode: number, durationMs: number): string
+	//   - "GSH_PROMPT" - called before each prompt, signature: (exitCode: number, durationMs: number): string
 	Tools map[string]*interpreter.ToolValue
 }
 
@@ -84,10 +84,10 @@ func (c *Config) GetTool(name string) *interpreter.ToolValue {
 	return c.Tools[name]
 }
 
-// GetUpdatePromptTool returns the GSH_UPDATE_PROMPT tool if configured.
+// GetUpdatePromptTool returns the GSH_PROMPT tool if configured.
 // This tool is called before each prompt to generate a dynamic prompt string.
 func (c *Config) GetUpdatePromptTool() *interpreter.ToolValue {
-	return c.GetTool("GSH_UPDATE_PROMPT")
+	return c.GetTool("GSH_PROMPT")
 }
 
 // GetPredictModel returns the model configured for predictions.

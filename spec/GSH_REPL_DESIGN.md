@@ -138,7 +138,7 @@ GSH_CONFIG = {
 }
 
 # Custom prompt update tool
-tool GSH_UPDATE_PROMPT(exitCode: number, durationMs: number): string {
+tool GSH_PROMPT(exitCode: number, durationMs: number): string {
     if (exitCode == 0) {
         return "✓ gsh> "
     }
@@ -175,13 +175,13 @@ type Config struct {
 3. Load `~/.gshrc` via bash executor (pure bash compatibility, if exists)
 4. Load `~/.gshenv` via bash executor (if exists)
 5. Extract `GSH_CONFIG` variable from gsh interpreter environment
-6. Extract `GSH_UPDATE_PROMPT` tool if defined
+6. Extract `GSH_PROMPT` tool if defined
 7. Collect all declarations (models, agents, tools, MCP servers)
 
 **Reserved Names:**
 
 - `GSH_CONFIG` - Configuration object for REPL settings (fields: `prompt`, `logLevel`, `predictModel`, `defaultAgentModel`)
-- `GSH_UPDATE_PROMPT` - Tool called before each prompt, signature: `(exitCode: number, durationMs: number): string`
+- `GSH_PROMPT` - Tool called before each prompt, signature: `(exitCode: number, durationMs: number): string`
 
 ---
 
@@ -483,7 +483,7 @@ EOF
 ```bash
 # .gshrc
 export GSH_PROMPT="$ "
-GSH_UPDATE_PROMPT() {
+GSH_PROMPT() {
     echo "$ "
 }
 ```
@@ -496,7 +496,7 @@ GSH_CONFIG = {
     prompt: "$ ",
 }
 
-tool GSH_UPDATE_PROMPT(exitCode: number, durationMs: number): string {
+tool GSH_PROMPT(exitCode: number, durationMs: number): string {
     return "$ "
 }
 ```

@@ -93,7 +93,7 @@ tool greet(name: string): string {
 
 func TestLoader_LoadFromString_GSHUpdatePromptTool(t *testing.T) {
 	source := `
-tool GSH_UPDATE_PROMPT(exitCode: number, durationMs: number): string {
+tool GSH_PROMPT(exitCode: number, durationMs: number): string {
 	if (exitCode == 0) {
 		return "gsh> "
 	}
@@ -109,7 +109,7 @@ tool GSH_UPDATE_PROMPT(exitCode: number, durationMs: number): string {
 
 	updatePromptTool := result.Config.GetUpdatePromptTool()
 	assert.NotNil(t, updatePromptTool)
-	assert.Equal(t, "GSH_UPDATE_PROMPT", updatePromptTool.Name)
+	assert.Equal(t, "GSH_PROMPT", updatePromptTool.Name)
 }
 
 func TestLoader_LoadFromString_CompleteConfig(t *testing.T) {

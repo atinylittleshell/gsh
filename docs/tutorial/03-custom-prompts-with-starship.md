@@ -50,7 +50,7 @@ STARSHIP_SESSION_KEY = `starship session`
 STARSHIP_START_TIME = `starship time`
 
 # Update prompt after each command (gsh calls this tool automatically)
-tool GSH_UPDATE_PROMPT(exitCode: number, durationMs: number): string {
+tool GSH_PROMPT(exitCode: number, durationMs: number): string {
     return `starship prompt --status=${exitCode} --cmd-duration=${durationMs}`
 }
 ```
@@ -68,7 +68,7 @@ You should see a much fancier prompt showing your current directory, git branch,
 Here's how gsh's dynamic prompt works:
 
 1. **At startup**, the REPL loads your `.gshrc.gsh` configuration
-2. **After each command execution**, gsh calls the `GSH_UPDATE_PROMPT()` tool with:
+2. **After each command execution**, gsh calls the `GSH_PROMPT()` tool with:
    - `exitCode` - The exit status of the command (0 for success, non-zero for failure)
    - `durationMs` - How long the command took in milliseconds
 3. **The returned string** becomes the next prompt
@@ -146,7 +146,7 @@ STARSHIP_SESSION_KEY = `starship session`
 STARSHIP_START_TIME = `starship time`
 
 # Prompt update function (called after each command)
-tool GSH_UPDATE_PROMPT(exitCode: number, durationMs: number): string {
+tool GSH_PROMPT(exitCode: number, durationMs: number): string {
     prompt = `starship prompt --status=${exitCode} --cmd-duration=${durationMs}`
     return prompt
 }
@@ -253,7 +253,7 @@ If your prompt still looks like `gsh>`:
 
 1. Check Starship is installed: `starship --version`
 2. Check `.gshrc.gsh` has no syntax errors (look for parse errors at startup)
-3. Ensure `GSH_UPDATE_PROMPT` tool is defined in your `.gshrc.gsh`
+3. Ensure `GSH_PROMPT` tool is defined in your `.gshrc.gsh`
 4. Check logs for errors: `tail -f ~/.gsh.log`
 5. Try running Starship manually to verify it works: `starship prompt --status=0 --cmd-duration=0`
 
@@ -272,12 +272,12 @@ This usually means your terminal doesn't support the Nerd Font symbols. Solution
 
 ### Prompt not updating between commands
 
-This might mean `GSH_UPDATE_PROMPT` has an error:
+This might mean `GSH_PROMPT` has an error:
 
 1. Add debug output to see what's happening:
 
    ```gsh
-   tool GSH_UPDATE_PROMPT(exitCode: number, durationMs: number): string {
+   tool GSH_PROMPT(exitCode: number, durationMs: number): string {
        print(`DEBUG: exitCode=${exitCode}, durationMs=${durationMs}`)
        return `gsh [${exitCode}]> `
    }
@@ -299,7 +299,7 @@ If your prompt takes a long time to appear:
 2. **Use colors wisely** - Draw attention to important info
 3. **Test with different terminal themes** - Some colors work better with light backgrounds
 4. **Profile performance** - A slow prompt is worse than a plain one
-5. **Keep `.gshrc.gsh` simple** - Don't do expensive operations in `GSH_UPDATE_PROMPT`
+5. **Keep `.gshrc.gsh` simple** - Don't do expensive operations in `GSH_PROMPT`
 
 ## Examples
 

@@ -264,6 +264,9 @@ func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callback S
 		Model:    modelID,
 		Messages: make([]openAIMessage, len(request.Messages)),
 		Stream:   true,
+		StreamOptions: &openAIStreamOptions{
+			IncludeUsage: true,
+		},
 	}
 
 	// Convert messages
@@ -367,6 +370,7 @@ func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callback S
 	var fullContent strings.Builder
 	var finishReason string
 	var toolCalls []ChatToolCall
+	var usage *ChatUsage
 
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
@@ -394,6 +398,15 @@ func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callback S
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
 			// Skip malformed chunks
 			continue
+		}
+
+		// Capture usage if present (comes in the final chunk when stream_options.include_usage is true)
+		if chunk.Usage != nil {
+			usage = &ChatUsage{
+				PromptTokens:     chunk.Usage.PromptTokens,
+				CompletionTokens: chunk.Usage.CompletionTokens,
+				TotalTokens:      chunk.Usage.TotalTokens,
+			}
 		}
 
 		// Process choices
@@ -462,6 +475,7 @@ func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callback S
 		Content:      fullContent.String(),
 		FinishReason: finishReason,
 		ToolCalls:    toolCalls,
+		Usage:        usage,
 	}
 
 	return response, nil
@@ -470,13 +484,18 @@ func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callback S
 // OpenAI-specific types
 
 type openAIStreamingChatCompletionRequest struct {
-	Model       string          `json:"model"`
-	Messages    []openAIMessage `json:"messages"`
-	Stream      bool            `json:"stream"`
-	Temperature *float64        `json:"temperature,omitempty"`
-	MaxTokens   *int            `json:"max_tokens,omitempty"`
-	TopP        *float64        `json:"top_p,omitempty"`
-	Tools       []openAITool    `json:"tools,omitempty"`
+	Model         string               `json:"model"`
+	Messages      []openAIMessage      `json:"messages"`
+	Stream        bool                 `json:"stream"`
+	StreamOptions *openAIStreamOptions `json:"stream_options,omitempty"`
+	Temperature   *float64             `json:"temperature,omitempty"`
+	MaxTokens     *int                 `json:"max_tokens,omitempty"`
+	TopP          *float64             `json:"top_p,omitempty"`
+	Tools         []openAITool         `json:"tools,omitempty"`
+}
+
+type openAIStreamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 type openAIStreamingChunk struct {
@@ -485,6 +504,7 @@ type openAIStreamingChunk struct {
 	Created int64                `json:"created"`
 	Model   string               `json:"model"`
 	Choices []openAIStreamChoice `json:"choices"`
+	Usage   *openAIUsage         `json:"usage,omitempty"`
 }
 
 type openAIStreamChoice struct {

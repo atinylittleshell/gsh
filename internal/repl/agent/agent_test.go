@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/atinylittleshell/gsh/internal/repl/render"
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
@@ -594,5 +596,216 @@ func TestBuildMessages_NoSystemPrompt(t *testing.T) {
 
 	if messages[0].Role != "user" {
 		t.Errorf("Expected first message to be user, got %s", messages[0].Role)
+	}
+}
+
+func TestSendMessage_WithRenderer(t *testing.T) {
+	logger := zap.NewNop()
+	manager := NewManager(logger)
+
+	provider := newMockProvider()
+	provider.addResponse("Hello, I'm the assistant!", nil)
+
+	// Create a mock renderer by using the real one with a buffer
+	var buf bytes.Buffer
+	renderer := render.New(nil, &buf, func() int { return 80 })
+	manager.SetRenderer(renderer)
+
+	agent := &interpreter.AgentValue{
+		Name:   "test-agent",
+		Config: map[string]interpreter.Value{},
+	}
+
+	state := &State{
+		Agent:        agent,
+		Provider:     provider,
+		Conversation: []interpreter.ChatMessage{},
+	}
+
+	manager.AddAgent("test-agent", state)
+	manager.SetCurrentAgent("test-agent")
+
+	err := manager.SendMessage(context.Background(), "Hello", nil)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify header was rendered
+	if !strings.Contains(output, "agent: test-agent") {
+		t.Errorf("Expected header with agent name, got: %s", output)
+	}
+
+	// Verify agent text was rendered
+	if !strings.Contains(output, "Hello, I'm the assistant!") {
+		t.Errorf("Expected agent response text, got: %s", output)
+	}
+
+	// Verify footer was rendered (contains token counts or duration)
+	// The footer contains "in" and "out" for token counts
+	if !strings.Contains(output, "in") || !strings.Contains(output, "out") {
+		t.Errorf("Expected footer with token stats, got: %s", output)
+	}
+}
+
+func TestSendMessage_WithRenderer_TokenAccumulation(t *testing.T) {
+	logger := zap.NewNop()
+	manager := NewManager(logger)
+
+	provider := newMockProviderWithUsage()
+	// First call returns tool call with 100 input, 50 output tokens
+	provider.addResponseWithUsage("Let me help.", []interpreter.ChatToolCall{
+		{ID: "call1", Name: "test_tool", Arguments: map[string]interface{}{}},
+	}, &interpreter.ChatUsage{PromptTokens: 100, CompletionTokens: 50})
+	// Second call returns final response with 150 input, 75 output tokens
+	provider.addResponseWithUsage("Done!", nil, &interpreter.ChatUsage{PromptTokens: 150, CompletionTokens: 75})
+
+	var buf bytes.Buffer
+	renderer := render.New(nil, &buf, func() int { return 80 })
+	manager.SetRenderer(renderer)
+
+	agent := &interpreter.AgentValue{
+		Name:   "test",
+		Config: map[string]interpreter.Value{},
+	}
+
+	tools := []interpreter.ChatTool{
+		{Name: "test_tool", Description: "A test tool", Parameters: map[string]interface{}{}},
+	}
+
+	toolExecutor := func(ctx context.Context, toolName string, args map[string]interface{}) (string, error) {
+		return `{"result": "ok"}`, nil
+	}
+
+	state := &State{
+		Agent:        agent,
+		Provider:     provider,
+		Conversation: []interpreter.ChatMessage{},
+		Tools:        tools,
+		ToolExecutor: toolExecutor,
+	}
+
+	manager.AddAgent("test", state)
+	manager.SetCurrentAgent("test")
+
+	err := manager.SendMessage(context.Background(), "Do something", nil)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify accumulated token counts in footer (100+150=250 in, 50+75=125 out)
+	if !strings.Contains(output, "250") {
+		t.Errorf("Expected accumulated input tokens (250), got: %s", output)
+	}
+	if !strings.Contains(output, "125") {
+		t.Errorf("Expected accumulated output tokens (125), got: %s", output)
+	}
+}
+
+// mockProviderWithUsage extends mockProvider to support Usage in responses
+type mockProviderWithUsage struct {
+	responses     []mockResponseWithUsage
+	responseIndex int
+	callHistory   []interpreter.ChatRequest
+}
+
+type mockResponseWithUsage struct {
+	content   string
+	toolCalls []interpreter.ChatToolCall
+	usage     *interpreter.ChatUsage
+}
+
+func newMockProviderWithUsage() *mockProviderWithUsage {
+	return &mockProviderWithUsage{
+		responses:   []mockResponseWithUsage{},
+		callHistory: []interpreter.ChatRequest{},
+	}
+}
+
+func (m *mockProviderWithUsage) Name() string {
+	return "mock-with-usage"
+}
+
+func (m *mockProviderWithUsage) addResponseWithUsage(content string, toolCalls []interpreter.ChatToolCall, usage *interpreter.ChatUsage) {
+	m.responses = append(m.responses, mockResponseWithUsage{
+		content:   content,
+		toolCalls: toolCalls,
+		usage:     usage,
+	})
+}
+
+func (m *mockProviderWithUsage) ChatCompletion(request interpreter.ChatRequest) (*interpreter.ChatResponse, error) {
+	m.callHistory = append(m.callHistory, request)
+
+	if m.responseIndex >= len(m.responses) {
+		return &interpreter.ChatResponse{
+			Content:   "Default response",
+			ToolCalls: []interpreter.ChatToolCall{},
+		}, nil
+	}
+
+	resp := m.responses[m.responseIndex]
+	m.responseIndex++
+
+	return &interpreter.ChatResponse{
+		Content:   resp.content,
+		ToolCalls: resp.toolCalls,
+		Usage:     resp.usage,
+	}, nil
+}
+
+func (m *mockProviderWithUsage) StreamingChatCompletion(request interpreter.ChatRequest, callback interpreter.StreamCallback) (*interpreter.ChatResponse, error) {
+	response, err := m.ChatCompletion(request)
+	if err != nil {
+		return nil, err
+	}
+
+	if callback != nil && response.Content != "" {
+		callback(response.Content)
+	}
+
+	return response, nil
+}
+
+func TestSendMessage_WithRenderer_NoCallback(t *testing.T) {
+	// Test that renderer handles output even when callback is nil
+	logger := zap.NewNop()
+	manager := NewManager(logger)
+
+	provider := newMockProvider()
+	provider.addResponse("Response without callback", nil)
+
+	var buf bytes.Buffer
+	renderer := render.New(nil, &buf, func() int { return 80 })
+	manager.SetRenderer(renderer)
+
+	agent := &interpreter.AgentValue{
+		Name:   "test",
+		Config: map[string]interpreter.Value{},
+	}
+
+	state := &State{
+		Agent:        agent,
+		Provider:     provider,
+		Conversation: []interpreter.ChatMessage{},
+	}
+
+	manager.AddAgent("test", state)
+	manager.SetCurrentAgent("test")
+
+	// Call with nil callback
+	err := manager.SendMessage(context.Background(), "Hello", nil)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	output := buf.String()
+
+	// Renderer should still capture the response
+	if !strings.Contains(output, "Response without callback") {
+		t.Errorf("Expected renderer to capture response, got: %s", output)
 	}
 }

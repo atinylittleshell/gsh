@@ -98,14 +98,14 @@ func TestConfig_GetTool(t *testing.T) {
 }
 
 func TestConfig_GetUpdatePromptTool(t *testing.T) {
-	t.Run("returns nil when GSH_UPDATE_PROMPT not configured", func(t *testing.T) {
+	t.Run("returns nil when GSH_PROMPT not configured", func(t *testing.T) {
 		cfg := DefaultConfig()
 		assert.Nil(t, cfg.GetUpdatePromptTool())
 	})
 
-	t.Run("returns tool when GSH_UPDATE_PROMPT is configured", func(t *testing.T) {
+	t.Run("returns tool when GSH_PROMPT is configured", func(t *testing.T) {
 		tool := &interpreter.ToolValue{
-			Name:       "GSH_UPDATE_PROMPT",
+			Name:       "GSH_PROMPT",
 			Parameters: []string{"exitCode", "durationMs"},
 			ParamTypes: map[string]string{
 				"exitCode":   "number",
@@ -114,11 +114,11 @@ func TestConfig_GetUpdatePromptTool(t *testing.T) {
 			ReturnType: "string",
 		}
 		cfg := DefaultConfig()
-		cfg.Tools["GSH_UPDATE_PROMPT"] = tool
+		cfg.Tools["GSH_PROMPT"] = tool
 
 		result := cfg.GetUpdatePromptTool()
 		require.NotNil(t, result)
-		assert.Equal(t, "GSH_UPDATE_PROMPT", result.Name)
+		assert.Equal(t, "GSH_PROMPT", result.Name)
 		assert.Equal(t, []string{"exitCode", "durationMs"}, result.Parameters)
 		assert.Equal(t, "string", result.ReturnType)
 	})
@@ -178,8 +178,8 @@ func TestConfig_FullConfiguration(t *testing.T) {
 	}
 
 	// Add tool
-	cfg.Tools["GSH_UPDATE_PROMPT"] = &interpreter.ToolValue{
-		Name:       "GSH_UPDATE_PROMPT",
+	cfg.Tools["GSH_PROMPT"] = &interpreter.ToolValue{
+		Name:       "GSH_PROMPT",
 		Parameters: []string{"exitCode", "durationMs"},
 		ReturnType: "string",
 	}

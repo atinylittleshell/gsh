@@ -74,7 +74,7 @@ func GetPwd(runner *interp.Runner) string {
 }
 
 func GetPrompt(runner *interp.Runner, logger *zap.Logger) string {
-	promptUpdater := runner.Funcs["GSH_UPDATE_PROMPT"]
+	promptUpdater := runner.Funcs["GSH_PROMPT"]
 	if promptUpdater != nil {
 		err := runner.Run(context.Background(), promptUpdater)
 		if err != nil {

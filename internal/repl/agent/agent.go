@@ -9,6 +9,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/atinylittleshell/gsh/internal/repl/render"
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
@@ -38,6 +39,7 @@ type Manager struct {
 	states           map[string]*State
 	currentAgentName string
 	logger           *zap.Logger
+	renderer         *render.Renderer
 }
 
 // NewManager creates a new agent manager.
@@ -49,6 +51,12 @@ func NewManager(logger *zap.Logger) *Manager {
 		states: make(map[string]*State),
 		logger: logger,
 	}
+}
+
+// SetRenderer sets the renderer for agent output.
+// If not set, output will use simple fmt.Print calls.
+func (m *Manager) SetRenderer(r *render.Renderer) {
+	m.renderer = r
 }
 
 // AddAgent adds an agent state to the manager.
@@ -149,11 +157,23 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 
 	startTime := timeNow()
 
+	// Track token usage across all iterations
+	var totalInputTokens, totalOutputTokens int
+
 	// Track if we've added the user message (only add on first successful iteration)
 	userMessageAdded := false
 
+	// Track if we've rendered the header (only render once at the start)
+	headerRendered := false
+
 	// Agentic loop - continue until no tool calls or max iterations reached
 	for iteration := 0; iteration < maxIterations; iteration++ {
+		// Render header on first iteration
+		if !headerRendered && m.renderer != nil {
+			m.renderer.RenderAgentHeader(m.currentAgentName)
+			headerRendered = true
+		}
+
 		// Build messages for the provider
 		messages := m.buildMessagesWithPendingUser(state, message, userMessageAdded)
 
@@ -164,18 +184,54 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 			Tools:    state.Tools,
 		}
 
+		// Start thinking spinner while waiting for LLM
+		var stopSpinner func()
+		if m.renderer != nil {
+			stopSpinner = m.renderer.StartThinkingSpinner(ctx)
+		}
+
+		// Track if we've received any content (to know when to stop spinner)
+		firstChunkReceived := false
+
 		// Call provider with streaming to display response in real-time
 		response, err := state.Provider.StreamingChatCompletion(
 			request,
 			func(content string) {
+				// Stop spinner on first content chunk (blocks until spinner is fully stopped)
+				if !firstChunkReceived && stopSpinner != nil {
+					stopSpinner()
+					stopSpinner = nil
+					firstChunkReceived = true
+				}
+
+				// Render text through renderer if available, otherwise use callback
+				if m.renderer != nil {
+					m.renderer.RenderAgentText(content)
+				}
 				if onChunk != nil {
 					onChunk(content)
 				}
 			},
 		)
 
+		// Make sure spinner is stopped even if no content was received
+		if stopSpinner != nil {
+			stopSpinner()
+		}
+
 		if err != nil {
+			// Render footer with error info if we rendered a header
+			if headerRendered && m.renderer != nil {
+				duration := timeNow().Sub(startTime)
+				m.renderer.RenderAgentFooter(totalInputTokens, totalOutputTokens, duration)
+			}
 			return fmt.Errorf("agent error: %w", err)
+		}
+
+		// Accumulate token usage
+		if response.Usage != nil {
+			totalInputTokens += response.Usage.PromptTokens
+			totalOutputTokens += response.Usage.CompletionTokens
 		}
 
 		// On first successful response, add the user message to conversation history
@@ -202,6 +258,11 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 				zap.Duration("duration", duration),
 			)
 
+			// Render footer with stats
+			if m.renderer != nil {
+				m.renderer.RenderAgentFooter(totalInputTokens, totalOutputTokens, duration)
+			}
+
 			return nil
 		}
 
@@ -214,10 +275,21 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 
 		// Execute tool calls and add results to conversation
 		if err := m.executeToolCalls(ctx, state, response.ToolCalls, onChunk); err != nil {
+			// Render footer even on error
+			if m.renderer != nil {
+				duration := timeNow().Sub(startTime)
+				m.renderer.RenderAgentFooter(totalInputTokens, totalOutputTokens, duration)
+			}
 			return fmt.Errorf("tool execution error: %w", err)
 		}
 
 		// Continue loop to make another call with tool results
+	}
+
+	// Render footer before returning max iterations error
+	if m.renderer != nil {
+		duration := timeNow().Sub(startTime)
+		m.renderer.RenderAgentFooter(totalInputTokens, totalOutputTokens, duration)
 	}
 
 	// If we reach here, we hit max iterations
@@ -300,14 +372,24 @@ func (m *Manager) executeToolCalls(ctx context.Context, state *State, toolCalls 
 
 // SendMessageToCurrentAgent sends a message to the current agent with default output handling.
 // This is a convenience method that prints chunks to stdout and handles errors.
+// If a renderer is set, it handles all output formatting. Otherwise, it falls back to
+// simple fmt.Print calls.
 func (m *Manager) SendMessageToCurrentAgent(ctx context.Context, message string) error {
-	err := m.SendMessage(ctx, message, func(content string) {
-		// Print each chunk immediately without newline
-		fmt.Print(content)
-	})
+	// If renderer is set, it handles output - we don't need the callback
+	var callback func(string)
+	if m.renderer == nil {
+		callback = func(content string) {
+			// Print each chunk immediately without newline
+			fmt.Print(content)
+		}
+	}
 
-	// Print final newline after streaming completes
-	fmt.Println()
+	err := m.SendMessage(ctx, message, callback)
+
+	// Print final newline after streaming completes (only if no renderer)
+	if m.renderer == nil {
+		fmt.Println()
+	}
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gsh: %v\n", err)

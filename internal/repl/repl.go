@@ -13,6 +13,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"go.uber.org/zap"
+	"golang.org/x/term"
 
 	"github.com/atinylittleshell/gsh/internal/core"
 	"github.com/atinylittleshell/gsh/internal/history"
@@ -23,6 +24,7 @@ import (
 	"github.com/atinylittleshell/gsh/internal/repl/executor"
 	"github.com/atinylittleshell/gsh/internal/repl/input"
 	"github.com/atinylittleshell/gsh/internal/repl/predict"
+	"github.com/atinylittleshell/gsh/internal/repl/render"
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
@@ -150,6 +152,18 @@ func NewREPL(opts Options) (*REPL, error) {
 
 	// Initialize agent manager
 	agentManager := agent.NewManager(logger)
+
+	// Create renderer for agent output
+	// Terminal width function that queries the terminal
+	termWidthFunc := func() int {
+		width, _, err := term.GetSize(int(os.Stdout.Fd()))
+		if err != nil || width <= 0 {
+			return 80 // Default fallback
+		}
+		return width
+	}
+	agentRenderer := render.New(loadResult.Interpreter, os.Stdout, termWidthFunc)
+	agentManager.SetRenderer(agentRenderer)
 
 	// Always initialize the built-in default agent if a model is configured
 	defaultAgentModel := loadResult.Config.GetDefaultAgentModel()
@@ -558,7 +572,7 @@ func (r *REPL) handleBuiltinCommand(command string) (bool, error) {
 func (r *REPL) getPrompt() string {
 	var prompt string
 
-	// Check if GSH_UPDATE_PROMPT tool is defined
+	// Check if GSH_PROMPT tool is defined
 	promptTool := r.config.GetUpdatePromptTool()
 	if promptTool != nil {
 		// Call the tool with exit code and duration
@@ -567,12 +581,12 @@ func (r *REPL) getPrompt() string {
 
 		result, err := r.executor.Interpreter().CallTool(promptTool, []interpreter.Value{exitCodeValue, durationValue})
 		if err != nil {
-			r.logger.Warn("GSH_UPDATE_PROMPT tool failed, using static prompt", zap.Error(err))
+			r.logger.Warn("GSH_PROMPT tool failed, using static prompt", zap.Error(err))
 			prompt = r.config.Prompt
 		} else if strValue, ok := result.(*interpreter.StringValue); ok {
 			prompt = strValue.Value
 		} else {
-			r.logger.Warn("GSH_UPDATE_PROMPT tool did not return a string, using static prompt",
+			r.logger.Warn("GSH_PROMPT tool did not return a string, using static prompt",
 				zap.String("returnType", result.Type().String()))
 			prompt = r.config.Prompt
 		}
