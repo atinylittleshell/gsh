@@ -16,6 +16,9 @@ type Renderer struct {
 	interp    *interpreter.Interpreter // For calling custom hooks
 	writer    io.Writer
 	termWidth func() int // Function to get current terminal width
+
+	// Track lines printed by RenderToolExecuting so RenderToolComplete can replace them
+	lastToolExecutingLines int
 }
 
 // New creates a new Renderer instance
@@ -170,10 +173,14 @@ func (r *Renderer) RenderToolExecuting(toolName string, args map[string]interfac
 		output = r.formatToolStatus(toolName, "executing", args, 0)
 	}
 
+	// Count how many lines this output will produce (for later replacement)
+	r.lastToolExecutingLines = strings.Count(output, "\n") + 1
+
 	r.renderToolOutput(output, true)
 }
 
 // RenderToolComplete renders a tool in complete state (success or error)
+// It replaces the previously rendered "executing" lines with the completion status.
 func (r *Renderer) RenderToolComplete(toolName string, args map[string]interface{}, duration time.Duration, success bool) {
 	status := "success"
 	if !success {
@@ -185,6 +192,15 @@ func (r *Renderer) RenderToolComplete(toolName string, args map[string]interface
 
 	if output == "" {
 		output = r.formatToolStatus(toolName, status, args, durationMs)
+	}
+
+	// Move cursor up and clear the lines printed by RenderToolExecuting
+	if r.lastToolExecutingLines > 0 {
+		// Move cursor up N lines and clear each line
+		for i := 0; i < r.lastToolExecutingLines; i++ {
+			fmt.Fprintf(r.writer, "\033[A\033[K") // Move up one line and clear it
+		}
+		r.lastToolExecutingLines = 0
 	}
 
 	r.renderToolOutput(output, success)

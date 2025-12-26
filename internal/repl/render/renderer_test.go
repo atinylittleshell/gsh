@@ -238,6 +238,29 @@ func TestRenderToolComplete_Error(t *testing.T) {
 	assert.Contains(t, output, SymbolError)
 }
 
+func TestRenderToolComplete_ReplacesExecutingLines(t *testing.T) {
+	var buf bytes.Buffer
+	renderer := New(nil, &buf, func() int { return 80 })
+
+	args := map[string]interface{}{
+		"path": "/home/user/file.txt",
+	}
+
+	// First render executing state
+	renderer.RenderToolExecuting("read_file", args)
+
+	// Then render complete state - should include ANSI escape codes to move up and clear lines
+	renderer.RenderToolComplete("read_file", args, 100*time.Millisecond, true)
+
+	output := buf.String()
+
+	// Verify ANSI escape codes for moving up and clearing lines are present
+	// \033[A moves cursor up one line, \033[K clears to end of line
+	assert.Contains(t, output, "\033[A\033[K", "should contain ANSI escape codes to replace previous lines")
+	assert.Contains(t, output, SymbolToolComplete)
+	assert.Contains(t, output, SymbolSuccess)
+}
+
 func TestRenderToolOutput_DefaultEmpty(t *testing.T) {
 	var buf bytes.Buffer
 	interp := interpreter.New()
