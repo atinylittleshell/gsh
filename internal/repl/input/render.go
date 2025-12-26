@@ -253,6 +253,30 @@ func (r *Renderer) RenderHelpBox(text string) string {
 		Render(text)
 }
 
+// RenderHistorySearchPrompt renders the prompt for history search mode.
+// It shows "(history search)`query': " similar to bash's Ctrl+R style.
+// The cursor is rendered at the end of the query.
+func (r *Renderer) RenderHistorySearchPrompt(state *HistorySearchState, showCursor bool) string {
+	if state == nil || !state.IsActive() {
+		return ""
+	}
+
+	query := state.Query()
+
+	// Style the prompt with yellow for the label (matching the UI color scheme)
+	promptStyle := lipgloss.NewStyle().Foreground(render.ColorYellow)
+	queryStyle := lipgloss.NewStyle().Bold(true)
+
+	// Render cursor at end of query if focused
+	cursorStr := ""
+	if showCursor {
+		cursorStr = r.config.CursorStyle.Render(" ")
+	}
+
+	return promptStyle.Render("(history search)") +
+		"`" + queryStyle.Render(query) + cursorStr + "': "
+}
+
 // RenderFullView renders the complete input view including:
 // - Input line with prompt, text, cursor, and prediction
 // - Completion box (if active)

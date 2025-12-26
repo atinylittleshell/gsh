@@ -34,6 +34,10 @@ type Result struct {
 	Value string
 }
 
+// HistorySearchFunc is a function type for searching history.
+// It takes a query string and returns matching commands.
+type HistorySearchFunc func(query string) []string
+
 // Model is the Bubble Tea model for the unified input component.
 // It coordinates the buffer, keymap, completion, prediction, and rendering.
 type Model struct {
@@ -50,6 +54,10 @@ type Model struct {
 	historyIndex        int // 0 = current input, 1+ = history entries
 	savedCurrentInput   string
 	hasNavigatedHistory bool
+
+	// History search (Ctrl+R)
+	historySearch     *HistorySearchState
+	historySearchFunc HistorySearchFunc
 
 	// Completion
 	completion         *CompletionState
@@ -82,6 +90,10 @@ type Config struct {
 	// HistoryValues is the list of previous commands for history navigation.
 	// Index 0 is the most recent.
 	HistoryValues []string
+
+	// HistorySearchFunc is a function for searching history (used by Ctrl+R).
+	// If nil, history search will use the HistoryValues list.
+	HistorySearchFunc HistorySearchFunc
 
 	// CompletionProvider provides tab completion suggestions.
 	CompletionProvider CompletionProvider
@@ -138,6 +150,8 @@ func New(cfg Config) Model {
 		prompt:             cfg.Prompt,
 		historyValues:      cfg.HistoryValues,
 		historyIndex:       0,
+		historySearch:      NewHistorySearchState(),
+		historySearchFunc:  cfg.HistorySearchFunc,
 		completion:         NewCompletionState(),
 		completionProvider: cfg.CompletionProvider,
 		prediction:         cfg.PredictionState,
@@ -190,11 +204,20 @@ func (m Model) View() string {
 		return m.renderFinalView()
 	}
 
+	// Use history search prompt when in search mode
+	prompt := m.prompt
+	showBufferCursor := m.focused
+	if m.historySearch.IsActive() {
+		// Show cursor in search prompt, not in the buffer
+		prompt = m.renderer.RenderHistorySearchPrompt(m.historySearch, m.focused)
+		showBufferCursor = false
+	}
+
 	return m.renderer.RenderFullView(
-		m.prompt,
+		prompt,
 		m.buffer,
 		m.currentPrediction,
-		m.focused,
+		showBufferCursor,
 		m.completion,
 		m.infoContent,
 		m.minHeight,
@@ -261,8 +284,19 @@ func (m *Model) Reset() {
 	m.historyIndex = 0
 	m.savedCurrentInput = ""
 	m.hasNavigatedHistory = false
+	m.historySearch.Reset()
 	m.result = Result{Type: ResultNone}
 	m.infoContent = nil
+}
+
+// SetHistorySearchFunc sets the function used for history search.
+func (m *Model) SetHistorySearchFunc(fn HistorySearchFunc) {
+	m.historySearchFunc = fn
+}
+
+// HistorySearch returns the history search state (for testing/rendering).
+func (m Model) HistorySearch() *HistorySearchState {
+	return m.historySearch
 }
 
 // Buffer returns the underlying buffer (for testing).
@@ -284,6 +318,11 @@ func (m Model) CurrentPrediction() string {
 func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Look up the action for this key
 	action := m.keymap.Lookup(msg)
+
+	// When history search is active, handle keys specially
+	if m.historySearch.IsActive() {
+		return m.handleHistorySearchKey(msg, action)
+	}
 
 	// When completion is active, handle navigation keys specially
 	if m.completion.IsActive() {
@@ -341,6 +380,9 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case ActionAcceptPrediction:
 		return m.handleAcceptPrediction()
+
+	case ActionHistorySearchBackward:
+		return m.handleHistorySearchStart()
 
 	// Navigation actions
 	case ActionCharacterForward:
@@ -779,6 +821,131 @@ func Paste() tea.Msg {
 		return nil
 	}
 	return pasteMsg(str)
+}
+
+// handleHistorySearchStart starts history search mode.
+func (m Model) handleHistorySearchStart() (tea.Model, tea.Cmd) {
+	// Start history search, saving current input
+	m.historySearch.Start(m.buffer.Text(), m.buffer.Pos())
+	// Clear predictions while in search mode
+	m.currentPrediction = ""
+	return m, nil
+}
+
+// handleHistorySearchKey handles key input while in history search mode.
+func (m Model) handleHistorySearchKey(msg tea.KeyMsg, action Action) (tea.Model, tea.Cmd) {
+	switch action {
+	case ActionSubmit:
+		// Accept current match and exit search mode
+		result := m.historySearch.Accept()
+		m.buffer.SetText(result)
+		return m, nil
+
+	case ActionCancel, ActionInterrupt:
+		// Cancel search, restore original input
+		originalInput, originalPos := m.historySearch.Cancel()
+		m.buffer.SetText(originalInput)
+		m.buffer.SetPos(originalPos)
+		return m, nil
+
+	case ActionHistorySearchBackward:
+		// Ctrl+R again: go to next (older) match
+		m.historySearch.NextMatch()
+		if match := m.historySearch.CurrentMatch(); match != "" {
+			m.buffer.SetText(match)
+		}
+		return m, nil
+
+	case ActionCursorUp:
+		// Up arrow: go to next (older) match
+		m.historySearch.NextMatch()
+		if match := m.historySearch.CurrentMatch(); match != "" {
+			m.buffer.SetText(match)
+		}
+		return m, nil
+
+	case ActionCursorDown:
+		// Down arrow: go to previous (newer) match
+		m.historySearch.PrevMatch()
+		if match := m.historySearch.CurrentMatch(); match != "" {
+			m.buffer.SetText(match)
+		}
+		return m, nil
+
+	case ActionDeleteCharacterBackward:
+		// Backspace: delete character from search query
+		if m.historySearch.DeleteChar() {
+			m.updateHistorySearchMatches()
+			if match := m.historySearch.CurrentMatch(); match != "" {
+				m.buffer.SetText(match)
+			} else if m.historySearch.Query() == "" {
+				// If query is empty, show original input
+				m.buffer.SetText(m.historySearch.OriginalInput())
+			}
+		}
+		return m, nil
+
+	case ActionCharacterForward, ActionCharacterBackward, ActionLineStart, ActionLineEnd:
+		// Accept current match and exit search mode, keeping cursor movement
+		result := m.historySearch.Accept()
+		m.buffer.SetText(result)
+		// Now handle the navigation action
+		return m.handleKeyMsg(msg)
+
+	default:
+		// Regular character input: add to search query
+		if len(msg.Runes) > 0 {
+			for _, r := range msg.Runes {
+				// Skip control characters
+				if r >= 32 {
+					m.historySearch.AddChar(r)
+				}
+			}
+			m.updateHistorySearchMatches()
+			if match := m.historySearch.CurrentMatch(); match != "" {
+				m.buffer.SetText(match)
+			} else {
+				// No matches, keep showing original or empty
+				m.buffer.SetText(m.historySearch.OriginalInput())
+			}
+			return m, nil
+		}
+	}
+
+	return m, nil
+}
+
+// updateHistorySearchMatches updates the matches based on current query.
+func (m *Model) updateHistorySearchMatches() {
+	query := m.historySearch.Query()
+	if query == "" {
+		m.historySearch.SetMatches(nil)
+		return
+	}
+
+	var matches []string
+
+	// Use the search function if provided
+	if m.historySearchFunc != nil {
+		matches = m.historySearchFunc(query)
+	} else {
+		// Fall back to searching historyValues
+		matches = m.searchHistoryValues(query)
+	}
+
+	m.historySearch.SetMatches(matches)
+}
+
+// searchHistoryValues searches the in-memory history values for matches.
+func (m *Model) searchHistoryValues(query string) []string {
+	var matches []string
+	queryLower := strings.ToLower(query)
+	for _, cmd := range m.historyValues {
+		if strings.Contains(strings.ToLower(cmd), queryLower) {
+			matches = append(matches, cmd)
+		}
+	}
+	return matches
 }
 
 // sanitizeRunes cleans up input runes by replacing tabs and newlines with spaces.

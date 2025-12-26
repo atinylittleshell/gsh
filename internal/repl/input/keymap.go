@@ -45,6 +45,9 @@ const (
 
 	// Prediction actions
 	ActionAcceptPrediction // Accept the current prediction (Right arrow at end of line)
+
+	// History search actions
+	ActionHistorySearchBackward // Start/continue reverse history search (Ctrl+R)
 )
 
 // String returns the string representation of an Action.
@@ -98,6 +101,8 @@ func (a Action) String() string {
 		return "Paste"
 	case ActionAcceptPrediction:
 		return "AcceptPrediction"
+	case ActionHistorySearchBackward:
+		return "HistorySearchBackward"
 	default:
 		return "Unknown"
 	}
@@ -174,6 +179,9 @@ func DefaultKeyMap() *KeyMap {
 		{Keys: []string{"ctrl+c"}, Action: ActionInterrupt},
 		{Keys: []string{"ctrl+l"}, Action: ActionClearScreen},
 		{Keys: []string{"ctrl+v"}, Action: ActionPaste},
+
+		// History search
+		{Keys: []string{"ctrl+r"}, Action: ActionHistorySearchBackward},
 	})
 }
 

@@ -115,3 +115,18 @@ func (historyManager *HistoryManager) GetRecentEntriesByPrefix(prefix string, li
 
 	return entries, nil
 }
+
+// SearchHistory searches for history entries containing the given substring.
+// Returns entries in reverse chronological order (most recent first).
+func (historyManager *HistoryManager) SearchHistory(query string, limit int) ([]HistoryEntry, error) {
+	var entries []HistoryEntry
+	result := historyManager.db.Where("command LIKE ?", "%"+query+"%").
+		Order("created_at desc").
+		Limit(limit).
+		Find(&entries)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return entries, nil
+}

@@ -317,6 +317,7 @@ func (r *REPL) Run(ctx context.Context) error {
 		inputModel := input.New(input.Config{
 			Prompt:             prompt,
 			HistoryValues:      historyValues,
+			HistorySearchFunc:  r.createHistorySearchFunc(),
 			CompletionProvider: r.completionProvider,
 			PredictionState:    predictionState,
 			Logger:             r.logger,
@@ -577,7 +578,7 @@ func (r *REPL) handleBuiltinCommand(command string) (bool, error) {
 	switch command {
 	case "exit", ":exit":
 		// Signal exit by returning ErrExit
-		fmt.Println("exit")
+		fmt.Println("Bye!")
 		return true, ErrExit
 
 	case ":clear":
@@ -648,6 +649,29 @@ func (r *REPL) getHistoryValues() []string {
 	}
 
 	return values
+}
+
+// createHistorySearchFunc returns a function for searching history (used by Ctrl+R).
+func (r *REPL) createHistorySearchFunc() input.HistorySearchFunc {
+	if r.history == nil {
+		return nil
+	}
+
+	return func(query string) []string {
+		entries, err := r.history.SearchHistory(query, 100)
+		if err != nil {
+			r.logger.Debug("failed to search history", zap.Error(err))
+			return nil
+		}
+
+		// Convert to string slice (already in reverse chronological order)
+		values := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			values = append(values, entry.Command)
+		}
+
+		return values
+	}
 }
 
 // showWelcomeScreen displays the welcome screen with configuration info.
