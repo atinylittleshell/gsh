@@ -13,6 +13,7 @@ import (
 
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 	"github.com/creack/pty"
+	"golang.org/x/term"
 )
 
 // DefaultExecTimeout is the default timeout for command execution.
@@ -46,6 +47,17 @@ func ExecuteCommand(ctx context.Context, command string, liveOutput io.Writer) (
 		return nil, fmt.Errorf("failed to start pty: %w", err)
 	}
 	defer ptmx.Close()
+
+	// Set PTY size so programs know the terminal dimensions
+	// Try to get actual terminal size, fall back to reasonable defaults
+	cols, rows := 80, 24 // Default size suitable for capturing command output
+	if width, height, err := term.GetSize(int(os.Stdout.Fd())); err == nil && width > 0 && height > 0 {
+		cols, rows = width, height
+	}
+	_ = pty.Setsize(ptmx, &pty.Winsize{
+		Rows: uint16(rows),
+		Cols: uint16(cols),
+	})
 
 	// Capture output while also writing to provided writer
 	var outputBuf bytes.Buffer
