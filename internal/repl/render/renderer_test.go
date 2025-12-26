@@ -3,6 +3,7 @@ package render
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -137,6 +138,17 @@ func TestRenderAgentText(t *testing.T) {
 	renderer.RenderAgentText("Hello, world!")
 
 	assert.Equal(t, "Hello, world!", buf.String())
+}
+
+func TestRenderAgentError(t *testing.T) {
+	var buf bytes.Buffer
+	renderer := New(nil, &buf, func() int { return 80 })
+
+	renderer.RenderAgentError(fmt.Errorf("OpenAI provider requires 'apiKey' to be a non-empty string"))
+
+	output := buf.String()
+	assert.Contains(t, output, SymbolError)
+	assert.Contains(t, output, "OpenAI provider requires 'apiKey' to be a non-empty string")
 }
 
 func TestRenderExecStart_Fallback(t *testing.T) {

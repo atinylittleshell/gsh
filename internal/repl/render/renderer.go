@@ -269,6 +269,12 @@ func (r *Renderer) RenderAgentText(text string) {
 	fmt.Fprint(r.writer, text)
 }
 
+// RenderAgentError renders an error message within the agent output block
+func (r *Renderer) RenderAgentError(err error) {
+	errorMsg := fmt.Sprintf("%s %v", SymbolError, err)
+	fmt.Fprintln(r.writer, ErrorStyle.Render(errorMsg))
+}
+
 // RenderExecStart renders the start of an exec tool call using GSH_EXEC_START hook
 func (r *Renderer) RenderExecStart(command string) {
 	// Extract first word of command

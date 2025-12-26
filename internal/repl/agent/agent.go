@@ -221,8 +221,9 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 		}
 
 		if err != nil {
-			// Render footer with error info if we rendered a header
+			// Render error and footer if we rendered a header
 			if headerRendered && m.renderer != nil {
+				m.renderer.RenderAgentError(err)
 				duration := timeNow().Sub(startTime)
 				m.renderer.RenderAgentFooter(totalInputTokens, totalOutputTokens, totalCachedTokens, duration)
 			}
@@ -473,7 +474,10 @@ func (m *Manager) SendMessageToCurrentAgent(ctx context.Context, message string)
 	}
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "gsh: %v\n", err)
+		// If no renderer, print error to stderr (otherwise it's already rendered inside the agent block)
+		if m.renderer == nil {
+			fmt.Fprintf(os.Stderr, "gsh: %v\n", err)
+		}
 		return nil // Return nil to not propagate error to caller (matches original behavior)
 	}
 
