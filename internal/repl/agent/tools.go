@@ -19,6 +19,10 @@ func DefaultToolExecutor(liveOutput io.Writer) ToolExecutor {
 			return ExecuteExecTool(ctx, args, liveOutput)
 		case "grep":
 			return ExecuteGrepTool(ctx, args)
+		case "edit_file":
+			return ExecuteEditTool(ctx, args)
+		case "view_file":
+			return ExecuteViewFileTool(ctx, args)
 		default:
 			return "", fmt.Errorf("unknown tool: %s", toolName)
 		}
@@ -30,6 +34,8 @@ func DefaultTools() []interpreter.ChatTool {
 	return []interpreter.ChatTool{
 		ExecToolDefinition(),
 		GrepToolDefinition(),
+		EditToolDefinition(),
+		ViewFileToolDefinition(),
 	}
 }
 
