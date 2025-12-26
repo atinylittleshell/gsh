@@ -351,9 +351,15 @@ func (m *Manager) executeToolCalls(ctx context.Context, state *State, toolCalls 
 			}
 		}
 
-		// Render exec start if we have a renderer and this is an exec tool
-		if isExecTool && m.renderer != nil && command != "" {
-			m.renderer.RenderExecStart(command)
+		// Render tool start based on type
+		if m.renderer != nil {
+			if isExecTool && command != "" {
+				m.renderer.RenderExecStart(command)
+			} else if !isExecTool {
+				// For non-exec tools, render executing state with args
+				// (args are already complete when we receive the tool call)
+				m.renderer.RenderToolExecuting(toolCall.Name, toolCall.Arguments)
+			}
 		}
 
 		execStart := timeNow()
@@ -386,9 +392,17 @@ func (m *Manager) executeToolCalls(ctx context.Context, state *State, toolCalls 
 			}
 		}
 
-		// Render exec end if we have a renderer and this is an exec tool
-		if isExecTool && m.renderer != nil && command != "" {
-			m.renderer.RenderExecEnd(command, execDuration, execExitCode)
+		// Render tool completion based on type
+		if m.renderer != nil {
+			if isExecTool && command != "" {
+				m.renderer.RenderExecEnd(command, execDuration, execExitCode)
+			} else if !isExecTool {
+				// For non-exec tools, render completion state
+				success := err == nil
+				m.renderer.RenderToolComplete(toolCall.Name, toolCall.Arguments, execDuration, success)
+				// Render tool output if the hook returns non-empty
+				m.renderer.RenderToolOutput(toolCall.Name, result)
+			}
 		}
 
 		// Add tool result to conversation

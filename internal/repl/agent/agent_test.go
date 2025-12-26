@@ -1043,3 +1043,259 @@ func TestParseExecExitCode(t *testing.T) {
 		})
 	}
 }
+
+func TestSendMessage_NonExecToolRendering(t *testing.T) {
+	logger := zap.NewNop()
+	manager := NewManager(logger)
+
+	provider := newMockProvider()
+	// First call returns a non-exec tool call
+	provider.addResponse("Let me read that file.", []interpreter.ChatToolCall{
+		{ID: "call1", Name: "read_file", Arguments: map[string]interface{}{
+			"path": "/home/user/config.json",
+		}},
+	})
+	// Second call returns final response
+	provider.addResponse("The file contains configuration settings.", nil)
+
+	var buf bytes.Buffer
+	renderer := render.New(nil, &buf, func() int { return 80 })
+	manager.SetRenderer(renderer)
+
+	agent := &interpreter.AgentValue{
+		Name:   "test",
+		Config: map[string]interpreter.Value{},
+	}
+
+	tools := []interpreter.ChatTool{
+		{Name: "read_file", Description: "Read a file", Parameters: map[string]interface{}{}},
+	}
+
+	toolExecutor := func(ctx context.Context, toolName string, args map[string]interface{}) (string, error) {
+		return `{"content": "{ \"key\": \"value\" }"}`, nil
+	}
+
+	state := &State{
+		Agent:        agent,
+		Provider:     provider,
+		Conversation: []interpreter.ChatMessage{},
+		Tools:        tools,
+		ToolExecutor: toolExecutor,
+	}
+
+	manager.AddAgent("test", state)
+	manager.SetCurrentAgent("test")
+
+	err := manager.SendMessage(context.Background(), "Read the config file", nil)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify non-exec tool symbol was rendered (○ for executing, ● for complete)
+	if !strings.Contains(output, "●") {
+		t.Errorf("Expected non-exec tool complete symbol (●), got: %s", output)
+	}
+
+	// Verify tool name was shown
+	if !strings.Contains(output, "read_file") {
+		t.Errorf("Expected tool name 'read_file' in output, got: %s", output)
+	}
+
+	// Verify success symbol was shown
+	if !strings.Contains(output, "✓") {
+		t.Errorf("Expected success symbol (✓), got: %s", output)
+	}
+
+	// Verify arguments were shown
+	if !strings.Contains(output, "path:") {
+		t.Errorf("Expected argument 'path:' in output, got: %s", output)
+	}
+
+	// Verify the path value is shown
+	if !strings.Contains(output, "/home/user/config.json") {
+		t.Errorf("Expected path value in output, got: %s", output)
+	}
+}
+
+func TestSendMessage_NonExecToolRendering_Error(t *testing.T) {
+	logger := zap.NewNop()
+	manager := NewManager(logger)
+
+	provider := newMockProvider()
+	// First call returns a non-exec tool call
+	provider.addResponse("Let me search for that.", []interpreter.ChatToolCall{
+		{ID: "call1", Name: "search", Arguments: map[string]interface{}{
+			"query":     "error handling",
+			"directory": "/src",
+		}},
+	})
+	// Second call returns final response
+	provider.addResponse("I couldn't complete the search.", nil)
+
+	var buf bytes.Buffer
+	renderer := render.New(nil, &buf, func() int { return 80 })
+	manager.SetRenderer(renderer)
+
+	agent := &interpreter.AgentValue{
+		Name:   "test",
+		Config: map[string]interpreter.Value{},
+	}
+
+	tools := []interpreter.ChatTool{
+		{Name: "search", Description: "Search files", Parameters: map[string]interface{}{}},
+	}
+
+	toolExecutor := func(ctx context.Context, toolName string, args map[string]interface{}) (string, error) {
+		return "", fmt.Errorf("search index not available")
+	}
+
+	state := &State{
+		Agent:        agent,
+		Provider:     provider,
+		Conversation: []interpreter.ChatMessage{},
+		Tools:        tools,
+		ToolExecutor: toolExecutor,
+	}
+
+	manager.AddAgent("test", state)
+	manager.SetCurrentAgent("test")
+
+	err := manager.SendMessage(context.Background(), "Search for error handling", nil)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify non-exec tool complete symbol was rendered
+	if !strings.Contains(output, "●") {
+		t.Errorf("Expected non-exec tool complete symbol (●), got: %s", output)
+	}
+
+	// Verify tool name was shown
+	if !strings.Contains(output, "search") {
+		t.Errorf("Expected tool name 'search' in output, got: %s", output)
+	}
+
+	// Verify error symbol was shown (✗ for failure)
+	if !strings.Contains(output, "✗") {
+		t.Errorf("Expected error symbol (✗), got: %s", output)
+	}
+}
+
+func TestSendMessage_NonExecToolRendering_MultipleArgs(t *testing.T) {
+	logger := zap.NewNop()
+	manager := NewManager(logger)
+
+	provider := newMockProvider()
+	// First call returns a non-exec tool call with multiple arguments
+	provider.addResponse("Let me write that file.", []interpreter.ChatToolCall{
+		{ID: "call1", Name: "write_file", Arguments: map[string]interface{}{
+			"path":    "/output.txt",
+			"content": "Hello, World!",
+			"mode":    "overwrite",
+		}},
+	})
+	// Second call returns final response
+	provider.addResponse("File written successfully.", nil)
+
+	var buf bytes.Buffer
+	renderer := render.New(nil, &buf, func() int { return 80 })
+	manager.SetRenderer(renderer)
+
+	agent := &interpreter.AgentValue{
+		Name:   "test",
+		Config: map[string]interpreter.Value{},
+	}
+
+	tools := []interpreter.ChatTool{
+		{Name: "write_file", Description: "Write a file", Parameters: map[string]interface{}{}},
+	}
+
+	toolExecutor := func(ctx context.Context, toolName string, args map[string]interface{}) (string, error) {
+		return `{"success": true}`, nil
+	}
+
+	state := &State{
+		Agent:        agent,
+		Provider:     provider,
+		Conversation: []interpreter.ChatMessage{},
+		Tools:        tools,
+		ToolExecutor: toolExecutor,
+	}
+
+	manager.AddAgent("test", state)
+	manager.SetCurrentAgent("test")
+
+	err := manager.SendMessage(context.Background(), "Write a file", nil)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify tool name was shown
+	if !strings.Contains(output, "write_file") {
+		t.Errorf("Expected tool name 'write_file' in output, got: %s", output)
+	}
+
+	// Verify multiple arguments are shown (at least path and content)
+	if !strings.Contains(output, "path:") {
+		t.Errorf("Expected argument 'path:' in output, got: %s", output)
+	}
+	if !strings.Contains(output, "content:") {
+		t.Errorf("Expected argument 'content:' in output, got: %s", output)
+	}
+}
+
+func TestSendMessage_NonExecToolRendering_NoRenderer(t *testing.T) {
+	// Test that non-exec tools work fine without a renderer
+	logger := zap.NewNop()
+	manager := NewManager(logger)
+	// No renderer set
+
+	provider := newMockProvider()
+	provider.addResponse("Let me read that.", []interpreter.ChatToolCall{
+		{ID: "call1", Name: "read_file", Arguments: map[string]interface{}{"path": "/test.txt"}},
+	})
+	provider.addResponse("Done!", nil)
+
+	agent := &interpreter.AgentValue{
+		Name:   "test",
+		Config: map[string]interpreter.Value{},
+	}
+
+	tools := []interpreter.ChatTool{
+		{Name: "read_file", Description: "Read a file", Parameters: map[string]interface{}{}},
+	}
+
+	toolExecutor := func(ctx context.Context, toolName string, args map[string]interface{}) (string, error) {
+		return `{"content": "file contents"}`, nil
+	}
+
+	state := &State{
+		Agent:        agent,
+		Provider:     provider,
+		Conversation: []interpreter.ChatMessage{},
+		Tools:        tools,
+		ToolExecutor: toolExecutor,
+	}
+
+	manager.AddAgent("test", state)
+	manager.SetCurrentAgent("test")
+
+	var chunks []string
+	err := manager.SendMessage(context.Background(), "Read file", func(chunk string) {
+		chunks = append(chunks, chunk)
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should work without error
+	if len(chunks) == 0 {
+		t.Error("Expected some output chunks")
+	}
+}
