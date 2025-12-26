@@ -952,6 +952,209 @@ tool GSH_DEFAULT_TOOL(x: number): number {
 	require.True(t, ok, "GSH_DEFAULT_TOOL should exist from default config")
 }
 
+// Test that user's GSH_CONFIG is merged with defaults (not replaced)
+func TestLoader_LoadDefaultConfigPath_GSHConfigMerge(t *testing.T) {
+	// Create a temp directory to use as home
+	tmpDir := t.TempDir()
+
+	// Save original home dir and restore after test
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpDir)
+
+	// Default config with GSH_CONFIG containing multiple settings
+	defaultConfig := `
+model DEFAULT_PREDICT_MODEL {
+	provider: "openai",
+	model: "gpt-4",
+}
+
+model DEFAULT_AGENT_MODEL {
+	provider: "openai",
+	model: "gpt-4-turbo",
+}
+
+GSH_CONFIG = {
+	prompt: "default> ",
+	logLevel: "info",
+	starshipIntegration: true,
+	showWelcome: true,
+	predictModel: DEFAULT_PREDICT_MODEL,
+	defaultAgentModel: DEFAULT_AGENT_MODEL,
+}
+`
+
+	// User config only overrides logLevel - other settings should be preserved
+	userConfig := `
+GSH_CONFIG = {
+	logLevel: "debug",
+}
+`
+
+	// Write user config
+	userConfigPath := filepath.Join(tmpDir, ".gshrc.gsh")
+	err := os.WriteFile(userConfigPath, []byte(userConfig), 0644)
+	require.NoError(t, err)
+
+	// Load configuration
+	loader := NewLoader(nil)
+	result, err := loader.LoadDefaultConfigPath(defaultConfig, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Empty(t, result.Errors)
+
+	// Verify user's override is applied
+	assert.Equal(t, "debug", result.Config.LogLevel, "logLevel should be overridden by user config")
+
+	// Verify defaults are preserved for fields user didn't specify
+	assert.Equal(t, "default> ", result.Config.Prompt, "prompt should be preserved from default config")
+	assert.True(t, result.Config.StarshipIntegrationEnabled(), "starshipIntegration should be preserved from default config")
+	assert.True(t, result.Config.ShowWelcomeEnabled(), "showWelcome should be preserved from default config")
+	assert.Equal(t, "DEFAULT_PREDICT_MODEL", result.Config.PredictModel, "predictModel should be preserved from default config")
+	assert.Equal(t, "DEFAULT_AGENT_MODEL", result.Config.DefaultAgentModel, "defaultAgentModel should be preserved from default config")
+}
+
+// Test that nested objects in GSH_CONFIG are deep merged
+func TestLoader_LoadDefaultConfigPath_GSHConfigDeepMerge(t *testing.T) {
+	// Create a temp directory to use as home
+	tmpDir := t.TempDir()
+
+	// Save original home dir and restore after test
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpDir)
+
+	// Default config with nested objects
+	defaultConfig := `
+GSH_CONFIG = {
+	prompt: "default> ",
+	logLevel: "info",
+	nested: {
+		featureA: true,
+		featureB: false,
+		deepNested: {
+			setting1: "default1",
+			setting2: "default2",
+		},
+	},
+}
+`
+
+	// User config only overrides specific nested values
+	userConfig := `
+GSH_CONFIG = {
+	logLevel: "debug",
+	nested: {
+		featureB: true,
+		deepNested: {
+			setting2: "user2",
+		},
+	},
+}
+`
+
+	// Write user config
+	userConfigPath := filepath.Join(tmpDir, ".gshrc.gsh")
+	err := os.WriteFile(userConfigPath, []byte(userConfig), 0644)
+	require.NoError(t, err)
+
+	// Load configuration
+	loader := NewLoader(nil)
+	result, err := loader.LoadDefaultConfigPath(defaultConfig, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Empty(t, result.Errors)
+
+	// Get the merged GSH_CONFIG from interpreter
+	vars := result.Interpreter.GetVariables()
+	gshConfig, ok := vars["GSH_CONFIG"].(*interpreter.ObjectValue)
+	require.True(t, ok, "GSH_CONFIG should be an ObjectValue")
+
+	// Check top-level values
+	assert.Equal(t, "default> ", gshConfig.Properties["prompt"].String(), "prompt should be preserved from default")
+	assert.Equal(t, "debug", gshConfig.Properties["logLevel"].String(), "logLevel should be overridden by user")
+
+	// Check nested object
+	nested, ok := gshConfig.Properties["nested"].(*interpreter.ObjectValue)
+	require.True(t, ok, "nested should be an ObjectValue")
+
+	// featureA should be preserved from default
+	featureA, ok := nested.Properties["featureA"].(*interpreter.BoolValue)
+	require.True(t, ok, "featureA should be a BoolValue")
+	assert.True(t, featureA.Value, "featureA should be true (preserved from default)")
+
+	// featureB should be overridden by user
+	featureB, ok := nested.Properties["featureB"].(*interpreter.BoolValue)
+	require.True(t, ok, "featureB should be a BoolValue")
+	assert.True(t, featureB.Value, "featureB should be true (user override)")
+
+	// Check deeply nested object
+	deepNested, ok := nested.Properties["deepNested"].(*interpreter.ObjectValue)
+	require.True(t, ok, "deepNested should be an ObjectValue")
+
+	// setting1 should be preserved from default
+	assert.Equal(t, "default1", deepNested.Properties["setting1"].String(), "setting1 should be preserved from default")
+
+	// setting2 should be overridden by user
+	assert.Equal(t, "user2", deepNested.Properties["setting2"].String(), "setting2 should be overridden by user")
+}
+
+// Test that user can override multiple GSH_CONFIG fields while preserving others
+func TestLoader_LoadDefaultConfigPath_GSHConfigMergePartial(t *testing.T) {
+	// Create a temp directory to use as home
+	tmpDir := t.TempDir()
+
+	// Save original home dir and restore after test
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpDir)
+
+	// Default config
+	defaultConfig := `
+model DEFAULT_MODEL {
+	provider: "openai",
+	model: "gpt-4",
+}
+
+GSH_CONFIG = {
+	prompt: "default> ",
+	logLevel: "info",
+	starshipIntegration: true,
+	showWelcome: true,
+	predictModel: DEFAULT_MODEL,
+}
+`
+
+	// User config overrides prompt and disables starship
+	userConfig := `
+GSH_CONFIG = {
+	prompt: "custom> ",
+	starshipIntegration: false,
+}
+`
+
+	// Write user config
+	userConfigPath := filepath.Join(tmpDir, ".gshrc.gsh")
+	err := os.WriteFile(userConfigPath, []byte(userConfig), 0644)
+	require.NoError(t, err)
+
+	// Load configuration
+	loader := NewLoader(nil)
+	result, err := loader.LoadDefaultConfigPath(defaultConfig, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Empty(t, result.Errors)
+
+	// Verify user's overrides are applied
+	assert.Equal(t, "custom> ", result.Config.Prompt, "prompt should be overridden by user config")
+	assert.False(t, result.Config.StarshipIntegrationEnabled(), "starshipIntegration should be overridden by user config")
+
+	// Verify defaults are preserved for fields user didn't specify
+	assert.Equal(t, "info", result.Config.LogLevel, "logLevel should be preserved from default config")
+	assert.True(t, result.Config.ShowWelcomeEnabled(), "showWelcome should be preserved from default config")
+	assert.Equal(t, "DEFAULT_MODEL", result.Config.PredictModel, "predictModel should be preserved from default config")
+}
+
 // Test that variables from default config are accessible in user config
 func TestLoader_LoadDefaultConfigPath_VariablesAccessible(t *testing.T) {
 	// Create a temp directory to use as home

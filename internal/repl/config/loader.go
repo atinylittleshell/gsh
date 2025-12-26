@@ -81,8 +81,12 @@ func (l *Loader) LoadFromString(source string) (*LoadResult, error) {
 // LoadDefaultConfigPath loads configuration from the default path (~/.gshrc.gsh).
 // Loading order:
 //  1. .gshrc.default.gsh (system defaults)
-//  2. ~/.gshrc.gsh (user config)
+//  2. ~/.gshrc.gsh (user config) - GSH_CONFIG is merged with defaults
 //  3. .gshrc.starship.gsh (if starship is detected and user hasn't disabled it)
+//
+// When the user defines GSH_CONFIG in their config file, it is merged with the default
+// GSH_CONFIG rather than replacing it entirely. This allows users to override only the
+// settings they care about while inheriting all other defaults.
 //
 // Starship integration is loaded last so that user config can set starshipIntegration = false
 // to disable it. Users who want a custom prompt should disable starship integration and
@@ -122,6 +126,15 @@ func (l *Loader) LoadDefaultConfigPath(defaultContent string, starshipContent st
 		}
 	}
 
+	// Save the default GSH_CONFIG for later merging
+	vars := interp.GetVariables()
+	var defaultGSHConfig *interpreter.ObjectValue
+	if gshConfig, ok := vars["GSH_CONFIG"]; ok {
+		if objVal, ok := gshConfig.(*interpreter.ObjectValue); ok {
+			defaultGSHConfig = objVal
+		}
+	}
+
 	// 2. Load user config into SAME interpreter (shadows defaults)
 	userConfigPath := filepath.Join(homeDir, ".gshrc.gsh")
 	userContent, err := os.ReadFile(userConfigPath)
@@ -142,6 +155,20 @@ func (l *Loader) LoadDefaultConfigPath(defaultContent string, starshipContent st
 			}
 		} else if l.logger != nil {
 			l.logger.Debug("loaded user configuration", zap.String("path", userConfigPath))
+		}
+
+		// Deep merge user's GSH_CONFIG with defaults (user values take precedence)
+		if defaultGSHConfig != nil {
+			vars = interp.GetVariables()
+			if userGSHConfig, ok := vars["GSH_CONFIG"]; ok {
+				if userObjVal, ok := userGSHConfig.(*interpreter.ObjectValue); ok {
+					mergedConfig := defaultGSHConfig.DeepMerge(userObjVal)
+					interp.SetVariable("GSH_CONFIG", mergedConfig)
+					if l.logger != nil {
+						l.logger.Debug("deep merged user GSH_CONFIG with defaults")
+					}
+				}
+			}
 		}
 	}
 

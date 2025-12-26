@@ -234,6 +234,104 @@ func (o *ObjectValue) Equals(other Value) bool {
 	return false
 }
 
+// DeepMerge creates a new ObjectValue by deeply merging this object with another.
+// Properties from the override object take precedence over properties in this object.
+// When both objects have a property with the same key and both values are ObjectValues,
+// those nested objects are recursively merged. Otherwise, the override value replaces
+// the base value entirely.
+//
+// The returned ObjectValue is completely independent - modifying it will not affect
+// either the receiver or the override object.
+func (o *ObjectValue) DeepMerge(override *ObjectValue) *ObjectValue {
+	if override == nil {
+		// Return a deep copy if no override
+		return o.DeepCopy()
+	}
+
+	merged := &ObjectValue{
+		Properties: make(map[string]Value),
+	}
+
+	// Deep copy all properties from base (this object)
+	for key, value := range o.Properties {
+		merged.Properties[key] = deepCopyValue(value)
+	}
+
+	// Merge/override with properties from override object
+	for key, overrideValue := range override.Properties {
+		baseValue, exists := merged.Properties[key]
+		if exists {
+			// Both have this key - check if we need to deep merge
+			baseObj, baseIsObj := baseValue.(*ObjectValue)
+			overrideObj, overrideIsObj := overrideValue.(*ObjectValue)
+
+			if baseIsObj && overrideIsObj {
+				// Both are objects - recursively merge
+				merged.Properties[key] = baseObj.DeepMerge(overrideObj)
+			} else {
+				// Override replaces base (different types or non-objects)
+				merged.Properties[key] = deepCopyValue(overrideValue)
+			}
+		} else {
+			// Key only in override - add it (deep copy to ensure independence)
+			merged.Properties[key] = deepCopyValue(overrideValue)
+		}
+	}
+
+	return merged
+}
+
+// DeepCopy creates a completely independent deep copy of the ObjectValue.
+// Modifying the copy will not affect the original object.
+func (o *ObjectValue) DeepCopy() *ObjectValue {
+	if o == nil {
+		return nil
+	}
+	copied := &ObjectValue{
+		Properties: make(map[string]Value, len(o.Properties)),
+	}
+	for key, value := range o.Properties {
+		copied.Properties[key] = deepCopyValue(value)
+	}
+	return copied
+}
+
+// deepCopyValue creates a deep copy of a Value.
+// For ObjectValue and ArrayValue, this creates independent copies.
+// For primitive values (string, number, bool, null), the same reference is returned
+// since these are immutable.
+func deepCopyValue(v Value) Value {
+	if v == nil {
+		return nil
+	}
+
+	switch val := v.(type) {
+	case *ObjectValue:
+		return val.DeepCopy()
+	case *ArrayValue:
+		return val.DeepCopy()
+	default:
+		// Primitive values (StringValue, NumberValue, BoolValue, NullValue, etc.)
+		// are immutable, so returning the same reference is safe
+		return v
+	}
+}
+
+// DeepCopy creates a completely independent deep copy of the ArrayValue.
+// Modifying the copy will not affect the original array.
+func (a *ArrayValue) DeepCopy() *ArrayValue {
+	if a == nil {
+		return nil
+	}
+	copied := &ArrayValue{
+		Elements: make([]Value, len(a.Elements)),
+	}
+	for i, elem := range a.Elements {
+		copied.Elements[i] = deepCopyValue(elem)
+	}
+	return copied
+}
+
 // ErrorValue represents an error value
 type ErrorValue struct {
 	Message string

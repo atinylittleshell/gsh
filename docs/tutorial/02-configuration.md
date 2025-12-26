@@ -116,8 +116,35 @@ gsh comes with sensible defaults defined in an embedded `.gshrc.default.gsh`. Th
 - Default models for predictions and agents
 - Default prompt string
 - Log level setting
+- Starship integration
+- Welcome screen display
 
 You typically don't need to modify these, but you can override them in your `~/.gshrc.gsh`.
+
+### Configuration Merging
+
+When you define `GSH_CONFIG` in your `~/.gshrc.gsh`, your settings are **merged** with the defaults rather than replacing them entirely. This means you only need to specify the settings you want to change—all other settings retain their default values.
+
+For example, if you define in your `~/.gshrc.gsh`:
+
+```gsh
+GSH_CONFIG = {
+    logLevel: "debug",
+}
+```
+
+The final configuration will be:
+
+```gsh
+{
+    prompt: "gsh> ",              # preserved from default
+    logLevel: "debug",            # your override
+    starshipIntegration: true,    # preserved from default
+    showWelcome: true,            # preserved from default
+    predictModel: GSH_PREDICT_MODEL,      # preserved from default
+    defaultAgentModel: GSH_AGENT_MODEL,   # preserved from default
+}
+```
 
 ### Custom Configuration Example
 
@@ -126,7 +153,7 @@ Here's a more complete `~/.gshrc.gsh` example:
 ```gsh
 # ~/.gshrc.gsh
 
-# Override the default prompt
+# Override specific settings (other defaults are preserved)
 GSH_CONFIG = {
     prompt: "my-shell> ",
     logLevel: "info",
@@ -322,7 +349,7 @@ gsh> ls -la ~/.gshrc ~/.gshrc.gsh
 
 ### Enable debug logging
 
-In your `~/.gshrc.gsh`:
+In your `~/.gshrc.gsh`, you only need to set the `logLevel` field—other settings will be preserved from the defaults:
 
 ```gsh
 GSH_CONFIG = {

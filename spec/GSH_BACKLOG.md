@@ -1,5 +1,6 @@
 ## Must have before v1 release
 
+- User config should merge with default config instead of replacing it
 - Ctrl+R - Search Command History
 - Ctrl+D is printing "exit" twice
 - Primary color yellow (esp. completion panel)
