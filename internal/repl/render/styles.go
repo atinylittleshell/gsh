@@ -7,9 +7,7 @@ import (
 
 // ANSI color codes as defined in the spec
 const (
-	ColorCyan   = lipgloss.Color("12") // Agent header/footer
-	ColorYellow = lipgloss.Color("11") // Tool pending
-	ColorGreen  = lipgloss.Color("10") // Success indicator
+	ColorYellow = lipgloss.Color("11") // Primary UI color (agent header/footer)
 	ColorRed    = lipgloss.Color("9")  // Error indicator
 	ColorGray   = lipgloss.Color("8")  // Dim/secondary (timing, meta info)
 )
@@ -27,7 +25,7 @@ const (
 // Style definitions using Lip Gloss
 var (
 	// HeaderStyle is used for agent header/footer lines
-	HeaderStyle = lipgloss.NewStyle().Foreground(ColorCyan)
+	HeaderStyle = lipgloss.NewStyle().Foreground(ColorYellow)
 
 	// ExecStartStyle is used for the exec tool start symbol
 	ExecStartStyle = lipgloss.NewStyle().Foreground(ColorYellow)
@@ -36,7 +34,7 @@ var (
 	ToolPendingStyle = lipgloss.NewStyle().Foreground(ColorYellow)
 
 	// SuccessStyle is used for success indicators
-	SuccessStyle = lipgloss.NewStyle().Foreground(ColorGreen)
+	SuccessStyle = lipgloss.NewStyle().Foreground(ColorYellow)
 
 	// ErrorStyle is used for error indicators
 	ErrorStyle = lipgloss.NewStyle().Foreground(ColorRed)
