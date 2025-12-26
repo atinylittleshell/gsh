@@ -296,6 +296,86 @@ gsh> @FileAssistant look at my project structure and summarize it
 # Agent explores files and provides summary
 ```
 
+## Understanding Agent Output
+
+When you interact with an agent, gsh displays structured output to help you understand what's happening. Here's what you'll see:
+
+### Agent Header and Footer
+
+Each agent response is wrapped with a header and footer:
+
+```
+gsh> # what files are in this directory?
+
+── gsh ────────────────────────────────────────────────────────────────────────
+Let me check that for you.
+
+The current directory contains:
+- README.md - Project documentation
+- src/ - Source code directory
+- package.json - Node.js configuration
+
+── 523 in · 324 out · 1.2s ────────────────────────────────────────────────────
+
+gsh>
+```
+
+- **Header**: Shows the agent name (or "gsh" for the default agent)
+- **Footer**: Shows token usage (input/output) and response time for your last command
+
+### Tool Call Display
+
+When agents use tools, you'll see their progress:
+
+**Shell commands (exec tool):**
+
+```
+▶ ls -la
+total 24
+-rw-r--r--  1 user  staff  1234 file.txt
+drwxr-xr-x  2 user  staff    64 src
+✓ ls (0.1s)
+```
+
+The `▶` symbol indicates a shell command is running. Output streams directly, then shows a success (`✓`) or failure (`✗`) indicator with duration.
+
+**Other tools:**
+
+```
+○ read_file
+   path: "/home/user/config.json"
+```
+
+While executing, you'll see the `○` symbol with a spinner. When complete:
+
+```
+● read_file ✓ (0.02s)
+   path: "/home/user/config.json"
+```
+
+The `●` symbol indicates completion, with `✓` for success or `✗` for failure.
+
+### Status Symbols Reference
+
+| Symbol | Meaning                |
+| ------ | ---------------------- |
+| `▶`   | Shell command starting |
+| `○`    | Tool pending/executing |
+| `●`    | Tool complete          |
+| `✓`    | Success                |
+| `✗`    | Error/failure          |
+
+### Thinking Indicator
+
+While waiting for the LLM to respond, you'll see a spinning indicator:
+
+```
+── gsh ────────────────────────────────────────────────────────────────────────
+⠋ Thinking...
+```
+
+This animates to show the agent is processing your request.
+
 ## Best Practices for Agent Use
 
 ### 1. Be Specific

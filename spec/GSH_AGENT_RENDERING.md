@@ -485,7 +485,7 @@ Implementation should proceed in this sequence:
    - Let output stream directly to stdout (no capture)
    - Call `RenderExecEnd` after command completes
 
-6. **TODO: Implement non-exec tool rendering**
+6. **DONE: Implement non-exec tool rendering**
 
    - Call `RenderToolPending` when tool call starts streaming
    - Call `StartToolSpinner` during argument streaming

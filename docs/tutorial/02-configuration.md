@@ -230,6 +230,86 @@ if (ENV == "development") {
 }
 ```
 
+## Customizing Agent Rendering
+
+gsh provides customizable hooks that control how agent interactions are displayed. These are defined as tools in `.gshrc.default.gsh` and can be overridden in your `~/.gshrc.gsh`.
+
+### Available Rendering Hooks
+
+| Hook               | Purpose                                  |
+| ------------------ | ---------------------------------------- |
+| `GSH_AGENT_HEADER` | Header line when agent starts responding |
+| `GSH_AGENT_FOOTER` | Footer line with token usage and timing  |
+| `GSH_EXEC_START`   | Start line for shell command execution   |
+| `GSH_EXEC_END`     | Completion line for shell commands       |
+| `GSH_TOOL_STATUS`  | Status display for non-exec tool calls   |
+| `GSH_TOOL_OUTPUT`  | Tool output display (empty by default)   |
+
+### Example: Custom Agent Header
+
+Override the header to show a custom format:
+
+```gsh
+# ~/.gshrc.gsh
+
+tool GSH_AGENT_HEADER(agentName: string, terminalWidth: number): string {
+    # Simple centered header
+    text = "🤖 " + agentName + " 🤖"
+    return text
+}
+```
+
+### Example: Minimal Footer
+
+Show only the duration, not token counts:
+
+```gsh
+# ~/.gshrc.gsh
+
+tool GSH_AGENT_FOOTER(inputTokens: number, outputTokens: number, durationMs: number, terminalWidth: number): string {
+    durationSec = durationMs / 1000
+    return "── completed in " + durationSec + "s ──"
+}
+```
+
+### Example: Custom Exec Display
+
+Change how shell commands are displayed:
+
+```gsh
+# ~/.gshrc.gsh
+
+tool GSH_EXEC_START(command: string): string {
+    return "$ " + command
+}
+
+tool GSH_EXEC_END(commandFirstWord: string, durationMs: number, exitCode: number): string {
+    durationSec = durationMs / 1000
+    if (exitCode == 0) {
+        return "[done] " + commandFirstWord + " (" + durationSec + "s)"
+    }
+    return "[failed] " + commandFirstWord + " (exit " + exitCode + ")"
+}
+```
+
+### Example: Show Tool Output
+
+By default, tool output is hidden. Enable it for debugging:
+
+```gsh
+# ~/.gshrc.gsh
+
+tool GSH_TOOL_OUTPUT(toolName: string, output: string, terminalWidth: number): string {
+    # Show first 200 characters of output
+    if (output.length > 200) {
+        return "   → " + output.substring(0, 200) + "..."
+    }
+    return "   → " + output
+}
+```
+
+For more details on the rendering system, see [Chapter 05: Agents in the REPL](05-agents-in-the-repl.md#understanding-agent-output).
+
 ## Debugging Configuration
 
 If something goes wrong with your configuration, you can see what's happening:

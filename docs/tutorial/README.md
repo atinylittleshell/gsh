@@ -11,6 +11,7 @@ By the end of this tutorial, you'll know how to:
 - ✅ Create beautiful, informative prompts with Starship
 - ✅ Set up generative command prediction
 - ✅ Use agents directly in your shell
+- ✅ Understand and customize agent output rendering
 - ✅ Write and execute gsh scripts for automation
 
 ## Prerequisites
