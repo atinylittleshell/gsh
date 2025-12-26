@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -336,9 +337,26 @@ func (m *Manager) buildMessagesWithPendingUser(state *State, userMessage string,
 // executeToolCalls executes all tool calls and adds results to the conversation.
 func (m *Manager) executeToolCalls(ctx context.Context, state *State, toolCalls []interpreter.ChatToolCall, onChunk func(string)) error {
 	for _, toolCall := range toolCalls {
-
 		var result string
 		var err error
+		var execExitCode int
+		var execDuration time.Duration
+
+		// Check if this is an exec tool call for special rendering
+		isExecTool := toolCall.Name == "exec"
+		var command string
+		if isExecTool {
+			if cmd, ok := toolCall.Arguments["command"].(string); ok {
+				command = cmd
+			}
+		}
+
+		// Render exec start if we have a renderer and this is an exec tool
+		if isExecTool && m.renderer != nil && command != "" {
+			m.renderer.RenderExecStart(command)
+		}
+
+		execStart := timeNow()
 
 		if state.ToolExecutor != nil {
 			// Use custom tool executor if provided
@@ -348,6 +366,13 @@ func (m *Manager) executeToolCalls(ctx context.Context, state *State, toolCalls 
 			err = fmt.Errorf("no tool executor configured for tool '%s'", toolCall.Name)
 		}
 
+		execDuration = timeNow().Sub(execStart)
+
+		// Parse exit code from exec result for rendering
+		if isExecTool && err == nil {
+			execExitCode = parseExecExitCode(result)
+		}
+
 		if err != nil {
 			// On error, add error message as tool result so the model can recover
 			result = fmt.Sprintf("Error executing tool: %v", err)
@@ -355,6 +380,15 @@ func (m *Manager) executeToolCalls(ctx context.Context, state *State, toolCalls 
 				zap.String("tool", toolCall.Name),
 				zap.Error(err),
 			)
+			// For exec tools, set exit code to indicate error
+			if isExecTool {
+				execExitCode = 1
+			}
+		}
+
+		// Render exec end if we have a renderer and this is an exec tool
+		if isExecTool && m.renderer != nil && command != "" {
+			m.renderer.RenderExecEnd(command, execDuration, execExitCode)
 		}
 
 		// Add tool result to conversation
@@ -364,10 +398,42 @@ func (m *Manager) executeToolCalls(ctx context.Context, state *State, toolCalls 
 			Name:       toolCall.Name,
 			ToolCallID: toolCall.ID,
 		})
-
 	}
 
 	return nil
+}
+
+// parseExecExitCode extracts the exit code from an exec tool result JSON.
+func parseExecExitCode(result string) int {
+	// Simple parsing - look for "exitCode": N pattern
+	// The result format is: {"output": "...", "exitCode": N}
+	const prefix = `"exitCode":`
+	idx := strings.Index(result, prefix)
+	if idx == -1 {
+		return 0
+	}
+
+	// Skip to the number
+	start := idx + len(prefix)
+	// Skip whitespace
+	for start < len(result) && (result[start] == ' ' || result[start] == '\t') {
+		start++
+	}
+
+	// Read digits
+	end := start
+	for end < len(result) && result[end] >= '0' && result[end] <= '9' {
+		end++
+	}
+
+	if start == end {
+		return 0
+	}
+
+	// Parse the number
+	var exitCode int
+	_, _ = fmt.Sscanf(result[start:end], "%d", &exitCode)
+	return exitCode
 }
 
 // SendMessageToCurrentAgent sends a message to the current agent with default output handling.

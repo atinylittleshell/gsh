@@ -809,3 +809,237 @@ func TestSendMessage_WithRenderer_NoCallback(t *testing.T) {
 		t.Errorf("Expected renderer to capture response, got: %s", output)
 	}
 }
+
+func TestSendMessage_ExecToolRendering(t *testing.T) {
+	logger := zap.NewNop()
+	manager := NewManager(logger)
+
+	provider := newMockProvider()
+	// First call returns exec tool call
+	provider.addResponse("Let me run a command.", []interpreter.ChatToolCall{
+		{ID: "call1", Name: "exec", Arguments: map[string]interface{}{"command": "echo hello"}},
+	})
+	// Second call returns final response
+	provider.addResponse("Done!", nil)
+
+	var buf bytes.Buffer
+	renderer := render.New(nil, &buf, func() int { return 80 })
+	manager.SetRenderer(renderer)
+
+	agent := &interpreter.AgentValue{
+		Name:   "test",
+		Config: map[string]interpreter.Value{},
+	}
+
+	tools := []interpreter.ChatTool{
+		{Name: "exec", Description: "Execute a command", Parameters: map[string]interface{}{}},
+	}
+
+	toolExecutor := func(ctx context.Context, toolName string, args map[string]interface{}) (string, error) {
+		return `{"output": "hello\n", "exitCode": 0}`, nil
+	}
+
+	state := &State{
+		Agent:        agent,
+		Provider:     provider,
+		Conversation: []interpreter.ChatMessage{},
+		Tools:        tools,
+		ToolExecutor: toolExecutor,
+	}
+
+	manager.AddAgent("test", state)
+	manager.SetCurrentAgent("test")
+
+	err := manager.SendMessage(context.Background(), "Run echo", nil)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify exec start was rendered (▶ symbol)
+	if !strings.Contains(output, "▶") {
+		t.Errorf("Expected exec start symbol (▶), got: %s", output)
+	}
+
+	// Verify command was shown
+	if !strings.Contains(output, "echo hello") {
+		t.Errorf("Expected command 'echo hello' in output, got: %s", output)
+	}
+
+	// Verify exec end was rendered (✓ symbol for success)
+	if !strings.Contains(output, "✓") {
+		t.Errorf("Expected success symbol (✓), got: %s", output)
+	}
+
+	// Verify the first word of command is shown in completion
+	if !strings.Contains(output, "echo") {
+		t.Errorf("Expected 'echo' in completion line, got: %s", output)
+	}
+}
+
+func TestSendMessage_ExecToolRendering_NonZeroExit(t *testing.T) {
+	logger := zap.NewNop()
+	manager := NewManager(logger)
+
+	provider := newMockProvider()
+	// First call returns exec tool call
+	provider.addResponse("Let me run a command.", []interpreter.ChatToolCall{
+		{ID: "call1", Name: "exec", Arguments: map[string]interface{}{"command": "cat /nonexistent"}},
+	})
+	// Second call returns final response
+	provider.addResponse("The file doesn't exist.", nil)
+
+	var buf bytes.Buffer
+	renderer := render.New(nil, &buf, func() int { return 80 })
+	manager.SetRenderer(renderer)
+
+	agent := &interpreter.AgentValue{
+		Name:   "test",
+		Config: map[string]interpreter.Value{},
+	}
+
+	tools := []interpreter.ChatTool{
+		{Name: "exec", Description: "Execute a command", Parameters: map[string]interface{}{}},
+	}
+
+	toolExecutor := func(ctx context.Context, toolName string, args map[string]interface{}) (string, error) {
+		return `{"output": "cat: /nonexistent: No such file or directory\n", "exitCode": 1}`, nil
+	}
+
+	state := &State{
+		Agent:        agent,
+		Provider:     provider,
+		Conversation: []interpreter.ChatMessage{},
+		Tools:        tools,
+		ToolExecutor: toolExecutor,
+	}
+
+	manager.AddAgent("test", state)
+	manager.SetCurrentAgent("test")
+
+	err := manager.SendMessage(context.Background(), "Cat a file", nil)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify exec start was rendered
+	if !strings.Contains(output, "▶") {
+		t.Errorf("Expected exec start symbol (▶), got: %s", output)
+	}
+
+	// Verify error symbol was shown (✗ for non-zero exit)
+	if !strings.Contains(output, "✗") {
+		t.Errorf("Expected error symbol (✗) for non-zero exit, got: %s", output)
+	}
+
+	// Verify exit code is shown
+	if !strings.Contains(output, "exit code 1") {
+		t.Errorf("Expected 'exit code 1' in output, got: %s", output)
+	}
+}
+
+func TestSendMessage_ExecToolRendering_NoRenderer(t *testing.T) {
+	// Test that exec tool works fine without a renderer
+	logger := zap.NewNop()
+	manager := NewManager(logger)
+	// No renderer set
+
+	provider := newMockProvider()
+	provider.addResponse("Let me run a command.", []interpreter.ChatToolCall{
+		{ID: "call1", Name: "exec", Arguments: map[string]interface{}{"command": "echo test"}},
+	})
+	provider.addResponse("Done!", nil)
+
+	agent := &interpreter.AgentValue{
+		Name:   "test",
+		Config: map[string]interpreter.Value{},
+	}
+
+	tools := []interpreter.ChatTool{
+		{Name: "exec", Description: "Execute a command", Parameters: map[string]interface{}{}},
+	}
+
+	toolExecutor := func(ctx context.Context, toolName string, args map[string]interface{}) (string, error) {
+		return `{"output": "test\n", "exitCode": 0}`, nil
+	}
+
+	state := &State{
+		Agent:        agent,
+		Provider:     provider,
+		Conversation: []interpreter.ChatMessage{},
+		Tools:        tools,
+		ToolExecutor: toolExecutor,
+	}
+
+	manager.AddAgent("test", state)
+	manager.SetCurrentAgent("test")
+
+	var chunks []string
+	err := manager.SendMessage(context.Background(), "Run echo", func(chunk string) {
+		chunks = append(chunks, chunk)
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should work without error
+	if len(chunks) == 0 {
+		t.Error("Expected some output chunks")
+	}
+}
+
+func TestParseExecExitCode(t *testing.T) {
+	tests := []struct {
+		name     string
+		result   string
+		expected int
+	}{
+		{
+			name:     "zero exit code",
+			result:   `{"output": "hello\n", "exitCode": 0}`,
+			expected: 0,
+		},
+		{
+			name:     "non-zero exit code",
+			result:   `{"output": "error\n", "exitCode": 1}`,
+			expected: 1,
+		},
+		{
+			name:     "high exit code",
+			result:   `{"output": "", "exitCode": 127}`,
+			expected: 127,
+		},
+		{
+			name:     "exit code with whitespace",
+			result:   `{"output": "", "exitCode":  42}`,
+			expected: 42,
+		},
+		{
+			name:     "no exit code field",
+			result:   `{"output": "hello\n"}`,
+			expected: 0,
+		},
+		{
+			name:     "empty result",
+			result:   ``,
+			expected: 0,
+		},
+		{
+			name:     "truncated result",
+			result:   `{"output": "...", "exitCode": 5, "truncated": true}`,
+			expected: 5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseExecExitCode(tt.result)
+			if got != tt.expected {
+				t.Errorf("parseExecExitCode(%q) = %d, want %d", tt.result, got, tt.expected)
+			}
+		})
+	}
+}

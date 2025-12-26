@@ -479,7 +479,7 @@ Implementation should proceed in this sequence:
    - Call `RenderAgentText` as response streams
    - Call `RenderAgentFooter` when turn completes
 
-5. **TODO: Implement exec tool rendering**
+5. **DONE: Implement exec tool rendering**
 
    - Call `RenderExecStart` before command execution
    - Let output stream directly to stdout (no capture)
@@ -493,15 +493,8 @@ Implementation should proceed in this sequence:
    - Call `RenderToolComplete` when tool finishes
    - Call `RenderToolOutput` if hook returns non-empty
 
-7. **TODO: Add tests**
-
-   - Unit tests for renderer with mocked hooks
-   - Integration tests for full agent interaction flow
-   - Tests for hook override behavior
-
-8. **TODO: Update documentation**
+7. **TODO: Update documentation**
    - Update `docs/tutorial/` with agent rendering info
-   - Add examples to `.gshrc.default.gsh` comments
 
 ---
 
