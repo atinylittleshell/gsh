@@ -43,7 +43,7 @@ var (
 	DimStyle = lipgloss.NewStyle().Foreground(ColorGray)
 
 	// SystemMessageStyle is used for system/status messages
-	SystemMessageStyle = lipgloss.NewStyle().Foreground(ColorGray)
+	SystemMessageStyle = lipgloss.NewStyle().Foreground(ColorYellow)
 )
 
 // StyledSymbol returns a symbol with appropriate styling applied

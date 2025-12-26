@@ -96,12 +96,13 @@ func (s *Spinner) renderFrame(frameIndex int) {
 	s.mu.Unlock()
 
 	frame := s.frames[frameIndex]
+	styledFrame := ToolPendingStyle.Render(frame)
 
 	// Move cursor to beginning of line, clear line, render frame
 	if message != "" {
-		fmt.Fprintf(s.writer, "\r\033[K%s %s", frame, message)
+		fmt.Fprintf(s.writer, "\r\033[K%s %s", styledFrame, message)
 	} else {
-		fmt.Fprintf(s.writer, "\r\033[K%s", frame)
+		fmt.Fprintf(s.writer, "\r\033[K%s", styledFrame)
 	}
 }
 
@@ -209,9 +210,10 @@ func (s *InlineSpinner) renderFrame(frameIndex int) {
 	s.mu.Unlock()
 
 	frame := s.frames[frameIndex]
+	styledFrame := ToolPendingStyle.Render(frame)
 
 	// Move cursor to beginning of line, clear line, render
-	fmt.Fprintf(s.writer, "\r\033[K%s %s%s", prefix, frame, suffix)
+	fmt.Fprintf(s.writer, "\r\033[K%s %s%s", prefix, styledFrame, suffix)
 }
 
 // ClearAndFinish clears the spinner line - caller should print final state

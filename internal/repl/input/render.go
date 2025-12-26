@@ -4,6 +4,7 @@ package input
 import (
 	"strings"
 
+	"github.com/atinylittleshell/gsh/internal/repl/render"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/rivo/uniseg"
 )
@@ -38,13 +39,13 @@ func DefaultRenderConfig() RenderConfig {
 		PromptStyle:     lipgloss.NewStyle(),
 		TextStyle:       lipgloss.NewStyle(),
 		CursorStyle:     lipgloss.NewStyle().Reverse(true),
-		PredictionStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("240")),
+		PredictionStyle: lipgloss.NewStyle().Foreground(render.ColorGray),
 		InfoPanelStyle: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("12")),
+			BorderForeground(render.ColorYellow),
 		CompletionPanelStyle: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("10")),
+			BorderForeground(render.ColorYellow),
 		SelectedStyle: lipgloss.NewStyle().Bold(true),
 	}
 }

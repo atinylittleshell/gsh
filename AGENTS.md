@@ -20,3 +20,17 @@ model exampleModel {
 If you need to build the gsh binary for testing, you can just run `make build` or a custom build command outputting to `./bin/gsh`.
 
 It's okay to overwrite the existing binary during testing.
+
+## UI Colors and Styling
+
+**Yellow is the primary UI color for gsh.** All UI elements that need highlighting or emphasis should use yellow (ANSI color 11).
+
+The centralized color definitions are in `internal/repl/render/styles.go`:
+- `ColorYellow` (ANSI 11) - Primary UI color for headers, success indicators, tool status, exec start, system messages, spinners
+- `ColorRed` (ANSI 9) - Error indicators only
+- `ColorGray` (ANSI 8) - Dim/secondary information like timing
+
+When adding new UI elements:
+1. **Always import and use the color constants** from `internal/repl/render/styles.go`
+2. **Never hardcode color values** like `lipgloss.Color("12")` - use the centralized constants
+3. For new styles, consider adding them to `styles.go` if they'll be reused
