@@ -17,6 +17,8 @@ func DefaultToolExecutor(liveOutput io.Writer) ToolExecutor {
 		switch toolName {
 		case "exec":
 			return ExecuteExecTool(ctx, args, liveOutput)
+		case "grep":
+			return ExecuteGrepTool(ctx, args)
 		default:
 			return "", fmt.Errorf("unknown tool: %s", toolName)
 		}
@@ -27,6 +29,7 @@ func DefaultToolExecutor(liveOutput io.Writer) ToolExecutor {
 func DefaultTools() []interpreter.ChatTool {
 	return []interpreter.ChatTool{
 		ExecToolDefinition(),
+		GrepToolDefinition(),
 	}
 }
 

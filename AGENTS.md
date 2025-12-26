@@ -1,3 +1,7 @@
+## Keeping code and docs in sync
+
+When you made changes to gsh behavior, remember to update documentation under the `docs/` folder as needed.
+
 ## Writing gsh script examples
 
 When writing a test case or code example that requires a custom model, always use a model from ollama like this:
