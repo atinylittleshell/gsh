@@ -1,9 +1,10 @@
 ## Must have before v1 release
 
 - Prompt caching
-- "G Shell" terminology
+- Custom agent tools?
 - Support MCP servers for REPL agent
 - Document keybinds
+- "G Shell" terminology
 
 ## Nice to have
 

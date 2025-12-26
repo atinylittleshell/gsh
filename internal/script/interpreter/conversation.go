@@ -178,17 +178,54 @@ func (i *Interpreter) executeAgent(conv *ConversationValue, agent *AgentValue) (
 	// Build messages for the request (include system prompt for the model)
 	buildRequestMessages := func() []ChatMessage {
 		messages := []ChatMessage{}
-		// Add system prompt if configured
+		// Add system prompt if configured, with cache control for prompt caching.
 		if systemPromptVal, ok := agent.Config["systemPrompt"]; ok {
 			if systemPromptStr, ok := systemPromptVal.(*StringValue); ok {
 				messages = append(messages, ChatMessage{
-					Role:    "system",
-					Content: systemPromptStr.Value,
+					Role: "system",
+					ContentParts: []ContentPart{
+						{
+							Type: "text",
+							Text: systemPromptStr.Value,
+							CacheControl: &CacheControl{
+								Type: "ephemeral",
+							},
+						},
+					},
 				})
 			}
 		}
-		// Add all messages from the conversation
-		messages = append(messages, newConv.Messages...)
+
+		// Add all messages from the conversation, marking the last user message
+		// with cache control for prompt caching. This allows caching of the
+		// conversation history up to and including the latest user input.
+		convMessages := make([]ChatMessage, len(newConv.Messages))
+		copy(convMessages, newConv.Messages)
+
+		// Find and mark the last user message with cache control
+		for i := len(convMessages) - 1; i >= 0; i-- {
+			if convMessages[i].Role == "user" {
+				// Convert to ContentParts format with cache control
+				convMessages[i] = ChatMessage{
+					Role:       convMessages[i].Role,
+					Name:       convMessages[i].Name,
+					ToolCallID: convMessages[i].ToolCallID,
+					ToolCalls:  convMessages[i].ToolCalls,
+					ContentParts: []ContentPart{
+						{
+							Type: "text",
+							Text: convMessages[i].Content,
+							CacheControl: &CacheControl{
+								Type: "ephemeral",
+							},
+						},
+					},
+				}
+				break
+			}
+		}
+
+		messages = append(messages, convMessages...)
 		return messages
 	}
 

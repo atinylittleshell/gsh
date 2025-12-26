@@ -75,6 +75,7 @@ type QueryContext struct {
 	DurationMs   int64 `json:"durationMs"`
 	InputTokens  int   `json:"inputTokens"`
 	OutputTokens int   `json:"outputTokens"`
+	CachedTokens int   `json:"cachedTokens"` // Number of input tokens that were cache hits
 }
 
 // ExecContext contains exec tool information
@@ -169,6 +170,7 @@ func (r *Renderer) contextToInterpreterObject(ctx *RenderContext) *interpreter.O
 				"durationMs":   &interpreter.NumberValue{Value: float64(ctx.Query.DurationMs)},
 				"inputTokens":  &interpreter.NumberValue{Value: float64(ctx.Query.InputTokens)},
 				"outputTokens": &interpreter.NumberValue{Value: float64(ctx.Query.OutputTokens)},
+				"cachedTokens": &interpreter.NumberValue{Value: float64(ctx.Query.CachedTokens)},
 			},
 		}
 	} else {
@@ -229,19 +231,25 @@ func (r *Renderer) RenderAgentHeader(agentName string) {
 }
 
 // RenderAgentFooter renders the agent footer line using the GSH_AGENT_FOOTER hook
-func (r *Renderer) RenderAgentFooter(inputTokens, outputTokens int, duration time.Duration) {
+func (r *Renderer) RenderAgentFooter(inputTokens, outputTokens, cachedTokens int, duration time.Duration) {
 	ctx := r.newBaseContext()
 	ctx.Query = &QueryContext{
 		DurationMs:   duration.Milliseconds(),
 		InputTokens:  inputTokens,
 		OutputTokens: outputTokens,
+		CachedTokens: cachedTokens,
 	}
 
 	footer := r.callHookWithContext("GSH_AGENT_FOOTER", ctx)
 
 	if footer == "" {
-		// Fallback if hook fails
-		footer = fmt.Sprintf("── %d in · %d out · %.1fs ───", inputTokens, outputTokens, duration.Seconds())
+		// Fallback if hook fails - include cache ratio next to input tokens if there are cached tokens
+		if cachedTokens > 0 && inputTokens > 0 {
+			cacheRatio := float64(cachedTokens) / float64(inputTokens) * 100
+			footer = fmt.Sprintf("── %d in (%.0f%% cached) · %d out · %.1fs ───", inputTokens, cacheRatio, outputTokens, duration.Seconds())
+		} else {
+			footer = fmt.Sprintf("── %d in · %d out · %.1fs ───", inputTokens, outputTokens, duration.Seconds())
+		}
 	}
 
 	fmt.Fprintln(r.writer)

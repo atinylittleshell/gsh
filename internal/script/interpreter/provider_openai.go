@@ -27,6 +27,55 @@ func (p *OpenAIProvider) Name() string {
 	return "openai"
 }
 
+// extractStringContent extracts string content from an interface{} that may be
+// a string or an array of content parts (multipart format).
+// Used when parsing API responses where content could be in either format.
+func extractStringContent(content interface{}) string {
+	if content == nil {
+		return ""
+	}
+	// Most common case: content is a string
+	if str, ok := content.(string); ok {
+		return str
+	}
+	// Handle array of content parts (multipart format)
+	if parts, ok := content.([]interface{}); ok {
+		var result strings.Builder
+		for _, part := range parts {
+			if partMap, ok := part.(map[string]interface{}); ok {
+				if text, ok := partMap["text"].(string); ok {
+					result.WriteString(text)
+				}
+			}
+		}
+		return result.String()
+	}
+	return ""
+}
+
+// convertMessageContent converts a ChatMessage's content to the appropriate format.
+// If ContentParts is set, it returns an array of openAIContentPart for multipart/cache control.
+// Otherwise, it returns the plain string content.
+func convertMessageContent(msg ChatMessage) interface{} {
+	if len(msg.ContentParts) > 0 {
+		parts := make([]openAIContentPart, len(msg.ContentParts))
+		for i, part := range msg.ContentParts {
+			parts[i] = openAIContentPart{
+				Type: part.Type,
+				Text: part.Text,
+			}
+			if part.CacheControl != nil {
+				parts[i].CacheControl = &openAICacheControl{
+					Type: part.CacheControl.Type,
+					TTL:  part.CacheControl.TTL,
+				}
+			}
+		}
+		return parts
+	}
+	return msg.Content
+}
+
 // ChatCompletion sends a chat completion request to OpenAI
 func (p *OpenAIProvider) ChatCompletion(request ChatRequest) (*ChatResponse, error) {
 	if request.Model == nil {
@@ -76,7 +125,7 @@ func (p *OpenAIProvider) ChatCompletion(request ChatRequest) (*ChatResponse, err
 	for i, msg := range request.Messages {
 		openaiReq.Messages[i] = openAIMessage{
 			Role:    msg.Role,
-			Content: msg.Content,
+			Content: convertMessageContent(msg),
 		}
 		if msg.Name != "" {
 			openaiReq.Messages[i].Name = &msg.Name
@@ -186,7 +235,7 @@ func (p *OpenAIProvider) ChatCompletion(request ChatRequest) (*ChatResponse, err
 
 	choice := openaiResp.Choices[0]
 	response := &ChatResponse{
-		Content:      choice.Message.Content,
+		Content:      extractStringContent(choice.Message.Content),
 		FinishReason: choice.FinishReason,
 	}
 
@@ -196,6 +245,10 @@ func (p *OpenAIProvider) ChatCompletion(request ChatRequest) (*ChatResponse, err
 			PromptTokens:     openaiResp.Usage.PromptTokens,
 			CompletionTokens: openaiResp.Usage.CompletionTokens,
 			TotalTokens:      openaiResp.Usage.TotalTokens,
+		}
+		// Include cached tokens if available (from OpenAI's prompt_tokens_details)
+		if openaiResp.Usage.PromptTokensDetails != nil {
+			response.Usage.CachedTokens = openaiResp.Usage.PromptTokensDetails.CachedTokens
 		}
 	}
 
@@ -273,7 +326,7 @@ func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callback S
 	for i, msg := range request.Messages {
 		openaiReq.Messages[i] = openAIMessage{
 			Role:    msg.Role,
-			Content: msg.Content,
+			Content: convertMessageContent(msg),
 		}
 		if msg.Name != "" {
 			openaiReq.Messages[i].Name = &msg.Name
@@ -407,6 +460,10 @@ func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callback S
 				CompletionTokens: chunk.Usage.CompletionTokens,
 				TotalTokens:      chunk.Usage.TotalTokens,
 			}
+			// Include cached tokens if available (from OpenAI's prompt_tokens_details)
+			if chunk.Usage.PromptTokensDetails != nil {
+				usage.CachedTokens = chunk.Usage.PromptTokensDetails.CachedTokens
+			}
 		}
 
 		// Process choices
@@ -535,12 +592,29 @@ type openAIChatCompletionRequest struct {
 	Tools       []openAITool    `json:"tools,omitempty"`
 }
 
+// openAIMessage represents a message in the OpenAI API format.
+// Content can be either a string or an array of content parts (for multipart/cache control).
 type openAIMessage struct {
 	Role       string                  `json:"role"`
-	Content    string                  `json:"content"`
+	Content    interface{}             `json:"content"` // string or []openAIContentPart
 	Name       *string                 `json:"name,omitempty"`
 	ToolCallID *string                 `json:"tool_call_id,omitempty"` // Required for tool result messages
 	ToolCalls  []openAIMessageToolCall `json:"tool_calls,omitempty"`
+}
+
+// openAIContentPart represents a content part in multipart message format.
+// Used for prompt caching (cache_control) and vision (image_url).
+type openAIContentPart struct {
+	Type         string              `json:"type"`                    // "text", "image_url"
+	Text         string              `json:"text,omitempty"`          // For "text" type
+	CacheControl *openAICacheControl `json:"cache_control,omitempty"` // For prompt caching
+}
+
+// openAICacheControl specifies caching behavior for a content part.
+// Supported by OpenRouter (Anthropic, Gemini). Ignored by OpenAI direct and Ollama.
+type openAICacheControl struct {
+	Type string `json:"type"`          // "ephemeral"
+	TTL  string `json:"ttl,omitempty"` // "5m" or "1h"
 }
 
 type openAIMessageToolCall struct {
@@ -577,7 +651,13 @@ type openAIChoice struct {
 }
 
 type openAIUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
+	PromptTokens        int                        `json:"prompt_tokens"`
+	CompletionTokens    int                        `json:"completion_tokens"`
+	TotalTokens         int                        `json:"total_tokens"`
+	PromptTokensDetails *openAIPromptTokensDetails `json:"prompt_tokens_details,omitempty"`
+}
+
+// openAIPromptTokensDetails contains detailed prompt token information including cache hits.
+type openAIPromptTokensDetails struct {
+	CachedTokens int `json:"cached_tokens"`
 }

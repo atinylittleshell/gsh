@@ -37,6 +37,27 @@ type ChatMessage struct {
 	Name       string         // Optional: name of the tool or user
 	ToolCallID string         // For tool result messages (required by OpenAI API)
 	ToolCalls  []ChatToolCall // For assistant messages that request tool calls
+
+	// ContentParts allows multipart content with cache control for prompt caching.
+	// When set, this takes precedence over Content for providers that support it.
+	// Compatible with OpenAI, Ollama, and OpenRouter (Anthropic, Gemini, etc.)
+	ContentParts []ContentPart
+}
+
+// ContentPart represents a part of a multipart message content.
+// Used for prompt caching with OpenRouter/Anthropic and vision content with OpenAI.
+type ContentPart struct {
+	Type         string        // "text", "image_url"
+	Text         string        // For "text" type
+	CacheControl *CacheControl // Optional cache control for prompt caching
+}
+
+// CacheControl specifies caching behavior for a content part.
+// Supported by OpenRouter when using Anthropic or Gemini models.
+// Ignored (but safe to send) by OpenAI direct and Ollama.
+type CacheControl struct {
+	Type string // "ephemeral" - marks content for caching
+	TTL  string // Optional: "5m" or "1h" (Anthropic supports these TTLs)
 }
 
 // ChatTool represents a tool that can be called by the model
@@ -66,6 +87,9 @@ type ChatUsage struct {
 	PromptTokens     int
 	CompletionTokens int
 	TotalTokens      int
+
+	// CachedTokens indicates how many prompt tokens were cache hits.
+	CachedTokens int
 }
 
 // ChatToolCall represents a tool call requested by the model

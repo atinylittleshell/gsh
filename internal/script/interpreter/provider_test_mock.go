@@ -35,6 +35,21 @@ func (m *MockProvider) Name() string {
 	return m.name
 }
 
+// getMessageContent extracts text content from a ChatMessage, handling both
+// plain Content and ContentParts formats.
+func getMessageContent(msg ChatMessage) string {
+	if len(msg.ContentParts) > 0 {
+		var content strings.Builder
+		for _, part := range msg.ContentParts {
+			if part.Type == "text" {
+				content.WriteString(part.Text)
+			}
+		}
+		return content.String()
+	}
+	return msg.Content
+}
+
 // ChatCompletion simulates an LLM response
 func (m *MockProvider) ChatCompletion(request ChatRequest) (*ChatResponse, error) {
 	// Track the call
@@ -44,7 +59,7 @@ func (m *MockProvider) ChatCompletion(request ChatRequest) (*ChatResponse, error
 	var lastUserMsg string
 	for i := len(request.Messages) - 1; i >= 0; i-- {
 		if request.Messages[i].Role == "user" {
-			lastUserMsg = request.Messages[i].Content
+			lastUserMsg = getMessageContent(request.Messages[i])
 			break
 		}
 	}
@@ -140,11 +155,11 @@ func (s *SmartMockProvider) ChatCompletion(request ChatRequest) (*ChatResponse, 
 	// Track the call
 	s.CallHistory = append(s.CallHistory, request)
 
-	// Get the last user message
+	// Get the last user message (handles both Content and ContentParts formats)
 	var lastUserMsg string
 	for i := len(request.Messages) - 1; i >= 0; i-- {
 		if request.Messages[i].Role == "user" {
-			lastUserMsg = request.Messages[i].Content
+			lastUserMsg = getMessageContent(request.Messages[i])
 			break
 		}
 	}

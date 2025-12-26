@@ -159,7 +159,7 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 	startTime := timeNow()
 
 	// Track token usage across all iterations
-	var totalInputTokens, totalOutputTokens int
+	var totalInputTokens, totalOutputTokens, totalCachedTokens int
 
 	// Track if we've added the user message (only add on first successful iteration)
 	userMessageAdded := false
@@ -224,7 +224,7 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 			// Render footer with error info if we rendered a header
 			if headerRendered && m.renderer != nil {
 				duration := timeNow().Sub(startTime)
-				m.renderer.RenderAgentFooter(totalInputTokens, totalOutputTokens, duration)
+				m.renderer.RenderAgentFooter(totalInputTokens, totalOutputTokens, totalCachedTokens, duration)
 			}
 			return fmt.Errorf("agent error: %w", err)
 		}
@@ -233,6 +233,7 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 		if response.Usage != nil {
 			totalInputTokens += response.Usage.PromptTokens
 			totalOutputTokens += response.Usage.CompletionTokens
+			totalCachedTokens += response.Usage.CachedTokens
 		}
 
 		// On first successful response, add the user message to conversation history
@@ -261,7 +262,7 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 
 			// Render footer with stats
 			if m.renderer != nil {
-				m.renderer.RenderAgentFooter(totalInputTokens, totalOutputTokens, duration)
+				m.renderer.RenderAgentFooter(totalInputTokens, totalOutputTokens, totalCachedTokens, duration)
 			}
 
 			return nil
@@ -279,7 +280,7 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 			// Render footer even on error
 			if m.renderer != nil {
 				duration := timeNow().Sub(startTime)
-				m.renderer.RenderAgentFooter(totalInputTokens, totalOutputTokens, duration)
+				m.renderer.RenderAgentFooter(totalInputTokens, totalOutputTokens, totalCachedTokens, duration)
 			}
 			return fmt.Errorf("tool execution error: %w", err)
 		}
@@ -290,7 +291,7 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 	// Render footer before returning max iterations error
 	if m.renderer != nil {
 		duration := timeNow().Sub(startTime)
-		m.renderer.RenderAgentFooter(totalInputTokens, totalOutputTokens, duration)
+		m.renderer.RenderAgentFooter(totalInputTokens, totalOutputTokens, totalCachedTokens, duration)
 	}
 
 	// If we reach here, we hit max iterations

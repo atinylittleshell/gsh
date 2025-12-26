@@ -420,6 +420,274 @@ func TestOpenAIProviderToolCallMessageFields(t *testing.T) {
 	}
 }
 
+func TestOpenAIProviderCachedTokens(t *testing.T) {
+	// Test that cached_tokens is correctly parsed from the response
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"id": "chatcmpl-cached",
+			"object": "chat.completion",
+			"created": 1677652288,
+			"model": "gpt-4",
+			"choices": [{
+				"index": 0,
+				"message": {
+					"role": "assistant",
+					"content": "Cached response"
+				},
+				"finish_reason": "stop"
+			}],
+			"usage": {
+				"prompt_tokens": 2006,
+				"completion_tokens": 100,
+				"total_tokens": 2106,
+				"prompt_tokens_details": {
+					"cached_tokens": 1920
+				}
+			}
+		}`))
+	}))
+	defer server.Close()
+
+	provider := NewOpenAIProvider()
+	req := ChatRequest{
+		Model: &ModelValue{
+			Name: "gpt4",
+			Config: map[string]Value{
+				"provider": &StringValue{Value: "openai"},
+				"apiKey":   &StringValue{Value: "test-key"},
+				"model":    &StringValue{Value: "gpt-4"},
+				"baseURL":  &StringValue{Value: server.URL},
+			},
+		},
+		Messages: []ChatMessage{
+			{Role: "user", Content: "Test with caching"},
+		},
+	}
+
+	resp, err := provider.ChatCompletion(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Usage == nil {
+		t.Fatal("expected usage to be set")
+	}
+	if resp.Usage.PromptTokens != 2006 {
+		t.Errorf("expected prompt tokens 2006, got %d", resp.Usage.PromptTokens)
+	}
+	if resp.Usage.CachedTokens != 1920 {
+		t.Errorf("expected cached tokens 1920, got %d", resp.Usage.CachedTokens)
+	}
+}
+
+func TestOpenAIProviderContentParts(t *testing.T) {
+	// Test that ContentParts with CacheControl is correctly serialized
+	var capturedReqBody map[string]interface{}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Capture request body
+		if err := json.NewDecoder(r.Body).Decode(&capturedReqBody); err != nil {
+			t.Errorf("failed to decode request body: %v", err)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"id": "chatcmpl-multipart",
+			"object": "chat.completion",
+			"created": 1677652288,
+			"model": "claude-3-5-sonnet",
+			"choices": [{
+				"index": 0,
+				"message": {
+					"role": "assistant",
+					"content": "Response to cached content"
+				},
+				"finish_reason": "stop"
+			}]
+		}`))
+	}))
+	defer server.Close()
+
+	provider := NewOpenAIProvider()
+	req := ChatRequest{
+		Model: &ModelValue{
+			Name: "claude",
+			Config: map[string]Value{
+				"provider": &StringValue{Value: "openai"},
+				"apiKey":   &StringValue{Value: "test-key"},
+				"model":    &StringValue{Value: "anthropic/claude-3-5-sonnet"},
+				"baseURL":  &StringValue{Value: server.URL},
+			},
+		},
+		Messages: []ChatMessage{
+			{
+				Role: "system",
+				ContentParts: []ContentPart{
+					{
+						Type: "text",
+						Text: "You are a helpful assistant.",
+					},
+					{
+						Type: "text",
+						Text: "Here is a very long context that should be cached...",
+						CacheControl: &CacheControl{
+							Type: "ephemeral",
+						},
+					},
+				},
+			},
+			{Role: "user", Content: "What is in the context?"},
+		},
+	}
+
+	resp, err := provider.ChatCompletion(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Content != "Response to cached content" {
+		t.Errorf("expected content 'Response to cached content', got %q", resp.Content)
+	}
+
+	// Verify the request body structure
+	messages, ok := capturedReqBody["messages"].([]interface{})
+	if !ok {
+		t.Fatal("messages field not found or not an array")
+	}
+	if len(messages) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(messages))
+	}
+
+	// Check system message has multipart content
+	systemMsg, ok := messages[0].(map[string]interface{})
+	if !ok {
+		t.Fatal("system message not found")
+	}
+	content, ok := systemMsg["content"].([]interface{})
+	if !ok {
+		t.Fatal("system message content should be an array for ContentParts")
+	}
+	if len(content) != 2 {
+		t.Fatalf("expected 2 content parts, got %d", len(content))
+	}
+
+	// Check first part (no cache_control)
+	part1, ok := content[0].(map[string]interface{})
+	if !ok {
+		t.Fatal("first content part not a map")
+	}
+	if part1["type"] != "text" {
+		t.Errorf("expected type 'text', got %v", part1["type"])
+	}
+	if part1["text"] != "You are a helpful assistant." {
+		t.Errorf("unexpected text in first part: %v", part1["text"])
+	}
+	if _, hasCache := part1["cache_control"]; hasCache {
+		t.Error("first part should not have cache_control")
+	}
+
+	// Check second part (has cache_control)
+	part2, ok := content[1].(map[string]interface{})
+	if !ok {
+		t.Fatal("second content part not a map")
+	}
+	if part2["type"] != "text" {
+		t.Errorf("expected type 'text', got %v", part2["type"])
+	}
+	cacheControl, ok := part2["cache_control"].(map[string]interface{})
+	if !ok {
+		t.Fatal("cache_control not found in second part")
+	}
+	if cacheControl["type"] != "ephemeral" {
+		t.Errorf("expected cache_control type 'ephemeral', got %v", cacheControl["type"])
+	}
+
+	// Check user message has plain string content
+	userMsg, ok := messages[1].(map[string]interface{})
+	if !ok {
+		t.Fatal("user message not found")
+	}
+	userContent, ok := userMsg["content"].(string)
+	if !ok {
+		t.Fatal("user message content should be a string")
+	}
+	if userContent != "What is in the context?" {
+		t.Errorf("expected user content 'What is in the context?', got %q", userContent)
+	}
+}
+
+func TestOpenAIProviderContentPartsWithTTL(t *testing.T) {
+	// Test that CacheControl with TTL is correctly serialized
+	var capturedReqBody map[string]interface{}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&capturedReqBody)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"id": "chatcmpl-ttl",
+			"object": "chat.completion",
+			"created": 1677652288,
+			"model": "claude-3-5-sonnet",
+			"choices": [{
+				"index": 0,
+				"message": {"role": "assistant", "content": "OK"},
+				"finish_reason": "stop"
+			}]
+		}`))
+	}))
+	defer server.Close()
+
+	provider := NewOpenAIProvider()
+	req := ChatRequest{
+		Model: &ModelValue{
+			Name: "claude",
+			Config: map[string]Value{
+				"provider": &StringValue{Value: "openai"},
+				"apiKey":   &StringValue{Value: "test-key"},
+				"model":    &StringValue{Value: "anthropic/claude-3-5-sonnet"},
+				"baseURL":  &StringValue{Value: server.URL},
+			},
+		},
+		Messages: []ChatMessage{
+			{
+				Role: "system",
+				ContentParts: []ContentPart{
+					{
+						Type: "text",
+						Text: "Long context to cache for 1 hour",
+						CacheControl: &CacheControl{
+							Type: "ephemeral",
+							TTL:  "1h",
+						},
+					},
+				},
+			},
+			{Role: "user", Content: "Hi"},
+		},
+	}
+
+	_, err := provider.ChatCompletion(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify TTL is included
+	messages := capturedReqBody["messages"].([]interface{})
+	systemMsg := messages[0].(map[string]interface{})
+	content := systemMsg["content"].([]interface{})
+	part := content[0].(map[string]interface{})
+	cacheControl := part["cache_control"].(map[string]interface{})
+
+	if cacheControl["type"] != "ephemeral" {
+		t.Errorf("expected cache_control type 'ephemeral', got %v", cacheControl["type"])
+	}
+	if cacheControl["ttl"] != "1h" {
+		t.Errorf("expected cache_control ttl '1h', got %v", cacheControl["ttl"])
+	}
+}
+
 func TestOpenAIProviderCustomBaseURL(t *testing.T) {
 	// This test verifies the custom base URL is used correctly
 	// We'll use a mock server to verify

@@ -58,11 +58,22 @@ func TestRenderAgentFooter_Fallback(t *testing.T) {
 	var buf bytes.Buffer
 	renderer := New(nil, &buf, func() int { return 80 })
 
-	renderer.RenderAgentFooter(100, 50, 2*time.Second)
+	renderer.RenderAgentFooter(100, 50, 0, 2*time.Second)
 
 	output := buf.String()
 	assert.Contains(t, output, "100")
 	assert.Contains(t, output, "50")
+}
+
+func TestRenderAgentFooter_FallbackWithCache(t *testing.T) {
+	var buf bytes.Buffer
+	renderer := New(nil, &buf, func() int { return 80 })
+
+	renderer.RenderAgentFooter(1000, 50, 800, 2*time.Second)
+
+	output := buf.String()
+	assert.Contains(t, output, "1000 in (80% cached)")
+	assert.Contains(t, output, "50 out")
 }
 
 func TestRenderAgentFooter_WithHook(t *testing.T) {
@@ -77,10 +88,28 @@ func TestRenderAgentFooter_WithHook(t *testing.T) {
 	require.NoError(t, err)
 
 	renderer := New(interp, &buf, func() int { return 80 })
-	renderer.RenderAgentFooter(100, 50, time.Second)
+	renderer.RenderAgentFooter(100, 50, 0, time.Second)
 
 	output := buf.String()
 	assert.Contains(t, output, "tokens: 100/50")
+}
+
+func TestRenderAgentFooter_WithHookShowingCache(t *testing.T) {
+	var buf bytes.Buffer
+	interp := interpreter.New()
+
+	_, err := interp.EvalString(`
+		tool GSH_AGENT_FOOTER(ctx: object): string {
+			return "cached: " + ctx.query.cachedTokens + "/" + ctx.query.inputTokens
+		}
+	`)
+	require.NoError(t, err)
+
+	renderer := New(interp, &buf, func() int { return 80 })
+	renderer.RenderAgentFooter(1000, 50, 800, time.Second)
+
+	output := buf.String()
+	assert.Contains(t, output, "cached: 800/1000")
 }
 
 func TestStartThinkingSpinner(t *testing.T) {

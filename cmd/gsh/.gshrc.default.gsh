@@ -72,6 +72,7 @@ tool GSH_AGENT_HEADER(ctx: object): string {
 
 # Renders the footer line when an agent finishes responding
 # Example output: "── 523 in · 324 out · 1.2s ────────────────────"
+# Example with cache: "── 523 in (80% cached) · 324 out · 1.2s ─────"
 tool GSH_AGENT_FOOTER(ctx: object): string {
     width = ctx.terminal.width
     if (width > 80) {
@@ -79,7 +80,17 @@ tool GSH_AGENT_FOOTER(ctx: object): string {
     }
     # Format duration: convert ms to seconds with 1 decimal place
     durationSec = ctx.query.durationMs / 1000
-    text = "" + ctx.query.inputTokens + " in · " + ctx.query.outputTokens + " out · " + durationSec + "s"
+    
+    # Build the text, including cache ratio next to input tokens if there are cached tokens
+    text = "" + ctx.query.inputTokens + " in"
+    if (ctx.query.cachedTokens > 0 && ctx.query.inputTokens > 0) {
+        cacheRatio = (ctx.query.cachedTokens / ctx.query.inputTokens) * 100
+        # Round to integer by adding 0.5 and truncating (gsh doesn't have Math.round)
+        cacheRatioInt = (cacheRatio + 0.5) - ((cacheRatio + 0.5) % 1)
+        text = text + " (" + cacheRatioInt + "% cached)"
+    }
+    text = text + " · " + ctx.query.outputTokens + " out · " + durationSec + "s"
+    
     padding = width - 4 - text.length
     if (padding < 3) {
         padding = 3
