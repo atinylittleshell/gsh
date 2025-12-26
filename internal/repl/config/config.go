@@ -19,6 +19,10 @@ type Config struct {
 	// LogLevel controls logging verbosity (from GSH_CONFIG.logLevel)
 	LogLevel string
 
+	// StarshipIntegration controls whether gsh automatically integrates with starship
+	// when it's detected in PATH. Defaults to true. Set to false in GSH_CONFIG to disable.
+	StarshipIntegration *bool
+
 	// PredictModel is the name of the model to use for predictions (from GSH_CONFIG.predictModel)
 	// GSH_CONFIG.predictModel must be a model value reference (e.g., predictModel: myModel), not a string.
 	// This field stores the name of the referenced model.
@@ -116,17 +120,27 @@ func (c *Config) GetMCPServer(name string) *mcp.MCPServer {
 	return c.MCPServers[name]
 }
 
+// StarshipIntegrationEnabled returns whether starship integration is enabled.
+// Returns true by default (when StarshipIntegration is nil or explicitly true).
+func (c *Config) StarshipIntegrationEnabled() bool {
+	if c.StarshipIntegration == nil {
+		return true // Default to enabled
+	}
+	return *c.StarshipIntegration
+}
+
 // Clone creates a deep copy of the Config.
 func (c *Config) Clone() *Config {
 	clone := &Config{
-		Prompt:            c.Prompt,
-		LogLevel:          c.LogLevel,
-		PredictModel:      c.PredictModel,
-		DefaultAgentModel: c.DefaultAgentModel,
-		MCPServers:        make(map[string]*mcp.MCPServer, len(c.MCPServers)),
-		Models:            make(map[string]*interpreter.ModelValue, len(c.Models)),
-		Agents:            make(map[string]*interpreter.AgentValue, len(c.Agents)),
-		Tools:             make(map[string]*interpreter.ToolValue, len(c.Tools)),
+		Prompt:              c.Prompt,
+		LogLevel:            c.LogLevel,
+		StarshipIntegration: c.StarshipIntegration,
+		PredictModel:        c.PredictModel,
+		DefaultAgentModel:   c.DefaultAgentModel,
+		MCPServers:          make(map[string]*mcp.MCPServer, len(c.MCPServers)),
+		Models:              make(map[string]*interpreter.ModelValue, len(c.Models)),
+		Agents:              make(map[string]*interpreter.AgentValue, len(c.Agents)),
+		Tools:               make(map[string]*interpreter.ToolValue, len(c.Tools)),
 	}
 
 	// Copy maps (shallow copy of values, which are pointers)

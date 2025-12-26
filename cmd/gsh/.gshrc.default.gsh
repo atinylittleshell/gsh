@@ -19,8 +19,11 @@ model GSH_AGENT_MODEL {
 
 # Default GSH configuration
 GSH_CONFIG = {
-    # Simple prompt (fallback if GSH_PROMPT fails)
+    # Simple prompt (fallback if starship or GSH_PROMPT fails)
     prompt: "gsh> ",
+
+    # Enable automatic starship integration
+    starshipIntegration: true,
     
     # Log level: "debug", "info", "warn", "error"
     logLevel: "info",
@@ -45,7 +48,10 @@ tool GSH_AGENT_HEADER(agentName: string, terminalWidth: number): string {
     if (width > 80) {
         width = 80
     }
-    text = "agent: " + agentName
+    text = agentName
+    if (text == "default") {
+        text = "gsh"
+    }
     padding = width - 4 - text.length  # "── " prefix (3) + " " before padding (1)
     if (padding < 3) {
         padding = 3

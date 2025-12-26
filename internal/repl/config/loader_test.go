@@ -892,7 +892,7 @@ model UserModel {
 
 	// Load configuration
 	loader := NewLoader(nil)
-	result, err := loader.LoadDefaultConfigPath(defaultConfig)
+	result, err := loader.LoadDefaultConfigPath(defaultConfig, "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Empty(t, result.Errors)
@@ -938,7 +938,7 @@ tool GSH_DEFAULT_TOOL(x: number): number {
 
 	// Load configuration (no user config file exists)
 	loader := NewLoader(nil)
-	result, err := loader.LoadDefaultConfigPath(defaultConfig)
+	result, err := loader.LoadDefaultConfigPath(defaultConfig, "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Empty(t, result.Errors)
@@ -984,11 +984,149 @@ GSH_CONFIG = {
 
 	// Load configuration
 	loader := NewLoader(nil)
-	result, err := loader.LoadDefaultConfigPath(defaultConfig)
+	result, err := loader.LoadDefaultConfigPath(defaultConfig, "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Empty(t, result.Errors)
 
 	// Verify the model from default config is used in GSH_CONFIG
 	assert.Equal(t, "DEFAULT_MODEL", result.Config.PredictModel, "predictModel should reference DEFAULT_MODEL from default config")
+}
+
+// Test starshipIntegration config extraction
+func TestLoader_LoadFromString_StarshipIntegration(t *testing.T) {
+	loader := NewLoader(nil)
+
+	// Test with starshipIntegration = true
+	source := `
+GSH_CONFIG = {
+	starshipIntegration: true,
+}
+`
+	result, err := loader.LoadFromString(source)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Empty(t, result.Errors)
+	require.NotNil(t, result.Config.StarshipIntegration)
+	assert.True(t, *result.Config.StarshipIntegration)
+	assert.True(t, result.Config.StarshipIntegrationEnabled())
+
+	// Test with starshipIntegration = false
+	source = `
+GSH_CONFIG = {
+	starshipIntegration: false,
+}
+`
+	result, err = loader.LoadFromString(source)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Empty(t, result.Errors)
+	require.NotNil(t, result.Config.StarshipIntegration)
+	assert.False(t, *result.Config.StarshipIntegration)
+	assert.False(t, result.Config.StarshipIntegrationEnabled())
+}
+
+// Test that StarshipIntegrationEnabled defaults to true when not set
+func TestConfig_StarshipIntegrationEnabled_Default(t *testing.T) {
+	config := DefaultConfig()
+	assert.Nil(t, config.StarshipIntegration)
+	assert.True(t, config.StarshipIntegrationEnabled())
+}
+
+// Test starshipIntegration type validation
+func TestLoader_LoadFromString_StarshipIntegration_InvalidType(t *testing.T) {
+	loader := NewLoader(nil)
+
+	source := `
+GSH_CONFIG = {
+	starshipIntegration: "yes",
+}
+`
+	result, err := loader.LoadFromString(source)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotEmpty(t, result.Errors)
+	assert.Contains(t, result.Errors[0].Error(), "starshipIntegration must be a boolean")
+}
+
+// Test that starship config is loaded when starship integration is enabled
+func TestLoader_LoadDefaultConfigPath_WithStarshipConfig(t *testing.T) {
+	// Create a temp directory to use as home
+	tmpDir := t.TempDir()
+
+	// Save original home dir and restore after test
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpDir)
+
+	defaultConfig := `
+model DefaultModel {
+	provider: "openai",
+	model: "gpt-4",
+}
+`
+	// Note: Starship config will only be loaded if isStarshipAvailable() returns true
+	// Since we can't guarantee starship is installed in CI, we test with empty starship config
+	starshipConfig := ""
+
+	loader := NewLoader(nil)
+	result, err := loader.LoadDefaultConfigPath(defaultConfig, starshipConfig)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Empty(t, result.Errors)
+
+	// Verify default model exists
+	assert.NotNil(t, result.Config.Models["DefaultModel"])
+}
+
+// Test that starship config is not loaded when user disables it
+func TestLoader_LoadDefaultConfigPath_StarshipDisabled(t *testing.T) {
+	// Create a temp directory to use as home
+	tmpDir := t.TempDir()
+
+	// Save original home dir and restore after test
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpDir)
+
+	defaultConfig := `
+model DefaultModel {
+	provider: "openai",
+	model: "gpt-4",
+}
+`
+	// User config that disables starship
+	userConfig := `
+GSH_CONFIG = {
+	starshipIntegration: false,
+}
+`
+	// Write user config
+	userConfigPath := filepath.Join(tmpDir, ".gshrc.gsh")
+	err := os.WriteFile(userConfigPath, []byte(userConfig), 0644)
+	require.NoError(t, err)
+
+	// Starship config that would define GSH_PROMPT - this won't be loaded
+	// because user disabled starship integration
+	starshipConfig := `
+tool GSH_PROMPT(exitCode: number, durationMs: number): string {
+	return "starship> "
+}
+`
+
+	loader := NewLoader(nil)
+	result, err := loader.LoadDefaultConfigPath(defaultConfig, starshipConfig)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Starship integration should be disabled
+	assert.False(t, result.Config.StarshipIntegrationEnabled())
+
+	// GSH_PROMPT tool should NOT be defined because:
+	// 1. User set starshipIntegration = false
+	// 2. Starship config is only loaded if starship is in PATH AND integration is enabled
+	// Since integration is disabled, starship config won't be loaded regardless of PATH
+	vars := result.Interpreter.GetVariables()
+	_, hasPromptTool := vars["GSH_PROMPT"]
+	assert.False(t, hasPromptTool, "GSH_PROMPT should not be defined when starship integration is disabled")
 }

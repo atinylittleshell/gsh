@@ -34,6 +34,9 @@ var BUILD_VERSION = "dev"
 //go:embed .gshrc.default.gsh
 var defaultGshrcContent string
 
+//go:embed .gshrc.starship.gsh
+var starshipGshrcContent string
+
 var command = flag.String("c", "", "run a command")
 var loginShell = flag.Bool("l", false, "run as a login shell")
 
@@ -172,9 +175,10 @@ func run(
 // runInteractiveShell starts the new REPL implementation.
 func runInteractiveShell(ctx context.Context, logger *zap.Logger) error {
 	r, err := repl.NewREPL(repl.Options{
-		Logger:               logger,
-		DefaultConfigContent: defaultGshrcContent,
-		BuildVersion:         BUILD_VERSION,
+		Logger:                logger,
+		DefaultConfigContent:  defaultGshrcContent,
+		StarshipConfigContent: starshipGshrcContent,
+		BuildVersion:          BUILD_VERSION,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to initialize REPL: %w", err)

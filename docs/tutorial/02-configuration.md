@@ -315,4 +315,4 @@ Your shell is now configured! Chapter 03 covers **Custom Prompts with Starship**
 
 **Previous Chapter:** [Chapter 01: Getting Started](01-getting-started-with-gsh.md)
 
-**Next Chapter:** [Chapter 03: Custom Prompts with Starship](03-custom-prompts-with-starship.md)
+**Next Chapter:** [Chapter 03: Custom Prompts](03-custom-prompts.md)

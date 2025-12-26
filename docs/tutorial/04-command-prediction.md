@@ -445,6 +445,6 @@ Predictions make you faster! Chapter 05 covers **Agents in the REPL**—how to u
 
 ---
 
-**Previous Chapter:** [Chapter 03: Custom Prompts with Starship](03-custom-prompts-with-starship.md)
+**Previous Chapter:** [Chapter 03: Custom Prompts](03-custom-prompts.md)
 
 **Next Chapter:** [Chapter 05: Agents in the REPL](05-agents-in-the-repl.md)

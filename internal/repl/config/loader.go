@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
@@ -78,10 +79,18 @@ func (l *Loader) LoadFromString(source string) (*LoadResult, error) {
 }
 
 // LoadDefaultConfigPath loads configuration from the default path (~/.gshrc.gsh).
-// It first loads .gshrc.default.gsh (system defaults), then loads user's ~/.gshrc.gsh
-// into the SAME interpreter, allowing user-defined tools to shadow default tools.
+// Loading order:
+//  1. .gshrc.default.gsh (system defaults)
+//  2. ~/.gshrc.gsh (user config)
+//  3. .gshrc.starship.gsh (if starship is detected and user hasn't disabled it)
+//
+// Starship integration is loaded last so that user config can set starshipIntegration = false
+// to disable it. Users who want a custom prompt should disable starship integration and
+// define their own GSH_PROMPT tool.
+//
 // defaultContent is the embedded content of .gshrc.default.gsh (can be empty).
-func (l *Loader) LoadDefaultConfigPath(defaultContent string) (*LoadResult, error) {
+// starshipContent is the embedded content of .gshrc.starship.gsh (can be empty).
+func (l *Loader) LoadDefaultConfigPath(defaultContent string, starshipContent string) (*LoadResult, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return &LoadResult{
@@ -96,7 +105,7 @@ func (l *Loader) LoadDefaultConfigPath(defaultContent string) (*LoadResult, erro
 		Errors: []error{},
 	}
 
-	// Create ONE interpreter for both configs
+	// Create ONE interpreter for all configs
 	interp := interpreter.NewWithLogger(l.logger)
 
 	// 1. Load default config first
@@ -136,11 +145,34 @@ func (l *Loader) LoadDefaultConfigPath(defaultContent string) (*LoadResult, erro
 		}
 	}
 
-	// 3. Extract final state from the interpreter
-	result.Interpreter = interp
+	// 3. Extract config to check starshipIntegration setting
 	l.extractConfigFromInterpreter(interp, result)
 
+	// 4. Load starship integration if enabled and starship is available
+	if starshipContent != "" && result.Config.StarshipIntegrationEnabled() && isStarshipAvailable() {
+		_, err := interp.EvalString(starshipContent)
+		if err != nil {
+			result.Errors = append(result.Errors, err)
+			if l.logger != nil {
+				l.logger.Warn("errors loading starship integration", zap.Error(err))
+			}
+		} else if l.logger != nil {
+			l.logger.Debug("loaded starship integration (starship detected in PATH)")
+		}
+		// Re-extract config after loading starship integration
+		l.extractConfigFromInterpreter(interp, result)
+	}
+
+	// 5. Set interpreter in result
+	result.Interpreter = interp
+
 	return result, nil
+}
+
+// isStarshipAvailable checks if starship is available in the system PATH.
+func isStarshipAvailable() bool {
+	_, err := exec.LookPath("starship")
+	return err == nil
 }
 
 // LoadBashRC loads a bash configuration file (.gshrc) by executing it through
@@ -300,4 +332,12 @@ func (l *Loader) extractGSHConfig(value interpreter.Value, result *LoadResult) {
 		}
 	}
 
+	// Extract starshipIntegration
+	if starshipIntegration, ok := obj.Properties["starshipIntegration"]; ok {
+		if boolVal, ok := starshipIntegration.(*interpreter.BoolValue); ok {
+			result.Config.StarshipIntegration = &boolVal.Value
+		} else {
+			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.starshipIntegration must be a boolean"))
+		}
+	}
 }

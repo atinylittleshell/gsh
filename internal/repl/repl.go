@@ -66,6 +66,10 @@ type Options struct {
 	// This is loaded before the user's .gshrc.gsh file.
 	DefaultConfigContent string
 
+	// StarshipConfigContent is the embedded content of .gshrc.starship.gsh.
+	// This is loaded after user config if starship is detected and integration is enabled.
+	StarshipConfigContent string
+
 	// HistoryPath is the path to the history database file.
 	// If empty, the default path is used.
 	HistoryPath string
@@ -107,7 +111,7 @@ func NewREPL(opts Options) (*REPL, error) {
 	if opts.ConfigPath != "" {
 		loadResult, err = loader.LoadFromFile(opts.ConfigPath)
 	} else {
-		loadResult, err = loader.LoadDefaultConfigPath(opts.DefaultConfigContent)
+		loadResult, err = loader.LoadDefaultConfigPath(opts.DefaultConfigContent, opts.StarshipConfigContent)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
