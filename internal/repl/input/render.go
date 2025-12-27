@@ -52,15 +52,17 @@ func DefaultRenderConfig() RenderConfig {
 
 // Renderer handles rendering of input components.
 type Renderer struct {
-	config RenderConfig
-	width  int
+	config      RenderConfig
+	width       int
+	highlighter *Highlighter
 }
 
 // NewRenderer creates a new Renderer with the given configuration.
 func NewRenderer(config RenderConfig) *Renderer {
 	return &Renderer{
-		config: config,
-		width:  80, // default width
+		config:      config,
+		width:       80, // default width
+		highlighter: NewHighlighter(),
 	}
 }
 
@@ -105,30 +107,51 @@ func (r *Renderer) RenderInputLine(prompt string, buffer *Buffer, prediction str
 		pos = len(runes)
 	}
 
-	// Text before cursor
-	if pos > 0 {
-		result += r.config.TextStyle.Inline(true).Render(string(runes[:pos]))
-	}
+	// Apply syntax highlighting to the full text
+	highlightedText := r.highlighter.Highlight(text)
 
-	// Cursor and text after cursor
+	// For cursor positioning, we need to work with the raw text positions
+	// but render the highlighted version
 	if pos < len(runes) {
-		// Cursor is on a character
+		// Cursor is in the middle of the text
+		// We need to highlight before and after cursor separately to insert cursor
+		beforeCursor := string(runes[:pos])
 		cursorChar := string(runes[pos])
+		afterCursor := ""
+		if pos+1 < len(runes) {
+			afterCursor = string(runes[pos+1:])
+		}
+
+		// Highlight each part
+		highlightedBefore := r.highlighter.Highlight(beforeCursor)
+		highlightedAfter := ""
+		if afterCursor != "" {
+			// For after cursor, we need context-aware highlighting
+			// Highlight the full text from cursor position onwards
+			highlightedAfter = r.highlightFromPosition(text, pos+1)
+		}
+
+		result += highlightedBefore
+
+		// Render cursor
 		if focused {
 			result += r.config.CursorStyle.Render(cursorChar)
 		} else {
-			result += r.config.TextStyle.Inline(true).Render(cursorChar)
+			// Apply highlighting to cursor char based on its context
+			cursorHighlighted := r.highlightFromPosition(text, pos)
+			if len(cursorHighlighted) > 0 {
+				// Extract just the first character's styling
+				result += r.extractFirstChar(cursorHighlighted)
+			} else {
+				result += cursorChar
+			}
 		}
 
-		// Text after cursor
-		if pos+1 < len(runes) {
-			result += r.config.TextStyle.Inline(true).Render(string(runes[pos+1:]))
-		}
-
-		// Prediction ghost text (only shown when cursor is after the text)
-		// In this case, there's no prediction to show since cursor is in the middle
+		result += highlightedAfter
 	} else {
 		// Cursor is at end of text
+		result += highlightedText
+
 		// Check if we have a prediction that extends the input
 		if prediction != "" && strings.HasPrefix(prediction, text) && len(prediction) > len(text) {
 			// Show cursor on first prediction character
@@ -157,6 +180,30 @@ func (r *Renderer) RenderInputLine(prompt string, buffer *Buffer, prediction str
 	}
 
 	return result
+}
+
+// highlightFromPosition highlights text starting from a given rune position.
+// This is used to get proper context-aware highlighting for text after cursor.
+func (r *Renderer) highlightFromPosition(fullText string, runePos int) string {
+	runes := []rune(fullText)
+	if runePos >= len(runes) {
+		return ""
+	}
+	substring := string(runes[runePos:])
+	// For simple cases, just highlight the substring
+	// This may lose some context, but works for most shell commands
+	return r.highlighter.Highlight(substring)
+}
+
+// extractFirstChar extracts the first visible character from a potentially styled string.
+// This is a simplification - it returns the first rune.
+func (r *Renderer) extractFirstChar(s string) string {
+	runes := []rune(s)
+	if len(runes) == 0 {
+		return ""
+	}
+	// Find first printable char (skip ANSI codes)
+	return string(runes[0])
 }
 
 // RenderCompletionBox renders the completion suggestions in a box format.

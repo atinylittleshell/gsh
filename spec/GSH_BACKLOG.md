@@ -3,9 +3,9 @@
 - Custom agent tools?
 - Support MCP servers for REPL agent
 - Document keybinds
+- Agent message history
 - "G Shell" terminology
 
 ## Nice to have
 
-- Syntax highlighting for command being typed in REPL
 - Markdown rendering for agent text responses in REPL

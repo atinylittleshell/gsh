@@ -126,16 +126,6 @@ func TestREPL_HandleBuiltinCommand_Exit(t *testing.T) {
 	assert.True(t, handled)
 	assert.Equal(t, ErrExit, err)
 
-	// Test that :exit also returns ErrExit
-	handled, err = repl.handleBuiltinCommand(":exit")
-	assert.True(t, handled)
-	assert.Equal(t, ErrExit, err)
-
-	// Test that :clear is handled
-	handled, err = repl.handleBuiltinCommand(":clear")
-	assert.True(t, handled)
-	assert.NoError(t, err)
-
 	// Test unhandled command
 	handled, err = repl.handleBuiltinCommand("ls")
 	assert.False(t, handled)

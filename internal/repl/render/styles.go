@@ -7,9 +7,13 @@ import (
 
 // ANSI color codes as defined in the spec
 const (
-	ColorYellow = lipgloss.Color("11") // Primary UI color (agent header/footer)
-	ColorRed    = lipgloss.Color("9")  // Error indicator
-	ColorGray   = lipgloss.Color("8")  // Dim/secondary (timing, meta info)
+	ColorYellow  = lipgloss.Color("11") // Primary UI color (agent header/footer)
+	ColorRed     = lipgloss.Color("9")  // Error indicator
+	ColorGray    = lipgloss.Color("8")  // Dim/secondary (timing, meta info)
+	ColorCyan    = lipgloss.Color("14") // Commands/executables that exist
+	ColorGreen   = lipgloss.Color("10") // Strings (quoted text)
+	ColorBlue    = lipgloss.Color("12") // Flags/options
+	ColorMagenta = lipgloss.Color("13") // Variables
 )
 
 // Symbols as defined in the spec

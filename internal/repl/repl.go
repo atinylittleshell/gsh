@@ -581,15 +581,10 @@ var ErrExit = fmt.Errorf("exit requested")
 // Returns true if the command was handled, and an error if the REPL should exit.
 func (r *REPL) handleBuiltinCommand(command string) (bool, error) {
 	switch command {
-	case "exit", ":exit":
+	case "exit":
 		// Signal exit by returning ErrExit
 		fmt.Println("Bye!")
 		return true, ErrExit
-
-	case ":clear":
-		// Clear screen
-		fmt.Print("\033[H\033[2J")
-		return true, nil
 
 	default:
 		return false, nil
