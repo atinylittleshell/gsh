@@ -596,7 +596,7 @@ result = x[0]`,
 			script: `x = 5
 result = x.property`,
 			expectError:        true,
-			errorShouldContain: []string{"cannot access property", "property", "number", "line 2", "column"},
+			errorShouldContain: []string{"property", "not found", "number", "line 2", "column"},
 			description:        "Should report error when accessing member on non-object with location",
 		},
 		{

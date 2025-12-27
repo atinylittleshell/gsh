@@ -380,10 +380,10 @@ func TestREPL_HandleBuiltinCommand_Clear(t *testing.T) {
 	require.NoError(t, err)
 	defer repl.Close()
 
-	// :clear should be handled
-	handled, err := repl.handleBuiltinCommand(":clear")
+	// Built-in commands are things like "exit"
+	handled, err := repl.handleBuiltinCommand("exit")
 	assert.True(t, handled)
-	assert.NoError(t, err)
+	assert.Equal(t, ErrExit, err)
 }
 
 func TestREPL_HandleBuiltinCommand_UnknownCommand(t *testing.T) {
@@ -777,7 +777,7 @@ func TestNewREPL_BuiltInDefaultAgentIsImmutable(t *testing.T) {
 	systemPrompt, ok := systemPromptVal.(*interpreter.StringValue)
 	require.True(t, ok, "systemPrompt should be a string")
 
-	assert.Equal(t, "You are gsh, an AI-powered shell program. You are friendly and helpful, assisting the user with their tasks in the shell.", systemPrompt.Value)
+	assert.Equal(t, "You are gsh (generative shell), an AI-powered shell assistant. You use tools available to you to help the user with their questions and tasks.", systemPrompt.Value)
 	assert.Equal(t, "default", defaultAgent.Agent.Name)
 }
 
@@ -966,7 +966,8 @@ func TestHandleAgentCommand_Success(t *testing.T) {
 		Name: "testAgent",
 		Config: map[string]interpreter.Value{
 			"model": &interpreter.ModelValue{
-				Name: "test-model",
+				Name:     "test-model",
+				Provider: mockProvider,
 			},
 			"systemPrompt": &interpreter.StringValue{
 				Value: "You are helpful",
@@ -978,6 +979,7 @@ func TestHandleAgentCommand_Success(t *testing.T) {
 		Agent:        agentVal,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
+		Interpreter:  interpreter.New(),
 	}
 
 	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"testAgent": agentState}, "testAgent")
@@ -1022,7 +1024,8 @@ func TestHandleAgentCommand_ConversationHistory(t *testing.T) {
 		Name: "testAgent",
 		Config: map[string]interpreter.Value{
 			"model": &interpreter.ModelValue{
-				Name: "test-model",
+				Name:     "test-model",
+				Provider: mockProvider,
 			},
 			"systemPrompt": &interpreter.StringValue{
 				Value: "You are helpful",
@@ -1034,6 +1037,7 @@ func TestHandleAgentCommand_ConversationHistory(t *testing.T) {
 		Agent:        agentVal,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
+		Interpreter:  interpreter.New(),
 	}
 
 	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"testAgent": agentState}, "testAgent")
@@ -1048,9 +1052,11 @@ func TestHandleAgentCommand_ConversationHistory(t *testing.T) {
 	// Verify first request had system prompt + user message
 	assert.Equal(t, 2, len(lastRequestMessages)) // system + user
 	assert.Equal(t, "system", lastRequestMessages[0].Role)
-	assert.Equal(t, "You are helpful", lastRequestMessages[0].Content)
+	// System prompt uses ContentParts for cache control
+	assert.Equal(t, "You are helpful", lastRequestMessages[0].ContentParts[0].Text)
 	assert.Equal(t, "user", lastRequestMessages[1].Role)
-	assert.Equal(t, "first message", lastRequestMessages[1].Content)
+	// User message uses ContentParts for cache control
+	assert.Equal(t, "first message", lastRequestMessages[1].ContentParts[0].Text)
 
 	// Second message
 	err = repl.handleAgentCommand(ctx, "second message")
@@ -1065,7 +1071,8 @@ func TestHandleAgentCommand_ConversationHistory(t *testing.T) {
 	assert.Equal(t, "assistant", lastRequestMessages[2].Role)
 	assert.Equal(t, "Response", lastRequestMessages[2].Content)
 	assert.Equal(t, "user", lastRequestMessages[3].Role)
-	assert.Equal(t, "second message", lastRequestMessages[3].Content)
+	// Last user message uses ContentParts for cache control
+	assert.Equal(t, "second message", lastRequestMessages[3].ContentParts[0].Text)
 }
 
 func TestHandleAgentCommand_ProviderError(t *testing.T) {
@@ -1081,7 +1088,8 @@ func TestHandleAgentCommand_ProviderError(t *testing.T) {
 		Name: "testAgent",
 		Config: map[string]interpreter.Value{
 			"model": &interpreter.ModelValue{
-				Name: "test-model",
+				Name:     "test-model",
+				Provider: mockProvider,
 			},
 		},
 	}
@@ -1090,6 +1098,7 @@ func TestHandleAgentCommand_ProviderError(t *testing.T) {
 		Agent:        agentVal,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
+		Interpreter:  interpreter.New(),
 	}
 
 	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"testAgent": agentState}, "testAgent")
@@ -1127,7 +1136,8 @@ func TestHandleAgentCommand_NoSystemPrompt(t *testing.T) {
 		Name: "testAgent",
 		Config: map[string]interpreter.Value{
 			"model": &interpreter.ModelValue{
-				Name: "test-model",
+				Name:     "test-model",
+				Provider: mockProvider,
 			},
 		},
 	}
@@ -1136,6 +1146,7 @@ func TestHandleAgentCommand_NoSystemPrompt(t *testing.T) {
 		Agent:        agentVal,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
+		Interpreter:  interpreter.New(),
 	}
 
 	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"testAgent": agentState}, "testAgent")
@@ -1148,4 +1159,6 @@ func TestHandleAgentCommand_NoSystemPrompt(t *testing.T) {
 	// Should not include system message
 	assert.Equal(t, 1, len(lastRequestMessages))
 	assert.Equal(t, "user", lastRequestMessages[0].Role)
+	// User message uses ContentParts for cache control
+	assert.Equal(t, "hello", lastRequestMessages[0].ContentParts[0].Text)
 }

@@ -222,25 +222,31 @@ func TestHandleAgentCommand_ConversationIsolation(t *testing.T) {
 	agent1 := &interpreter.AgentValue{
 		Name: "agent1",
 		Config: map[string]interpreter.Value{
-			"model": &interpreter.ModelValue{Name: "model1"},
+			"model": &interpreter.ModelValue{Name: "model1", Provider: mockProvider},
 		},
 	}
 	agent2 := &interpreter.AgentValue{
 		Name: "agent2",
 		Config: map[string]interpreter.Value{
-			"model": &interpreter.ModelValue{Name: "model2"},
+			"model": &interpreter.ModelValue{Name: "model2", Provider: mockProvider},
 		},
 	}
+
+	// Create interpreters for each agent state
+	interp1 := interpreter.New()
+	interp2 := interpreter.New()
 
 	state1 := &agent.State{
 		Agent:        agent1,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
+		Interpreter:  interp1,
 	}
 	state2 := &agent.State{
 		Agent:        agent2,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
+		Interpreter:  interp2,
 	}
 
 	repl := createTestREPLWithAgents(logger, map[string]*agent.State{

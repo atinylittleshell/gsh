@@ -26,7 +26,7 @@ func TestRenderWelcome(t *testing.T) {
 			termWidth: 80,
 			wantLogo:  true,
 			wantTexts: []string{
-				"The Generative Shell",
+				"The G Shell",
 				"version: 1.0.0",
 				"predict: gemma3:1b",
 				"agent:   devstral-small-2",
@@ -43,7 +43,7 @@ func TestRenderWelcome(t *testing.T) {
 			termWidth: 80,
 			wantLogo:  true,
 			wantTexts: []string{
-				"The Generative Shell",
+				"The G Shell",
 				"development",
 				"predict: test-model",
 				"agent:   test-agent",
@@ -57,7 +57,7 @@ func TestRenderWelcome(t *testing.T) {
 			termWidth: 80,
 			wantLogo:  true,
 			wantTexts: []string{
-				"The Generative Shell",
+				"The G Shell",
 				"predict: not configured",
 				"agent:   not configured",
 			},
@@ -72,7 +72,7 @@ func TestRenderWelcome(t *testing.T) {
 			termWidth: 30,
 			wantLogo:  false,
 			wantTexts: []string{
-				"The Generative Shell",
+				"The G Shell",
 				"predict: gemma3:1b",
 			},
 		},

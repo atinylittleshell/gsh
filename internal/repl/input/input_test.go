@@ -579,9 +579,10 @@ func TestViewAfterSubmit(t *testing.T) {
 
 	view := m.View()
 
-	// View should render final state
-	if view == "" {
-		t.Error("view should not be empty after submit")
+	// View should be empty after submit - the REPL handles printing the final line
+	// so it persists in terminal history
+	if view != "" {
+		t.Errorf("view should be empty after submit, got '%s'", view)
 	}
 }
 
