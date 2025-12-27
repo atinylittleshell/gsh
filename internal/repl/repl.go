@@ -204,6 +204,7 @@ func NewREPL(opts Options) (*REPL, error) {
 			Agent:        defaultAgent,
 			Provider:     defaultAgentModel.Provider,
 			Conversation: []interpreter.ChatMessage{},
+			Interpreter:  loadResult.Interpreter,
 		}
 		agent.SetupAgentWithDefaultTools(defaultState)
 		agentManager.AddAgent("default", defaultState)
@@ -232,6 +233,7 @@ func NewREPL(opts Options) (*REPL, error) {
 				Agent:        agentVal,
 				Provider:     provider,
 				Conversation: []interpreter.ChatMessage{},
+				Interpreter:  loadResult.Interpreter,
 			}
 			agent.SetupAgentWithDefaultTools(customState)
 			agentManager.AddAgent(name, customState)

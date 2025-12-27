@@ -86,10 +86,33 @@ type ExecContext struct {
 	ExitCode         int    `json:"exitCode"`
 }
 
+// ToolCallStatus represents the execution status of a tool call.
+// Aligned with ACP's ToolCallStatus enum.
+// Note: We keep "executing" for backward compatibility with existing hooks,
+// which maps to ACP's "in_progress".
+type ToolCallStatus string
+
+const (
+	// ToolCallStatusPending indicates the tool call is waiting to be executed.
+	ToolCallStatusPending ToolCallStatus = "pending"
+
+	// ToolCallStatusExecuting indicates the tool is currently executing.
+	// This is gsh's name for ACP's "in_progress" status.
+	ToolCallStatusExecuting ToolCallStatus = "executing"
+
+	// ToolCallStatusSuccess indicates the tool finished successfully.
+	// This is gsh's name for ACP's "completed" status.
+	ToolCallStatusSuccess ToolCallStatus = "success"
+
+	// ToolCallStatusError indicates the tool encountered an error.
+	// This is gsh's name for ACP's "failed" status.
+	ToolCallStatusError ToolCallStatus = "error"
+)
+
 // ToolCallContext contains non-exec tool call information
 type ToolCallContext struct {
 	Name       string                 `json:"name"`
-	Status     string                 `json:"status"` // "pending", "executing", "success", "error"
+	Status     ToolCallStatus         `json:"status"`
 	Args       map[string]interface{} `json:"args"`
 	DurationMs int64                  `json:"durationMs"`
 	Output     string                 `json:"output"`
@@ -201,7 +224,7 @@ func (r *Renderer) contextToInterpreterObject(ctx *RenderContext) *interpreter.O
 		props["toolCall"] = &interpreter.ObjectValue{
 			Properties: map[string]interpreter.Value{
 				"name":       &interpreter.StringValue{Value: ctx.ToolCall.Name},
-				"status":     &interpreter.StringValue{Value: ctx.ToolCall.Status},
+				"status":     &interpreter.StringValue{Value: string(ctx.ToolCall.Status)},
 				"args":       &interpreter.ObjectValue{Properties: argsObj},
 				"durationMs": &interpreter.NumberValue{Value: float64(ctx.ToolCall.DurationMs)},
 				"output":     &interpreter.StringValue{Value: ctx.ToolCall.Output},
@@ -353,7 +376,7 @@ func (r *Renderer) RenderToolPending(toolName string) {
 	ctx := r.newBaseContext()
 	ctx.ToolCall = &ToolCallContext{
 		Name:       toolName,
-		Status:     "pending",
+		Status:     ToolCallStatusPending,
 		Args:       make(map[string]interface{}),
 		DurationMs: 0,
 		Output:     "",
@@ -391,7 +414,7 @@ func (r *Renderer) RenderToolExecuting(toolName string, args map[string]interfac
 	ctx := r.newBaseContext()
 	ctx.ToolCall = &ToolCallContext{
 		Name:       toolName,
-		Status:     "executing",
+		Status:     ToolCallStatusExecuting,
 		Args:       args,
 		DurationMs: 0,
 		Output:     "",
@@ -412,9 +435,9 @@ func (r *Renderer) RenderToolExecuting(toolName string, args map[string]interfac
 // RenderToolComplete renders a tool in complete state (success or error)
 // It replaces the previously rendered "executing" lines with the completion status.
 func (r *Renderer) RenderToolComplete(toolName string, args map[string]interface{}, duration time.Duration, success bool) {
-	status := "success"
+	status := ToolCallStatusSuccess
 	if !success {
-		status = "error"
+		status = ToolCallStatusError
 	}
 
 	ctx := r.newBaseContext()
@@ -539,27 +562,27 @@ func toInterpreterValue(v interface{}) interpreter.Value {
 }
 
 // formatToolStatus provides fallback formatting for tool status
-func (r *Renderer) formatToolStatus(toolName, status string, args map[string]interface{}, durationMs int64) string {
+func (r *Renderer) formatToolStatus(toolName string, status ToolCallStatus, args map[string]interface{}, durationMs int64) string {
 	var sb strings.Builder
 
 	durationSec := float64(durationMs) / 1000.0
 
 	switch status {
-	case "pending":
+	case ToolCallStatusPending:
 		sb.WriteString(fmt.Sprintf("%s %s", SymbolToolPending, toolName))
-	case "executing":
+	case ToolCallStatusExecuting:
 		sb.WriteString(fmt.Sprintf("%s %s", SymbolToolPending, toolName))
 		if len(args) > 0 {
 			sb.WriteString("\n")
 			sb.WriteString(r.formatArgs(args))
 		}
-	case "success":
+	case ToolCallStatusSuccess:
 		sb.WriteString(fmt.Sprintf("%s %s %s (%.1fs)", SymbolToolComplete, toolName, SymbolSuccess, durationSec))
 		if len(args) > 0 {
 			sb.WriteString("\n")
 			sb.WriteString(r.formatArgs(args))
 		}
-	case "error":
+	case ToolCallStatusError:
 		sb.WriteString(fmt.Sprintf("%s %s %s (%.1fs)", SymbolToolComplete, toolName, SymbolError, durationSec))
 		if len(args) > 0 {
 			sb.WriteString("\n")

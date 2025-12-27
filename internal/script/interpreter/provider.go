@@ -9,14 +9,25 @@ type ModelProvider interface {
 	ChatCompletion(request ChatRequest) (*ChatResponse, error)
 
 	// StreamingChatCompletion sends a chat completion request with streaming response.
-	// The callback is called for each chunk of content received.
+	// The callbacks provide hooks for content chunks and tool call detection.
 	// Returns the final complete response after streaming is done.
-	StreamingChatCompletion(request ChatRequest, callback StreamCallback) (*ChatResponse, error)
+	StreamingChatCompletion(request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error)
 }
 
 // StreamCallback is called for each chunk of streamed content.
 // The content parameter contains the incremental text delta.
 type StreamCallback func(content string)
+
+// StreamCallbacks provides extended callbacks for streaming responses.
+// This allows for more granular control over streaming, including tool call detection.
+type StreamCallbacks struct {
+	// OnContent is called for each chunk of content text.
+	OnContent func(content string)
+
+	// OnToolCallStart is called when a tool call starts streaming.
+	// At this point, the tool ID and name are known but arguments may still be streaming.
+	OnToolCallStart func(toolCallID string, toolName string)
+}
 
 // ChatRequest represents a chat completion request
 type ChatRequest struct {

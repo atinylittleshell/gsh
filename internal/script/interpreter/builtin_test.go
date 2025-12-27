@@ -402,6 +402,31 @@ func TestJSONStringify(t *testing.T) {
 			input:    `result = JSON.stringify(true)`,
 			expected: `true`,
 		},
+		{
+			name:     "stringify string with quotes",
+			input:    `result = JSON.stringify("Hello \"World\"")`,
+			expected: `"Hello \"World\""`,
+		},
+		{
+			name:     "stringify string with newline",
+			input:    "result = JSON.stringify(\"Line1\\nLine2\")",
+			expected: `"Line1\nLine2"`,
+		},
+		{
+			name:     "stringify string with tab",
+			input:    "result = JSON.stringify(\"Col1\\tCol2\")",
+			expected: `"Col1\tCol2"`,
+		},
+		{
+			name:     "stringify string with backslash",
+			input:    `result = JSON.stringify("path\\to\\file")`,
+			expected: `"path\\to\\file"`,
+		},
+		{
+			name:     "stringify object with special chars in value",
+			input:    `result = JSON.stringify({message: "Hello \"World\"\nNew line"})`,
+			expected: `{"message":"Hello \"World\"\nNew line"}`,
+		},
 	}
 
 	for _, tt := range tests {

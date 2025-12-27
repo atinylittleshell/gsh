@@ -894,10 +894,9 @@ func TestHandleAgentCommand_Help(t *testing.T) {
 
 // MockProvider implements ModelProvider for testing
 type MockProvider struct {
-	responseContent             string
-	shouldError                 bool
-	chatCompletionFunc          func(request interpreter.ChatRequest) (*interpreter.ChatResponse, error)
-	streamingChatCompletionFunc func(request interpreter.ChatRequest, callback interpreter.StreamCallback) (*interpreter.ChatResponse, error)
+	responseContent    string
+	shouldError        bool
+	chatCompletionFunc func(request interpreter.ChatRequest) (*interpreter.ChatResponse, error)
 }
 
 func (m *MockProvider) Name() string {
@@ -919,20 +918,21 @@ func (m *MockProvider) ChatCompletion(request interpreter.ChatRequest) (*interpr
 	}, nil
 }
 
-func (m *MockProvider) StreamingChatCompletion(request interpreter.ChatRequest, callback interpreter.StreamCallback) (*interpreter.ChatResponse, error) {
-	// If custom streaming function is set, use it
-	if m.streamingChatCompletionFunc != nil {
-		return m.streamingChatCompletionFunc(request, callback)
-	}
-
+func (m *MockProvider) StreamingChatCompletion(request interpreter.ChatRequest, callbacks *interpreter.StreamCallbacks) (*interpreter.ChatResponse, error) {
 	// If custom chat completion function is set, use it but simulate streaming
 	if m.chatCompletionFunc != nil {
 		response, err := m.chatCompletionFunc(request)
 		if err != nil {
 			return nil, err
 		}
-		if callback != nil && response.Content != "" {
-			callback(response.Content)
+		if callbacks != nil && callbacks.OnContent != nil && response.Content != "" {
+			callbacks.OnContent(response.Content)
+		}
+		// Notify about tool calls starting
+		if callbacks != nil && callbacks.OnToolCallStart != nil {
+			for _, tc := range response.ToolCalls {
+				callbacks.OnToolCallStart(tc.ID, tc.Name)
+			}
 		}
 		return response, nil
 	}
@@ -943,8 +943,8 @@ func (m *MockProvider) StreamingChatCompletion(request interpreter.ChatRequest, 
 	}
 
 	// Simulate streaming by calling callback with full content
-	if callback != nil && m.responseContent != "" {
-		callback(m.responseContent)
+	if callbacks != nil && callbacks.OnContent != nil && m.responseContent != "" {
+		callbacks.OnContent(m.responseContent)
 	}
 
 	return &interpreter.ChatResponse{

@@ -631,13 +631,13 @@ func (c *chainedToolCallMockProvider) ChatCompletion(request ChatRequest) (*Chat
 	}, nil
 }
 
-func (c *chainedToolCallMockProvider) StreamingChatCompletion(request ChatRequest, callback StreamCallback) (*ChatResponse, error) {
+func (c *chainedToolCallMockProvider) StreamingChatCompletion(request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error) {
 	response, err := c.ChatCompletion(request)
 	if err != nil {
 		return nil, err
 	}
-	if callback != nil && response.Content != "" {
-		callback(response.Content)
+	if callbacks != nil && callbacks.OnContent != nil && response.Content != "" {
+		callbacks.OnContent(response.Content)
 	}
 	return response, nil
 }
@@ -659,13 +659,13 @@ func (i *infiniteToolCallMockProvider) ChatCompletion(request ChatRequest) (*Cha
 	}, nil
 }
 
-func (i *infiniteToolCallMockProvider) StreamingChatCompletion(request ChatRequest, callback StreamCallback) (*ChatResponse, error) {
+func (i *infiniteToolCallMockProvider) StreamingChatCompletion(request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error) {
 	response, err := i.ChatCompletion(request)
 	if err != nil {
 		return nil, err
 	}
-	if callback != nil && response.Content != "" {
-		callback(response.Content)
+	if callbacks != nil && callbacks.OnContent != nil && response.Content != "" {
+		callbacks.OnContent(response.Content)
 	}
 	return response, nil
 }

@@ -335,8 +335,8 @@ func (s *SmartMockProvider) GetLastRequest() *ChatRequest {
 	return &s.CallHistory[len(s.CallHistory)-1]
 }
 
-// StreamingChatCompletion simulates streaming by calling the callback with the full response
-func (s *SmartMockProvider) StreamingChatCompletion(request ChatRequest, callback StreamCallback) (*ChatResponse, error) {
+// StreamingChatCompletion simulates streaming by calling the callbacks with the full response
+func (s *SmartMockProvider) StreamingChatCompletion(request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error) {
 	// Get the non-streaming response
 	response, err := s.ChatCompletion(request)
 	if err != nil {
@@ -344,8 +344,15 @@ func (s *SmartMockProvider) StreamingChatCompletion(request ChatRequest, callbac
 	}
 
 	// Simulate streaming by calling callback with full content at once
-	if callback != nil && response.Content != "" {
-		callback(response.Content)
+	if callbacks != nil && callbacks.OnContent != nil && response.Content != "" {
+		callbacks.OnContent(response.Content)
+	}
+
+	// Notify about tool calls starting
+	if callbacks != nil && callbacks.OnToolCallStart != nil {
+		for _, tc := range response.ToolCalls {
+			callbacks.OnToolCallStart(tc.ID, tc.Name)
+		}
 	}
 
 	return response, nil

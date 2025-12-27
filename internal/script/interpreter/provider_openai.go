@@ -273,8 +273,9 @@ func (p *OpenAIProvider) ChatCompletion(request ChatRequest) (*ChatResponse, err
 	return response, nil
 }
 
-// StreamingChatCompletion sends a chat completion request with streaming response
-func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callback StreamCallback) (*ChatResponse, error) {
+// StreamingChatCompletion sends a chat completion request with streaming response.
+// The callbacks provide hooks for content chunks and tool call detection.
+func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error) {
 	if request.Model == nil {
 		return nil, fmt.Errorf("OpenAI provider requires a model")
 	}
@@ -425,6 +426,9 @@ func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callback S
 	var toolCalls []ChatToolCall
 	var usage *ChatUsage
 
+	// Track which tool calls we've already notified about
+	toolCallNotified := make(map[int]bool)
+
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -474,8 +478,8 @@ func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callback S
 			if choice.Delta.Content != "" {
 				fullContent.WriteString(choice.Delta.Content)
 				// Call the callback with the delta
-				if callback != nil {
-					callback(choice.Delta.Content)
+				if callbacks != nil && callbacks.OnContent != nil {
+					callbacks.OnContent(choice.Delta.Content)
 				}
 			}
 
@@ -496,6 +500,17 @@ func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callback S
 				if tc.Function.Name != "" {
 					toolCalls[tc.Index].Name = tc.Function.Name
 				}
+
+				// Notify when we first see a tool call with both ID and Name
+				if !toolCallNotified[tc.Index] &&
+					toolCalls[tc.Index].ID != "" &&
+					toolCalls[tc.Index].Name != "" {
+					toolCallNotified[tc.Index] = true
+					if callbacks != nil && callbacks.OnToolCallStart != nil {
+						callbacks.OnToolCallStart(toolCalls[tc.Index].ID, toolCalls[tc.Index].Name)
+					}
+				}
+
 				if tc.Function.Arguments != "" {
 					// Accumulate arguments (they may be streamed in chunks)
 					if toolCalls[tc.Index].Arguments == nil {

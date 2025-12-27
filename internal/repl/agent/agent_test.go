@@ -62,17 +62,105 @@ func (m *mockProvider) ChatCompletion(request interpreter.ChatRequest) (*interpr
 	}, nil
 }
 
-func (m *mockProvider) StreamingChatCompletion(request interpreter.ChatRequest, callback interpreter.StreamCallback) (*interpreter.ChatResponse, error) {
+func (m *mockProvider) StreamingChatCompletion(request interpreter.ChatRequest, callbacks *interpreter.StreamCallbacks) (*interpreter.ChatResponse, error) {
 	response, err := m.ChatCompletion(request)
 	if err != nil {
 		return nil, err
 	}
 
-	if callback != nil && response.Content != "" {
-		callback(response.Content)
+	if callbacks != nil && callbacks.OnContent != nil && response.Content != "" {
+		callbacks.OnContent(response.Content)
+	}
+
+	// Notify about tool calls starting
+	if callbacks != nil && callbacks.OnToolCallStart != nil {
+		for _, tc := range response.ToolCalls {
+			callbacks.OnToolCallStart(tc.ID, tc.Name)
+		}
 	}
 
 	return response, nil
+}
+
+// createTestState creates a test State with all required fields populated
+func createTestState(provider interpreter.ModelProvider, systemPrompt string, tools []interpreter.ChatTool, toolExecutor ToolExecutor, maxIterations int) *State {
+	interp := interpreter.New()
+
+	model := &interpreter.ModelValue{
+		Name:     "test-model",
+		Config:   map[string]interpreter.Value{},
+		Provider: provider,
+	}
+
+	agentConfig := map[string]interpreter.Value{
+		"model": model,
+	}
+	if systemPrompt != "" {
+		agentConfig["systemPrompt"] = &interpreter.StringValue{Value: systemPrompt}
+	}
+	if maxIterations > 0 {
+		agentConfig["maxIterations"] = &interpreter.NumberValue{Value: float64(maxIterations)}
+	}
+
+	// Convert tools to ArrayValue for the agent config
+	if len(tools) > 0 {
+		toolValues := make([]interpreter.Value, len(tools))
+		for i, tool := range tools {
+			toolValues[i] = &interpreter.ToolValue{
+				Name:       tool.Name,
+				Parameters: []string{}, // Simplified for tests
+				ParamTypes: map[string]string{},
+			}
+		}
+		agentConfig["tools"] = &interpreter.ArrayValue{Elements: toolValues}
+	}
+
+	agent := &interpreter.AgentValue{
+		Name:   "test",
+		Config: agentConfig,
+	}
+
+	return &State{
+		Agent:         agent,
+		Provider:      provider,
+		Conversation:  []interpreter.ChatMessage{},
+		Tools:         tools,
+		ToolExecutor:  toolExecutor,
+		MaxIterations: maxIterations,
+		Interpreter:   interp,
+	}
+}
+
+// createTestStateWithName creates a test State with a custom agent name
+func createTestStateWithName(provider interpreter.ModelProvider, name string, systemPrompt string, tools []interpreter.ChatTool, toolExecutor ToolExecutor) *State {
+	interp := interpreter.New()
+
+	model := &interpreter.ModelValue{
+		Name:     "test-model",
+		Config:   map[string]interpreter.Value{},
+		Provider: provider,
+	}
+
+	agentConfig := map[string]interpreter.Value{
+		"model": model,
+	}
+	if systemPrompt != "" {
+		agentConfig["systemPrompt"] = &interpreter.StringValue{Value: systemPrompt}
+	}
+
+	agent := &interpreter.AgentValue{
+		Name:   name,
+		Config: agentConfig,
+	}
+
+	return &State{
+		Agent:        agent,
+		Provider:     provider,
+		Conversation: []interpreter.ChatMessage{},
+		Tools:        tools,
+		ToolExecutor: toolExecutor,
+		Interpreter:  interp,
+	}
 }
 
 func TestSendMessage_NoToolCalls(t *testing.T) {
@@ -82,18 +170,7 @@ func TestSendMessage_NoToolCalls(t *testing.T) {
 	provider := newMockProvider()
 	provider.addResponse("Hello! I'm here to help.", nil)
 
-	agent := &interpreter.AgentValue{
-		Name: "test",
-		Config: map[string]interpreter.Value{
-			"systemPrompt": &interpreter.StringValue{Value: "You are helpful."},
-		},
-	}
-
-	state := &State{
-		Agent:        agent,
-		Provider:     provider,
-		Conversation: []interpreter.ChatMessage{},
-	}
+	state := createTestState(provider, "You are helpful.", nil, nil, 0)
 
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
@@ -144,13 +221,6 @@ func TestSendMessage_WithToolCalls(t *testing.T) {
 	// Second response: final answer after tool result
 	provider.addResponse("The weather in San Francisco is sunny and 72°F.", nil)
 
-	agent := &interpreter.AgentValue{
-		Name: "test",
-		Config: map[string]interpreter.Value{
-			"systemPrompt": &interpreter.StringValue{Value: "You are a weather assistant."},
-		},
-	}
-
 	// Define tools and executor
 	tools := []interpreter.ChatTool{
 		{
@@ -174,13 +244,7 @@ func TestSendMessage_WithToolCalls(t *testing.T) {
 		return "", fmt.Errorf("unknown tool: %s", toolName)
 	}
 
-	state := &State{
-		Agent:        agent,
-		Provider:     provider,
-		Conversation: []interpreter.ChatMessage{},
-		Tools:        tools,
-		ToolExecutor: toolExecutor,
-	}
+	state := createTestState(provider, "You are a weather assistant.", tools, toolExecutor, 0)
 
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
@@ -250,11 +314,6 @@ func TestSendMessage_MultipleToolCalls(t *testing.T) {
 	// Second response: final answer after tool results
 	provider.addResponse("San Francisco is sunny, New York is cloudy.", nil)
 
-	agent := &interpreter.AgentValue{
-		Name:   "test",
-		Config: map[string]interpreter.Value{},
-	}
-
 	tools := []interpreter.ChatTool{
 		{
 			Name:        "get_weather",
@@ -271,13 +330,7 @@ func TestSendMessage_MultipleToolCalls(t *testing.T) {
 		return `{"condition": "cloudy"}`, nil
 	}
 
-	state := &State{
-		Agent:        agent,
-		Provider:     provider,
-		Conversation: []interpreter.ChatMessage{},
-		Tools:        tools,
-		ToolExecutor: toolExecutor,
-	}
+	state := createTestState(provider, "", tools, toolExecutor, 0)
 
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
@@ -324,11 +377,6 @@ func TestSendMessage_ChainedToolCalls(t *testing.T) {
 	// Third response: final answer
 	provider.addResponse("Here's my analysis based on the search.", nil)
 
-	agent := &interpreter.AgentValue{
-		Name:   "test",
-		Config: map[string]interpreter.Value{},
-	}
-
 	tools := []interpreter.ChatTool{
 		{Name: "search", Description: "Search", Parameters: map[string]interface{}{}},
 		{Name: "analyze", Description: "Analyze", Parameters: map[string]interface{}{}},
@@ -338,13 +386,7 @@ func TestSendMessage_ChainedToolCalls(t *testing.T) {
 		return fmt.Sprintf(`{"result": "%s completed"}`, toolName), nil
 	}
 
-	state := &State{
-		Agent:        agent,
-		Provider:     provider,
-		Conversation: []interpreter.ChatMessage{},
-		Tools:        tools,
-		ToolExecutor: toolExecutor,
-	}
+	state := createTestState(provider, "", tools, toolExecutor, 0)
 
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
@@ -382,11 +424,6 @@ func TestSendMessage_MaxIterationsReached(t *testing.T) {
 		})
 	}
 
-	agent := &interpreter.AgentValue{
-		Name:   "test",
-		Config: map[string]interpreter.Value{},
-	}
-
 	tools := []interpreter.ChatTool{
 		{Name: "infinite_tool", Description: "Always returns", Parameters: map[string]interface{}{}},
 	}
@@ -395,14 +432,7 @@ func TestSendMessage_MaxIterationsReached(t *testing.T) {
 		return `{"status": "ok"}`, nil
 	}
 
-	state := &State{
-		Agent:         agent,
-		Provider:      provider,
-		Conversation:  []interpreter.ChatMessage{},
-		Tools:         tools,
-		ToolExecutor:  toolExecutor,
-		MaxIterations: testMaxIterations,
-	}
+	state := createTestState(provider, "", tools, toolExecutor, testMaxIterations)
 
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
@@ -438,11 +468,6 @@ func TestSendMessage_ToolExecutorError(t *testing.T) {
 	// Second response: final answer (model handles the error gracefully)
 	provider.addResponse("I encountered an error but I'll help anyway.", nil)
 
-	agent := &interpreter.AgentValue{
-		Name:   "test",
-		Config: map[string]interpreter.Value{},
-	}
-
 	tools := []interpreter.ChatTool{
 		{Name: "failing_tool", Description: "This tool fails", Parameters: map[string]interface{}{}},
 	}
@@ -451,13 +476,7 @@ func TestSendMessage_ToolExecutorError(t *testing.T) {
 		return "", fmt.Errorf("tool execution failed: permission denied")
 	}
 
-	state := &State{
-		Agent:        agent,
-		Provider:     provider,
-		Conversation: []interpreter.ChatMessage{},
-		Tools:        tools,
-		ToolExecutor: toolExecutor,
-	}
+	state := createTestState(provider, "", tools, toolExecutor, 0)
 
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
@@ -498,20 +517,11 @@ func TestSendMessage_NoToolExecutor(t *testing.T) {
 	// Final response after error
 	provider.addResponse("I couldn't use the tool.", nil)
 
-	agent := &interpreter.AgentValue{
-		Name:   "test",
-		Config: map[string]interpreter.Value{},
+	tools := []interpreter.ChatTool{
+		{Name: "some_tool", Description: "A tool", Parameters: map[string]interface{}{}},
 	}
 
-	state := &State{
-		Agent:        agent,
-		Provider:     provider,
-		Conversation: []interpreter.ChatMessage{},
-		Tools: []interpreter.ChatTool{
-			{Name: "some_tool", Description: "A tool", Parameters: map[string]interface{}{}},
-		},
-		ToolExecutor: nil, // No executor configured
-	}
+	state := createTestState(provider, "", tools, nil, 0) // No executor configured
 
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
@@ -523,81 +533,21 @@ func TestSendMessage_NoToolExecutor(t *testing.T) {
 		t.Fatalf("SendMessage should handle missing executor gracefully: %v", err)
 	}
 
-	// Tool result should contain error about no executor
+	// Tool result should contain error about missing tool (since interpreter handles it)
 	var errorInResult bool
 	for _, msg := range state.Conversation {
-		if msg.Role == "tool" && strings.Contains(msg.Content, "no tool executor configured") {
+		if msg.Role == "tool" && strings.Contains(msg.Content, "Error") {
 			errorInResult = true
 		}
 	}
 
 	if !errorInResult {
-		t.Error("Expected tool result with 'no tool executor' error")
+		t.Error("Expected tool result with error message")
 	}
 }
 
-func TestBuildMessages_IncludesSystemPrompt(t *testing.T) {
-	manager := NewManager(nil)
-
-	agent := &interpreter.AgentValue{
-		Name: "test",
-		Config: map[string]interpreter.Value{
-			"systemPrompt": &interpreter.StringValue{Value: "You are a test assistant."},
-		},
-	}
-
-	state := &State{
-		Agent:    agent,
-		Provider: newMockProvider(),
-		Conversation: []interpreter.ChatMessage{
-			{Role: "user", Content: "Hello"},
-			{Role: "assistant", Content: "Hi there!"},
-		},
-	}
-
-	messages := manager.buildMessages(state)
-
-	// Should have system prompt + conversation
-	if len(messages) != 3 {
-		t.Errorf("Expected 3 messages, got %d", len(messages))
-	}
-
-	if messages[0].Role != "system" {
-		t.Errorf("Expected first message to be system, got %s", messages[0].Role)
-	}
-
-	if messages[0].Content != "You are a test assistant." {
-		t.Errorf("Unexpected system prompt: %s", messages[0].Content)
-	}
-}
-
-func TestBuildMessages_NoSystemPrompt(t *testing.T) {
-	manager := NewManager(nil)
-
-	agent := &interpreter.AgentValue{
-		Name:   "test",
-		Config: map[string]interpreter.Value{},
-	}
-
-	state := &State{
-		Agent:    agent,
-		Provider: newMockProvider(),
-		Conversation: []interpreter.ChatMessage{
-			{Role: "user", Content: "Hello"},
-		},
-	}
-
-	messages := manager.buildMessages(state)
-
-	// Should only have conversation (no system prompt)
-	if len(messages) != 1 {
-		t.Errorf("Expected 1 message, got %d", len(messages))
-	}
-
-	if messages[0].Role != "user" {
-		t.Errorf("Expected first message to be user, got %s", messages[0].Role)
-	}
-}
+// Note: TestBuildMessages_* tests removed as message building logic
+// is now handled by the interpreter's ExecuteAgentWithCallbacks
 
 func TestSendMessage_WithRenderer(t *testing.T) {
 	logger := zap.NewNop()
@@ -611,16 +561,7 @@ func TestSendMessage_WithRenderer(t *testing.T) {
 	renderer := render.New(nil, &buf, func() int { return 80 })
 	manager.SetRenderer(renderer)
 
-	agent := &interpreter.AgentValue{
-		Name:   "test-agent",
-		Config: map[string]interpreter.Value{},
-	}
-
-	state := &State{
-		Agent:        agent,
-		Provider:     provider,
-		Conversation: []interpreter.ChatMessage{},
-	}
+	state := createTestStateWithName(provider, "test-agent", "", nil, nil)
 
 	manager.AddAgent("test-agent", state)
 	manager.SetCurrentAgent("test-agent")
@@ -665,11 +606,6 @@ func TestSendMessage_WithRenderer_TokenAccumulation(t *testing.T) {
 	renderer := render.New(nil, &buf, func() int { return 80 })
 	manager.SetRenderer(renderer)
 
-	agent := &interpreter.AgentValue{
-		Name:   "test",
-		Config: map[string]interpreter.Value{},
-	}
-
 	tools := []interpreter.ChatTool{
 		{Name: "test_tool", Description: "A test tool", Parameters: map[string]interface{}{}},
 	}
@@ -678,13 +614,7 @@ func TestSendMessage_WithRenderer_TokenAccumulation(t *testing.T) {
 		return `{"result": "ok"}`, nil
 	}
 
-	state := &State{
-		Agent:        agent,
-		Provider:     provider,
-		Conversation: []interpreter.ChatMessage{},
-		Tools:        tools,
-		ToolExecutor: toolExecutor,
-	}
+	state := createTestState(provider, "", tools, toolExecutor, 0)
 
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
@@ -757,14 +687,21 @@ func (m *mockProviderWithUsage) ChatCompletion(request interpreter.ChatRequest) 
 	}, nil
 }
 
-func (m *mockProviderWithUsage) StreamingChatCompletion(request interpreter.ChatRequest, callback interpreter.StreamCallback) (*interpreter.ChatResponse, error) {
+func (m *mockProviderWithUsage) StreamingChatCompletion(request interpreter.ChatRequest, callbacks *interpreter.StreamCallbacks) (*interpreter.ChatResponse, error) {
 	response, err := m.ChatCompletion(request)
 	if err != nil {
 		return nil, err
 	}
 
-	if callback != nil && response.Content != "" {
-		callback(response.Content)
+	if callbacks != nil && callbacks.OnContent != nil && response.Content != "" {
+		callbacks.OnContent(response.Content)
+	}
+
+	// Notify about tool calls starting
+	if callbacks != nil && callbacks.OnToolCallStart != nil {
+		for _, tc := range response.ToolCalls {
+			callbacks.OnToolCallStart(tc.ID, tc.Name)
+		}
 	}
 
 	return response, nil
@@ -782,16 +719,7 @@ func TestSendMessage_WithRenderer_NoCallback(t *testing.T) {
 	renderer := render.New(nil, &buf, func() int { return 80 })
 	manager.SetRenderer(renderer)
 
-	agent := &interpreter.AgentValue{
-		Name:   "test",
-		Config: map[string]interpreter.Value{},
-	}
-
-	state := &State{
-		Agent:        agent,
-		Provider:     provider,
-		Conversation: []interpreter.ChatMessage{},
-	}
+	state := createTestState(provider, "", nil, nil, 0)
 
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
@@ -826,11 +754,6 @@ func TestSendMessage_ExecToolRendering(t *testing.T) {
 	renderer := render.New(nil, &buf, func() int { return 80 })
 	manager.SetRenderer(renderer)
 
-	agent := &interpreter.AgentValue{
-		Name:   "test",
-		Config: map[string]interpreter.Value{},
-	}
-
 	tools := []interpreter.ChatTool{
 		{Name: "exec", Description: "Execute a command", Parameters: map[string]interface{}{}},
 	}
@@ -839,13 +762,7 @@ func TestSendMessage_ExecToolRendering(t *testing.T) {
 		return `{"output": "hello\n", "exitCode": 0}`, nil
 	}
 
-	state := &State{
-		Agent:        agent,
-		Provider:     provider,
-		Conversation: []interpreter.ChatMessage{},
-		Tools:        tools,
-		ToolExecutor: toolExecutor,
-	}
+	state := createTestState(provider, "", tools, toolExecutor, 0)
 
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
@@ -894,11 +811,6 @@ func TestSendMessage_ExecToolRendering_NonZeroExit(t *testing.T) {
 	renderer := render.New(nil, &buf, func() int { return 80 })
 	manager.SetRenderer(renderer)
 
-	agent := &interpreter.AgentValue{
-		Name:   "test",
-		Config: map[string]interpreter.Value{},
-	}
-
 	tools := []interpreter.ChatTool{
 		{Name: "exec", Description: "Execute a command", Parameters: map[string]interface{}{}},
 	}
@@ -907,13 +819,7 @@ func TestSendMessage_ExecToolRendering_NonZeroExit(t *testing.T) {
 		return `{"output": "cat: /nonexistent: No such file or directory\n", "exitCode": 1}`, nil
 	}
 
-	state := &State{
-		Agent:        agent,
-		Provider:     provider,
-		Conversation: []interpreter.ChatMessage{},
-		Tools:        tools,
-		ToolExecutor: toolExecutor,
-	}
+	state := createTestState(provider, "", tools, toolExecutor, 0)
 
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
@@ -953,11 +859,6 @@ func TestSendMessage_ExecToolRendering_NoRenderer(t *testing.T) {
 	})
 	provider.addResponse("Done!", nil)
 
-	agent := &interpreter.AgentValue{
-		Name:   "test",
-		Config: map[string]interpreter.Value{},
-	}
-
 	tools := []interpreter.ChatTool{
 		{Name: "exec", Description: "Execute a command", Parameters: map[string]interface{}{}},
 	}
@@ -966,13 +867,7 @@ func TestSendMessage_ExecToolRendering_NoRenderer(t *testing.T) {
 		return `{"output": "test\n", "exitCode": 0}`, nil
 	}
 
-	state := &State{
-		Agent:        agent,
-		Provider:     provider,
-		Conversation: []interpreter.ChatMessage{},
-		Tools:        tools,
-		ToolExecutor: toolExecutor,
-	}
+	state := createTestState(provider, "", tools, toolExecutor, 0)
 
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
@@ -1062,11 +957,6 @@ func TestSendMessage_NonExecToolRendering(t *testing.T) {
 	renderer := render.New(nil, &buf, func() int { return 80 })
 	manager.SetRenderer(renderer)
 
-	agent := &interpreter.AgentValue{
-		Name:   "test",
-		Config: map[string]interpreter.Value{},
-	}
-
 	tools := []interpreter.ChatTool{
 		{Name: "read_file", Description: "Read a file", Parameters: map[string]interface{}{}},
 	}
@@ -1075,13 +965,7 @@ func TestSendMessage_NonExecToolRendering(t *testing.T) {
 		return `{"content": "{ \"key\": \"value\" }"}`, nil
 	}
 
-	state := &State{
-		Agent:        agent,
-		Provider:     provider,
-		Conversation: []interpreter.ChatMessage{},
-		Tools:        tools,
-		ToolExecutor: toolExecutor,
-	}
+	state := createTestState(provider, "", tools, toolExecutor, 0)
 
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
@@ -1138,11 +1022,6 @@ func TestSendMessage_NonExecToolRendering_Error(t *testing.T) {
 	renderer := render.New(nil, &buf, func() int { return 80 })
 	manager.SetRenderer(renderer)
 
-	agent := &interpreter.AgentValue{
-		Name:   "test",
-		Config: map[string]interpreter.Value{},
-	}
-
 	tools := []interpreter.ChatTool{
 		{Name: "search", Description: "Search files", Parameters: map[string]interface{}{}},
 	}
@@ -1151,13 +1030,7 @@ func TestSendMessage_NonExecToolRendering_Error(t *testing.T) {
 		return "", fmt.Errorf("search index not available")
 	}
 
-	state := &State{
-		Agent:        agent,
-		Provider:     provider,
-		Conversation: []interpreter.ChatMessage{},
-		Tools:        tools,
-		ToolExecutor: toolExecutor,
-	}
+	state := createTestState(provider, "", tools, toolExecutor, 0)
 
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
@@ -1205,11 +1078,6 @@ func TestSendMessage_NonExecToolRendering_MultipleArgs(t *testing.T) {
 	renderer := render.New(nil, &buf, func() int { return 80 })
 	manager.SetRenderer(renderer)
 
-	agent := &interpreter.AgentValue{
-		Name:   "test",
-		Config: map[string]interpreter.Value{},
-	}
-
 	tools := []interpreter.ChatTool{
 		{Name: "write_file", Description: "Write a file", Parameters: map[string]interface{}{}},
 	}
@@ -1218,13 +1086,7 @@ func TestSendMessage_NonExecToolRendering_MultipleArgs(t *testing.T) {
 		return `{"success": true}`, nil
 	}
 
-	state := &State{
-		Agent:        agent,
-		Provider:     provider,
-		Conversation: []interpreter.ChatMessage{},
-		Tools:        tools,
-		ToolExecutor: toolExecutor,
-	}
+	state := createTestState(provider, "", tools, toolExecutor, 0)
 
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
@@ -1262,11 +1124,6 @@ func TestSendMessage_NonExecToolRendering_NoRenderer(t *testing.T) {
 	})
 	provider.addResponse("Done!", nil)
 
-	agent := &interpreter.AgentValue{
-		Name:   "test",
-		Config: map[string]interpreter.Value{},
-	}
-
 	tools := []interpreter.ChatTool{
 		{Name: "read_file", Description: "Read a file", Parameters: map[string]interface{}{}},
 	}
@@ -1275,13 +1132,7 @@ func TestSendMessage_NonExecToolRendering_NoRenderer(t *testing.T) {
 		return `{"content": "file contents"}`, nil
 	}
 
-	state := &State{
-		Agent:        agent,
-		Provider:     provider,
-		Conversation: []interpreter.ChatMessage{},
-		Tools:        tools,
-		ToolExecutor: toolExecutor,
-	}
+	state := createTestState(provider, "", tools, toolExecutor, 0)
 
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
