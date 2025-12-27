@@ -79,15 +79,13 @@ tool GSH_AGENT_FOOTER(ctx: object): string {
         width = 80
     }
     # Format duration: convert ms to seconds with 1 decimal place
-    durationSec = ctx.query.durationMs / 1000
+    durationSec = (ctx.query.durationMs / 1000).toFixed(1)
     
     # Build the text, including cache ratio next to input tokens if there are cached tokens
     text = "" + ctx.query.inputTokens + " in"
     if (ctx.query.cachedTokens > 0 && ctx.query.inputTokens > 0) {
         cacheRatio = (ctx.query.cachedTokens / ctx.query.inputTokens) * 100
-        # Round to integer by adding 0.5 and truncating (gsh doesn't have Math.round)
-        cacheRatioInt = (cacheRatio + 0.5) - ((cacheRatio + 0.5) % 1)
-        text = text + " (" + cacheRatioInt + "% cached)"
+        text = text + " (" + cacheRatio.toFixed(0) + "% cached)"
     }
     text = text + " · " + ctx.query.outputTokens + " out · " + durationSec + "s"
     
@@ -108,7 +106,7 @@ tool GSH_EXEC_START(ctx: object): string {
 # Example output (success): "✓ ls (0.1s)"
 # Example output (failure): "✗ cat (0.1s) exit code 1"
 tool GSH_EXEC_END(ctx: object): string {
-    durationSec = ctx.exec.durationMs / 1000
+    durationSec = (ctx.exec.durationMs / 1000).toFixed(1)
     if (ctx.exec.exitCode == 0) {
         return "✓ " + ctx.exec.commandFirstWord + " (" + durationSec + "s)"
     }
@@ -135,7 +133,7 @@ tool GSH_TOOL_STATUS(ctx: object): string {
         argsStr = argsStr + "   " + key + ": " + valueStr + "\n"
     }
     
-    durationSec = ctx.toolCall.durationMs / 1000
+    durationSec = (ctx.toolCall.durationMs / 1000).toFixed(2)
     
     if (ctx.toolCall.status == "pending") {
         return "○ " + ctx.toolCall.name

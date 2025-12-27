@@ -155,6 +155,38 @@ Output:
 1
 ```
 
+### Number Methods
+
+Numbers have a `toFixed()` method that formats the number as a string with a specified number of decimal places:
+
+```gsh
+pi = 3.14159
+
+print(pi.toFixed(0))   # Round to integer
+print(pi.toFixed(1))   # 1 decimal place
+print(pi.toFixed(2))   # 2 decimal places
+
+# Useful for display formatting
+price = 19.5
+print("Price: $" + price.toFixed(2))
+
+# Works on expression results too
+ratio = 1 / 3 * 100
+print(ratio.toFixed(1) + "%")
+```
+
+Output:
+
+```
+3
+3.1
+3.14
+Price: $19.50
+33.3%
+```
+
+Note that `toFixed()` returns a **string**, not a number—perfect for display purposes.
+
 ## Booleans: True and False
 
 Booleans are simple: they're either `true` or `false`. You'll use them most often in conditional statements (Chapter 08):

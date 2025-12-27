@@ -389,6 +389,21 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 		return stringMethod.Impl(stringMethod.Str, args)
 	}
 
+	// Check if it's a number method
+	if numberMethod, ok := function.(*NumberMethodValue); ok {
+		// Evaluate arguments
+		args := make([]Value, len(node.Arguments))
+		for idx, argExpr := range node.Arguments {
+			val, err := i.evalExpression(argExpr)
+			if err != nil {
+				return nil, err
+			}
+			args[idx] = val
+		}
+		// Call the number method with the bound number instance
+		return numberMethod.Impl(numberMethod.Num, args)
+	}
+
 	// Check if it's an object method
 	if objectMethod, ok := function.(*ObjectMethodValue); ok {
 		// Evaluate arguments
@@ -601,6 +616,11 @@ func (i *Interpreter) evalMemberExpression(node *parser.MemberExpression) (Value
 		return i.getStringProperty(strVal, propertyName, node)
 	}
 
+	// Handle number properties/methods
+	if numVal, ok := object.(*NumberValue); ok {
+		return i.getNumberProperty(numVal, propertyName, node)
+	}
+
 	// Handle map properties/methods
 	if mapVal, ok := object.(*MapValue); ok {
 		return i.getMapProperty(mapVal, propertyName, node)
@@ -686,6 +706,17 @@ func (i *Interpreter) getStringProperty(str *StringValue, property string, node 
 		return &StringMethodValue{Name: "charAt", Impl: stringCharAtImpl, Str: str}, nil
 	default:
 		return nil, NewRuntimeError("string property '%s' not found (line %d, column %d)",
+			property, node.Token.Line, node.Token.Column)
+	}
+}
+
+// getNumberProperty returns number properties and methods
+func (i *Interpreter) getNumberProperty(num *NumberValue, property string, node *parser.MemberExpression) (Value, error) {
+	switch property {
+	case "toFixed":
+		return &NumberMethodValue{Name: "toFixed", Impl: numberToFixedImpl, Num: num}, nil
+	default:
+		return nil, NewRuntimeError("number property '%s' not found (line %d, column %d)",
 			property, node.Token.Line, node.Token.Column)
 	}
 }
