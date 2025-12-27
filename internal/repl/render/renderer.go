@@ -269,9 +269,9 @@ func (r *Renderer) RenderAgentFooter(inputTokens, outputTokens, cachedTokens int
 		// Fallback if hook fails - include cache ratio next to input tokens if there are cached tokens
 		if cachedTokens > 0 && inputTokens > 0 {
 			cacheRatio := float64(cachedTokens) / float64(inputTokens) * 100
-			footer = fmt.Sprintf("── %d in (%.0f%% cached) · %d out · %.1fs ───", inputTokens, cacheRatio, outputTokens, duration.Seconds())
+			footer = fmt.Sprintf("── %s in (%.0f%% cached) · %s out · %s ───", formatTokens(inputTokens), cacheRatio, formatTokens(outputTokens), formatDuration(duration))
 		} else {
-			footer = fmt.Sprintf("── %d in · %d out · %.1fs ───", inputTokens, outputTokens, duration.Seconds())
+			footer = fmt.Sprintf("── %s in · %s out · %s ───", formatTokens(inputTokens), formatTokens(outputTokens), formatDuration(duration))
 		}
 	}
 
@@ -653,6 +653,38 @@ func (r *Renderer) getTerminalHeight() int {
 		}
 	}
 	return 24 // Default fallback
+}
+
+// formatTokens formats a token count with K/M suffix for large numbers
+func formatTokens(count int) string {
+	if count >= 1_000_000 {
+		return fmt.Sprintf("%.2fM", float64(count)/1_000_000)
+	}
+	if count >= 1_000 {
+		return fmt.Sprintf("%.1fK", float64(count)/1_000)
+	}
+	return fmt.Sprintf("%d", count)
+}
+
+// formatDuration formats a duration with appropriate units
+func formatDuration(d time.Duration) string {
+	totalSeconds := d.Seconds()
+
+	if totalSeconds < 1 {
+		return fmt.Sprintf("%.0fms", float64(d.Milliseconds()))
+	}
+	if totalSeconds < 60 {
+		return fmt.Sprintf("%.1fs", totalSeconds)
+	}
+	totalMinutes := totalSeconds / 60
+	if totalMinutes < 60 {
+		return fmt.Sprintf("%.1fm", totalMinutes)
+	}
+	totalHours := totalMinutes / 60
+	if totalHours < 24 {
+		return fmt.Sprintf("%.1fh", totalHours)
+	}
+	return fmt.Sprintf("%.1fd", totalHours/24)
 }
 
 // GetVariable retrieves a variable from the interpreter's environment

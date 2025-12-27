@@ -62,8 +62,8 @@ func TestRenderAgentFooter_Fallback(t *testing.T) {
 	renderer.RenderAgentFooter(100, 50, 0, 2*time.Second)
 
 	output := buf.String()
-	assert.Contains(t, output, "100")
-	assert.Contains(t, output, "50")
+	assert.Contains(t, output, "100 in")
+	assert.Contains(t, output, "50 out")
 }
 
 func TestRenderAgentFooter_FallbackWithCache(t *testing.T) {
@@ -73,7 +73,7 @@ func TestRenderAgentFooter_FallbackWithCache(t *testing.T) {
 	renderer.RenderAgentFooter(1000, 50, 800, 2*time.Second)
 
 	output := buf.String()
-	assert.Contains(t, output, "1000 in (80% cached)")
+	assert.Contains(t, output, "1.0K in (80% cached)")
 	assert.Contains(t, output, "50 out")
 }
 

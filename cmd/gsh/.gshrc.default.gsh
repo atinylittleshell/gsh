@@ -73,22 +73,54 @@ tool GSH_AGENT_HEADER(ctx: object): string {
 # Renders the footer line when an agent finishes responding
 # Example output: "── 523 in · 324 out · 1.2s ────────────────────"
 # Example with cache: "── 523 in (80% cached) · 324 out · 1.2s ─────"
+# Tokens are formatted with K/M suffix for large numbers
+# Duration uses appropriate units (ms, s, m, h, d)
 tool GSH_AGENT_FOOTER(ctx: object): string {
     width = ctx.terminal.width
     if (width > 80) {
         width = 80
     }
-    # Format duration: convert ms to seconds with 1 decimal place
-    durationSec = (ctx.query.durationMs / 1000).toFixed(1)
-    
+
+    # Format tokens with K/M suffix
+    tool formatTokens (count: int) {
+        if (count >= 1000000) {
+            return (count / 1000000).toFixed(2) + "M"
+        }
+        if (count >= 1000) {
+            return (count / 1000).toFixed(1) + "K"
+        }
+        return "" + count
+    }
+
+    # Format duration with appropriate units
+    tool formatDuration (durationMs: int) {
+        if (durationMs < 1000) {
+            return "" + durationMs + "ms"
+        }
+        durationSec = durationMs / 1000
+        if (durationSec < 60) {
+            return durationSec.toFixed(1) + "s"
+        }
+        durationMin = durationSec / 60
+        if (durationMin < 60) {
+            return durationMin.toFixed(1) + "m"
+        }
+        durationHour = durationMin / 60
+        if (durationHour < 24) {
+            return durationHour.toFixed(1) + "h"
+        }
+        return (durationHour / 24).toFixed(1) + "d"
+    }
+
     # Build the text, including cache ratio next to input tokens if there are cached tokens
-    text = "" + ctx.query.inputTokens + " in"
+    inputStr = formatTokens(ctx.query.inputTokens)
+    text = inputStr + " in"
     if (ctx.query.cachedTokens > 0 && ctx.query.inputTokens > 0) {
         cacheRatio = (ctx.query.cachedTokens / ctx.query.inputTokens) * 100
         text = text + " (" + cacheRatio.toFixed(0) + "% cached)"
     }
-    text = text + " · " + ctx.query.outputTokens + " out · " + durationSec + "s"
-    
+    text = text + " · " + formatTokens(ctx.query.outputTokens) + " out · " + formatDuration(ctx.query.durationMs)
+
     padding = width - 4 - text.length
     if (padding < 3) {
         padding = 3
