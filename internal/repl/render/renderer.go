@@ -371,41 +371,16 @@ func (r *Renderer) RenderExecEnd(command string, duration time.Duration, exitCod
 	}
 }
 
-// RenderToolPending renders a tool in pending state (streaming args from LLM)
-func (r *Renderer) RenderToolPending(toolName string) {
-	ctx := r.newBaseContext()
-	ctx.ToolCall = &ToolCallContext{
-		Name:       toolName,
-		Status:     ToolCallStatusPending,
-		Args:       make(map[string]interface{}),
-		DurationMs: 0,
-		Output:     "",
-	}
-
-	output := r.callHookWithContext("GSH_TOOL_STATUS", ctx)
-
-	if output == "" {
-		output = fmt.Sprintf("%s %s", SymbolToolPending, toolName)
-	}
-
+// StartToolPendingSpinner starts a spinner for a tool in pending state (streaming args from LLM).
+// It returns a stop function that should be called when the tool call starts executing.
+// The stop function clears the spinner line so RenderToolExecuting can render fresh output.
+// The spinner displays: "⠋ toolName" (spinner on the left, consistent with "Thinking..." spinner)
+func (r *Renderer) StartToolPendingSpinner(ctx context.Context, toolName string) func() {
+	// Print a newline first to create the line where spinner will render
 	fmt.Fprintln(r.writer)
 
-	// Apply styling
-	if strings.HasPrefix(output, SymbolToolPending) {
-		styled := ToolPendingStyle.Render(SymbolToolPending) + output[len(SymbolToolPending):]
-		fmt.Fprint(r.writer, styled)
-	} else {
-		fmt.Fprint(r.writer, output)
-	}
-}
-
-// StartToolSpinner starts a spinner for a tool and returns a stop function.
-// The stop function blocks until the spinner has fully stopped.
-// The spinner will display: "○ toolName ⠋"
-func (r *Renderer) StartToolSpinner(ctx context.Context, toolName string) func() {
-	spinner := NewInlineSpinner(r.writer)
-	prefix := ToolPendingStyle.Render(SymbolToolPending) + " " + toolName
-	spinner.SetPrefix(prefix)
+	spinner := NewSpinner(r.writer)
+	spinner.SetMessage(toolName)
 	return spinner.Start(ctx)
 }
 

@@ -224,14 +224,21 @@ func TestRenderExecEnd_WithHook(t *testing.T) {
 	assert.Contains(t, output, "echo ok")
 }
 
-func TestRenderToolPending_Fallback(t *testing.T) {
+func TestStartToolPendingSpinner(t *testing.T) {
 	var buf bytes.Buffer
 	renderer := New(nil, &buf, func() int { return 80 })
 
-	renderer.RenderToolPending("read_file")
+	ctx := context.Background()
+	stop := renderer.StartToolPendingSpinner(ctx, "read_file")
+
+	// Let spinner run briefly
+	time.Sleep(100 * time.Millisecond)
+	stop()
+
+	// Give time for cleanup
+	time.Sleep(50 * time.Millisecond)
 
 	output := buf.String()
-	assert.Contains(t, output, SymbolToolPending)
 	assert.Contains(t, output, "read_file")
 }
 
@@ -349,24 +356,6 @@ func TestRenderSystemMessage(t *testing.T) {
 	output := buf.String()
 	assert.Contains(t, output, SymbolSystemMessage)
 	assert.Contains(t, output, "Connecting to server...")
-}
-
-func TestStartToolSpinner(t *testing.T) {
-	var buf bytes.Buffer
-	renderer := New(nil, &buf, func() int { return 80 })
-
-	ctx := context.Background()
-	cancel := renderer.StartToolSpinner(ctx, "search")
-
-	// Let spinner run briefly
-	time.Sleep(100 * time.Millisecond)
-	cancel()
-
-	// Give time for cleanup
-	time.Sleep(50 * time.Millisecond)
-
-	output := buf.String()
-	assert.Contains(t, output, "search")
 }
 
 func TestGetTerminalWidth_Default(t *testing.T) {

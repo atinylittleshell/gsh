@@ -1,6 +1,5 @@
 ## Must have before v1 release
 
-- Better footer rendering
 - Parallel tool calls - sequential
 - Streaming tool call - spinner
 - Custom agent tools?

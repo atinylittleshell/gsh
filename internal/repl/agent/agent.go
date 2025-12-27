@@ -175,6 +175,16 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 	var spinnerMu sync.Mutex
 	firstChunkReceived := false
 
+	// Track if we've shown a streaming tool call for the current response.
+	// When the LLM returns multiple tool calls in one response, we only show
+	// the streaming (pending) status for the first one to avoid display issues.
+	streamingToolShown := false
+
+	// Store the stop function for the pending spinner so we can stop it
+	// when the tool call starts executing
+	var stopPendingSpinner func()
+	var pendingSpinnerMu sync.Mutex
+
 	// Build callbacks to drive the REPL UI
 	callbacks := &interpreter.AgentCallbacks{
 		Streaming: true,
@@ -186,6 +196,12 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 				m.renderer.RenderAgentHeader(m.currentAgentName)
 				headerRendered = true
 			}
+
+			// Reset streaming tool flag and pending spinner for new iteration
+			streamingToolShown = false
+			pendingSpinnerMu.Lock()
+			stopPendingSpinner = nil
+			pendingSpinnerMu.Unlock()
 
 			// Start thinking spinner for each iteration
 			spinnerMu.Lock()
@@ -232,7 +248,7 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 				return
 			}
 
-			// Stop spinner since we're now showing tool pending state
+			// Stop thinking spinner since we're now showing tool pending state
 			spinnerMu.Lock()
 			if stopSpinner != nil {
 				stopSpinner()
@@ -240,14 +256,32 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 			}
 			spinnerMu.Unlock()
 
-			// Render pending state - arguments are still streaming
-			m.renderer.RenderToolPending(toolName)
+			// Only render pending state for the first streaming tool call in this response.
+			// When the LLM returns multiple tool calls, showing pending for all of them
+			// causes display issues since RenderToolComplete can only replace one line.
+			if streamingToolShown {
+				return
+			}
+			streamingToolShown = true
+
+			// Start pending spinner - it will be stopped when OnToolCallStart is called
+			pendingSpinnerMu.Lock()
+			stopPendingSpinner = m.renderer.StartToolPendingSpinner(ctx, toolName)
+			pendingSpinnerMu.Unlock()
 		},
 
 		OnToolCallStart: func(toolCall acp.ToolCall) {
 			if m.renderer == nil {
 				return
 			}
+
+			// Stop pending spinner if it's running (for the first tool call in a batch)
+			pendingSpinnerMu.Lock()
+			if stopPendingSpinner != nil {
+				stopPendingSpinner()
+				stopPendingSpinner = nil
+			}
+			pendingSpinnerMu.Unlock()
 
 			// Check if this is an exec tool call for special rendering
 			if toolCall.Name == "exec" {
