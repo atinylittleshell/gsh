@@ -34,3 +34,4 @@ When adding new UI elements:
 1. **Always import and use the color constants** from `internal/repl/render/styles.go`
 2. **Never hardcode color values** like `lipgloss.Color("12")` - use the centralized constants
 3. For new styles, consider adding them to `styles.go` if they'll be reused
+4. **Only style the symbol, not the message text** - When rendering messages with symbols (like `→`, `▶`, `✓`), apply color only to the symbol itself. Example: `SystemMessageStyle.Render(SymbolSystemMessage) + " " + message`

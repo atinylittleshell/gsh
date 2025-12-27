@@ -488,7 +488,7 @@ func (r *Renderer) RenderToolOutput(toolName string, output string) {
 
 // RenderSystemMessage renders a system/status message with → prefix
 func (r *Renderer) RenderSystemMessage(message string) {
-	fmt.Fprintln(r.writer, SystemMessageStyle.Render(fmt.Sprintf("%s %s", SymbolSystemMessage, message)))
+	fmt.Fprintln(r.writer, SystemMessageStyle.Render(SymbolSystemMessage)+" "+message)
 }
 
 // callHookWithContext calls a hook tool with the RenderContext and returns its string result

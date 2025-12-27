@@ -3,6 +3,8 @@ package input
 import (
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestNewHighlighter(t *testing.T) {
@@ -69,7 +71,7 @@ func TestHighlightAgentMode(t *testing.T) {
 				}
 			}
 			// Text should be preserved after stripping ANSI
-			stripped := stripANSI(result)
+			stripped := ansi.Strip(result)
 			if stripped != tt.input {
 				t.Errorf("text not preserved: expected %q, got %q", tt.input, stripped)
 			}
@@ -83,7 +85,7 @@ func TestHighlightCommandExists(t *testing.T) {
 	// Test with a command that definitely exists
 	result := h.Highlight("ls")
 	// Text should be preserved
-	stripped := stripANSI(result)
+	stripped := ansi.Strip(result)
 	if stripped != "ls" {
 		t.Errorf("text not preserved: expected %q, got %q", "ls", stripped)
 	}
@@ -96,7 +98,7 @@ func TestHighlightCommandNotExists(t *testing.T) {
 	input := "thiscommanddoesnotexist12345"
 	result := h.Highlight(input)
 	// Text should be preserved
-	stripped := stripANSI(result)
+	stripped := ansi.Strip(result)
 	if stripped != input {
 		t.Errorf("text not preserved: expected %q, got %q", input, stripped)
 	}
@@ -123,7 +125,7 @@ func TestHighlightStrings(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := h.Highlight(tt.input)
 			// Text should be preserved
-			stripped := stripANSI(result)
+			stripped := ansi.Strip(result)
 			if stripped != tt.input {
 				t.Errorf("text not preserved: expected %q, got %q", tt.input, stripped)
 			}
@@ -152,7 +154,7 @@ func TestHighlightVariables(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := h.Highlight(tt.input)
 			// Text should be preserved
-			stripped := stripANSI(result)
+			stripped := ansi.Strip(result)
 			if stripped != tt.input {
 				t.Errorf("text not preserved: expected %q, got %q", tt.input, stripped)
 			}
@@ -185,7 +187,7 @@ func TestHighlightFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := h.Highlight(tt.input)
 			// Text should be preserved
-			stripped := stripANSI(result)
+			stripped := ansi.Strip(result)
 			if stripped != tt.input {
 				t.Errorf("text not preserved: expected %q, got %q", tt.input, stripped)
 			}
@@ -230,7 +232,7 @@ func TestHighlightOperators(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := h.Highlight(tt.input)
 			// Text should be preserved
-			stripped := stripANSI(result)
+			stripped := ansi.Strip(result)
 			if stripped != tt.input {
 				t.Errorf("text not preserved: expected %q, got %q", tt.input, stripped)
 			}
@@ -319,32 +321,12 @@ func TestHighlightPreservesText(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := h.Highlight(tt.input)
 			// Strip ANSI codes and verify text is preserved
-			stripped := stripANSI(result)
+			stripped := ansi.Strip(result)
 			if stripped != tt.input {
 				t.Errorf("text not preserved: expected %q, got %q", tt.input, stripped)
 			}
 		})
 	}
-}
-
-// stripANSI removes ANSI escape codes from a string
-func stripANSI(s string) string {
-	var result strings.Builder
-	inEscape := false
-	for _, r := range s {
-		if r == '\x1b' {
-			inEscape = true
-			continue
-		}
-		if inEscape {
-			if r == 'm' {
-				inEscape = false
-			}
-			continue
-		}
-		result.WriteRune(r)
-	}
-	return result.String()
 }
 
 func TestHelperFunctions(t *testing.T) {

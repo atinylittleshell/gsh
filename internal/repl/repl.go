@@ -320,13 +320,18 @@ func (r *REPL) Run(ctx context.Context) error {
 			predictionState.Reset()
 		}
 
-		// Create input model
+		// Create input model with initial terminal width
+		termWidth, _, _ := term.GetSize(int(os.Stdout.Fd()))
+		if termWidth <= 0 {
+			termWidth = 80
+		}
 		inputModel := input.New(input.Config{
 			Prompt:             prompt,
 			HistoryValues:      historyValues,
 			HistorySearchFunc:  r.createHistorySearchFunc(),
 			CompletionProvider: r.completionProvider,
 			PredictionState:    predictionState,
+			Width:              termWidth,
 			Logger:             r.logger,
 		})
 
@@ -517,7 +522,7 @@ func (r *REPL) handleClearCommand() error {
 		fmt.Fprintf(os.Stderr, "gsh: %v\n", err)
 		return nil
 	}
-	fmt.Println("→ Conversation cleared")
+	r.renderer.RenderSystemMessage("Conversation cleared")
 	return nil
 }
 
@@ -569,9 +574,9 @@ func (r *REPL) handleSwitchAgentCommand(agentName string) error {
 	state := r.agentManager.GetAgent(agentName)
 	msgCount := len(state.Conversation)
 	if msgCount > 0 {
-		fmt.Printf("→ Switched to agent '%s' (%d messages in history)\n", agentName, msgCount)
+		r.renderer.RenderSystemMessage(fmt.Sprintf("Switched to agent '%s' (%d messages in history)", agentName, msgCount))
 	} else {
-		fmt.Printf("→ Switched to agent '%s'\n", agentName)
+		r.renderer.RenderSystemMessage(fmt.Sprintf("Switched to agent '%s'", agentName))
 	}
 	return nil
 }

@@ -6,7 +6,7 @@ import (
 
 	"github.com/atinylittleshell/gsh/internal/repl/render"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/rivo/uniseg"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // RenderConfig holds styling configuration for rendering input components.
@@ -89,11 +89,9 @@ func (r *Renderer) SetConfig(config RenderConfig) {
 }
 
 // RenderInputLine renders the input line with prompt, text, cursor, and prediction.
-// It returns the rendered string for the input line.
+// It returns the rendered string for the input line, with automatic line wrapping
+// when the content exceeds the terminal width.
 func (r *Renderer) RenderInputLine(prompt string, buffer *Buffer, prediction string, focused bool) string {
-	// Render the prompt
-	result := r.config.PromptStyle.Render(prompt)
-
 	text := buffer.Text()
 	pos := buffer.Pos()
 
@@ -107,103 +105,308 @@ func (r *Renderer) RenderInputLine(prompt string, buffer *Buffer, prediction str
 		pos = len(runes)
 	}
 
-	// Apply syntax highlighting to the full text
-	highlightedText := r.highlighter.Highlight(text)
+	// Build the content parts for wrapping
+	// Only consider the last line of the prompt for width calculation,
+	// since multi-line prompts are common and earlier lines don't affect wrapping
+	promptLastLine := prompt
+	if lastNewline := strings.LastIndex(prompt, "\n"); lastNewline != -1 {
+		promptLastLine = prompt[lastNewline+1:]
+	}
+	promptWidth := ansi.StringWidth(promptLastLine)
 
-	// For cursor positioning, we need to work with the raw text positions
-	// but render the highlighted version
-	if pos < len(runes) {
-		// Cursor is in the middle of the text
-		// We need to highlight before and after cursor separately to insert cursor
-		beforeCursor := string(runes[:pos])
-		cursorChar := string(runes[pos])
-		afterCursor := ""
-		if pos+1 < len(runes) {
-			afterCursor = string(runes[pos+1:])
-		}
-
-		// Highlight each part
-		highlightedBefore := r.highlighter.Highlight(beforeCursor)
-		highlightedAfter := ""
-		if afterCursor != "" {
-			// For after cursor, we need context-aware highlighting
-			// Highlight the full text from cursor position onwards
-			highlightedAfter = r.highlightFromPosition(text, pos+1)
-		}
-
-		result += highlightedBefore
-
-		// Render cursor
-		if focused {
-			result += r.config.CursorStyle.Render(cursorChar)
-		} else {
-			// Apply highlighting to cursor char based on its context
-			cursorHighlighted := r.highlightFromPosition(text, pos)
-			if len(cursorHighlighted) > 0 {
-				// Extract just the first character's styling
-				result += r.extractFirstChar(cursorHighlighted)
-			} else {
-				result += cursorChar
-			}
-		}
-
-		result += highlightedAfter
-	} else {
-		// Cursor is at end of text
-		result += highlightedText
-
-		// Check if we have a prediction that extends the input
-		if prediction != "" && strings.HasPrefix(prediction, text) && len(prediction) > len(text) {
-			// Show cursor on first prediction character
-			predictionRunes := []rune(prediction)
-			if focused {
-				// Cursor on first prediction character with prediction style
-				result += r.config.CursorStyle.
-					Foreground(r.config.PredictionStyle.GetForeground()).
-					Render(string(predictionRunes[len(runes)]))
-			} else {
-				result += r.config.PredictionStyle.Render(string(predictionRunes[len(runes)]))
-			}
-
-			// Rest of prediction as ghost text
-			if len(predictionRunes) > len(runes)+1 {
-				result += r.config.PredictionStyle.Render(string(predictionRunes[len(runes)+1:]))
-			}
-		} else {
-			// No prediction, just show cursor on space
-			if focused {
-				result += r.config.CursorStyle.Render(" ")
-			} else {
-				result += " "
-			}
-		}
+	// Calculate what text to render (including prediction suffix if applicable)
+	var predictionSuffix string
+	if pos >= len(runes) && prediction != "" && strings.HasPrefix(prediction, text) && len(prediction) > len(text) {
+		predictionRunes := []rune(prediction)
+		predictionSuffix = string(predictionRunes[len(runes):])
 	}
 
-	return result
+	// Use the wrapping renderer
+	return r.renderWrappedInputLine(prompt, promptWidth, text, pos, predictionSuffix, focused)
 }
 
-// highlightFromPosition highlights text starting from a given rune position.
-// This is used to get proper context-aware highlighting for text after cursor.
-func (r *Renderer) highlightFromPosition(fullText string, runePos int) string {
-	runes := []rune(fullText)
-	if runePos >= len(runes) {
-		return ""
+// renderWrappedInputLine renders the input line with wrapping support.
+// It properly highlights the full text first, then handles wrapping and cursor positioning.
+func (rndr *Renderer) renderWrappedInputLine(prompt string, promptWidth int, text string, cursorPos int, predictionSuffix string, focused bool) string {
+	runes := []rune(text)
+	hasCursorAtEnd := cursorPos >= len(runes)
+
+	availableWidth := rndr.width
+	if availableWidth <= 0 {
+		availableWidth = 80
 	}
-	substring := string(runes[runePos:])
-	// For simple cases, just highlight the substring
-	// This may lose some context, but works for most shell commands
-	return r.highlighter.Highlight(substring)
+
+	// Build the complete rendered content with proper highlighting
+	var result strings.Builder
+
+	// Start with the styled prompt
+	styledPrompt := rndr.config.PromptStyle.Render(prompt)
+	result.WriteString(styledPrompt)
+
+	currentWidth := promptWidth
+
+	if len(runes) > 0 {
+		// Highlight the full text first for proper syntax coloring context
+		// Then split the highlighted text at the cursor position
+		if cursorPos < len(runes) {
+			// Cursor is in the middle of the text
+			// We need to highlight the full text, then render with cursor inserted
+			currentWidth = rndr.appendTextWithWrappingAndCursor(&result, text, cursorPos, currentWidth, availableWidth, focused)
+		} else {
+			// Cursor is at the end, highlight and render all text
+			currentWidth = rndr.appendTextWithWrapping(&result, text, currentWidth, availableWidth)
+		}
+	}
+
+	// Handle cursor at end of text
+	if hasCursorAtEnd {
+		predictionRunes := []rune(predictionSuffix)
+		if len(predictionRunes) > 0 {
+			// Cursor on first prediction character
+			firstPredChar := string(predictionRunes[0])
+			firstPredWidth := ansi.StringWidth(firstPredChar)
+
+			if currentWidth+firstPredWidth > availableWidth {
+				result.WriteString("\n")
+				currentWidth = 0
+			}
+
+			if focused {
+				result.WriteString(rndr.config.CursorStyle.
+					Foreground(rndr.config.PredictionStyle.GetForeground()).
+					Render(firstPredChar))
+			} else {
+				result.WriteString(rndr.config.PredictionStyle.Render(firstPredChar))
+			}
+			currentWidth += firstPredWidth
+
+			// Rest of prediction with wrapping
+			for _, pr := range predictionRunes[1:] {
+				predCharStr := string(pr)
+				predCharWidth := ansi.StringWidth(predCharStr)
+
+				if currentWidth+predCharWidth > availableWidth {
+					result.WriteString("\n")
+					currentWidth = 0
+				}
+				result.WriteString(rndr.config.PredictionStyle.Render(predCharStr))
+				currentWidth += predCharWidth
+			}
+		} else {
+			// No prediction, cursor on space
+			if currentWidth+1 > availableWidth {
+				result.WriteString("\n")
+			}
+			if focused {
+				result.WriteString(rndr.config.CursorStyle.Render(" "))
+			} else {
+				result.WriteString(" ")
+			}
+		}
+	}
+
+	return result.String()
 }
 
-// extractFirstChar extracts the first visible character from a potentially styled string.
-// This is a simplification - it returns the first rune.
-func (r *Renderer) extractFirstChar(s string) string {
-	runes := []rune(s)
-	if len(runes) == 0 {
-		return ""
+// appendTextWithWrappingAndCursor appends highlighted text with a cursor at the specified position.
+// It highlights the full text first to maintain proper syntax coloring context.
+func (rndr *Renderer) appendTextWithWrappingAndCursor(result *strings.Builder, text string, cursorPos int, currentWidth, availableWidth int, focused bool) int {
+	if text == "" {
+		return currentWidth
 	}
-	// Find first printable char (skip ANSI codes)
-	return string(runes[0])
+
+	runes := []rune(text)
+	cursorChar := string(runes[cursorPos])
+	cursorCharWidth := ansi.StringWidth(cursorChar)
+
+	// Highlight the entire text first for proper syntax coloring context
+	highlighted := rndr.highlighter.Highlight(text)
+
+	highlightedRunes := []rune(highlighted)
+
+	var output strings.Builder
+	width := currentWidth
+	textIdx := 0      // index in original runes
+	highlightIdx := 0 // index in highlighted runes
+
+	// Track the current ANSI style so we can re-apply it after line breaks
+	var currentStyle strings.Builder
+
+	for textIdx < len(runes) && highlightIdx < len(highlightedRunes) {
+		// Check if we're at an ANSI escape sequence in highlighted output
+		if highlightedRunes[highlightIdx] == '\x1b' {
+			// Capture and output the entire escape sequence
+			var escSeq strings.Builder
+			for highlightIdx < len(highlightedRunes) {
+				ch := highlightedRunes[highlightIdx]
+				escSeq.WriteRune(ch)
+				output.WriteRune(ch)
+				highlightIdx++
+				// ANSI sequences end with a letter
+				if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') {
+					break
+				}
+			}
+			// Track the current style (reset clears it, other sequences update it)
+			seq := escSeq.String()
+			if seq == "\x1b[0m" || seq == "\x1b[m" {
+				currentStyle.Reset()
+			} else {
+				currentStyle.WriteString(seq)
+			}
+			continue
+		}
+
+		// Get the current character from original text
+		if textIdx >= len(runes) {
+			break
+		}
+
+		// Check if this is the cursor position
+		if textIdx == cursorPos {
+			// Check if we need to wrap before the cursor character
+			if width+cursorCharWidth > availableWidth && width > 0 {
+				output.WriteRune('\n')
+				width = 0
+			}
+
+			// Render the cursor character with cursor style (overriding syntax highlighting)
+			if focused {
+				output.WriteString(rndr.config.CursorStyle.Render(cursorChar))
+			} else {
+				// When not focused, show the character with its original highlighting
+				if highlightIdx < len(highlightedRunes) {
+					output.WriteRune(highlightedRunes[highlightIdx])
+				}
+			}
+			highlightIdx++
+			textIdx++
+			width += cursorCharWidth
+
+			// Re-apply the current style after cursor (since cursor style may have reset it)
+			if focused && currentStyle.Len() > 0 {
+				output.WriteString(currentStyle.String())
+			}
+			continue
+		}
+
+		origChar := runes[textIdx]
+		charWidth := ansi.StringWidth(string(origChar))
+
+		// Check if we need to wrap before this character
+		if width+charWidth > availableWidth && width > 0 {
+			output.WriteRune('\n')
+			// Re-apply the current style after the line break
+			if currentStyle.Len() > 0 {
+				output.WriteString(currentStyle.String())
+			}
+			width = 0
+		}
+
+		// Output the character from highlighted text
+		if highlightIdx < len(highlightedRunes) {
+			output.WriteRune(highlightedRunes[highlightIdx])
+			highlightIdx++
+		}
+		textIdx++
+		width += charWidth
+	}
+
+	// Output any remaining ANSI codes (like reset sequences)
+	for highlightIdx < len(highlightedRunes) {
+		output.WriteRune(highlightedRunes[highlightIdx])
+		highlightIdx++
+	}
+
+	result.WriteString(output.String())
+	return width
+}
+
+// appendTextWithWrapping appends highlighted text to the result with line wrapping.
+// It returns the new current width after appending.
+func (rndr *Renderer) appendTextWithWrapping(result *strings.Builder, text string, currentWidth, availableWidth int) int {
+	if text == "" {
+		return currentWidth
+	}
+
+	// Highlight the entire text first for proper syntax coloring context
+	highlighted := rndr.highlighter.Highlight(text)
+
+	// Now we need to insert line breaks at the right visual positions
+	// We'll walk through the original text to track visual width,
+	// and walk through the highlighted text to output it with breaks
+
+	runes := []rune(text)
+	highlightedRunes := []rune(highlighted)
+
+	var output strings.Builder
+	width := currentWidth
+	textIdx := 0      // index in original runes
+	highlightIdx := 0 // index in highlighted runes
+
+	// Track the current ANSI style so we can re-apply it after line breaks
+	var currentStyle strings.Builder
+
+	for textIdx < len(runes) && highlightIdx < len(highlightedRunes) {
+		// Check if we're at an ANSI escape sequence in highlighted output
+		if highlightedRunes[highlightIdx] == '\x1b' {
+			// Capture and output the entire escape sequence
+			var escSeq strings.Builder
+			for highlightIdx < len(highlightedRunes) {
+				ch := highlightedRunes[highlightIdx]
+				escSeq.WriteRune(ch)
+				output.WriteRune(ch)
+				highlightIdx++
+				// ANSI sequences end with a letter
+				if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') {
+					break
+				}
+			}
+			// Track the current style (reset clears it, other sequences update it)
+			seq := escSeq.String()
+			if seq == "\x1b[0m" || seq == "\x1b[m" {
+				currentStyle.Reset()
+			} else {
+				currentStyle.WriteString(seq)
+			}
+			continue
+		}
+
+		// Get the current character from original text
+		if textIdx >= len(runes) {
+			break
+		}
+		origChar := runes[textIdx]
+		charWidth := ansi.StringWidth(string(origChar))
+
+		// Check if we need to wrap before this character
+		if width+charWidth > availableWidth && width > 0 {
+			output.WriteRune('\n')
+			// Re-apply the current style after the line break
+			if currentStyle.Len() > 0 {
+				output.WriteString(currentStyle.String())
+			}
+			width = 0
+		}
+
+		// Output the character from highlighted text
+		// The highlighted rune at this position should correspond to the original
+		if highlightIdx < len(highlightedRunes) {
+			output.WriteRune(highlightedRunes[highlightIdx])
+			highlightIdx++
+		}
+		textIdx++
+		width += charWidth
+	}
+
+	// Output any remaining ANSI codes (like reset sequences)
+	for highlightIdx < len(highlightedRunes) {
+		output.WriteRune(highlightedRunes[highlightIdx])
+		highlightIdx++
+	}
+
+	result.WriteString(output.String())
+	return width
 }
 
 // RenderCompletionBox renders the completion suggestions in a box format.
@@ -383,7 +586,7 @@ func GetPredictionSuffix(text, prediction string) string {
 // CalculateCursorPosition calculates the visual cursor position in the rendered line.
 // This accounts for the prompt width and any multi-width characters.
 func CalculateCursorPosition(prompt string, text string, cursorPos int) int {
-	promptWidth := uniseg.StringWidth(prompt)
+	promptWidth := ansi.StringWidth(prompt)
 	runes := []rune(text)
 	if cursorPos > len(runes) {
 		cursorPos = len(runes)
@@ -392,7 +595,7 @@ func CalculateCursorPosition(prompt string, text string, cursorPos int) int {
 		cursorPos = 0
 	}
 	textBeforeCursor := string(runes[:cursorPos])
-	textWidth := uniseg.StringWidth(textBeforeCursor)
+	textWidth := ansi.StringWidth(textBeforeCursor)
 	return promptWidth + textWidth
 }
 
