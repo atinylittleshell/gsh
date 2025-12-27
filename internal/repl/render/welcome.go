@@ -4,6 +4,7 @@ package render
 import (
 	"fmt"
 	"io"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -72,17 +73,14 @@ var gshLogo = []string{
 	" |___/           ",
 }
 
-// getTipOfTheDay returns a tip based on the current date.
-// The same tip is shown for the entire day, changing at midnight.
+// getTipOfTheDay returns a random tip.
 func getTipOfTheDay() string {
 	if len(tips) == 0 {
 		return ""
 	}
-	// Use the current date as seed to get consistent tip for the day
-	now := time.Now()
-	// Create a simple hash from year, month, day. The formula is wrong but good enough for this purpose.
-	daysSinceEpoch := now.Year()*365 + int(now.Month())*31 + now.Day()
-	index := daysSinceEpoch % len(tips)
+	// Create a new random generator with time-based seed
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	index := r.Intn(len(tips))
 	return tips[index]
 }
 

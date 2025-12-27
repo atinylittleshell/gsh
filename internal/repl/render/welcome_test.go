@@ -155,13 +155,16 @@ func TestGetTipOfTheDay(t *testing.T) {
 		assert.NotEmpty(t, tip, "tip should not be empty")
 	})
 
-	t.Run("returns consistent tip for same day", func(t *testing.T) {
-		// Call multiple times - should return same tip
-		tip1 := getTipOfTheDay()
-		tip2 := getTipOfTheDay()
-		tip3 := getTipOfTheDay()
-		assert.Equal(t, tip1, tip2, "tips should be consistent")
-		assert.Equal(t, tip2, tip3, "tips should be consistent")
+	t.Run("returns different tips on different calls", func(t *testing.T) {
+		// Call many times to ensure we see variation
+		// With len(tips) calls, we should definitely see different tips
+		numCalls := len(tips)
+		tips := make(map[string]bool)
+		for i := 0; i < numCalls; i++ {
+			tips[getTipOfTheDay()] = true
+		}
+		// With len(tips) random selections, we should have multiple unique tips
+		assert.Greater(t, len(tips), 1, "should return different tips across multiple calls")
 	})
 
 	t.Run("tip is from the tips list", func(t *testing.T) {

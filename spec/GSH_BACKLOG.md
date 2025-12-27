@@ -3,10 +3,11 @@
 - Custom agent tools?
 - Support MCP servers for REPL agent
 - Document keybinds
-- Multi-line input
 - Agent message history
+- Bash command permission system
 - "G Shell" terminology
 
 ## Nice to have
 
+- Multi-line input
 - Markdown rendering for agent text responses in REPL
