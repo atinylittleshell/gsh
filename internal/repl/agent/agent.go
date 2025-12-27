@@ -141,7 +141,7 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 
 	// Defensive checks to catch initialization bugs early
 	if state.Interpreter == nil {
-		return fmt.Errorf("BUG: interpreter not configured for agent '%s' - this is a programming error in agent initialization", m.currentAgentName)
+		return fmt.Errorf("BUG: interpreter not configured for agent '%s' - this is an internal error in gsh", m.currentAgentName)
 	}
 
 	if state.ToolExecutor != nil && len(state.Tools) == 0 {
@@ -175,6 +175,10 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 	var spinnerMu sync.Mutex
 	firstChunkReceived := false
 
+	// Track if we've printed any real (non-whitespace) text content.
+	// This helps us decide whether to reuse the spinner line when transitioning to tool calls.
+	printedRealText := false
+
 	// Track if we've shown a streaming tool call for the current response.
 	// When the LLM returns multiple tool calls in one response, we only show
 	// the streaming (pending) status for the first one to avoid display issues.
@@ -199,6 +203,7 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 
 			// Reset streaming tool flag and pending spinner for new iteration
 			streamingToolShown = false
+			printedRealText = false
 			pendingSpinnerMu.Lock()
 			stopPendingSpinner = nil
 			pendingSpinnerMu.Unlock()
@@ -213,6 +218,9 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 		},
 
 		OnChunk: func(content string) {
+			// Check if this is real content (not just whitespace)
+			isRealContent := strings.TrimSpace(content) != ""
+
 			// Stop spinner on first content chunk
 			spinnerMu.Lock()
 			if !firstChunkReceived && stopSpinner != nil {
@@ -221,6 +229,17 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 				firstChunkReceived = true
 			}
 			spinnerMu.Unlock()
+
+			// Track if we've printed real text (for deciding whether to reuse lines later)
+			if isRealContent {
+				printedRealText = true
+			}
+
+			// Skip rendering whitespace-only chunks if we haven't printed real text yet.
+			// This prevents empty lines from appearing before tool calls.
+			if !isRealContent && !printedRealText {
+				return
+			}
 
 			// Render text through renderer if available
 			if m.renderer != nil {

@@ -351,16 +351,24 @@ func (r *Renderer) RenderExecEnd(command string, duration time.Duration, exitCod
 	output := r.callHookWithContext("GSH_EXEC_END", ctx)
 
 	if output == "" {
-		// Fallback if hook fails
+		// Fallback if hook fails - use same format as non-exec tool completion
 		if exitCode == 0 {
-			output = fmt.Sprintf("%s %s (%.1fs)", SymbolSuccess, commandFirstWord, duration.Seconds())
+			output = fmt.Sprintf("%s %s %s (%.1fs)", SymbolToolComplete, commandFirstWord, SymbolSuccess, duration.Seconds())
 		} else {
-			output = fmt.Sprintf("%s %s (%.1fs) exit code %d", SymbolError, commandFirstWord, duration.Seconds(), exitCode)
+			output = fmt.Sprintf("%s %s %s (%.1fs) exit code %d", SymbolToolComplete, commandFirstWord, SymbolError, duration.Seconds(), exitCode)
 		}
 	}
 
-	// Apply styling based on success/failure
-	if strings.HasPrefix(output, SymbolSuccess) {
+	// Apply styling based on success/failure (same as non-exec tool completion)
+	if strings.HasPrefix(output, SymbolToolComplete) {
+		var styled string
+		if exitCode == 0 {
+			styled = SuccessStyle.Render(SymbolToolComplete) + output[len(SymbolToolComplete):]
+		} else {
+			styled = ErrorStyle.Render(SymbolToolComplete) + output[len(SymbolToolComplete):]
+		}
+		fmt.Fprintln(r.writer, styled)
+	} else if strings.HasPrefix(output, SymbolSuccess) {
 		styled := SuccessStyle.Render(SymbolSuccess) + output[len(SymbolSuccess):]
 		fmt.Fprintln(r.writer, styled)
 	} else if strings.HasPrefix(output, SymbolError) {
@@ -369,6 +377,8 @@ func (r *Renderer) RenderExecEnd(command string, duration time.Duration, exitCod
 	} else {
 		fmt.Fprintln(r.writer, output)
 	}
+
+	fmt.Fprintln(r.writer)
 }
 
 // StartToolPendingSpinner starts a spinner for a tool in pending state (streaming args from LLM).
@@ -376,9 +386,6 @@ func (r *Renderer) RenderExecEnd(command string, duration time.Duration, exitCod
 // The stop function clears the spinner line so RenderToolExecuting can render fresh output.
 // The spinner displays: "⠋ toolName" (spinner on the left, consistent with "Thinking..." spinner)
 func (r *Renderer) StartToolPendingSpinner(ctx context.Context, toolName string) func() {
-	// Print a newline first to create the line where spinner will render
-	fmt.Fprintln(r.writer)
-
 	spinner := NewSpinner(r.writer)
 	spinner.SetMessage(toolName)
 	return spinner.Start(ctx)

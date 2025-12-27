@@ -35,3 +35,11 @@ When adding new UI elements:
 2. **Never hardcode color values** like `lipgloss.Color("12")` - use the centralized constants
 3. For new styles, consider adding them to `styles.go` if they'll be reused
 4. **Only style the symbol, not the message text** - When rendering messages with symbols (like `→`, `▶`, `✓`), apply color only to the symbol itself. Example: `SystemMessageStyle.Render(SymbolSystemMessage) + " " + message`
+
+## Rendering Hooks
+
+When modifying agent rendering (tool status, exec output, headers/footers), there are **two places** that need to be updated:
+1. **Go fallback code** in `internal/repl/render/renderer.go` - used when hooks fail or return empty
+2. **Default hook implementations** in `cmd/gsh/.gshrc.default.gsh` - the actual default behavior users see
+
+Both should produce the same output format to maintain consistency.

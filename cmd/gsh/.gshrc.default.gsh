@@ -135,14 +135,14 @@ tool GSH_EXEC_START(ctx: object): string {
 }
 
 # Renders the completion line for exec (shell command) tool calls
-# Example output (success): "✓ ls (0.1s)"
-# Example output (failure): "✗ cat (0.1s) exit code 1"
+# Example output (success): "● ls ✓ (0.1s)"
+# Example output (failure): "● cat ✗ (0.1s) exit code 1"
 tool GSH_EXEC_END(ctx: object): string {
     durationSec = (ctx.exec.durationMs / 1000).toFixed(1)
     if (ctx.exec.exitCode == 0) {
-        return "✓ " + ctx.exec.commandFirstWord + " (" + durationSec + "s)"
+        return "● " + ctx.exec.commandFirstWord + " ✓ (" + durationSec + "s)"
     }
-    return "✗ " + ctx.exec.commandFirstWord + " (" + durationSec + "s) exit code " + ctx.exec.exitCode
+    return "● " + ctx.exec.commandFirstWord + " ✗ (" + durationSec + "s) exit code " + ctx.exec.exitCode
 }
 
 # Renders the status line for non-exec tool calls
