@@ -1,6 +1,5 @@
 ## Must have before v1 release
 
-- Prompt caching
 - Custom agent tools?
 - Support MCP servers for REPL agent
 - Document keybinds

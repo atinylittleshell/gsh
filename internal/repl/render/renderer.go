@@ -298,6 +298,8 @@ func (r *Renderer) RenderExecStart(command string) {
 		output = fmt.Sprintf("%s %s", SymbolExec, command)
 	}
 
+	fmt.Fprintln(r.writer)
+
 	// Apply styling to the symbol portion
 	if strings.HasPrefix(output, SymbolExec) {
 		styled := ExecStartStyle.Render(SymbolExec) + output[len(SymbolExec):]
@@ -362,6 +364,8 @@ func (r *Renderer) RenderToolPending(toolName string) {
 	if output == "" {
 		output = fmt.Sprintf("%s %s", SymbolToolPending, toolName)
 	}
+
+	fmt.Fprintln(r.writer)
 
 	// Apply styling
 	if strings.HasPrefix(output, SymbolToolPending) {
