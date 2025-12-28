@@ -24,7 +24,7 @@ func TestBuiltinExec_BasicExecution(t *testing.T) {
 	}
 
 	// Check stdout
-	stdout, ok := obj.Properties["stdout"].(*StringValue)
+	stdout, ok := obj.GetPropertyValue("stdout").(*StringValue)
 	if !ok {
 		t.Fatalf("stdout should be a string")
 	}
@@ -33,7 +33,7 @@ func TestBuiltinExec_BasicExecution(t *testing.T) {
 	}
 
 	// Check stderr
-	stderr, ok := obj.Properties["stderr"].(*StringValue)
+	stderr, ok := obj.GetPropertyValue("stderr").(*StringValue)
 	if !ok {
 		t.Fatalf("stderr should be a string")
 	}
@@ -42,7 +42,7 @@ func TestBuiltinExec_BasicExecution(t *testing.T) {
 	}
 
 	// Check exitCode
-	exitCode, ok := obj.Properties["exitCode"].(*NumberValue)
+	exitCode, ok := obj.GetPropertyValue("exitCode").(*NumberValue)
 	if !ok {
 		t.Fatalf("exitCode should be a number")
 	}
@@ -72,7 +72,7 @@ func TestBuiltinExec_NonZeroExitCode(t *testing.T) {
 	}
 
 	// Check exitCode is 1
-	exitCode, ok := obj.Properties["exitCode"].(*NumberValue)
+	exitCode, ok := obj.GetPropertyValue("exitCode").(*NumberValue)
 	if !ok {
 		t.Fatalf("exitCode should be a number")
 	}
@@ -101,7 +101,7 @@ func TestBuiltinExec_StderrCapture(t *testing.T) {
 	}
 
 	// Check stderr contains the error message
-	stderr, ok := obj.Properties["stderr"].(*StringValue)
+	stderr, ok := obj.GetPropertyValue("stderr").(*StringValue)
 	if !ok {
 		t.Fatalf("stderr should be a string")
 	}
@@ -130,7 +130,7 @@ func TestBuiltinExec_InvalidArguments(t *testing.T) {
 			name: "too many arguments",
 			args: []Value{
 				&StringValue{Value: "echo"},
-				&ObjectValue{Properties: map[string]Value{}},
+				&ObjectValue{Properties: map[string]*PropertyDescriptor{}},
 				&StringValue{Value: "extra"},
 			},
 			want: "exec() takes 1 or 2 arguments (command: string, options?: object), got 3",
@@ -154,8 +154,8 @@ func TestBuiltinExec_InvalidArguments(t *testing.T) {
 			name: "timeout not a number",
 			args: []Value{
 				&StringValue{Value: "echo"},
-				&ObjectValue{Properties: map[string]Value{
-					"timeout": &StringValue{Value: "1000"},
+				&ObjectValue{Properties: map[string]*PropertyDescriptor{
+					"timeout": {Value: &StringValue{Value: "1000"}},
 				}},
 			},
 			want: "exec() options.timeout must be a number (milliseconds), got string",
@@ -182,8 +182,8 @@ func TestBuiltinExec_WithTimeout(t *testing.T) {
 	execFn := interp.env.store["exec"].(*BuiltinValue)
 	result, err := execFn.Fn([]Value{
 		&StringValue{Value: "echo 'test output'"},
-		&ObjectValue{Properties: map[string]Value{
-			"timeout": &NumberValue{Value: 5000}, // 5 seconds
+		&ObjectValue{Properties: map[string]*PropertyDescriptor{
+			"timeout": {Value: &NumberValue{Value: 5000}}, // 5 seconds
 		}},
 	})
 
@@ -197,7 +197,7 @@ func TestBuiltinExec_WithTimeout(t *testing.T) {
 		t.Fatalf("exec() result should be an object")
 	}
 
-	stdout, ok := obj.Properties["stdout"].(*StringValue)
+	stdout, ok := obj.GetPropertyValue("stdout").(*StringValue)
 	if !ok || stdout.Value != "test output\n" {
 		t.Errorf("stdout = %q, want %q", stdout.Value, "test output\n")
 	}

@@ -1071,32 +1071,32 @@ GSH_CONFIG = {
 	require.True(t, ok, "GSH_CONFIG should be an ObjectValue")
 
 	// Check top-level values
-	assert.Equal(t, "default> ", gshConfig.Properties["prompt"].String(), "prompt should be preserved from default")
-	assert.Equal(t, "debug", gshConfig.Properties["logLevel"].String(), "logLevel should be overridden by user")
+	assert.Equal(t, "default> ", gshConfig.GetPropertyValue("prompt").String(), "prompt should be preserved from default")
+	assert.Equal(t, "debug", gshConfig.GetPropertyValue("logLevel").String(), "logLevel should be overridden by user")
 
 	// Check nested object
-	nested, ok := gshConfig.Properties["nested"].(*interpreter.ObjectValue)
+	nested, ok := gshConfig.GetPropertyValue("nested").(*interpreter.ObjectValue)
 	require.True(t, ok, "nested should be an ObjectValue")
 
 	// featureA should be preserved from default
-	featureA, ok := nested.Properties["featureA"].(*interpreter.BoolValue)
+	featureA, ok := nested.GetPropertyValue("featureA").(*interpreter.BoolValue)
 	require.True(t, ok, "featureA should be a BoolValue")
 	assert.True(t, featureA.Value, "featureA should be true (preserved from default)")
 
 	// featureB should be overridden by user
-	featureB, ok := nested.Properties["featureB"].(*interpreter.BoolValue)
+	featureB, ok := nested.GetPropertyValue("featureB").(*interpreter.BoolValue)
 	require.True(t, ok, "featureB should be a BoolValue")
 	assert.True(t, featureB.Value, "featureB should be true (user override)")
 
 	// Check deeply nested object
-	deepNested, ok := nested.Properties["deepNested"].(*interpreter.ObjectValue)
+	deepNested, ok := nested.GetPropertyValue("deepNested").(*interpreter.ObjectValue)
 	require.True(t, ok, "deepNested should be an ObjectValue")
 
 	// setting1 should be preserved from default
-	assert.Equal(t, "default1", deepNested.Properties["setting1"].String(), "setting1 should be preserved from default")
+	assert.Equal(t, "default1", deepNested.GetPropertyValue("setting1").String(), "setting1 should be preserved from default")
 
 	// setting2 should be overridden by user
-	assert.Equal(t, "user2", deepNested.Properties["setting2"].String(), "setting2 should be overridden by user")
+	assert.Equal(t, "user2", deepNested.GetPropertyValue("setting2").String(), "setting2 should be overridden by user")
 }
 
 // Test that user can override multiple GSH_CONFIG fields while preserving others

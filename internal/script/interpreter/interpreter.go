@@ -27,6 +27,11 @@ type Interpreter struct {
 	stdin            io.Reader      // Reader for input() function, defaults to os.Stdin
 	runner           *interp.Runner // Shared sh runner for env vars, working dir, and exec()
 	runnerMu         sync.RWMutex   // Protects runner access
+
+	// SDK infrastructure
+	eventManager *EventManager
+	sdkConfig    *SDKConfig
+	version      string // gsh version
 }
 
 // EvalResult represents the result of evaluating a program
@@ -64,9 +69,14 @@ type Options struct {
 	Env *Environment
 	// Logger is a zap logger for log.* functions. If nil, log.* writes to stderr.
 	Logger *zap.Logger
+	// LogLevel is an AtomicLevel for dynamic log level changes.
+	// If nil/zero value, a default InfoLevel is created.
+	LogLevel zap.AtomicLevel
 	// Runner is a sh runner for bash execution. If nil, a new one is created.
 	// Sharing a runner allows the interpreter to inherit env vars and working directory.
 	Runner *interp.Runner
+	// Version is the gsh version string. If empty, "unknown" is used.
+	Version string
 }
 
 // New creates a new interpreter with the given options.
@@ -99,6 +109,21 @@ func New(opts *Options) *Interpreter {
 		gshEnv = NewEnvironment()
 	}
 
+	// Determine version
+	version := opts.Version
+	if version == "" {
+		version = "unknown"
+	}
+
+	// Use provided AtomicLevel or create a default one
+	atomicLevel := opts.LogLevel
+	// Check if it's a zero value by trying to use it
+	if atomicLevel == (zap.AtomicLevel{}) {
+		// Zero value means it wasn't set, create a default InfoLevel
+		// In production, this will be overridden by the caller if needed
+		atomicLevel = zap.NewAtomicLevelAt(zap.InfoLevel)
+	}
+
 	i := &Interpreter{
 		env:              gshEnv,
 		mcpManager:       mcp.NewManager(),
@@ -106,8 +131,12 @@ func New(opts *Options) *Interpreter {
 		logger:           opts.Logger,
 		stdin:            os.Stdin,
 		runner:           runner,
+		eventManager:     NewEventManager(),
+		sdkConfig:        NewSDKConfig(opts.Logger, atomicLevel),
+		version:          version,
 	}
 	i.registerBuiltins()
+	i.registerGshSDK()
 	return i
 }
 

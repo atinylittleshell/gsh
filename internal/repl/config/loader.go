@@ -333,7 +333,8 @@ func (l *Loader) extractGSHConfig(value interpreter.Value, result *LoadResult) {
 	}
 
 	// Extract prompt
-	if prompt, ok := obj.Properties["prompt"]; ok {
+	prompt := obj.GetPropertyValue("prompt")
+	if prompt.Type() != interpreter.ValueTypeNull {
 		if strVal, ok := prompt.(*interpreter.StringValue); ok {
 			result.Config.Prompt = strVal.Value
 		} else {
@@ -342,7 +343,8 @@ func (l *Loader) extractGSHConfig(value interpreter.Value, result *LoadResult) {
 	}
 
 	// Extract logLevel
-	if logLevel, ok := obj.Properties["logLevel"]; ok {
+	logLevel := obj.GetPropertyValue("logLevel")
+	if logLevel.Type() != interpreter.ValueTypeNull {
 		if strVal, ok := logLevel.(*interpreter.StringValue); ok {
 			result.Config.LogLevel = strVal.Value
 		} else {
@@ -351,7 +353,8 @@ func (l *Loader) extractGSHConfig(value interpreter.Value, result *LoadResult) {
 	}
 
 	// Extract predictModel
-	if predictModel, ok := obj.Properties["predictModel"]; ok {
+	predictModel := obj.GetPropertyValue("predictModel")
+	if predictModel.Type() != interpreter.ValueTypeNull {
 		if modelVal, ok := predictModel.(*interpreter.ModelValue); ok {
 			// Only accept model reference, use its name
 			result.Config.PredictModel = modelVal.Name
@@ -361,7 +364,8 @@ func (l *Loader) extractGSHConfig(value interpreter.Value, result *LoadResult) {
 	}
 
 	// Extract defaultAgentModel
-	if defaultAgentModel, ok := obj.Properties["defaultAgentModel"]; ok {
+	defaultAgentModel := obj.GetPropertyValue("defaultAgentModel")
+	if defaultAgentModel.Type() != interpreter.ValueTypeNull {
 		if modelVal, ok := defaultAgentModel.(*interpreter.ModelValue); ok {
 			// Only accept model reference, use its name
 			result.Config.DefaultAgentModel = modelVal.Name
@@ -371,7 +375,8 @@ func (l *Loader) extractGSHConfig(value interpreter.Value, result *LoadResult) {
 	}
 
 	// Extract starshipIntegration
-	if starshipIntegration, ok := obj.Properties["starshipIntegration"]; ok {
+	starshipIntegration := obj.GetPropertyValue("starshipIntegration")
+	if starshipIntegration.Type() != interpreter.ValueTypeNull {
 		if boolVal, ok := starshipIntegration.(*interpreter.BoolValue); ok {
 			result.Config.StarshipIntegration = &boolVal.Value
 		} else {
@@ -380,7 +385,8 @@ func (l *Loader) extractGSHConfig(value interpreter.Value, result *LoadResult) {
 	}
 
 	// Extract showWelcome
-	if showWelcome, ok := obj.Properties["showWelcome"]; ok {
+	showWelcome := obj.GetPropertyValue("showWelcome")
+	if showWelcome.Type() != interpreter.ValueTypeNull {
 		if boolVal, ok := showWelcome.(*interpreter.BoolValue); ok {
 			result.Config.ShowWelcome = &boolVal.Value
 		} else {

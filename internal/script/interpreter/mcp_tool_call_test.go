@@ -181,9 +181,9 @@ func TestValueToInterface(t *testing.T) {
 		{
 			name: "object value",
 			val: &ObjectValue{
-				Properties: map[string]Value{
-					"name": &StringValue{Value: "Alice"},
-					"age":  &NumberValue{Value: 30},
+				Properties: map[string]*PropertyDescriptor{
+					"name": {Value: &StringValue{Value: "Alice"}},
+					"age":  {Value: &NumberValue{Value: 30}},
 				},
 			},
 			want: map[string]interface{}{

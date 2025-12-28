@@ -100,7 +100,7 @@ func main() {
 	}
 
 	// Initialize the logger
-	logger, err := initializeLogger(runner)
+	logger, logLevel, err := initializeLogger(runner)
 	if err != nil {
 		panic(err)
 	}
@@ -119,7 +119,7 @@ func main() {
 	)
 
 	// Start running
-	err = run(runner, historyManager, analyticsManager, completionManager, logger)
+	err = run(runner, historyManager, analyticsManager, completionManager, logger, logLevel)
 
 	// Handle exit status
 	var exitStatus interp.ExitStatus
@@ -139,6 +139,7 @@ func run(
 	analyticsManager *analytics.AnalyticsManager,
 	completionManager *completion.CompletionManager,
 	logger *zap.Logger,
+	logLevel zap.AtomicLevel,
 ) error {
 	ctx := context.Background()
 
@@ -159,7 +160,7 @@ func run(
 	// gsh script.sh or gsh script.gsh
 	for _, filePath := range flag.Args() {
 		if isGshScript(filePath) {
-			if err := runGshScript(ctx, filePath, logger, runner); err != nil {
+			if err := runGshScript(ctx, filePath, logger, logLevel, runner); err != nil {
 				return err
 			}
 		} else {
@@ -194,7 +195,7 @@ func isGshScript(filePath string) bool {
 }
 
 // runGshScript executes a .gsh script file
-func runGshScript(ctx context.Context, filePath string, logger *zap.Logger, runner *interp.Runner) error {
+func runGshScript(ctx context.Context, filePath string, logger *zap.Logger, logLevel zap.AtomicLevel, runner *interp.Runner) error {
 	// Read the script file
 	content, err := os.ReadFile(filePath)
 	if err != nil {
@@ -224,9 +225,14 @@ func runGshScript(ctx context.Context, filePath string, logger *zap.Logger, runn
 		return fmt.Errorf("failed to parse script")
 	}
 
-	// Create interpreter with the shared runner and zap logger
-	// This allows gsh scripts to share environment with bash execution
-	gshInterp := interpreter.New(&interpreter.Options{Logger: logger, Runner: runner})
+	// Create interpreter with the shared runner, logger, and log level
+	// This allows gsh scripts to share environment, logger, and log level with bash execution
+	gshInterp := interpreter.New(&interpreter.Options{
+		Logger:   logger,
+		Runner:   runner,
+		Version:  BUILD_VERSION,
+		LogLevel: logLevel,
+	})
 	defer gshInterp.Close()
 
 	// Execute the script
@@ -240,7 +246,7 @@ func runGshScript(ctx context.Context, filePath string, logger *zap.Logger, runn
 	return nil
 }
 
-func initializeLogger(runner *interp.Runner) (*zap.Logger, error) {
+func initializeLogger(runner *interp.Runner) (*zap.Logger, zap.AtomicLevel, error) {
 	logLevel := environment.GetLogLevel(runner)
 	if BUILD_VERSION == "dev" {
 		logLevel = zap.NewAtomicLevelAt(zap.DebugLevel)
@@ -262,10 +268,10 @@ func initializeLogger(runner *interp.Runner) (*zap.Logger, error) {
 
 	logger, err := loggerConfig.Build()
 	if err != nil {
-		return nil, err
+		return nil, zap.AtomicLevel{}, err
 	}
 
-	return logger, nil
+	return logger, logLevel, nil
 }
 
 func initializeHistoryManager() (*history.HistoryManager, error) {

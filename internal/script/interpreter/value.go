@@ -188,9 +188,17 @@ func (a *ArrayValue) Equals(other Value) bool {
 	return false
 }
 
+// PropertyDescriptor represents metadata about an object property
+type PropertyDescriptor struct {
+	Value    Value             // Static value (used if Getter is nil)
+	ReadOnly bool              // Whether the property is read-only
+	Getter   func() Value      // Dynamic getter (takes precedence over Value)
+	Setter   func(Value) error // Custom setter (for validation/side effects)
+}
+
 // ObjectValue represents an object value
 type ObjectValue struct {
-	Properties map[string]Value
+	Properties map[string]*PropertyDescriptor
 }
 
 func (o *ObjectValue) Type() ValueType { return ValueTypeObject }
@@ -198,13 +206,17 @@ func (o *ObjectValue) String() string {
 	var out strings.Builder
 	out.WriteString("{")
 	first := true
-	for key, value := range o.Properties {
+	for key := range o.Properties {
 		if !first {
 			out.WriteString(", ")
 		}
 		first = false
 		out.WriteString(key)
 		out.WriteString(": ")
+
+		// Get the actual value
+		value := o.GetPropertyValue(key)
+
 		// For strings, add quotes in the object representation
 		if value.Type() == ValueTypeString {
 			out.WriteString(`"`)
@@ -223,15 +235,55 @@ func (o *ObjectValue) Equals(other Value) bool {
 		if len(o.Properties) != len(otherObj.Properties) {
 			return false
 		}
-		for key, value := range o.Properties {
-			otherValue, exists := otherObj.Properties[key]
-			if !exists || !value.Equals(otherValue) {
+		for key := range o.Properties {
+			thisVal := o.GetPropertyValue(key)
+			otherVal := otherObj.GetPropertyValue(key)
+			if !thisVal.Equals(otherVal) {
 				return false
 			}
 		}
 		return true
 	}
 	return false
+}
+
+// GetPropertyValue gets the actual value of a property, handling getters
+func (o *ObjectValue) GetPropertyValue(key string) Value {
+	desc, exists := o.Properties[key]
+	if !exists {
+		return &NullValue{}
+	}
+	if desc.Getter != nil {
+		return desc.Getter()
+	}
+	return desc.Value
+}
+
+// SetPropertyValue sets a property value, respecting read-only and custom setters
+func (o *ObjectValue) SetPropertyValue(key string, value Value) error {
+	desc, exists := o.Properties[key]
+	if !exists {
+		// Property doesn't exist, create new descriptor
+		o.Properties[key] = &PropertyDescriptor{
+			Value:    value,
+			ReadOnly: false,
+		}
+		return nil
+	}
+
+	// Check if read-only
+	if desc.ReadOnly {
+		return fmt.Errorf("cannot set read-only property '%s'", key)
+	}
+
+	// Use custom setter if available
+	if desc.Setter != nil {
+		return desc.Setter(value)
+	}
+
+	// Update the value
+	desc.Value = value
+	return nil
 }
 
 // DeepMerge creates a new ObjectValue by deeply merging this object with another.
@@ -249,32 +301,40 @@ func (o *ObjectValue) DeepMerge(override *ObjectValue) *ObjectValue {
 	}
 
 	merged := &ObjectValue{
-		Properties: make(map[string]Value),
+		Properties: make(map[string]*PropertyDescriptor),
 	}
 
 	// Deep copy all properties from base (this object)
-	for key, value := range o.Properties {
-		merged.Properties[key] = deepCopyValue(value)
+	for key, desc := range o.Properties {
+		merged.Properties[key] = deepCopyDescriptor(desc)
 	}
 
 	// Merge/override with properties from override object
-	for key, overrideValue := range override.Properties {
-		baseValue, exists := merged.Properties[key]
+	for key, overrideDesc := range override.Properties {
+		baseDesc, exists := merged.Properties[key]
 		if exists {
 			// Both have this key - check if we need to deep merge
-			baseObj, baseIsObj := baseValue.(*ObjectValue)
-			overrideObj, overrideIsObj := overrideValue.(*ObjectValue)
+			baseVal := baseDesc.Value
+			overrideVal := overrideDesc.Value
+
+			baseObj, baseIsObj := baseVal.(*ObjectValue)
+			overrideObj, overrideIsObj := overrideVal.(*ObjectValue)
 
 			if baseIsObj && overrideIsObj {
 				// Both are objects - recursively merge
-				merged.Properties[key] = baseObj.DeepMerge(overrideObj)
+				merged.Properties[key] = &PropertyDescriptor{
+					Value:    baseObj.DeepMerge(overrideObj),
+					ReadOnly: overrideDesc.ReadOnly, // Use override's metadata
+					Getter:   overrideDesc.Getter,
+					Setter:   overrideDesc.Setter,
+				}
 			} else {
 				// Override replaces base (different types or non-objects)
-				merged.Properties[key] = deepCopyValue(overrideValue)
+				merged.Properties[key] = deepCopyDescriptor(overrideDesc)
 			}
 		} else {
 			// Key only in override - add it (deep copy to ensure independence)
-			merged.Properties[key] = deepCopyValue(overrideValue)
+			merged.Properties[key] = deepCopyDescriptor(overrideDesc)
 		}
 	}
 
@@ -288,12 +348,25 @@ func (o *ObjectValue) DeepCopy() *ObjectValue {
 		return nil
 	}
 	copied := &ObjectValue{
-		Properties: make(map[string]Value, len(o.Properties)),
+		Properties: make(map[string]*PropertyDescriptor, len(o.Properties)),
 	}
-	for key, value := range o.Properties {
-		copied.Properties[key] = deepCopyValue(value)
+	for key, desc := range o.Properties {
+		copied.Properties[key] = deepCopyDescriptor(desc)
 	}
 	return copied
+}
+
+// deepCopyDescriptor creates a deep copy of a PropertyDescriptor
+func deepCopyDescriptor(desc *PropertyDescriptor) *PropertyDescriptor {
+	if desc == nil {
+		return nil
+	}
+	return &PropertyDescriptor{
+		Value:    deepCopyValue(desc.Value),
+		ReadOnly: desc.ReadOnly,
+		Getter:   desc.Getter, // Functions are immutable, safe to share
+		Setter:   desc.Setter,
+	}
 }
 
 // deepCopyValue creates a deep copy of a Value.

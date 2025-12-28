@@ -615,13 +615,13 @@ func (i *Interpreter) jsonToValue(jsonVal interface{}) (Value, error) {
 		}
 		return &ArrayValue{Elements: elements}, nil
 	case map[string]interface{}:
-		properties := make(map[string]Value)
+		properties := make(map[string]*PropertyDescriptor)
 		for key, val := range v {
 			gshVal, err := i.jsonToValue(val)
 			if err != nil {
 				return nil, err
 			}
-			properties[key] = gshVal
+			properties[key] = &PropertyDescriptor{Value: gshVal}
 		}
 		return &ObjectValue{Properties: properties}, nil
 	default:
@@ -672,7 +672,11 @@ func (i *Interpreter) valueToInterface(val Value) interface{} {
 	case *ArrayValue:
 		return i.valueArrayToInterface(v.Elements)
 	case *ObjectValue:
-		return i.valueMapToInterface(v.Properties)
+		result := make(map[string]interface{})
+		for key := range v.Properties {
+			result[key] = i.valueToInterface(v.GetPropertyValue(key))
+		}
+		return result
 	default:
 		return val.String()
 	}

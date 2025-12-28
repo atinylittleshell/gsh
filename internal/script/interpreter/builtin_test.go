@@ -278,11 +278,11 @@ func TestJSONParse(t *testing.T) {
 				if !ok {
 					t.Fatalf("result is not ObjectValue, got %T", result)
 				}
-				if name, ok := obj.Properties["name"].(*StringValue); !ok || name.Value != "Alice" {
-					t.Errorf("name = %v, want Alice", obj.Properties["name"])
+				if name, ok := obj.GetPropertyValue("name").(*StringValue); !ok || name.Value != "Alice" {
+					t.Errorf("name = %v, want Alice", obj.GetPropertyValue("name"))
 				}
-				if age, ok := obj.Properties["age"].(*NumberValue); !ok || age.Value != 30 {
-					t.Errorf("age = %v, want 30", obj.Properties["age"])
+				if age, ok := obj.GetPropertyValue("age").(*NumberValue); !ok || age.Value != 30 {
+					t.Errorf("age = %v, want 30", obj.GetPropertyValue("age"))
 				}
 			},
 		},
@@ -307,12 +307,12 @@ func TestJSONParse(t *testing.T) {
 				if !ok {
 					t.Fatalf("result is not ObjectValue, got %T", result)
 				}
-				user, ok := obj.Properties["user"].(*ObjectValue)
+				user, ok := obj.GetPropertyValue("user").(*ObjectValue)
 				if !ok {
-					t.Fatalf("user is not ObjectValue, got %T", obj.Properties["user"])
+					t.Fatalf("user is not ObjectValue, got %T", obj.GetPropertyValue("user"))
 				}
-				if name, ok := user.Properties["name"].(*StringValue); !ok || name.Value != "Bob" {
-					t.Errorf("user.name = %v, want Bob", user.Properties["name"])
+				if name, ok := user.GetPropertyValue("name").(*StringValue); !ok || name.Value != "Bob" {
+					t.Errorf("user.name = %v, want Bob", user.GetPropertyValue("name"))
 				}
 			},
 		},
@@ -563,10 +563,10 @@ func TestBuiltinsRegistered(t *testing.T) {
 	if !ok {
 		t.Errorf("JSON is not an ObjectValue, got %T", jsonVal)
 	}
-	if _, ok := jsonObj.Properties["parse"].(*BuiltinValue); !ok {
+	if _, ok := jsonObj.GetPropertyValue("parse").(*BuiltinValue); !ok {
 		t.Errorf("JSON.parse is not a BuiltinValue")
 	}
-	if _, ok := jsonObj.Properties["stringify"].(*BuiltinValue); !ok {
+	if _, ok := jsonObj.GetPropertyValue("stringify").(*BuiltinValue); !ok {
 		t.Errorf("JSON.stringify is not a BuiltinValue")
 	}
 
@@ -580,7 +580,7 @@ func TestBuiltinsRegistered(t *testing.T) {
 		t.Errorf("log is not an ObjectValue, got %T", logVal)
 	}
 	for _, method := range []string{"debug", "info", "warn", "error"} {
-		if _, ok := logObj.Properties[method].(*BuiltinValue); !ok {
+		if _, ok := logObj.GetPropertyValue(method).(*BuiltinValue); !ok {
 			t.Errorf("log.%s is not a BuiltinValue", method)
 		}
 	}

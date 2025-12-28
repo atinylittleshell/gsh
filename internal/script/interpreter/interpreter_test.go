@@ -354,18 +354,14 @@ func TestObjectLiterals(t *testing.T) {
 	}
 
 	// Check name property
-	nameVal, exists := objVal.Properties["name"]
-	if !exists {
-		t.Error("expected 'name' property to exist")
-	} else if nameVal.String() != "Alice" {
+	nameVal := objVal.GetPropertyValue("name")
+	if nameVal.String() != "Alice" {
 		t.Errorf("expected name to be 'Alice', got %q", nameVal.String())
 	}
 
 	// Check age property
-	ageVal, exists := objVal.Properties["age"]
-	if !exists {
-		t.Error("expected 'age' property to exist")
-	} else if ageVal.String() != "30" {
+	ageVal := objVal.GetPropertyValue("age")
+	if ageVal.String() != "30" {
 		t.Errorf("expected age to be '30', got %q", ageVal.String())
 	}
 }
@@ -492,18 +488,14 @@ func TestNestedArraysAndObjects(t *testing.T) {
 	}
 
 	// Check items array
-	itemsVal, exists := objVal.Properties["items"]
-	if !exists {
-		t.Error("expected 'items' property to exist")
-	} else if itemsVal.Type() != ValueTypeArray {
+	itemsVal := objVal.GetPropertyValue("items")
+	if itemsVal.Type() != ValueTypeArray {
 		t.Errorf("expected items to be array, got %s", itemsVal.Type())
 	}
 
 	// Check nested object
-	nestedVal, exists := objVal.Properties["nested"]
-	if !exists {
-		t.Error("expected 'nested' property to exist")
-	} else if nestedVal.Type() != ValueTypeObject {
+	nestedVal := objVal.GetPropertyValue("nested")
+	if nestedVal.Type() != ValueTypeObject {
 		t.Errorf("expected nested to be object, got %s", nestedVal.Type())
 	}
 }

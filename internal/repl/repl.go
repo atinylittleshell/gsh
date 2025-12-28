@@ -96,7 +96,10 @@ func NewREPL(opts Options) (*REPL, error) {
 	}
 
 	// Create ONE interpreter that will be shared by executor, config, and renderer
-	interp := interpreter.New(&interpreter.Options{Logger: logger})
+	interp := interpreter.New(&interpreter.Options{
+		Logger:  logger,
+		Version: opts.BuildVersion,
+	})
 
 	// Initialize executor with the shared interpreter
 	exec, err := executor.NewREPLExecutor(interp, logger, opts.ExecMiddleware...)

@@ -177,6 +177,7 @@ func TestRunGshScript(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create logger: %v", err)
 	}
+	logLevel := zap.NewAtomicLevelAt(zap.InfoLevel)
 
 	t.Run("simple script", func(t *testing.T) {
 		scriptPath := filepath.Join(tmpDir, "simple.gsh")
@@ -192,7 +193,7 @@ print("Result: " + z)
 		ctx := context.Background()
 		var err error
 		output := captureStdout(func() {
-			err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
+			err = runGshScript(ctx, scriptPath, logger, logLevel, newTestRunner(t))
 		})
 
 		if err != nil {
@@ -219,7 +220,7 @@ print(greeting)
 		ctx := context.Background()
 		var err error
 		output := captureStdout(func() {
-			err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
+			err = runGshScript(ctx, scriptPath, logger, logLevel, newTestRunner(t))
 		})
 
 		if err != nil {
@@ -247,7 +248,7 @@ print(count)
 		ctx := context.Background()
 		var err error
 		output := captureStdout(func() {
-			err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
+			err = runGshScript(ctx, scriptPath, logger, logLevel, newTestRunner(t))
 		})
 
 		if err != nil {
@@ -277,7 +278,7 @@ print(result)
 		ctx := context.Background()
 		var err error
 		output := captureStdout(func() {
-			err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
+			err = runGshScript(ctx, scriptPath, logger, logLevel, newTestRunner(t))
 		})
 
 		if err != nil {
@@ -304,7 +305,7 @@ print(x)
 		ctx := context.Background()
 		var err error
 		output := captureStdout(func() {
-			err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
+			err = runGshScript(ctx, scriptPath, logger, logLevel, newTestRunner(t))
 		})
 
 		if err != nil {
@@ -328,7 +329,7 @@ y = 10
 		}
 
 		ctx := context.Background()
-		err := runGshScript(ctx, scriptPath, logger, newTestRunner(t))
+		err := runGshScript(ctx, scriptPath, logger, logLevel, newTestRunner(t))
 		if err == nil {
 			t.Error("Expected error for syntax error, got nil")
 		}
@@ -337,7 +338,7 @@ y = 10
 	t.Run("nonexistent file", func(t *testing.T) {
 		scriptPath := filepath.Join(tmpDir, "nonexistent.gsh")
 		ctx := context.Background()
-		err := runGshScript(ctx, scriptPath, logger, newTestRunner(t))
+		err := runGshScript(ctx, scriptPath, logger, logLevel, newTestRunner(t))
 		if err == nil {
 			t.Error("Expected error for nonexistent file, got nil")
 		}
@@ -352,7 +353,7 @@ y = 10
 		}
 
 		ctx := context.Background()
-		err := runGshScript(ctx, scriptPath, logger, newTestRunner(t))
+		err := runGshScript(ctx, scriptPath, logger, logLevel, newTestRunner(t))
 		if err == nil {
 			t.Error("Expected runtime error, got nil")
 		}
@@ -376,7 +377,7 @@ print(result)
 		ctx := context.Background()
 		var err error
 		output := captureStdout(func() {
-			err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
+			err = runGshScript(ctx, scriptPath, logger, logLevel, newTestRunner(t))
 		})
 
 		if err != nil {
@@ -404,7 +405,7 @@ print(obj.name)
 		ctx := context.Background()
 		var err error
 		output := captureStdout(func() {
-			err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
+			err = runGshScript(ctx, scriptPath, logger, logLevel, newTestRunner(t))
 		})
 
 		if err != nil {
@@ -430,7 +431,7 @@ print(obj.name)
 		ctx := context.Background()
 		var err error
 		output := captureStdout(func() {
-			err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
+			err = runGshScript(ctx, scriptPath, logger, logLevel, newTestRunner(t))
 		})
 
 		if err != nil {
@@ -458,6 +459,7 @@ func TestShebangSupport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create logger: %v", err)
 	}
+	logLevel := zap.NewAtomicLevelAt(zap.InfoLevel)
 
 	tests := []struct {
 		name           string
@@ -512,7 +514,7 @@ func TestShebangSupport(t *testing.T) {
 			ctx := context.Background()
 			var err error
 			output := captureStdout(func() {
-				err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
+				err = runGshScript(ctx, scriptPath, logger, logLevel, newTestRunner(t))
 			})
 
 			if (err != nil) != tt.wantErr {
@@ -558,6 +560,7 @@ func TestErrorMessagesE2E(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create logger: %v", err)
 	}
+	logLevel := zap.NewAtomicLevelAt(zap.InfoLevel)
 
 	tests := []struct {
 		name               string
@@ -742,7 +745,7 @@ result = outer()`,
 			ctx := context.Background()
 			var execErr error
 			stderr := captureStderr(func() {
-				execErr = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
+				execErr = runGshScript(ctx, scriptPath, logger, logLevel, newTestRunner(t))
 			})
 
 			if tt.expectError && execErr == nil {
@@ -806,6 +809,7 @@ func TestErrorMessageQuality(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create logger: %v", err)
 	}
+	logLevel := zap.NewAtomicLevelAt(zap.InfoLevel)
 
 	t.Run("parse error shows line number", func(t *testing.T) {
 		script := `x = 5
@@ -820,7 +824,7 @@ w = 20`
 		ctx := context.Background()
 		var execErr error
 		stderr := captureStderr(func() {
-			execErr = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
+			execErr = runGshScript(ctx, scriptPath, logger, logLevel, newTestRunner(t))
 		})
 
 		if execErr == nil {
@@ -853,13 +857,13 @@ w = 20`
 		// Parse error
 		var parseErr error
 		parseStderr := captureStderr(func() {
-			parseErr = runGshScript(ctx, parseErrorPath, logger, newTestRunner(t))
+			parseErr = runGshScript(ctx, parseErrorPath, logger, logLevel, newTestRunner(t))
 		})
 
 		// Runtime error
 		var runtimeErr error
 		runtimeStderr := captureStderr(func() {
-			runtimeErr = runGshScript(ctx, runtimeErrorPath, logger, newTestRunner(t))
+			runtimeErr = runGshScript(ctx, runtimeErrorPath, logger, logLevel, newTestRunner(t))
 		})
 
 		if parseErr == nil || runtimeErr == nil {
@@ -884,7 +888,7 @@ w = 20`
 		nonExistentPath := filepath.Join(tmpDir, "does_not_exist.gsh")
 
 		ctx := context.Background()
-		err := runGshScript(ctx, nonExistentPath, logger, newTestRunner(t))
+		err := runGshScript(ctx, nonExistentPath, logger, logLevel, newTestRunner(t))
 
 		if err == nil {
 			t.Error("Expected file read error")

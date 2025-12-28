@@ -323,14 +323,14 @@ func (i *Interpreter) evalArrayLiteral(node *parser.ArrayLiteral) (Value, error)
 
 // evalObjectLiteral evaluates an object literal
 func (i *Interpreter) evalObjectLiteral(node *parser.ObjectLiteral) (Value, error) {
-	properties := make(map[string]Value)
+	properties := make(map[string]*PropertyDescriptor)
 
 	for key, expr := range node.Pairs {
 		val, err := i.evalExpression(expr)
 		if err != nil {
 			return nil, err
 		}
-		properties[key] = val
+		properties[key] = &PropertyDescriptor{Value: val}
 	}
 
 	return &ObjectValue{Properties: properties}, nil
@@ -636,6 +636,14 @@ func (i *Interpreter) evalMemberExpression(node *parser.MemberExpression) (Value
 		return i.getObjectProperty(objVal, propertyName, node)
 	}
 
+	// Handle objects with GetProperty method (like LoggingObjectValue)
+	type PropertyGetter interface {
+		GetProperty(name string) Value
+	}
+	if getter, ok := object.(PropertyGetter); ok {
+		return getter.GetProperty(propertyName), nil
+	}
+
 	return nil, NewRuntimeError("cannot access property '%s' on type %s (line %d, column %d)",
 		propertyName, object.Type(), node.Token.Line, node.Token.Column)
 }
@@ -736,12 +744,9 @@ func (i *Interpreter) getObjectProperty(obj *ObjectValue, property string, node 
 	}
 
 	// Check for user-defined properties
-	if prop, exists := obj.Properties[property]; exists {
-		return prop, nil
-	}
-
-	// Return null for missing properties (like JavaScript)
-	return &NullValue{}, nil
+	value := obj.GetPropertyValue(property)
+	// Return the value (will be null if property doesn't exist)
+	return value, nil
 }
 
 // getMapProperty returns map properties and methods
@@ -819,11 +824,7 @@ func (i *Interpreter) evalIndexExpression(node *parser.IndexExpression) (Value, 
 				index.Type(), node.Token.Line, node.Token.Column)
 		}
 		key := index.(*StringValue).Value
-		if prop, exists := objVal.Properties[key]; exists {
-			return prop, nil
-		}
-		// Return null for missing properties (like JavaScript)
-		return &NullValue{}, nil
+		return objVal.GetPropertyValue(key), nil
 	}
 
 	// Handle map indexing with string keys

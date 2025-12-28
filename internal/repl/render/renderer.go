@@ -151,87 +151,87 @@ func (r *Renderer) CallPromptHook(ctx *RenderContext) string {
 
 // toInterpreterObject converts a RenderContext to an interpreter ObjectValue
 func (r *Renderer) contextToInterpreterObject(ctx *RenderContext) *interpreter.ObjectValue {
-	props := make(map[string]interpreter.Value)
+	props := make(map[string]*interpreter.PropertyDescriptor)
 
 	// Terminal is always present
 	if ctx.Terminal != nil {
-		props["terminal"] = &interpreter.ObjectValue{
-			Properties: map[string]interpreter.Value{
-				"width":  &interpreter.NumberValue{Value: float64(ctx.Terminal.Width)},
-				"height": &interpreter.NumberValue{Value: float64(ctx.Terminal.Height)},
+		props["terminal"] = &interpreter.PropertyDescriptor{Value: &interpreter.ObjectValue{
+			Properties: map[string]*interpreter.PropertyDescriptor{
+				"width":  {Value: &interpreter.NumberValue{Value: float64(ctx.Terminal.Width)}},
+				"height": {Value: &interpreter.NumberValue{Value: float64(ctx.Terminal.Height)}},
 			},
-		}
+		}}
 	}
 
 	// Agent may be null
 	if ctx.Agent != nil {
-		props["agent"] = &interpreter.ObjectValue{
-			Properties: map[string]interpreter.Value{
-				"name": &interpreter.StringValue{Value: ctx.Agent.Name},
+		props["agent"] = &interpreter.PropertyDescriptor{Value: &interpreter.ObjectValue{
+			Properties: map[string]*interpreter.PropertyDescriptor{
+				"name": {Value: &interpreter.StringValue{Value: ctx.Agent.Name}},
 			},
-		}
+		}}
 	} else {
-		props["agent"] = &interpreter.NullValue{}
+		props["agent"] = &interpreter.PropertyDescriptor{Value: &interpreter.NullValue{}}
 	}
 
 	// Repl may be null
 	if ctx.Repl != nil {
-		props["repl"] = &interpreter.ObjectValue{
-			Properties: map[string]interpreter.Value{
-				"lastExitCode":   &interpreter.NumberValue{Value: float64(ctx.Repl.LastExitCode)},
-				"lastDurationMs": &interpreter.NumberValue{Value: float64(ctx.Repl.LastDurationMs)},
+		props["repl"] = &interpreter.PropertyDescriptor{Value: &interpreter.ObjectValue{
+			Properties: map[string]*interpreter.PropertyDescriptor{
+				"lastExitCode":   {Value: &interpreter.NumberValue{Value: float64(ctx.Repl.LastExitCode)}},
+				"lastDurationMs": {Value: &interpreter.NumberValue{Value: float64(ctx.Repl.LastDurationMs)}},
 			},
-		}
+		}}
 	} else {
-		props["repl"] = &interpreter.NullValue{}
+		props["repl"] = &interpreter.PropertyDescriptor{Value: &interpreter.NullValue{}}
 	}
 
 	// Query may be null
 	if ctx.Query != nil {
-		props["query"] = &interpreter.ObjectValue{
-			Properties: map[string]interpreter.Value{
-				"durationMs":   &interpreter.NumberValue{Value: float64(ctx.Query.DurationMs)},
-				"inputTokens":  &interpreter.NumberValue{Value: float64(ctx.Query.InputTokens)},
-				"outputTokens": &interpreter.NumberValue{Value: float64(ctx.Query.OutputTokens)},
-				"cachedTokens": &interpreter.NumberValue{Value: float64(ctx.Query.CachedTokens)},
+		props["query"] = &interpreter.PropertyDescriptor{Value: &interpreter.ObjectValue{
+			Properties: map[string]*interpreter.PropertyDescriptor{
+				"durationMs":   {Value: &interpreter.NumberValue{Value: float64(ctx.Query.DurationMs)}},
+				"inputTokens":  {Value: &interpreter.NumberValue{Value: float64(ctx.Query.InputTokens)}},
+				"outputTokens": {Value: &interpreter.NumberValue{Value: float64(ctx.Query.OutputTokens)}},
+				"cachedTokens": {Value: &interpreter.NumberValue{Value: float64(ctx.Query.CachedTokens)}},
 			},
-		}
+		}}
 	} else {
-		props["query"] = &interpreter.NullValue{}
+		props["query"] = &interpreter.PropertyDescriptor{Value: &interpreter.NullValue{}}
 	}
 
 	// Exec may be null
 	if ctx.Exec != nil {
-		props["exec"] = &interpreter.ObjectValue{
-			Properties: map[string]interpreter.Value{
-				"command":          &interpreter.StringValue{Value: ctx.Exec.Command},
-				"commandFirstWord": &interpreter.StringValue{Value: ctx.Exec.CommandFirstWord},
-				"durationMs":       &interpreter.NumberValue{Value: float64(ctx.Exec.DurationMs)},
-				"exitCode":         &interpreter.NumberValue{Value: float64(ctx.Exec.ExitCode)},
+		props["exec"] = &interpreter.PropertyDescriptor{Value: &interpreter.ObjectValue{
+			Properties: map[string]*interpreter.PropertyDescriptor{
+				"command":          {Value: &interpreter.StringValue{Value: ctx.Exec.Command}},
+				"commandFirstWord": {Value: &interpreter.StringValue{Value: ctx.Exec.CommandFirstWord}},
+				"durationMs":       {Value: &interpreter.NumberValue{Value: float64(ctx.Exec.DurationMs)}},
+				"exitCode":         {Value: &interpreter.NumberValue{Value: float64(ctx.Exec.ExitCode)}},
 			},
-		}
+		}}
 	} else {
-		props["exec"] = &interpreter.NullValue{}
+		props["exec"] = &interpreter.PropertyDescriptor{Value: &interpreter.NullValue{}}
 	}
 
 	// ToolCall may be null
 	if ctx.ToolCall != nil {
-		argsObj := make(map[string]interpreter.Value)
+		argsObj := make(map[string]*interpreter.PropertyDescriptor)
 		for k, v := range ctx.ToolCall.Args {
-			argsObj[k] = toInterpreterValue(v)
+			argsObj[k] = &interpreter.PropertyDescriptor{Value: toInterpreterValue(v)}
 		}
 
-		props["toolCall"] = &interpreter.ObjectValue{
-			Properties: map[string]interpreter.Value{
-				"name":       &interpreter.StringValue{Value: ctx.ToolCall.Name},
-				"status":     &interpreter.StringValue{Value: string(ctx.ToolCall.Status)},
-				"args":       &interpreter.ObjectValue{Properties: argsObj},
-				"durationMs": &interpreter.NumberValue{Value: float64(ctx.ToolCall.DurationMs)},
-				"output":     &interpreter.StringValue{Value: ctx.ToolCall.Output},
+		props["toolCall"] = &interpreter.PropertyDescriptor{Value: &interpreter.ObjectValue{
+			Properties: map[string]*interpreter.PropertyDescriptor{
+				"name":       {Value: &interpreter.StringValue{Value: ctx.ToolCall.Name}},
+				"status":     {Value: &interpreter.StringValue{Value: string(ctx.ToolCall.Status)}},
+				"args":       {Value: &interpreter.ObjectValue{Properties: argsObj}},
+				"durationMs": {Value: &interpreter.NumberValue{Value: float64(ctx.ToolCall.DurationMs)}},
+				"output":     {Value: &interpreter.StringValue{Value: ctx.ToolCall.Output}},
 			},
-		}
+		}}
 	} else {
-		props["toolCall"] = &interpreter.NullValue{}
+		props["toolCall"] = &interpreter.PropertyDescriptor{Value: &interpreter.NullValue{}}
 	}
 
 	return &interpreter.ObjectValue{Properties: props}
@@ -526,9 +526,9 @@ func toInterpreterValue(v interface{}) interpreter.Value {
 	case bool:
 		return &interpreter.BoolValue{Value: val}
 	case map[string]interface{}:
-		obj := make(map[string]interpreter.Value)
+		obj := make(map[string]*interpreter.PropertyDescriptor)
 		for k, v := range val {
-			obj[k] = toInterpreterValue(v)
+			obj[k] = &interpreter.PropertyDescriptor{Value: toInterpreterValue(v)}
 		}
 		return &interpreter.ObjectValue{Properties: obj}
 	case []interface{}:

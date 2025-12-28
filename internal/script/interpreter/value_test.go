@@ -345,7 +345,12 @@ func TestObjectValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			obj := &ObjectValue{Properties: tt.properties}
+			// Convert map[string]Value to map[string]*PropertyDescriptor
+			props := make(map[string]*PropertyDescriptor)
+			for k, v := range tt.properties {
+				props[k] = &PropertyDescriptor{Value: v}
+			}
+			obj := &ObjectValue{Properties: props}
 
 			if obj.Type() != ValueTypeObject {
 				t.Errorf("ObjectValue.Type() = %v, want %v", obj.Type(), ValueTypeObject)
@@ -356,12 +361,16 @@ func TestObjectValue(t *testing.T) {
 			}
 
 			// Test equality
-			same := &ObjectValue{Properties: tt.properties}
+			sameProps := make(map[string]*PropertyDescriptor)
+			for k, v := range tt.properties {
+				sameProps[k] = &PropertyDescriptor{Value: v}
+			}
+			same := &ObjectValue{Properties: sameProps}
 			if !obj.Equals(same) {
 				t.Error("ObjectValue should equal another ObjectValue with same properties")
 			}
 
-			different := &ObjectValue{Properties: map[string]Value{"x": &NumberValue{Value: 99}}}
+			different := &ObjectValue{Properties: map[string]*PropertyDescriptor{"x": {Value: &NumberValue{Value: 99}}}}
 			if len(tt.properties) > 0 && obj.Equals(different) {
 				t.Error("ObjectValue should not equal ObjectValue with different properties")
 			}
@@ -375,9 +384,9 @@ func TestObjectValue(t *testing.T) {
 
 func TestObjectValue_String(t *testing.T) {
 	obj := &ObjectValue{
-		Properties: map[string]Value{
-			"name": &StringValue{Value: "Alice"},
-			"age":  &NumberValue{Value: 30},
+		Properties: map[string]*PropertyDescriptor{
+			"name": {Value: &StringValue{Value: "Alice"}},
+			"age":  {Value: &NumberValue{Value: 30}},
 		},
 	}
 
@@ -402,9 +411,9 @@ func TestObjectValue_String(t *testing.T) {
 func TestObjectValue_DeepMerge(t *testing.T) {
 	t.Run("nil override returns shallow copy", func(t *testing.T) {
 		base := &ObjectValue{
-			Properties: map[string]Value{
-				"a": &StringValue{Value: "base_a"},
-				"b": &NumberValue{Value: 1},
+			Properties: map[string]*PropertyDescriptor{
+				"a": {Value: &StringValue{Value: "base_a"}},
+				"b": {Value: &NumberValue{Value: 1}},
 			},
 		}
 
@@ -414,8 +423,8 @@ func TestObjectValue_DeepMerge(t *testing.T) {
 		if len(result.Properties) != 2 {
 			t.Errorf("expected 2 properties, got %d", len(result.Properties))
 		}
-		if result.Properties["a"].String() != "base_a" {
-			t.Errorf("expected a='base_a', got %s", result.Properties["a"].String())
+		if result.GetPropertyValue("a").String() != "base_a" {
+			t.Errorf("expected a='base_a', got %s", result.GetPropertyValue("a").String())
 		}
 
 		// Should be a copy, not the same object
@@ -425,10 +434,10 @@ func TestObjectValue_DeepMerge(t *testing.T) {
 	})
 
 	t.Run("empty base with override", func(t *testing.T) {
-		base := &ObjectValue{Properties: map[string]Value{}}
+		base := &ObjectValue{Properties: map[string]*PropertyDescriptor{}}
 		override := &ObjectValue{
-			Properties: map[string]Value{
-				"x": &StringValue{Value: "override_x"},
+			Properties: map[string]*PropertyDescriptor{
+				"x": {Value: &StringValue{Value: "override_x"}},
 			},
 		}
 
@@ -437,40 +446,40 @@ func TestObjectValue_DeepMerge(t *testing.T) {
 		if len(result.Properties) != 1 {
 			t.Errorf("expected 1 property, got %d", len(result.Properties))
 		}
-		if result.Properties["x"].String() != "override_x" {
-			t.Errorf("expected x='override_x', got %s", result.Properties["x"].String())
+		if result.GetPropertyValue("x").String() != "override_x" {
+			t.Errorf("expected x='override_x', got %s", result.GetPropertyValue("x").String())
 		}
 	})
 
 	t.Run("base with empty override", func(t *testing.T) {
 		base := &ObjectValue{
-			Properties: map[string]Value{
-				"a": &StringValue{Value: "base_a"},
+			Properties: map[string]*PropertyDescriptor{
+				"a": {Value: &StringValue{Value: "base_a"}},
 			},
 		}
-		override := &ObjectValue{Properties: map[string]Value{}}
+		override := &ObjectValue{Properties: map[string]*PropertyDescriptor{}}
 
 		result := base.DeepMerge(override)
 
 		if len(result.Properties) != 1 {
 			t.Errorf("expected 1 property, got %d", len(result.Properties))
 		}
-		if result.Properties["a"].String() != "base_a" {
-			t.Errorf("expected a='base_a', got %s", result.Properties["a"].String())
+		if result.GetPropertyValue("a").String() != "base_a" {
+			t.Errorf("expected a='base_a', got %s", result.GetPropertyValue("a").String())
 		}
 	})
 
 	t.Run("simple merge with no overlapping keys", func(t *testing.T) {
 		base := &ObjectValue{
-			Properties: map[string]Value{
-				"a": &StringValue{Value: "base_a"},
-				"b": &NumberValue{Value: 1},
+			Properties: map[string]*PropertyDescriptor{
+				"a": {Value: &StringValue{Value: "base_a"}},
+				"b": {Value: &NumberValue{Value: 1}},
 			},
 		}
 		override := &ObjectValue{
-			Properties: map[string]Value{
-				"c": &StringValue{Value: "override_c"},
-				"d": &NumberValue{Value: 2},
+			Properties: map[string]*PropertyDescriptor{
+				"c": {Value: &StringValue{Value: "override_c"}},
+				"d": {Value: &NumberValue{Value: 2}},
 			},
 		}
 
@@ -479,285 +488,285 @@ func TestObjectValue_DeepMerge(t *testing.T) {
 		if len(result.Properties) != 4 {
 			t.Errorf("expected 4 properties, got %d", len(result.Properties))
 		}
-		if result.Properties["a"].String() != "base_a" {
-			t.Errorf("expected a='base_a', got %s", result.Properties["a"].String())
+		if result.GetPropertyValue("a").String() != "base_a" {
+			t.Errorf("expected a='base_a', got %s", result.GetPropertyValue("a").String())
 		}
-		if result.Properties["c"].String() != "override_c" {
-			t.Errorf("expected c='override_c', got %s", result.Properties["c"].String())
+		if result.GetPropertyValue("c").String() != "override_c" {
+			t.Errorf("expected c='override_c', got %s", result.GetPropertyValue("c").String())
 		}
 	})
 
 	t.Run("override replaces non-object values", func(t *testing.T) {
 		base := &ObjectValue{
-			Properties: map[string]Value{
-				"name":  &StringValue{Value: "base_name"},
-				"count": &NumberValue{Value: 10},
+			Properties: map[string]*PropertyDescriptor{
+				"name":  {Value: &StringValue{Value: "base_name"}},
+				"count": {Value: &NumberValue{Value: 10}},
 			},
 		}
 		override := &ObjectValue{
-			Properties: map[string]Value{
-				"name": &StringValue{Value: "override_name"},
+			Properties: map[string]*PropertyDescriptor{
+				"name": {Value: &StringValue{Value: "override_name"}},
 			},
 		}
 
 		result := base.DeepMerge(override)
 
-		if result.Properties["name"].String() != "override_name" {
-			t.Errorf("expected name='override_name', got %s", result.Properties["name"].String())
+		if result.GetPropertyValue("name").String() != "override_name" {
+			t.Errorf("expected name='override_name', got %s", result.GetPropertyValue("name").String())
 		}
 		// count should be preserved
-		if result.Properties["count"].(*NumberValue).Value != 10 {
-			t.Errorf("expected count=10, got %v", result.Properties["count"])
+		if result.GetPropertyValue("count").(*NumberValue).Value != 10 {
+			t.Errorf("expected count=10, got %v", result.GetPropertyValue("count"))
 		}
 	})
 
 	t.Run("deep merge nested objects", func(t *testing.T) {
 		base := &ObjectValue{
-			Properties: map[string]Value{
-				"config": &ObjectValue{
-					Properties: map[string]Value{
-						"host": &StringValue{Value: "localhost"},
-						"port": &NumberValue{Value: 8080},
+			Properties: map[string]*PropertyDescriptor{
+				"config": {Value: &ObjectValue{
+					Properties: map[string]*PropertyDescriptor{
+						"host": {Value: &StringValue{Value: "localhost"}},
+						"port": {Value: &NumberValue{Value: 8080}},
 					},
-				},
-				"name": &StringValue{Value: "app"},
+				}},
+				"name": {Value: &StringValue{Value: "app"}},
 			},
 		}
 		override := &ObjectValue{
-			Properties: map[string]Value{
-				"config": &ObjectValue{
-					Properties: map[string]Value{
-						"port": &NumberValue{Value: 9090},
+			Properties: map[string]*PropertyDescriptor{
+				"config": {Value: &ObjectValue{
+					Properties: map[string]*PropertyDescriptor{
+						"port": {Value: &NumberValue{Value: 9090}},
 					},
-				},
+				}},
 			},
 		}
 
 		result := base.DeepMerge(override)
 
 		// name should be preserved
-		if result.Properties["name"].String() != "app" {
-			t.Errorf("expected name='app', got %s", result.Properties["name"].String())
+		if result.GetPropertyValue("name").String() != "app" {
+			t.Errorf("expected name='app', got %s", result.GetPropertyValue("name").String())
 		}
 
 		// config should be merged
-		config, ok := result.Properties["config"].(*ObjectValue)
+		config, ok := result.GetPropertyValue("config").(*ObjectValue)
 		if !ok {
 			t.Fatal("expected config to be an ObjectValue")
 		}
 
 		// host should be preserved from base
-		if config.Properties["host"].String() != "localhost" {
-			t.Errorf("expected host='localhost', got %s", config.Properties["host"].String())
+		if config.GetPropertyValue("host").String() != "localhost" {
+			t.Errorf("expected host='localhost', got %s", config.GetPropertyValue("host").String())
 		}
 
 		// port should be overridden
-		if config.Properties["port"].(*NumberValue).Value != 9090 {
-			t.Errorf("expected port=9090, got %v", config.Properties["port"])
+		if config.GetPropertyValue("port").(*NumberValue).Value != 9090 {
+			t.Errorf("expected port=9090, got %v", config.GetPropertyValue("port"))
 		}
 	})
 
 	t.Run("deeply nested merge (3 levels)", func(t *testing.T) {
 		base := &ObjectValue{
-			Properties: map[string]Value{
-				"level1": &ObjectValue{
-					Properties: map[string]Value{
-						"level2": &ObjectValue{
-							Properties: map[string]Value{
-								"a": &StringValue{Value: "base_a"},
-								"b": &StringValue{Value: "base_b"},
+			Properties: map[string]*PropertyDescriptor{
+				"level1": {Value: &ObjectValue{
+					Properties: map[string]*PropertyDescriptor{
+						"level2": {Value: &ObjectValue{
+							Properties: map[string]*PropertyDescriptor{
+								"a": {Value: &StringValue{Value: "base_a"}},
+								"b": {Value: &StringValue{Value: "base_b"}},
 							},
-						},
-						"other": &StringValue{Value: "base_other"},
+						}},
+						"other": {Value: &StringValue{Value: "base_other"}},
 					},
-				},
+				}},
 			},
 		}
 		override := &ObjectValue{
-			Properties: map[string]Value{
-				"level1": &ObjectValue{
-					Properties: map[string]Value{
-						"level2": &ObjectValue{
-							Properties: map[string]Value{
-								"b": &StringValue{Value: "override_b"},
-								"c": &StringValue{Value: "override_c"},
+			Properties: map[string]*PropertyDescriptor{
+				"level1": {Value: &ObjectValue{
+					Properties: map[string]*PropertyDescriptor{
+						"level2": {Value: &ObjectValue{
+							Properties: map[string]*PropertyDescriptor{
+								"b": {Value: &StringValue{Value: "override_b"}},
+								"c": {Value: &StringValue{Value: "override_c"}},
 							},
-						},
+						}},
 					},
-				},
+				}},
 			},
 		}
 
 		result := base.DeepMerge(override)
 
-		level1, ok := result.Properties["level1"].(*ObjectValue)
+		level1, ok := result.GetPropertyValue("level1").(*ObjectValue)
 		if !ok {
 			t.Fatal("expected level1 to be an ObjectValue")
 		}
 
 		// other should be preserved
-		if level1.Properties["other"].String() != "base_other" {
-			t.Errorf("expected other='base_other', got %s", level1.Properties["other"].String())
+		if level1.GetPropertyValue("other").String() != "base_other" {
+			t.Errorf("expected other='base_other', got %s", level1.GetPropertyValue("other").String())
 		}
 
-		level2, ok := level1.Properties["level2"].(*ObjectValue)
+		level2, ok := level1.GetPropertyValue("level2").(*ObjectValue)
 		if !ok {
 			t.Fatal("expected level2 to be an ObjectValue")
 		}
 
 		// a should be preserved from base
-		if level2.Properties["a"].String() != "base_a" {
-			t.Errorf("expected a='base_a', got %s", level2.Properties["a"].String())
+		if level2.GetPropertyValue("a").String() != "base_a" {
+			t.Errorf("expected a='base_a', got %s", level2.GetPropertyValue("a").String())
 		}
 
 		// b should be overridden
-		if level2.Properties["b"].String() != "override_b" {
-			t.Errorf("expected b='override_b', got %s", level2.Properties["b"].String())
+		if level2.GetPropertyValue("b").String() != "override_b" {
+			t.Errorf("expected b='override_b', got %s", level2.GetPropertyValue("b").String())
 		}
 
 		// c should be added from override
-		if level2.Properties["c"].String() != "override_c" {
-			t.Errorf("expected c='override_c', got %s", level2.Properties["c"].String())
+		if level2.GetPropertyValue("c").String() != "override_c" {
+			t.Errorf("expected c='override_c', got %s", level2.GetPropertyValue("c").String())
 		}
 	})
 
 	t.Run("override object replaces non-object", func(t *testing.T) {
 		base := &ObjectValue{
-			Properties: map[string]Value{
-				"config": &StringValue{Value: "string_value"},
+			Properties: map[string]*PropertyDescriptor{
+				"config": {Value: &StringValue{Value: "string_value"}},
 			},
 		}
 		override := &ObjectValue{
-			Properties: map[string]Value{
-				"config": &ObjectValue{
-					Properties: map[string]Value{
-						"host": &StringValue{Value: "localhost"},
+			Properties: map[string]*PropertyDescriptor{
+				"config": {Value: &ObjectValue{
+					Properties: map[string]*PropertyDescriptor{
+						"host": {Value: &StringValue{Value: "localhost"}},
 					},
-				},
+				}},
 			},
 		}
 
 		result := base.DeepMerge(override)
 
-		config, ok := result.Properties["config"].(*ObjectValue)
+		config, ok := result.GetPropertyValue("config").(*ObjectValue)
 		if !ok {
 			t.Fatal("expected config to be an ObjectValue after override")
 		}
-		if config.Properties["host"].String() != "localhost" {
-			t.Errorf("expected host='localhost', got %s", config.Properties["host"].String())
+		if config.GetPropertyValue("host").String() != "localhost" {
+			t.Errorf("expected host='localhost', got %s", config.GetPropertyValue("host").String())
 		}
 	})
 
 	t.Run("override non-object replaces object", func(t *testing.T) {
 		base := &ObjectValue{
-			Properties: map[string]Value{
-				"config": &ObjectValue{
-					Properties: map[string]Value{
-						"host": &StringValue{Value: "localhost"},
+			Properties: map[string]*PropertyDescriptor{
+				"config": {Value: &ObjectValue{
+					Properties: map[string]*PropertyDescriptor{
+						"host": {Value: &StringValue{Value: "localhost"}},
 					},
-				},
+				}},
 			},
 		}
 		override := &ObjectValue{
-			Properties: map[string]Value{
-				"config": &StringValue{Value: "simple_string"},
+			Properties: map[string]*PropertyDescriptor{
+				"config": {Value: &StringValue{Value: "simple_string"}},
 			},
 		}
 
 		result := base.DeepMerge(override)
 
-		if result.Properties["config"].String() != "simple_string" {
-			t.Errorf("expected config='simple_string', got %s", result.Properties["config"].String())
+		if result.GetPropertyValue("config").String() != "simple_string" {
+			t.Errorf("expected config='simple_string', got %s", result.GetPropertyValue("config").String())
 		}
 	})
 
 	t.Run("does not modify original objects", func(t *testing.T) {
 		base := &ObjectValue{
-			Properties: map[string]Value{
-				"a": &StringValue{Value: "base_a"},
-				"nested": &ObjectValue{
-					Properties: map[string]Value{
-						"x": &StringValue{Value: "base_x"},
+			Properties: map[string]*PropertyDescriptor{
+				"a": {Value: &StringValue{Value: "base_a"}},
+				"nested": {Value: &ObjectValue{
+					Properties: map[string]*PropertyDescriptor{
+						"x": {Value: &StringValue{Value: "base_x"}},
 					},
-				},
+				}},
 			},
 		}
 		override := &ObjectValue{
-			Properties: map[string]Value{
-				"a": &StringValue{Value: "override_a"},
-				"nested": &ObjectValue{
-					Properties: map[string]Value{
-						"y": &StringValue{Value: "override_y"},
+			Properties: map[string]*PropertyDescriptor{
+				"a": {Value: &StringValue{Value: "override_a"}},
+				"nested": {Value: &ObjectValue{
+					Properties: map[string]*PropertyDescriptor{
+						"y": {Value: &StringValue{Value: "override_y"}},
 					},
-				},
+				}},
 			},
 		}
 
 		// Save original values
-		originalBaseA := base.Properties["a"].String()
-		originalBaseNestedX := base.Properties["nested"].(*ObjectValue).Properties["x"].String()
-		originalOverrideA := override.Properties["a"].String()
+		originalBaseA := base.GetPropertyValue("a").String()
+		originalBaseNestedX := base.GetPropertyValue("nested").(*ObjectValue).GetPropertyValue("x").String()
+		originalOverrideA := override.GetPropertyValue("a").String()
 
 		_ = base.DeepMerge(override)
 
 		// Check base wasn't modified
-		if base.Properties["a"].String() != originalBaseA {
+		if base.GetPropertyValue("a").String() != originalBaseA {
 			t.Error("base object was modified")
 		}
-		if base.Properties["nested"].(*ObjectValue).Properties["x"].String() != originalBaseNestedX {
+		if base.GetPropertyValue("nested").(*ObjectValue).GetPropertyValue("x").String() != originalBaseNestedX {
 			t.Error("base nested object was modified")
 		}
 		// Base nested should not have y
-		if _, exists := base.Properties["nested"].(*ObjectValue).Properties["y"]; exists {
+		if _, exists := base.GetPropertyValue("nested").(*ObjectValue).Properties["y"]; exists {
 			t.Error("base nested object should not have 'y' property")
 		}
 
 		// Check override wasn't modified
-		if override.Properties["a"].String() != originalOverrideA {
+		if override.GetPropertyValue("a").String() != originalOverrideA {
 			t.Error("override object was modified")
 		}
 	})
 
 	t.Run("returned object is fully independent - modifying it does not affect originals", func(t *testing.T) {
 		base := &ObjectValue{
-			Properties: map[string]Value{
-				"preserved": &StringValue{Value: "base_preserved"},
-				"nested": &ObjectValue{
-					Properties: map[string]Value{
-						"baseOnly": &StringValue{Value: "base_nested_value"},
+			Properties: map[string]*PropertyDescriptor{
+				"preserved": {Value: &StringValue{Value: "base_preserved"}},
+				"nested": {Value: &ObjectValue{
+					Properties: map[string]*PropertyDescriptor{
+						"baseOnly": {Value: &StringValue{Value: "base_nested_value"}},
 					},
-				},
+				}},
 			},
 		}
 		override := &ObjectValue{
-			Properties: map[string]Value{
-				"added": &StringValue{Value: "override_added"},
-				"nested": &ObjectValue{
-					Properties: map[string]Value{
-						"overrideOnly": &StringValue{Value: "override_nested_value"},
+			Properties: map[string]*PropertyDescriptor{
+				"added": {Value: &StringValue{Value: "override_added"}},
+				"nested": {Value: &ObjectValue{
+					Properties: map[string]*PropertyDescriptor{
+						"overrideOnly": {Value: &StringValue{Value: "override_nested_value"}},
 					},
-				},
+				}},
 			},
 		}
 
 		result := base.DeepMerge(override)
 
 		// Modify the result extensively
-		result.Properties["preserved"] = &StringValue{Value: "MODIFIED"}
-		result.Properties["added"] = &StringValue{Value: "MODIFIED"}
-		result.Properties["newKey"] = &StringValue{Value: "NEW"}
+		result.Properties["preserved"] = &PropertyDescriptor{Value: &StringValue{Value: "MODIFIED"}}
+		result.Properties["added"] = &PropertyDescriptor{Value: &StringValue{Value: "MODIFIED"}}
+		result.Properties["newKey"] = &PropertyDescriptor{Value: &StringValue{Value: "NEW"}}
 
-		resultNested := result.Properties["nested"].(*ObjectValue)
-		resultNested.Properties["baseOnly"] = &StringValue{Value: "MODIFIED"}
-		resultNested.Properties["overrideOnly"] = &StringValue{Value: "MODIFIED"}
-		resultNested.Properties["newNestedKey"] = &StringValue{Value: "NEW"}
+		resultNested := result.GetPropertyValue("nested").(*ObjectValue)
+		resultNested.Properties["baseOnly"] = &PropertyDescriptor{Value: &StringValue{Value: "MODIFIED"}}
+		resultNested.Properties["overrideOnly"] = &PropertyDescriptor{Value: &StringValue{Value: "MODIFIED"}}
+		resultNested.Properties["newNestedKey"] = &PropertyDescriptor{Value: &StringValue{Value: "NEW"}}
 
 		// Base should be completely unaffected
-		if base.Properties["preserved"].String() != "base_preserved" {
+		if base.GetPropertyValue("preserved").String() != "base_preserved" {
 			t.Error("modifying result affected base.preserved")
 		}
-		baseNested := base.Properties["nested"].(*ObjectValue)
-		if baseNested.Properties["baseOnly"].String() != "base_nested_value" {
+		baseNested := base.GetPropertyValue("nested").(*ObjectValue)
+		if baseNested.GetPropertyValue("baseOnly").String() != "base_nested_value" {
 			t.Error("modifying result affected base.nested.baseOnly")
 		}
 		if _, exists := baseNested.Properties["overrideOnly"]; exists {
@@ -768,11 +777,11 @@ func TestObjectValue_DeepMerge(t *testing.T) {
 		}
 
 		// Override should be completely unaffected
-		if override.Properties["added"].String() != "override_added" {
+		if override.GetPropertyValue("added").String() != "override_added" {
 			t.Error("modifying result affected override.added")
 		}
-		overrideNested := override.Properties["nested"].(*ObjectValue)
-		if overrideNested.Properties["overrideOnly"].String() != "override_nested_value" {
+		overrideNested := override.GetPropertyValue("nested").(*ObjectValue)
+		if overrideNested.GetPropertyValue("overrideOnly").String() != "override_nested_value" {
 			t.Error("modifying result affected override.nested.overrideOnly")
 		}
 		if _, exists := overrideNested.Properties["baseOnly"]; exists {
@@ -785,28 +794,28 @@ func TestObjectValue_DeepMerge(t *testing.T) {
 
 	t.Run("handles arrays (no deep merge, just replace)", func(t *testing.T) {
 		base := &ObjectValue{
-			Properties: map[string]Value{
-				"items": &ArrayValue{
+			Properties: map[string]*PropertyDescriptor{
+				"items": {Value: &ArrayValue{
 					Elements: []Value{
 						&StringValue{Value: "a"},
 						&StringValue{Value: "b"},
 					},
-				},
+				}},
 			},
 		}
 		override := &ObjectValue{
-			Properties: map[string]Value{
-				"items": &ArrayValue{
+			Properties: map[string]*PropertyDescriptor{
+				"items": {Value: &ArrayValue{
 					Elements: []Value{
 						&StringValue{Value: "c"},
 					},
-				},
+				}},
 			},
 		}
 
 		result := base.DeepMerge(override)
 
-		arr, ok := result.Properties["items"].(*ArrayValue)
+		arr, ok := result.GetPropertyValue("items").(*ArrayValue)
 		if !ok {
 			t.Fatal("expected items to be an ArrayValue")
 		}
@@ -821,59 +830,59 @@ func TestObjectValue_DeepMerge(t *testing.T) {
 	t.Run("GSH_CONFIG-like merge scenario", func(t *testing.T) {
 		// Simulates default GSH_CONFIG
 		defaultConfig := &ObjectValue{
-			Properties: map[string]Value{
-				"prompt":              &StringValue{Value: "gsh> "},
-				"logLevel":            &StringValue{Value: "info"},
-				"starshipIntegration": &BoolValue{Value: true},
-				"showWelcome":         &BoolValue{Value: true},
-				"experimental": &ObjectValue{
-					Properties: map[string]Value{
-						"featureA": &BoolValue{Value: false},
-						"featureB": &BoolValue{Value: false},
+			Properties: map[string]*PropertyDescriptor{
+				"prompt":              {Value: &StringValue{Value: "gsh> "}},
+				"logLevel":            {Value: &StringValue{Value: "info"}},
+				"starshipIntegration": {Value: &BoolValue{Value: true}},
+				"showWelcome":         {Value: &BoolValue{Value: true}},
+				"experimental": {Value: &ObjectValue{
+					Properties: map[string]*PropertyDescriptor{
+						"featureA": {Value: &BoolValue{Value: false}},
+						"featureB": {Value: &BoolValue{Value: false}},
 					},
-				},
+				}},
 			},
 		}
 
 		// User only wants to change logLevel and enable featureA
 		userConfig := &ObjectValue{
-			Properties: map[string]Value{
-				"logLevel": &StringValue{Value: "debug"},
-				"experimental": &ObjectValue{
-					Properties: map[string]Value{
-						"featureA": &BoolValue{Value: true},
+			Properties: map[string]*PropertyDescriptor{
+				"logLevel": {Value: &StringValue{Value: "debug"}},
+				"experimental": {Value: &ObjectValue{
+					Properties: map[string]*PropertyDescriptor{
+						"featureA": {Value: &BoolValue{Value: true}},
 					},
-				},
+				}},
 			},
 		}
 
 		result := defaultConfig.DeepMerge(userConfig)
 
 		// Check preserved defaults
-		if result.Properties["prompt"].String() != "gsh> " {
-			t.Errorf("expected prompt='gsh> ', got %s", result.Properties["prompt"].String())
+		if result.GetPropertyValue("prompt").String() != "gsh> " {
+			t.Errorf("expected prompt='gsh> ', got %s", result.GetPropertyValue("prompt").String())
 		}
-		if !result.Properties["starshipIntegration"].(*BoolValue).Value {
+		if !result.GetPropertyValue("starshipIntegration").(*BoolValue).Value {
 			t.Error("expected starshipIntegration=true")
 		}
-		if !result.Properties["showWelcome"].(*BoolValue).Value {
+		if !result.GetPropertyValue("showWelcome").(*BoolValue).Value {
 			t.Error("expected showWelcome=true")
 		}
 
 		// Check user override
-		if result.Properties["logLevel"].String() != "debug" {
-			t.Errorf("expected logLevel='debug', got %s", result.Properties["logLevel"].String())
+		if result.GetPropertyValue("logLevel").String() != "debug" {
+			t.Errorf("expected logLevel='debug', got %s", result.GetPropertyValue("logLevel").String())
 		}
 
 		// Check nested experimental merge
-		exp, ok := result.Properties["experimental"].(*ObjectValue)
+		exp, ok := result.GetPropertyValue("experimental").(*ObjectValue)
 		if !ok {
 			t.Fatal("expected experimental to be an ObjectValue")
 		}
-		if !exp.Properties["featureA"].(*BoolValue).Value {
+		if !exp.GetPropertyValue("featureA").(*BoolValue).Value {
 			t.Error("expected featureA=true (user override)")
 		}
-		if exp.Properties["featureB"].(*BoolValue).Value {
+		if exp.GetPropertyValue("featureB").(*BoolValue).Value {
 			t.Error("expected featureB=false (preserved default)")
 		}
 	})
@@ -890,16 +899,16 @@ func TestObjectValue_DeepCopy(t *testing.T) {
 
 	t.Run("creates independent copy of flat object", func(t *testing.T) {
 		original := &ObjectValue{
-			Properties: map[string]Value{
-				"a": &StringValue{Value: "original"},
+			Properties: map[string]*PropertyDescriptor{
+				"a": {Value: &StringValue{Value: "original"}},
 			},
 		}
 
 		copied := original.DeepCopy()
 
 		// Should have same values
-		if copied.Properties["a"].String() != "original" {
-			t.Errorf("expected a='original', got %s", copied.Properties["a"].String())
+		if copied.GetPropertyValue("a").String() != "original" {
+			t.Errorf("expected a='original', got %s", copied.GetPropertyValue("a").String())
 		}
 
 		// Should be different object
@@ -908,7 +917,7 @@ func TestObjectValue_DeepCopy(t *testing.T) {
 		}
 
 		// Modifying copy's map shouldn't affect original
-		copied.Properties["b"] = &StringValue{Value: "new"}
+		copied.Properties["b"] = &PropertyDescriptor{Value: &StringValue{Value: "new"}}
 		if _, exists := original.Properties["b"]; exists {
 			t.Error("modifying copy should not affect original")
 		}
@@ -916,25 +925,25 @@ func TestObjectValue_DeepCopy(t *testing.T) {
 
 	t.Run("creates independent copy of nested objects", func(t *testing.T) {
 		original := &ObjectValue{
-			Properties: map[string]Value{
-				"nested": &ObjectValue{
-					Properties: map[string]Value{
-						"x": &StringValue{Value: "original_x"},
+			Properties: map[string]*PropertyDescriptor{
+				"nested": {Value: &ObjectValue{
+					Properties: map[string]*PropertyDescriptor{
+						"x": {Value: &StringValue{Value: "original_x"}},
 					},
-				},
+				}},
 			},
 		}
 
 		copied := original.DeepCopy()
 
 		// Modify nested object through the copy
-		copiedNested := copied.Properties["nested"].(*ObjectValue)
-		copiedNested.Properties["x"] = &StringValue{Value: "modified_x"}
-		copiedNested.Properties["y"] = &StringValue{Value: "new_y"}
+		copiedNested := copied.GetPropertyValue("nested").(*ObjectValue)
+		copiedNested.Properties["x"] = &PropertyDescriptor{Value: &StringValue{Value: "modified_x"}}
+		copiedNested.Properties["y"] = &PropertyDescriptor{Value: &StringValue{Value: "new_y"}}
 
 		// Original should NOT be affected
-		originalNested := original.Properties["nested"].(*ObjectValue)
-		if originalNested.Properties["x"].String() != "original_x" {
+		originalNested := original.GetPropertyValue("nested").(*ObjectValue)
+		if originalNested.GetPropertyValue("x").String() != "original_x" {
 			t.Error("modifying nested object in copy should not affect original")
 		}
 		if _, exists := originalNested.Properties["y"]; exists {
@@ -944,67 +953,67 @@ func TestObjectValue_DeepCopy(t *testing.T) {
 
 	t.Run("creates independent copy of deeply nested objects", func(t *testing.T) {
 		original := &ObjectValue{
-			Properties: map[string]Value{
-				"level1": &ObjectValue{
-					Properties: map[string]Value{
-						"level2": &ObjectValue{
-							Properties: map[string]Value{
-								"value": &StringValue{Value: "deep_original"},
+			Properties: map[string]*PropertyDescriptor{
+				"level1": {Value: &ObjectValue{
+					Properties: map[string]*PropertyDescriptor{
+						"level2": {Value: &ObjectValue{
+							Properties: map[string]*PropertyDescriptor{
+								"value": {Value: &StringValue{Value: "deep_original"}},
 							},
-						},
+						}},
 					},
-				},
+				}},
 			},
 		}
 
 		copied := original.DeepCopy()
 
 		// Modify deeply nested object
-		level1 := copied.Properties["level1"].(*ObjectValue)
-		level2 := level1.Properties["level2"].(*ObjectValue)
-		level2.Properties["value"] = &StringValue{Value: "deep_modified"}
+		level1 := copied.GetPropertyValue("level1").(*ObjectValue)
+		level2 := level1.GetPropertyValue("level2").(*ObjectValue)
+		level2.Properties["value"] = &PropertyDescriptor{Value: &StringValue{Value: "deep_modified"}}
 
 		// Original should NOT be affected
-		origLevel1 := original.Properties["level1"].(*ObjectValue)
-		origLevel2 := origLevel1.Properties["level2"].(*ObjectValue)
-		if origLevel2.Properties["value"].String() != "deep_original" {
+		origLevel1 := original.GetPropertyValue("level1").(*ObjectValue)
+		origLevel2 := origLevel1.GetPropertyValue("level2").(*ObjectValue)
+		if origLevel2.GetPropertyValue("value").String() != "deep_original" {
 			t.Error("modifying deeply nested object in copy should not affect original")
 		}
 	})
 
 	t.Run("creates independent copy of arrays", func(t *testing.T) {
 		original := &ObjectValue{
-			Properties: map[string]Value{
-				"items": &ArrayValue{
+			Properties: map[string]*PropertyDescriptor{
+				"items": {Value: &ArrayValue{
 					Elements: []Value{
 						&StringValue{Value: "a"},
 						&ObjectValue{
-							Properties: map[string]Value{
-								"nested": &StringValue{Value: "original_nested"},
+							Properties: map[string]*PropertyDescriptor{
+								"nested": {Value: &StringValue{Value: "original_nested"}},
 							},
 						},
 					},
-				},
+				}},
 			},
 		}
 
 		copied := original.DeepCopy()
 
 		// Modify array through the copy
-		copiedArray := copied.Properties["items"].(*ArrayValue)
+		copiedArray := copied.GetPropertyValue("items").(*ArrayValue)
 		copiedArray.Elements[0] = &StringValue{Value: "modified_a"}
 
 		// Modify nested object inside array
 		copiedNestedObj := copiedArray.Elements[1].(*ObjectValue)
-		copiedNestedObj.Properties["nested"] = &StringValue{Value: "modified_nested"}
+		copiedNestedObj.Properties["nested"] = &PropertyDescriptor{Value: &StringValue{Value: "modified_nested"}}
 
 		// Original should NOT be affected
-		originalArray := original.Properties["items"].(*ArrayValue)
+		originalArray := original.GetPropertyValue("items").(*ArrayValue)
 		if originalArray.Elements[0].String() != "a" {
 			t.Error("modifying array element in copy should not affect original")
 		}
 		originalNestedObj := originalArray.Elements[1].(*ObjectValue)
-		if originalNestedObj.Properties["nested"].String() != "original_nested" {
+		if originalNestedObj.GetPropertyValue("nested").String() != "original_nested" {
 			t.Error("modifying nested object in array in copy should not affect original")
 		}
 	})
@@ -1025,8 +1034,8 @@ func TestArrayValue_DeepCopy(t *testing.T) {
 				&StringValue{Value: "a"},
 				&NumberValue{Value: 42},
 				&ObjectValue{
-					Properties: map[string]Value{
-						"key": &StringValue{Value: "value"},
+					Properties: map[string]*PropertyDescriptor{
+						"key": {Value: &StringValue{Value: "value"}},
 					},
 				},
 			},
@@ -1042,14 +1051,14 @@ func TestArrayValue_DeepCopy(t *testing.T) {
 		// Modify the copy
 		copied.Elements[0] = &StringValue{Value: "modified"}
 		copiedObj := copied.Elements[2].(*ObjectValue)
-		copiedObj.Properties["key"] = &StringValue{Value: "modified_value"}
+		copiedObj.Properties["key"] = &PropertyDescriptor{Value: &StringValue{Value: "modified_value"}}
 
 		// Original should NOT be affected
 		if original.Elements[0].String() != "a" {
 			t.Error("modifying copy element should not affect original")
 		}
 		originalObj := original.Elements[2].(*ObjectValue)
-		if originalObj.Properties["key"].String() != "value" {
+		if originalObj.GetPropertyValue("key").String() != "value" {
 			t.Error("modifying nested object in copy should not affect original")
 		}
 	})

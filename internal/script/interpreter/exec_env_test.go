@@ -47,8 +47,8 @@ result = exec("echo $GSH_TEST_VAR")
 	}
 
 	// Check stdout
-	stdoutVal, ok := objVal.Properties["stdout"]
-	if !ok {
+	stdoutVal := objVal.GetPropertyValue("stdout")
+	if stdoutVal.Type() == ValueTypeNull {
 		t.Fatal("stdout property not found")
 	}
 
@@ -91,7 +91,7 @@ result = exec("echo $GSH_VAR1-$GSH_VAR2")
 
 	resultVar := evalResult.Variables()["result"]
 	objVal := resultVar.(*ObjectValue)
-	stdoutStr := objVal.Properties["stdout"].(*StringValue)
+	stdoutStr := objVal.GetPropertyValue("stdout").(*StringValue)
 	stdout := strings.TrimSpace(stdoutStr.Value)
 
 	if stdout != "value1-value2" {
@@ -128,7 +128,7 @@ result2 = exec("echo $GSH_UNSET_TEST")
 	// Check result1 - should have the value
 	result1Var := evalResult.Variables()["result1"]
 	obj1 := result1Var.(*ObjectValue)
-	stdout1 := strings.TrimSpace(obj1.Properties["stdout"].(*StringValue).Value)
+	stdout1 := strings.TrimSpace(obj1.GetPropertyValue("stdout").(*StringValue).Value)
 	if stdout1 != "initial_value" {
 		t.Errorf("result1: expected stdout to be 'initial_value', got '%s'", stdout1)
 	}
@@ -136,7 +136,7 @@ result2 = exec("echo $GSH_UNSET_TEST")
 	// Check result2 - should be empty after unset
 	result2Var := evalResult.Variables()["result2"]
 	obj2 := result2Var.(*ObjectValue)
-	stdout2 := strings.TrimSpace(obj2.Properties["stdout"].(*StringValue).Value)
+	stdout2 := strings.TrimSpace(obj2.GetPropertyValue("stdout").(*StringValue).Value)
 	if stdout2 != "" {
 		t.Errorf("result2: expected stdout to be empty after unset, got '%s'", stdout2)
 	}
@@ -154,7 +154,7 @@ func TestExec_WorkingDirectory(t *testing.T) {
 		t.Fatalf("initial pwd failed: %v", err)
 	}
 	obj1 := result1.FinalResult.(*ObjectValue)
-	initialDir := strings.TrimSpace(obj1.Properties["stdout"].(*StringValue).Value)
+	initialDir := strings.TrimSpace(obj1.GetPropertyValue("stdout").(*StringValue).Value)
 
 	// Change to /tmp using a bash command through the runner
 	runner := interp.Runner()
@@ -170,7 +170,7 @@ func TestExec_WorkingDirectory(t *testing.T) {
 		t.Fatalf("pwd after cd failed: %v", err)
 	}
 	obj2 := result2.FinalResult.(*ObjectValue)
-	newDir := strings.TrimSpace(obj2.Properties["stdout"].(*StringValue).Value)
+	newDir := strings.TrimSpace(obj2.GetPropertyValue("stdout").(*StringValue).Value)
 
 	if newDir != "/tmp" {
 		t.Errorf("expected working directory to be '/tmp', got '%s'", newDir)
@@ -198,7 +198,7 @@ func TestExec_EnvVarInheritedBySubshell(t *testing.T) {
 	}
 
 	obj := result.FinalResult.(*ObjectValue)
-	stdout := strings.TrimSpace(obj.Properties["stdout"].(*StringValue).Value)
+	stdout := strings.TrimSpace(obj.GetPropertyValue("stdout").(*StringValue).Value)
 
 	if stdout != "subshell_value" {
 		t.Errorf("expected subshell to see env var 'subshell_value', got '%s'", stdout)
@@ -226,7 +226,7 @@ func TestExec_PWDEnvVarMatchesWorkingDir(t *testing.T) {
 	}
 
 	obj := result.FinalResult.(*ObjectValue)
-	stdout := strings.TrimSpace(obj.Properties["stdout"].(*StringValue).Value)
+	stdout := strings.TrimSpace(obj.GetPropertyValue("stdout").(*StringValue).Value)
 
 	// Both should be /tmp
 	expected := "pwd=/tmp PWD=/tmp"

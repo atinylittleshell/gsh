@@ -129,7 +129,8 @@ func (i *Interpreter) evalMcpDeclaration(node *parser.McpDeclaration) (Value, er
 		case "env":
 			if objVal, ok := value.(*ObjectValue); ok {
 				env := make(map[string]string)
-				for k, v := range objVal.Properties {
+				for k := range objVal.Properties {
+					v := objVal.GetPropertyValue(k)
 					if strVal, ok := v.(*StringValue); ok {
 						env[k] = strVal.Value
 					} else {
@@ -151,7 +152,8 @@ func (i *Interpreter) evalMcpDeclaration(node *parser.McpDeclaration) (Value, er
 		case "headers":
 			if objVal, ok := value.(*ObjectValue); ok {
 				headers := make(map[string]string)
-				for k, v := range objVal.Properties {
+				for k := range objVal.Properties {
+					v := objVal.GetPropertyValue(k)
 					if strVal, ok := v.(*StringValue); ok {
 						headers[k] = strVal.Value
 					} else {
@@ -294,8 +296,8 @@ func (i *Interpreter) callMCPTool(tool *MCPToolValue, argExprs []parser.Expressi
 	if len(argExprs) == 1 {
 		if objVal, ok := firstArg.(*ObjectValue); ok {
 			// Convert object properties to map[string]interface{}
-			for key, val := range objVal.Properties {
-				args[key] = valueToInterface(val)
+			for key := range objVal.Properties {
+				args[key] = valueToInterface(objVal.GetPropertyValue(key))
 			}
 			return tool.Call(args)
 		}
@@ -332,8 +334,8 @@ func valueToInterface(val Value) interface{} {
 		return arr
 	case *ObjectValue:
 		obj := make(map[string]interface{})
-		for key, prop := range v.Properties {
-			obj[key] = valueToInterface(prop)
+		for key := range v.Properties {
+			obj[key] = valueToInterface(v.GetPropertyValue(key))
 		}
 		return obj
 	default:

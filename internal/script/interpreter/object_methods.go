@@ -33,8 +33,8 @@ func objectKeysImpl(obj *ObjectValue, args []Value) (Value, error) {
 // objectValuesImpl implements the values method
 func objectValuesImpl(obj *ObjectValue, args []Value) (Value, error) {
 	values := make([]Value, 0, len(obj.Properties))
-	for _, value := range obj.Properties {
-		values = append(values, value)
+	for key := range obj.Properties {
+		values = append(values, obj.GetPropertyValue(key))
 	}
 	return &ArrayValue{Elements: values}, nil
 }
@@ -42,11 +42,11 @@ func objectValuesImpl(obj *ObjectValue, args []Value) (Value, error) {
 // objectEntriesImpl implements the entries method
 func objectEntriesImpl(obj *ObjectValue, args []Value) (Value, error) {
 	entries := make([]Value, 0, len(obj.Properties))
-	for key, value := range obj.Properties {
+	for key := range obj.Properties {
 		entry := &ArrayValue{
 			Elements: []Value{
 				&StringValue{Value: key},
-				value,
+				obj.GetPropertyValue(key),
 			},
 		}
 		entries = append(entries, entry)

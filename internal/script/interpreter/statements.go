@@ -179,13 +179,26 @@ func (i *Interpreter) evalMemberAssignment(memberExpr *parser.MemberExpression, 
 
 // setProperty sets a property on an object, handling different value types
 func (i *Interpreter) setProperty(obj Value, key string, value Value) (Value, error) {
+	// Handle DynamicValue with Set function
+	if dynVal, ok := obj.(*DynamicValue); ok {
+		if dynVal.Set != nil {
+			if err := dynVal.Set(value); err != nil {
+				return nil, err
+			}
+			return value, nil
+		}
+		return nil, fmt.Errorf("cannot set read-only property")
+	}
+
 	// Handle regular objects
 	if objVal, ok := obj.(*ObjectValue); ok {
-		objVal.Properties[key] = value
+		if err := objVal.SetPropertyValue(key, value); err != nil {
+			return nil, err
+		}
 		return value, nil
 	}
 
-	// Check if the object has a SetProperty method (for custom types like EnvValue)
+	// Check if the object has a SetProperty method (for custom types like EnvValue, LoggingObjectValue, ReadOnlyObjectValue)
 	type PropertySetter interface {
 		SetProperty(name string, value Value) error
 	}
@@ -402,8 +415,8 @@ func (i *Interpreter) evalTryStatement(node *parser.TryStatement) (Value, error)
 		if _, isControlFlow := tryError.(*ControlFlowError); !isControlFlow {
 			// Create an error object with a message property
 			errorObj := &ObjectValue{
-				Properties: map[string]Value{
-					"message": &StringValue{Value: tryError.Error()},
+				Properties: map[string]*PropertyDescriptor{
+					"message": {Value: &StringValue{Value: tryError.Error()}},
 				},
 			}
 

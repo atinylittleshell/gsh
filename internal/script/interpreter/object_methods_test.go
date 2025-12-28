@@ -407,9 +407,9 @@ for (entry of obj.entries()) { count = count + 1
 
 func TestObjectMethodValue(t *testing.T) {
 	obj := &ObjectValue{
-		Properties: map[string]Value{
-			"x": &NumberValue{Value: 1},
-			"y": &NumberValue{Value: 2},
+		Properties: map[string]*PropertyDescriptor{
+			"x": {Value: &NumberValue{Value: 1}},
+			"y": {Value: &NumberValue{Value: 2}},
 		},
 	}
 
@@ -439,9 +439,9 @@ func TestObjectMethodValue(t *testing.T) {
 
 func TestObjectKeysImpl(t *testing.T) {
 	obj := &ObjectValue{
-		Properties: map[string]Value{
-			"a": &NumberValue{Value: 1},
-			"b": &StringValue{Value: "hello"},
+		Properties: map[string]*PropertyDescriptor{
+			"a": {Value: &NumberValue{Value: 1}},
+			"b": {Value: &StringValue{Value: "hello"}},
 		},
 	}
 
@@ -469,9 +469,9 @@ func TestObjectKeysImpl(t *testing.T) {
 
 func TestObjectValuesImpl(t *testing.T) {
 	obj := &ObjectValue{
-		Properties: map[string]Value{
-			"a": &NumberValue{Value: 1},
-			"b": &StringValue{Value: "hello"},
+		Properties: map[string]*PropertyDescriptor{
+			"a": {Value: &NumberValue{Value: 1}},
+			"b": {Value: &StringValue{Value: "hello"}},
 		},
 	}
 
@@ -492,9 +492,9 @@ func TestObjectValuesImpl(t *testing.T) {
 
 func TestObjectEntriesImpl(t *testing.T) {
 	obj := &ObjectValue{
-		Properties: map[string]Value{
-			"x": &NumberValue{Value: 10},
-			"y": &NumberValue{Value: 20},
+		Properties: map[string]*PropertyDescriptor{
+			"x": {Value: &NumberValue{Value: 10}},
+			"y": {Value: &NumberValue{Value: 20}},
 		},
 	}
 
@@ -530,8 +530,8 @@ func TestObjectEntriesImpl(t *testing.T) {
 
 func TestObjectHasOwnPropertyImpl(t *testing.T) {
 	obj := &ObjectValue{
-		Properties: map[string]Value{
-			"name": &StringValue{Value: "John"},
+		Properties: map[string]*PropertyDescriptor{
+			"name": {Value: &StringValue{Value: "John"}},
 		},
 	}
 
