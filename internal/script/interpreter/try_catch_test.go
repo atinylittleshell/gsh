@@ -18,7 +18,7 @@ func parseAndEval(t *testing.T, input string) (*EvalResult, error) {
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	return interp.Eval(program)
 }
 

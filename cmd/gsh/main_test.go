@@ -9,7 +9,23 @@ import (
 	"testing"
 
 	"go.uber.org/zap"
+	"mvdan.cc/sh/v3/expand"
+	"mvdan.cc/sh/v3/interp"
 )
+
+// newTestRunner creates a basic runner for testing gsh scripts.
+func newTestRunner(t *testing.T) *interp.Runner {
+	t.Helper()
+	env := expand.ListEnviron(os.Environ()...)
+	runner, err := interp.New(
+		interp.Env(env),
+		interp.StdIO(os.Stdin, os.Stdout, os.Stderr),
+	)
+	if err != nil {
+		t.Fatalf("failed to create test runner: %v", err)
+	}
+	return runner
+}
 
 // TestHelpText tests that the help text contains all essential information
 func TestHelpText(t *testing.T) {
@@ -176,7 +192,7 @@ print("Result: " + z)
 		ctx := context.Background()
 		var err error
 		output := captureStdout(func() {
-			err = runGshScript(ctx, scriptPath, logger)
+			err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
 		})
 
 		if err != nil {
@@ -203,7 +219,7 @@ print(greeting)
 		ctx := context.Background()
 		var err error
 		output := captureStdout(func() {
-			err = runGshScript(ctx, scriptPath, logger)
+			err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
 		})
 
 		if err != nil {
@@ -231,7 +247,7 @@ print(count)
 		ctx := context.Background()
 		var err error
 		output := captureStdout(func() {
-			err = runGshScript(ctx, scriptPath, logger)
+			err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
 		})
 
 		if err != nil {
@@ -261,7 +277,7 @@ print(result)
 		ctx := context.Background()
 		var err error
 		output := captureStdout(func() {
-			err = runGshScript(ctx, scriptPath, logger)
+			err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
 		})
 
 		if err != nil {
@@ -288,7 +304,7 @@ print(x)
 		ctx := context.Background()
 		var err error
 		output := captureStdout(func() {
-			err = runGshScript(ctx, scriptPath, logger)
+			err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
 		})
 
 		if err != nil {
@@ -312,7 +328,7 @@ y = 10
 		}
 
 		ctx := context.Background()
-		err := runGshScript(ctx, scriptPath, logger)
+		err := runGshScript(ctx, scriptPath, logger, newTestRunner(t))
 		if err == nil {
 			t.Error("Expected error for syntax error, got nil")
 		}
@@ -321,7 +337,7 @@ y = 10
 	t.Run("nonexistent file", func(t *testing.T) {
 		scriptPath := filepath.Join(tmpDir, "nonexistent.gsh")
 		ctx := context.Background()
-		err := runGshScript(ctx, scriptPath, logger)
+		err := runGshScript(ctx, scriptPath, logger, newTestRunner(t))
 		if err == nil {
 			t.Error("Expected error for nonexistent file, got nil")
 		}
@@ -336,7 +352,7 @@ y = 10
 		}
 
 		ctx := context.Background()
-		err := runGshScript(ctx, scriptPath, logger)
+		err := runGshScript(ctx, scriptPath, logger, newTestRunner(t))
 		if err == nil {
 			t.Error("Expected runtime error, got nil")
 		}
@@ -360,7 +376,7 @@ print(result)
 		ctx := context.Background()
 		var err error
 		output := captureStdout(func() {
-			err = runGshScript(ctx, scriptPath, logger)
+			err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
 		})
 
 		if err != nil {
@@ -388,7 +404,7 @@ print(obj.name)
 		ctx := context.Background()
 		var err error
 		output := captureStdout(func() {
-			err = runGshScript(ctx, scriptPath, logger)
+			err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
 		})
 
 		if err != nil {
@@ -414,7 +430,7 @@ print(obj.name)
 		ctx := context.Background()
 		var err error
 		output := captureStdout(func() {
-			err = runGshScript(ctx, scriptPath, logger)
+			err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
 		})
 
 		if err != nil {
@@ -496,7 +512,7 @@ func TestShebangSupport(t *testing.T) {
 			ctx := context.Background()
 			var err error
 			output := captureStdout(func() {
-				err = runGshScript(ctx, scriptPath, logger)
+				err = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
 			})
 
 			if (err != nil) != tt.wantErr {
@@ -726,7 +742,7 @@ result = outer()`,
 			ctx := context.Background()
 			var execErr error
 			stderr := captureStderr(func() {
-				execErr = runGshScript(ctx, scriptPath, logger)
+				execErr = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
 			})
 
 			if tt.expectError && execErr == nil {
@@ -804,7 +820,7 @@ w = 20`
 		ctx := context.Background()
 		var execErr error
 		stderr := captureStderr(func() {
-			execErr = runGshScript(ctx, scriptPath, logger)
+			execErr = runGshScript(ctx, scriptPath, logger, newTestRunner(t))
 		})
 
 		if execErr == nil {
@@ -837,13 +853,13 @@ w = 20`
 		// Parse error
 		var parseErr error
 		parseStderr := captureStderr(func() {
-			parseErr = runGshScript(ctx, parseErrorPath, logger)
+			parseErr = runGshScript(ctx, parseErrorPath, logger, newTestRunner(t))
 		})
 
 		// Runtime error
 		var runtimeErr error
 		runtimeStderr := captureStderr(func() {
-			runtimeErr = runGshScript(ctx, runtimeErrorPath, logger)
+			runtimeErr = runGshScript(ctx, runtimeErrorPath, logger, newTestRunner(t))
 		})
 
 		if parseErr == nil || runtimeErr == nil {
@@ -868,7 +884,7 @@ w = 20`
 		nonExistentPath := filepath.Join(tmpDir, "does_not_exist.gsh")
 
 		ctx := context.Background()
-		err := runGshScript(ctx, nonExistentPath, logger)
+		err := runGshScript(ctx, nonExistentPath, logger, newTestRunner(t))
 
 		if err == nil {
 			t.Error("Expected file read error")

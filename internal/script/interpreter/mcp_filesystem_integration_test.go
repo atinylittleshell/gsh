@@ -51,7 +51,7 @@ filesystem.write_file({
 	program := p.ParseProgram()
 	require.Empty(t, p.Errors(), "Parse errors: %v", p.Errors())
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	result, err := interp.Eval(program)
@@ -95,7 +95,7 @@ result = filesystem.read_file({
 	program := p.ParseProgram()
 	require.Empty(t, p.Errors(), "Parse errors: %v", p.Errors())
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	evalResult, err := interp.Eval(program)
@@ -144,7 +144,7 @@ readResult = filesystem.read_file({
 	program := p.ParseProgram()
 	require.Empty(t, p.Errors(), "Parse errors: %v", p.Errors())
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	result, err := interp.Eval(program)
@@ -198,7 +198,7 @@ listing = filesystem.list_directory({
 	program := p.ParseProgram()
 	require.Empty(t, p.Errors(), "Parse errors: %v", p.Errors())
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	result, err := interp.Eval(program)
@@ -247,7 +247,7 @@ try {
 	program := p.ParseProgram()
 	require.Empty(t, p.Errors(), "Parse errors: %v", p.Errors())
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	result, err := interp.Eval(program)
@@ -305,7 +305,7 @@ for (filename of files) {
 	program := p.ParseProgram()
 	require.Empty(t, p.Errors(), "Parse errors: %v", p.Errors())
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	result, err := interp.Eval(program)
@@ -361,7 +361,7 @@ result = saveMessage("Hello from tool!", "` + testFile + `")
 	program := p.ParseProgram()
 	require.Empty(t, p.Errors(), "Parse errors: %v", p.Errors())
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	evalResult, err := interp.Eval(program)
@@ -420,7 +420,7 @@ fs2.write_file({
 	program := p.ParseProgram()
 	require.Empty(t, p.Errors(), "Parse errors: %v", p.Errors())
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	result, err := interp.Eval(program)
@@ -481,7 +481,7 @@ result3 = writeLog("Task completed", "INFO")
 	program := p.ParseProgram()
 	require.Empty(t, p.Errors(), "Parse errors: %v", p.Errors())
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	evalResult, err := interp.Eval(program)

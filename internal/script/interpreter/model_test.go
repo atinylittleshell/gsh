@@ -344,7 +344,7 @@ func TestModelDeclaration(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			defer interp.Close()
 
 			result, err := interp.Eval(program)
@@ -410,7 +410,7 @@ func TestModelDeclarationErrors(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			defer interp.Close()
 
 			_, err := interp.Eval(program)

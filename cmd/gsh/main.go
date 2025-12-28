@@ -159,7 +159,7 @@ func run(
 	// gsh script.sh or gsh script.gsh
 	for _, filePath := range flag.Args() {
 		if isGshScript(filePath) {
-			if err := runGshScript(ctx, filePath, logger); err != nil {
+			if err := runGshScript(ctx, filePath, logger, runner); err != nil {
 				return err
 			}
 		} else {
@@ -194,7 +194,7 @@ func isGshScript(filePath string) bool {
 }
 
 // runGshScript executes a .gsh script file
-func runGshScript(ctx context.Context, filePath string, logger *zap.Logger) error {
+func runGshScript(ctx context.Context, filePath string, logger *zap.Logger, runner *interp.Runner) error {
 	// Read the script file
 	content, err := os.ReadFile(filePath)
 	if err != nil {
@@ -224,13 +224,13 @@ func runGshScript(ctx context.Context, filePath string, logger *zap.Logger) erro
 		return fmt.Errorf("failed to parse script")
 	}
 
-	// Create interpreter with the zap logger for log.* function integration
-	// The interpreter has built-in bash execution capabilities for exec()
-	interp := interpreter.NewWithLogger(logger)
-	defer interp.Close()
+	// Create interpreter with the shared runner and zap logger
+	// This allows gsh scripts to share environment with bash execution
+	gshInterp := interpreter.New(&interpreter.Options{Logger: logger, Runner: runner})
+	defer gshInterp.Close()
 
 	// Execute the script
-	_, err = interp.Eval(program)
+	_, err = gshInterp.Eval(program)
 	if err != nil {
 		// Print the error to stderr for better user experience
 		fmt.Fprintf(os.Stderr, "Runtime error: %v\n", err)

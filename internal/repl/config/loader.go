@@ -59,7 +59,7 @@ func (l *Loader) LoadFromFile(path string) (*LoadResult, error) {
 // Creates a new interpreter internally. For loading into an existing interpreter,
 // use LoadFromStringInto.
 func (l *Loader) LoadFromString(source string) (*LoadResult, error) {
-	interp := interpreter.NewWithLogger(l.logger)
+	interp := interpreter.New(&interpreter.Options{Logger: l.logger})
 	return l.LoadFromStringInto(interp, source)
 }
 
@@ -103,7 +103,7 @@ func (l *Loader) LoadFromStringInto(interp *interpreter.Interpreter, source stri
 // defaultContent is the embedded content of .gshrc.default.gsh (can be empty).
 // starshipContent is the embedded content of .gshrc.starship.gsh (can be empty).
 func (l *Loader) LoadDefaultConfigPath(defaultContent string, starshipContent string) (*LoadResult, error) {
-	interp := interpreter.NewWithLogger(l.logger)
+	interp := interpreter.New(&interpreter.Options{Logger: l.logger})
 	return l.LoadDefaultConfigPathInto(interp, defaultContent, starshipContent)
 }
 

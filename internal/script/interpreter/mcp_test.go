@@ -89,7 +89,7 @@ mcp test {
 			}
 
 			// Create interpreter and evaluate
-			interp := New()
+			interp := New(nil)
 			defer interp.Close()
 
 			_, err := interp.Eval(program)
@@ -119,7 +119,7 @@ mcp test {
 	}
 
 	// Create interpreter and evaluate
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	result, err := interp.Eval(program)
@@ -232,7 +232,7 @@ mcp test {
 				t.Fatalf("parse error: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			defer interp.Close()
 
 			_, err := interp.Eval(program)
@@ -268,7 +268,7 @@ mcp test {
 		t.Fatalf("parse error: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	_, err := interp.Eval(program)
@@ -323,7 +323,7 @@ filesystem = "test"
 				t.Fatalf("parse error: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			defer interp.Close()
 
 			_, err := interp.Eval(program)
@@ -464,7 +464,7 @@ server = fs
 		t.Fatalf("parse error: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	result, err := interp.Eval(program)
@@ -525,7 +525,7 @@ s3 = server3
 		t.Fatalf("parse error: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	result, err := interp.Eval(program)
@@ -581,7 +581,7 @@ c = server2
 		t.Fatalf("parse error: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	result, err := interp.Eval(program)

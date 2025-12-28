@@ -14,7 +14,7 @@ import (
 func TestAgentState_RequiredFields(t *testing.T) {
 	// This test verifies that all required fields are set when using SetupAgentWithDefaultTools
 	provider := newMockProvider()
-	interp := interpreter.New()
+	interp := interpreter.New(nil)
 
 	model := &interpreter.ModelValue{
 		Name:     "test-model",

@@ -14,7 +14,7 @@ import (
 
 func TestNewRenderer(t *testing.T) {
 	var buf bytes.Buffer
-	interp := interpreter.New()
+	interp := interpreter.New(nil)
 	termWidth := func() int { return 80 }
 
 	renderer := New(interp, &buf, termWidth)
@@ -37,7 +37,7 @@ func TestRenderAgentHeader_Fallback(t *testing.T) {
 
 func TestRenderAgentHeader_WithHook(t *testing.T) {
 	var buf bytes.Buffer
-	interp := interpreter.New()
+	interp := interpreter.New(nil)
 
 	// Define a custom hook with RenderContext
 	// Note: "agent" is a keyword, so we use bracket notation to access it
@@ -79,7 +79,7 @@ func TestRenderAgentFooter_FallbackWithCache(t *testing.T) {
 
 func TestRenderAgentFooter_WithHook(t *testing.T) {
 	var buf bytes.Buffer
-	interp := interpreter.New()
+	interp := interpreter.New(nil)
 
 	_, err := interp.EvalString(`
 		tool GSH_AGENT_FOOTER(ctx: object): string {
@@ -97,7 +97,7 @@ func TestRenderAgentFooter_WithHook(t *testing.T) {
 
 func TestRenderAgentFooter_WithHookShowingCache(t *testing.T) {
 	var buf bytes.Buffer
-	interp := interpreter.New()
+	interp := interpreter.New(nil)
 
 	_, err := interp.EvalString(`
 		tool GSH_AGENT_FOOTER(ctx: object): string {
@@ -164,7 +164,7 @@ func TestRenderExecStart_Fallback(t *testing.T) {
 
 func TestRenderExecStart_WithHook(t *testing.T) {
 	var buf bytes.Buffer
-	interp := interpreter.New()
+	interp := interpreter.New(nil)
 
 	_, err := interp.EvalString(`
 		tool GSH_EXEC_START(ctx: object): string {
@@ -205,7 +205,7 @@ func TestRenderExecEnd_Failure(t *testing.T) {
 
 func TestRenderExecEnd_WithHook(t *testing.T) {
 	var buf bytes.Buffer
-	interp := interpreter.New()
+	interp := interpreter.New(nil)
 
 	_, err := interp.EvalString(`
 		tool GSH_EXEC_END(ctx: object): string {
@@ -312,7 +312,7 @@ func TestRenderToolComplete_ReplacesExecutingLines(t *testing.T) {
 
 func TestRenderToolOutput_DefaultEmpty(t *testing.T) {
 	var buf bytes.Buffer
-	interp := interpreter.New()
+	interp := interpreter.New(nil)
 
 	// Define default hook that returns empty
 	_, err := interp.EvalString(`
@@ -331,7 +331,7 @@ func TestRenderToolOutput_DefaultEmpty(t *testing.T) {
 
 func TestRenderToolOutput_CustomHook(t *testing.T) {
 	var buf bytes.Buffer
-	interp := interpreter.New()
+	interp := interpreter.New(nil)
 
 	_, err := interp.EvalString(`
 		tool GSH_TOOL_OUTPUT(ctx: object): string {
@@ -385,7 +385,7 @@ func TestGetTerminalWidth_ZeroReturnsDefault(t *testing.T) {
 
 func TestGetVariable(t *testing.T) {
 	var buf bytes.Buffer
-	interp := interpreter.New()
+	interp := interpreter.New(nil)
 
 	_, err := interp.EvalString(`testVar = "hello"`)
 	require.NoError(t, err)
@@ -401,7 +401,7 @@ func TestGetVariable(t *testing.T) {
 
 func TestGetVariable_NotFound(t *testing.T) {
 	var buf bytes.Buffer
-	interp := interpreter.New()
+	interp := interpreter.New(nil)
 
 	renderer := New(interp, &buf, func() int { return 80 })
 	val := renderer.GetVariable("nonexistent")

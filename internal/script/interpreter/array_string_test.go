@@ -40,7 +40,7 @@ func TestArrayIndexing(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -91,7 +91,7 @@ func TestArrayIndexAssignment(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -137,7 +137,7 @@ func TestArrayLength(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -166,7 +166,7 @@ func TestArrayPushPop(t *testing.T) {
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	_, err := interp.Eval(program)
 	if err != nil {
 		t.Fatalf("interpreter error: %v", err)
@@ -202,7 +202,7 @@ func TestArrayJoin(t *testing.T) {
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	_, err := interp.Eval(program)
 	if err != nil {
 		t.Fatalf("interpreter error: %v", err)
@@ -229,7 +229,7 @@ func TestArraySlice(t *testing.T) {
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	_, err := interp.Eval(program)
 	if err != nil {
 		t.Fatalf("interpreter error: %v", err)
@@ -256,7 +256,7 @@ func TestStringLength(t *testing.T) {
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	_, err := interp.Eval(program)
 	if err != nil {
 		t.Fatalf("interpreter error: %v", err)
@@ -305,7 +305,7 @@ func TestStringMethods(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -356,7 +356,7 @@ func TestObjectIndexing(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)

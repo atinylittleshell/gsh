@@ -36,7 +36,7 @@ print(m.size)`,
 				t.Fatalf("parse errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			var err error
 			output := captureOutput(func() {
 				_, err = interp.Eval(program)
@@ -168,7 +168,7 @@ print(m.get("key"))`,
 				t.Fatalf("parse errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			var err error
 			output := captureOutput(func() {
 				_, err = interp.Eval(program)
@@ -227,7 +227,7 @@ print(s.size)`,
 				t.Fatalf("parse errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			var err error
 			output := captureOutput(func() {
 				_, err = interp.Eval(program)
@@ -341,7 +341,7 @@ print(s.has(4))`,
 				t.Fatalf("parse errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			var err error
 			output := captureOutput(func() {
 				_, err = interp.Eval(program)
@@ -443,7 +443,7 @@ print(s.size)`,
 				t.Fatalf("parse errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			var err error
 			output := captureOutput(func() {
 				_, err = interp.Eval(program)
@@ -515,7 +515,7 @@ print(m.size)`,
 				return
 			}
 
-			interp := New()
+			interp := New(nil)
 			var err error
 			captureOutput(func() {
 				_, err = interp.Eval(program)

@@ -36,7 +36,7 @@ func runScript(script string) (*EvalResult, error) {
 	}
 
 	// Execute the script
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	return interp.Eval(program)

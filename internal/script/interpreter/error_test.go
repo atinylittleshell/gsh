@@ -69,7 +69,7 @@ result = x / y
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	_, err := interp.Eval(program)
@@ -108,7 +108,7 @@ result = outer()
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	_, err := interp.Eval(program)
@@ -160,7 +160,7 @@ result = level1()
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	_, err := interp.Eval(program)
@@ -220,7 +220,7 @@ for (i of [1, 2, 3, 4]) {
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	_, err := interp.Eval(program)
@@ -264,7 +264,7 @@ try {
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	// Should not error since it's caught
@@ -296,7 +296,7 @@ result = factorial(10)
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	_, err := interp.Eval(program)
@@ -339,7 +339,7 @@ result = calculate(x, y)
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	_, err := interp.Eval(program)
@@ -379,7 +379,7 @@ result = processArray("not an array")
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	_, err := interp.Eval(program)
@@ -426,7 +426,7 @@ result = a()
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	_, err := interp.Eval(program)

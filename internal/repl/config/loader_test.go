@@ -816,7 +816,7 @@ func TestLoadBashRC_ExecutionError(t *testing.T) {
 // Test that EvalString works correctly and allows shadowing
 func TestInterpreter_EvalString_Shadowing(t *testing.T) {
 	// Create an interpreter - redefinition is always allowed
-	interp := interpreter.NewWithLogger(nil)
+	interp := interpreter.New(&interpreter.Options{Logger: nil})
 
 	// Define a tool in the first evaluation
 	defaultConfig := `

@@ -18,7 +18,7 @@ env.GSH_TEST_VAR = "test_value"
 result = exec("echo $GSH_TEST_VAR")
 `
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	l := lexer.New(script)
@@ -73,7 +73,7 @@ env.GSH_VAR2 = "value2"
 result = exec("echo $GSH_VAR1-$GSH_VAR2")
 `
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	l := lexer.New(script)
@@ -109,7 +109,7 @@ env.GSH_UNSET_TEST = null
 result2 = exec("echo $GSH_UNSET_TEST")
 `
 
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	l := lexer.New(script)
@@ -145,7 +145,7 @@ result2 = exec("echo $GSH_UNSET_TEST")
 // TestExec_WorkingDirectory tests that exec() uses the interpreter's working directory
 // and that changes made via bash commands are reflected
 func TestExec_WorkingDirectory(t *testing.T) {
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	// Get initial working directory
@@ -185,7 +185,7 @@ func TestExec_WorkingDirectory(t *testing.T) {
 // TestExec_EnvVarInheritedBySubshell tests that env vars set via env.VAR
 // are properly inherited by exec() subshells (the core fix for starship integration)
 func TestExec_EnvVarInheritedBySubshell(t *testing.T) {
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	// Set env var using the interpreter's SetEnv method (simulating env.VAR = "value")
@@ -208,7 +208,7 @@ func TestExec_EnvVarInheritedBySubshell(t *testing.T) {
 // TestExec_PWDEnvVarMatchesWorkingDir tests that the PWD environment variable
 // matches the actual working directory (important for tools like starship)
 func TestExec_PWDEnvVarMatchesWorkingDir(t *testing.T) {
-	interp := New()
+	interp := New(nil)
 	defer interp.Close()
 
 	// Change to /tmp

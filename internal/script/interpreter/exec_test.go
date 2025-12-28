@@ -5,7 +5,7 @@ import (
 )
 
 func TestBuiltinExec_BasicExecution(t *testing.T) {
-	interp := New()
+	interp := New(nil)
 
 	// Test exec("echo 'hello world'")
 	execFn := interp.env.store["exec"].(*BuiltinValue)
@@ -52,7 +52,7 @@ func TestBuiltinExec_BasicExecution(t *testing.T) {
 }
 
 func TestBuiltinExec_NonZeroExitCode(t *testing.T) {
-	interp := New()
+	interp := New(nil)
 
 	// Test exec with false command (exits with code 1)
 	execFn := interp.env.store["exec"].(*BuiltinValue)
@@ -82,7 +82,7 @@ func TestBuiltinExec_NonZeroExitCode(t *testing.T) {
 }
 
 func TestBuiltinExec_StderrCapture(t *testing.T) {
-	interp := New()
+	interp := New(nil)
 
 	// Test exec with command that writes to stderr
 	execFn := interp.env.store["exec"].(*BuiltinValue)
@@ -113,7 +113,7 @@ func TestBuiltinExec_StderrCapture(t *testing.T) {
 // Removed TestBuiltinExec_NoExecutorConfigured since bash runner is always initialized
 
 func TestBuiltinExec_InvalidArguments(t *testing.T) {
-	interp := New()
+	interp := New(nil)
 	execFn := interp.env.store["exec"].(*BuiltinValue)
 
 	tests := []struct {
@@ -176,7 +176,7 @@ func TestBuiltinExec_InvalidArguments(t *testing.T) {
 }
 
 func TestBuiltinExec_WithTimeout(t *testing.T) {
-	interp := New()
+	interp := New(nil)
 
 	// Test exec with timeout option
 	execFn := interp.env.store["exec"].(*BuiltinValue)

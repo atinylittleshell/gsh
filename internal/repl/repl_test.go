@@ -979,7 +979,7 @@ func TestHandleAgentCommand_Success(t *testing.T) {
 		Agent:        agentVal,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
-		Interpreter:  interpreter.New(),
+		Interpreter:  interpreter.New(nil),
 	}
 
 	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"testAgent": agentState}, "testAgent")
@@ -1037,7 +1037,7 @@ func TestHandleAgentCommand_ConversationHistory(t *testing.T) {
 		Agent:        agentVal,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
-		Interpreter:  interpreter.New(),
+		Interpreter:  interpreter.New(nil),
 	}
 
 	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"testAgent": agentState}, "testAgent")
@@ -1095,7 +1095,7 @@ func TestHandleAgentCommand_ProviderError(t *testing.T) {
 		Agent:        agentVal,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
-		Interpreter:  interpreter.New(),
+		Interpreter:  interpreter.New(nil),
 	}
 
 	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"testAgent": agentState}, "testAgent")
@@ -1143,7 +1143,7 @@ func TestHandleAgentCommand_NoSystemPrompt(t *testing.T) {
 		Agent:        agentVal,
 		Provider:     mockProvider,
 		Conversation: []interpreter.ChatMessage{},
-		Interpreter:  interpreter.New(),
+		Interpreter:  interpreter.New(nil),
 	}
 
 	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"testAgent": agentState}, "testAgent")

@@ -96,7 +96,7 @@ func TestPrintFunction(t *testing.T) {
 			p := parser.New(l)
 			program := p.ParseProgram()
 
-			interp := New()
+			interp := New(nil)
 			output := captureOutput(func() {
 				_, err := interp.Eval(program)
 				if err != nil {
@@ -155,7 +155,7 @@ func TestLogFunctions(t *testing.T) {
 			p := parser.New(l)
 			program := p.ParseProgram()
 
-			interp := New()
+			interp := New(nil)
 			output := captureStderr(func() {
 				_, err := interp.Eval(program)
 				if err != nil {
@@ -221,7 +221,7 @@ func TestLogFunctionsWithZapLogger(t *testing.T) {
 			p := parser.New(l)
 			program := p.ParseProgram()
 
-			interp := NewWithLogger(logger)
+			interp := New(&Options{Logger: logger})
 
 			// Capture stderr to ensure nothing goes there when zap is used
 			stderrOutput := captureStderr(func() {
@@ -347,7 +347,7 @@ func TestJSONParse(t *testing.T) {
 			p := parser.New(l)
 			program := p.ParseProgram()
 
-			interp := New()
+			interp := New(nil)
 			evalResult, err := interp.Eval(program)
 			if tt.expectError {
 				if err == nil {
@@ -435,7 +435,7 @@ func TestJSONStringify(t *testing.T) {
 			p := parser.New(l)
 			program := p.ParseProgram()
 
-			interp := New()
+			interp := New(nil)
 			evalResult, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("eval error: %v", err)
@@ -524,7 +524,7 @@ func TestEnvAccess(t *testing.T) {
 			p := parser.New(l)
 			program := p.ParseProgram()
 
-			interp := New()
+			interp := New(nil)
 			evalResult, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("eval error: %v", err)
@@ -543,7 +543,7 @@ func TestEnvAccess(t *testing.T) {
 }
 
 func TestBuiltinsRegistered(t *testing.T) {
-	interp := New()
+	interp := New(nil)
 
 	// Check that print is registered
 	printVal, ok := interp.env.Get("print")
@@ -606,7 +606,7 @@ func TestJSONRoundTrip(t *testing.T) {
 	p := parser.New(l)
 	program := p.ParseProgram()
 
-	interp := New()
+	interp := New(nil)
 	evalResult, err := interp.Eval(program)
 	if err != nil {
 		t.Fatalf("eval error: %v", err)
@@ -667,7 +667,7 @@ func TestInputFunction(t *testing.T) {
 			p := parser.New(l)
 			program := p.ParseProgram()
 
-			interp := New()
+			interp := New(nil)
 			interp.SetStdin(strings.NewReader(tt.stdin))
 
 			evalResult, err := interp.Eval(program)
@@ -718,7 +718,7 @@ func TestInputFunctionErrors(t *testing.T) {
 			p := parser.New(l)
 			program := p.ParseProgram()
 
-			interp := New()
+			interp := New(nil)
 			interp.SetStdin(strings.NewReader("test\n"))
 
 			_, err := interp.Eval(program)

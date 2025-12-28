@@ -483,7 +483,7 @@ func TestBreakContinueOutsideLoop(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err == nil {
 				t.Errorf("expected error for %s, got nil", tt.name)
@@ -655,7 +655,7 @@ func TestForOfWithNonIterable(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err == nil {
 				t.Errorf("expected error for %s, got nil", tt.name)

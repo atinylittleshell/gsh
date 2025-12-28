@@ -18,7 +18,7 @@ func evalObjectTest(t *testing.T, script string) (Value, error) {
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	result, err := interp.Eval(program)
 	if err != nil {
 		return nil, err

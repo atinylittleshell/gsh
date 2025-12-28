@@ -4,7 +4,6 @@
 package executor
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -12,8 +11,8 @@ import (
 	"os"
 	"reflect"
 	"strings"
-	"sync"
 
+	"github.com/atinylittleshell/gsh/internal/bash"
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 	"github.com/atinylittleshell/gsh/internal/script/lexer"
 	"github.com/atinylittleshell/gsh/internal/script/parser"
@@ -21,26 +20,6 @@ import (
 	shinterp "mvdan.cc/sh/v3/interp"
 	"mvdan.cc/sh/v3/syntax"
 )
-
-// threadSafeBuffer provides a thread-safe wrapper around bytes.Buffer
-type threadSafeBuffer struct {
-	buffer bytes.Buffer
-	mutex  sync.Mutex
-}
-
-// Write implements io.Writer interface
-func (b *threadSafeBuffer) Write(p []byte) (n int, err error) {
-	b.mutex.Lock()
-	defer b.mutex.Unlock()
-	return b.buffer.Write(p)
-}
-
-// String returns the contents of the buffer as a string
-func (b *threadSafeBuffer) String() string {
-	b.mutex.Lock()
-	defer b.mutex.Unlock()
-	return b.buffer.String()
-}
 
 // ExecMiddleware is a function that wraps an ExecHandlerFunc to provide
 // additional functionality (e.g., command interception, logging).
@@ -108,42 +87,9 @@ func (e *REPLExecutor) ExecuteBashInSubshell(ctx context.Context, command string
 	mu := e.interpreter.RunnerMutex()
 
 	mu.RLock()
-	subShell := runner.Subshell()
-	mu.RUnlock()
+	defer mu.RUnlock()
 
-	outBuf := &threadSafeBuffer{}
-	errBuf := &threadSafeBuffer{}
-	shinterp.StdIO(nil, io.Writer(outBuf), io.Writer(errBuf))(subShell) //nolint:errcheck
-
-	var prog *syntax.Stmt
-	err := syntax.NewParser().Stmts(strings.NewReader(command), func(stmt *syntax.Stmt) bool {
-		prog = stmt
-		return false
-	})
-	if err != nil {
-		return "", "", 1, fmt.Errorf("failed to parse bash command: %w", err)
-	}
-
-	if prog == nil {
-		return "", "", 0, nil
-	}
-
-	err = subShell.Run(ctx, prog)
-
-	// Extract exit code
-	exitCode := 0
-	if err != nil {
-		var exitStatus shinterp.ExitStatus
-		if errors.As(err, &exitStatus) {
-			exitCode = int(exitStatus)
-			// Non-zero exit code is not an execution error, just return the code
-			return outBuf.String(), errBuf.String(), exitCode, nil
-		}
-		// Real execution error (parse error, etc.)
-		return outBuf.String(), errBuf.String(), 1, err
-	}
-
-	return outBuf.String(), errBuf.String(), exitCode, nil
+	return bash.RunBashCommandInSubShellWithExitCode(ctx, runner, command)
 }
 
 // ExecuteGsh runs a gsh script.
@@ -226,15 +172,11 @@ func (e *REPLExecutor) Interpreter() *interpreter.Interpreter {
 
 // RunBashScriptFromReader runs a bash script from an io.Reader.
 func (e *REPLExecutor) RunBashScriptFromReader(ctx context.Context, reader io.Reader, name string) error {
-	prog, err := syntax.NewParser().Parse(reader, name)
-	if err != nil {
-		return err
-	}
-
 	runner := e.interpreter.Runner()
 	mu := e.interpreter.RunnerMutex()
 
 	mu.Lock()
 	defer mu.Unlock()
-	return runner.Run(ctx, prog)
+
+	return bash.RunBashScriptFromReader(ctx, runner, reader, name)
 }

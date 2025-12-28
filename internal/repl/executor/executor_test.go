@@ -15,7 +15,7 @@ import (
 // newTestExecutor creates a REPLExecutor for testing with a fresh interpreter.
 func newTestExecutor(t *testing.T, logger *zap.Logger, handlers ...ExecMiddleware) *REPLExecutor {
 	t.Helper()
-	interp := interpreter.New()
+	interp := interpreter.New(nil)
 	exec, err := NewREPLExecutor(interp, logger, handlers...)
 	if err != nil {
 		t.Fatalf("NewREPLExecutor() error = %v", err)
@@ -408,33 +408,6 @@ func TestREPLExecutor_RunBashScriptFromReader(t *testing.T) {
 		err := exec.RunBashScriptFromReader(ctx, reader, "test.sh")
 		if err == nil {
 			t.Error("expected error for invalid script")
-		}
-	})
-}
-
-func TestThreadSafeBuffer(t *testing.T) {
-	t.Run("write and string are thread-safe", func(t *testing.T) {
-		buf := &threadSafeBuffer{}
-
-		// Write from multiple goroutines
-		done := make(chan bool)
-		for i := range 10 {
-			go func(n int) {
-				for range 100 {
-					buf.Write([]byte("x"))
-				}
-				done <- true
-			}(i)
-		}
-
-		// Wait for all goroutines
-		for range 10 {
-			<-done
-		}
-
-		// Should have 1000 characters
-		if len(buf.String()) != 1000 {
-			t.Errorf("buffer length = %d, want 1000", len(buf.String()))
 		}
 	})
 }

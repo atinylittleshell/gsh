@@ -238,8 +238,8 @@ func TestHandleAgentCommand_ConversationIsolation(t *testing.T) {
 	}
 
 	// Create interpreters for each agent state
-	interp1 := interpreter.New()
-	interp2 := interpreter.New()
+	interp1 := interpreter.New(nil)
+	interp2 := interpreter.New(nil)
 
 	state1 := &agent.State{
 		Agent:        agent1,

@@ -316,7 +316,7 @@ result`,
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			result, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("eval error: %v", err)
@@ -373,7 +373,7 @@ result`,
 			p := parser.New(l)
 			program := p.ParseProgram()
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 
 			if tt.expectError && err == nil {
@@ -425,7 +425,7 @@ result`,
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			result, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("eval error: %v", err)

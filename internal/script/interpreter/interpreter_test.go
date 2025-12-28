@@ -25,7 +25,7 @@ func testEvalFull(t *testing.T, input string) *EvalResult {
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	result, err := interp.Eval(program)
 	if err != nil {
 		t.Fatalf("eval error: %v", err)
@@ -45,7 +45,7 @@ func testEvalError(t *testing.T, input string) error {
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	_, err := interp.Eval(program)
 	return err
 }
@@ -615,7 +615,7 @@ func TestNewWithEnvironment(t *testing.T) {
 	env.Set("preexisting", &NumberValue{Value: 42})
 
 	// Create interpreter with this environment
-	interp := NewWithEnvironment(env)
+	interp := New(&Options{Env: env})
 
 	l := lexer.New(`result = preexisting + 8`)
 	p := parser.New(l)

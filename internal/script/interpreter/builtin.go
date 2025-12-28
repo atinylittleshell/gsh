@@ -4,16 +4,14 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/atinylittleshell/gsh/internal/bash"
 	"go.uber.org/zap/zapcore"
-	"mvdan.cc/sh/v3/interp"
-	"mvdan.cc/sh/v3/syntax"
 )
 
 // builtinNames contains all the names of built-in functions and objects
@@ -479,45 +477,9 @@ func (i *Interpreter) builtinExec(args []Value) (Value, error) {
 // executeBashInSubshell executes a bash command in a subshell and returns stdout, stderr, and exit code
 // It uses a subshell clone of the interpreter's runner to inherit env vars and working directory
 func (i *Interpreter) executeBashInSubshell(ctx context.Context, command string) (string, string, int, error) {
-	// Parse the command first (before locking)
-	var prog *syntax.Stmt
-	parseErr := syntax.NewParser().Stmts(strings.NewReader(command), func(stmt *syntax.Stmt) bool {
-		prog = stmt
-		return false
-	})
-	if parseErr != nil {
-		return "", "", 1, fmt.Errorf("failed to parse bash command: %w", parseErr)
-	}
-
-	if prog == nil {
-		return "", "", 0, nil
-	}
-
-	// Create a subshell from the interpreter's runner
-	// This inherits environment variables and working directory
 	i.runnerMu.RLock()
-	subShell := i.runner.Subshell()
+	runner := i.runner
 	i.runnerMu.RUnlock()
 
-	// Redirect stdout and stderr to buffers
-	var outBuf, errBuf strings.Builder
-	interp.StdIO(nil, &outBuf, &errBuf)(subShell) //nolint:errcheck
-
-	// Execute the command
-	err := subShell.Run(ctx, prog)
-
-	// Extract exit code
-	exitCode := 0
-	if err != nil {
-		var exitStatus interp.ExitStatus
-		if errors.As(err, &exitStatus) {
-			exitCode = int(exitStatus)
-			// Non-zero exit code is not an execution error, just return the code
-			return outBuf.String(), errBuf.String(), exitCode, nil
-		}
-		// Real execution error (parse error, etc.)
-		return outBuf.String(), errBuf.String(), 1, err
-	}
-
-	return outBuf.String(), errBuf.String(), exitCode, nil
+	return bash.RunBashCommandInSubShellWithExitCode(ctx, runner, command)
 }

@@ -33,7 +33,7 @@ conv = "What is 2+2?" | TestAgent
 	}
 
 	// Create interpreter with mock provider
-	interp := New()
+	interp := New(nil)
 	mockProvider := NewSmartMockProvider()
 	interp.providerRegistry.Register(mockProvider)
 
@@ -111,7 +111,7 @@ conv2 = conv1 | "How are you?"
 		t.Fatalf("Parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	mockProvider := NewSmartMockProvider()
 	interp.providerRegistry.Register(mockProvider)
 
@@ -166,7 +166,7 @@ conv = "What is 5+3?" | MathAgent | "Now multiply that by 2" | MathAgent
 		t.Fatalf("Parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	mockProvider := NewSmartMockProvider()
 	interp.providerRegistry.Register(mockProvider)
 
@@ -238,7 +238,7 @@ conv = "What's the weather in San Francisco?" | WeatherAgent
 		t.Fatalf("Parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	mockProvider := NewSmartMockProvider()
 	interp.providerRegistry.Register(mockProvider)
 
@@ -333,7 +333,7 @@ result = A | "hello"
 				t.Fatalf("Parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			mockProvider := NewSmartMockProvider()
 			interp.providerRegistry.Register(mockProvider)
 
@@ -404,7 +404,7 @@ conv = "Analyze: sales up 20%" | Analyzer | "Write a one-sentence summary" | Wri
 		t.Fatalf("Parser errors: %v", p.Errors())
 	}
 
-	interp := New()
+	interp := New(nil)
 	mockProvider := NewSmartMockProvider()
 	interp.providerRegistry.Register(mockProvider)
 
@@ -450,7 +450,7 @@ func TestAgenticLoopMultipleIterations(t *testing.T) {
 		callCount: 0,
 	}
 
-	interp := New()
+	interp := New(nil)
 	interp.providerRegistry.Register(mock)
 
 	input := `
@@ -529,7 +529,7 @@ conv = "Process this through all steps" | TestAgent
 func TestAgenticLoopMaxIterations(t *testing.T) {
 	mock := &infiniteToolCallMockProvider{}
 
-	interp := New()
+	interp := New(nil)
 	interp.providerRegistry.Register(mock)
 
 	// Use a small maxIterations value for testing (5 instead of default 100)

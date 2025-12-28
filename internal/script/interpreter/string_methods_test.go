@@ -50,7 +50,7 @@ func TestStringIndexOf(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -101,7 +101,7 @@ func TestStringLastIndexOf(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -157,7 +157,7 @@ func TestStringSubstring(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -218,7 +218,7 @@ func TestStringSlice(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -269,7 +269,7 @@ func TestStringStartsWith(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -320,7 +320,7 @@ func TestStringEndsWith(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -376,7 +376,7 @@ func TestStringIncludes(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -427,7 +427,7 @@ func TestStringReplace(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -478,7 +478,7 @@ func TestStringReplaceAll(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -529,7 +529,7 @@ func TestStringRepeat(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -585,7 +585,7 @@ func TestStringPadStart(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -641,7 +641,7 @@ func TestStringPadEnd(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -702,7 +702,7 @@ func TestStringCharAt(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -748,7 +748,7 @@ func TestStringSplit(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)
@@ -799,7 +799,7 @@ func TestStringUnicodeSupport(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("interpreter error: %v", err)

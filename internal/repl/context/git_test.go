@@ -16,7 +16,7 @@ import (
 // newGitTestExecutor creates an executor with a fresh interpreter for testing.
 func newGitTestExecutor(t *testing.T) *executor.REPLExecutor {
 	t.Helper()
-	interp := interpreter.New()
+	interp := interpreter.New(nil)
 	exec, err := executor.NewREPLExecutor(interp, nil)
 	require.NoError(t, err)
 	return exec

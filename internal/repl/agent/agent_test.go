@@ -84,7 +84,7 @@ func (m *mockProvider) StreamingChatCompletion(request interpreter.ChatRequest, 
 
 // createTestState creates a test State with all required fields populated
 func createTestState(provider interpreter.ModelProvider, systemPrompt string, tools []interpreter.ChatTool, toolExecutor ToolExecutor, maxIterations int) *State {
-	interp := interpreter.New()
+	interp := interpreter.New(nil)
 
 	model := &interpreter.ModelValue{
 		Name:     "test-model",
@@ -133,7 +133,7 @@ func createTestState(provider interpreter.ModelProvider, systemPrompt string, to
 
 // createTestStateWithName creates a test State with a custom agent name
 func createTestStateWithName(provider interpreter.ModelProvider, name string, systemPrompt string, tools []interpreter.ChatTool, toolExecutor ToolExecutor) *State {
-	interp := interpreter.New()
+	interp := interpreter.New(nil)
 
 	model := &interpreter.ModelValue{
 		Name:     "test-model",

@@ -75,7 +75,7 @@ func TestNumberToFixed(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -126,7 +126,7 @@ func TestNumberToFixedErrors(t *testing.T) {
 				t.Fatalf("parser errors: %v", p.Errors())
 			}
 
-			interp := New()
+			interp := New(nil)
 			_, err := interp.Eval(program)
 			if err == nil {
 				t.Fatal("expected error but got none")

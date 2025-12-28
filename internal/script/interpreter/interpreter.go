@@ -57,67 +57,53 @@ func (r *EvalResult) Variables() map[string]Value {
 	return vars
 }
 
-// New creates a new interpreter instance
-func New() *Interpreter {
-	return NewWithLogger(nil)
+// Options configures the interpreter.
+// All fields are optional - nil/zero values use sensible defaults.
+type Options struct {
+	// Env is a custom gsh environment. If nil, a new one is created.
+	Env *Environment
+	// Logger is a zap logger for log.* functions. If nil, log.* writes to stderr.
+	Logger *zap.Logger
+	// Runner is a sh runner for bash execution. If nil, a new one is created.
+	// Sharing a runner allows the interpreter to inherit env vars and working directory.
+	Runner *interp.Runner
 }
 
-// NewWithLogger creates a new interpreter with an optional zap logger
-// When logger is provided, log.* functions will write to the zap logger
-// When logger is nil, log.* functions will write to stderr with prefixes
-func NewWithLogger(logger *zap.Logger) *Interpreter {
+// New creates a new interpreter with the given options.
+// Pass nil for default options.
+func New(opts *Options) *Interpreter {
+	if opts == nil {
+		opts = &Options{}
+	}
 	registry := NewProviderRegistry()
 	registry.Register(NewOpenAIProvider())
 
-	// Create sh runner with OS environment
-	env := expand.ListEnviron(os.Environ()...)
-	runner, err := interp.New(
-		interp.Env(env),
-		interp.StdIO(os.Stdin, os.Stdout, os.Stderr),
-	)
-	if err != nil {
-		// This should never fail with basic options
-		panic(fmt.Sprintf("failed to create sh runner: %v", err))
+	// Create sh runner if not provided
+	runner := opts.Runner
+	if runner == nil {
+		shEnv := expand.ListEnviron(os.Environ()...)
+		var err error
+		runner, err = interp.New(
+			interp.Env(shEnv),
+			interp.StdIO(os.Stdin, os.Stdout, os.Stderr),
+		)
+		if err != nil {
+			// This should never fail with basic options
+			panic(fmt.Sprintf("failed to create sh runner: %v", err))
+		}
 	}
 
-	i := &Interpreter{
-		env:              NewEnvironment(),
-		mcpManager:       mcp.NewManager(),
-		providerRegistry: registry,
-		logger:           logger,
-		stdin:            os.Stdin,
-		runner:           runner,
-	}
-	i.registerBuiltins()
-	return i
-}
-
-// NewWithEnvironment creates a new interpreter with a custom environment
-func NewWithEnvironment(env *Environment) *Interpreter {
-	return NewWithEnvironmentAndLogger(env, nil)
-}
-
-// NewWithEnvironmentAndLogger creates a new interpreter with a custom environment and optional logger
-func NewWithEnvironmentAndLogger(gshEnv *Environment, logger *zap.Logger) *Interpreter {
-	registry := NewProviderRegistry()
-	registry.Register(NewOpenAIProvider())
-
-	// Create sh runner with OS environment
-	shEnv := expand.ListEnviron(os.Environ()...)
-	runner, err := interp.New(
-		interp.Env(shEnv),
-		interp.StdIO(os.Stdin, os.Stdout, os.Stderr),
-	)
-	if err != nil {
-		// This should never fail with basic options
-		panic(fmt.Sprintf("failed to create sh runner: %v", err))
+	// Create gsh environment if not provided
+	gshEnv := opts.Env
+	if gshEnv == nil {
+		gshEnv = NewEnvironment()
 	}
 
 	i := &Interpreter{
 		env:              gshEnv,
 		mcpManager:       mcp.NewManager(),
 		providerRegistry: registry,
-		logger:           logger,
+		logger:           opts.Logger,
 		stdin:            os.Stdin,
 		runner:           runner,
 	}
