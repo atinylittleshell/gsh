@@ -18,8 +18,7 @@ import (
 	"github.com/atinylittleshell/gsh/internal/script/lexer"
 	"github.com/atinylittleshell/gsh/internal/script/parser"
 	"go.uber.org/zap"
-	"mvdan.cc/sh/v3/expand"
-	"mvdan.cc/sh/v3/interp"
+	shinterp "mvdan.cc/sh/v3/interp"
 	"mvdan.cc/sh/v3/syntax"
 )
 
@@ -45,37 +44,33 @@ func (b *threadSafeBuffer) String() string {
 
 // ExecMiddleware is a function that wraps an ExecHandlerFunc to provide
 // additional functionality (e.g., command interception, logging).
-type ExecMiddleware = func(next interp.ExecHandlerFunc) interp.ExecHandlerFunc
+type ExecMiddleware = func(next shinterp.ExecHandlerFunc) shinterp.ExecHandlerFunc
 
-// REPLExecutor handles command execution for the REPL using mvdan/sh for
-// bash execution and the gsh script interpreter for gsh script execution.
+// REPLExecutor handles command execution for the REPL using the interpreter's
+// shared sh runner for bash execution and gsh script execution.
 type REPLExecutor struct {
-	runner      *interp.Runner
 	interpreter *interpreter.Interpreter
 	logger      *zap.Logger
-	varsMutex   sync.RWMutex // Protects concurrent access to runner.Vars
 }
 
 // NewREPLExecutor creates a new REPLExecutor.
+// The interpreter is required and provides the shared sh runner for bash execution.
 // The logger is optional (can be nil).
 // The execHandlers are optional middleware for intercepting command execution
 // (e.g., for analytics, history, completion).
-func NewREPLExecutor(logger *zap.Logger, execHandlers ...ExecMiddleware) (*REPLExecutor, error) {
-	env := expand.ListEnviron(os.Environ()...)
-
-	runner, err := interp.New(
-		interp.Interactive(true),
-		interp.Env(env),
-		interp.StdIO(os.Stdin, os.Stdout, os.Stderr),
-		interp.ExecHandlers(execHandlers...),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create bash runner: %w", err)
+func NewREPLExecutor(interp *interpreter.Interpreter, logger *zap.Logger, execHandlers ...ExecMiddleware) (*REPLExecutor, error) {
+	if interp == nil {
+		return nil, fmt.Errorf("interpreter is required")
 	}
 
+	// Configure the interpreter's runner for interactive use with exec handlers
+	runner := interp.Runner()
+	shinterp.Interactive(true)(runner)                     //nolint:errcheck
+	shinterp.StdIO(os.Stdin, os.Stdout, os.Stderr)(runner) //nolint:errcheck
+	shinterp.ExecHandlers(execHandlers...)(runner)         //nolint:errcheck
+
 	return &REPLExecutor{
-		runner:      runner,
-		interpreter: interpreter.NewWithLogger(logger),
+		interpreter: interp,
 		logger:      logger,
 	}, nil
 }
@@ -88,9 +83,15 @@ func (e *REPLExecutor) ExecuteBash(ctx context.Context, command string) (int, er
 		return 1, fmt.Errorf("failed to parse bash command: %w", err)
 	}
 
-	err = e.runner.Run(ctx, prog)
+	runner := e.interpreter.Runner()
+	mu := e.interpreter.RunnerMutex()
+
+	mu.Lock()
+	err = runner.Run(ctx, prog)
+	mu.Unlock()
+
 	if err != nil {
-		var exitStatus interp.ExitStatus
+		var exitStatus shinterp.ExitStatus
 		if errors.As(err, &exitStatus) {
 			return int(exitStatus), nil
 		}
@@ -103,11 +104,16 @@ func (e *REPLExecutor) ExecuteBash(ctx context.Context, command string) (int, er
 // ExecuteBashInSubshell runs a bash command in a subshell, capturing output.
 // Returns stdout, stderr, exit code, and any execution error.
 func (e *REPLExecutor) ExecuteBashInSubshell(ctx context.Context, command string) (string, string, int, error) {
-	subShell := e.runner.Subshell()
+	runner := e.interpreter.Runner()
+	mu := e.interpreter.RunnerMutex()
+
+	mu.RLock()
+	subShell := runner.Subshell()
+	mu.RUnlock()
 
 	outBuf := &threadSafeBuffer{}
 	errBuf := &threadSafeBuffer{}
-	interp.StdIO(nil, io.Writer(outBuf), io.Writer(errBuf))(subShell) //nolint:errcheck
+	shinterp.StdIO(nil, io.Writer(outBuf), io.Writer(errBuf))(subShell) //nolint:errcheck
 
 	var prog *syntax.Stmt
 	err := syntax.NewParser().Stmts(strings.NewReader(command), func(stmt *syntax.Stmt) bool {
@@ -127,7 +133,7 @@ func (e *REPLExecutor) ExecuteBashInSubshell(ctx context.Context, command string
 	// Extract exit code
 	exitCode := 0
 	if err != nil {
-		var exitStatus interp.ExitStatus
+		var exitStatus shinterp.ExitStatus
 		if errors.As(err, &exitStatus) {
 			exitCode = int(exitStatus)
 			// Non-zero exit code is not an execution error, just return the code
@@ -162,35 +168,19 @@ func (e *REPLExecutor) ExecuteGsh(ctx context.Context, script string) error {
 	return nil
 }
 
-// GetEnv gets an environment variable value.
-// This reads from the runner's Vars map, which is populated during command execution.
+// GetEnv gets an environment variable value from the interpreter's runner.
 func (e *REPLExecutor) GetEnv(name string) string {
-	e.varsMutex.RLock()
-	defer e.varsMutex.RUnlock()
-	if e.runner.Vars == nil {
-		return ""
-	}
-	return e.runner.Vars[name].String()
+	return e.interpreter.GetEnv(name)
 }
 
-// SetEnv sets an environment variable directly in the runner's Vars map.
-// For variables that need to be available in subshells, use ExecuteBash with export.
+// SetEnv sets an environment variable in the interpreter's runner.
 func (e *REPLExecutor) SetEnv(name, value string) {
-	e.varsMutex.Lock()
-	defer e.varsMutex.Unlock()
-	if e.runner.Vars == nil {
-		e.runner.Vars = make(map[string]expand.Variable)
-	}
-	e.runner.Vars[name] = expand.Variable{
-		Exported: true,
-		Kind:     expand.String,
-		Str:      value,
-	}
+	e.interpreter.SetEnv(name, value)
 }
 
-// GetPwd returns the current working directory.
+// GetPwd returns the current working directory from the interpreter's runner.
 func (e *REPLExecutor) GetPwd() string {
-	return e.runner.Dir
+	return e.interpreter.GetWorkingDir()
 }
 
 // Close cleans up any resources held by the executor.
@@ -201,10 +191,10 @@ func (e *REPLExecutor) Close() error {
 	return nil
 }
 
-// Runner returns the underlying mvdan/sh runner.
+// Runner returns the underlying mvdan/sh runner from the interpreter.
 // This is useful for advanced use cases that need direct access.
-func (e *REPLExecutor) Runner() *interp.Runner {
-	return e.runner
+func (e *REPLExecutor) Runner() *shinterp.Runner {
+	return e.interpreter.Runner()
 }
 
 // AliasExists returns true if the given name is currently defined as a shell alias
@@ -212,11 +202,12 @@ func (e *REPLExecutor) Runner() *interp.Runner {
 //
 // Note: mvdan/sh keeps aliases in an unexported field, so we use reflection.
 func (e *REPLExecutor) AliasExists(name string) bool {
-	if e.runner == nil {
+	runner := e.interpreter.Runner()
+	if runner == nil {
 		return false
 	}
 
-	runnerValue := reflect.ValueOf(e.runner).Elem()
+	runnerValue := reflect.ValueOf(runner).Elem()
 	aliasField := runnerValue.FieldByName("alias")
 	if !aliasField.IsValid() || aliasField.IsNil() {
 		return false
@@ -239,25 +230,11 @@ func (e *REPLExecutor) RunBashScriptFromReader(ctx context.Context, reader io.Re
 	if err != nil {
 		return err
 	}
-	return e.runner.Run(ctx, prog)
-}
 
-// SyncEnvToOS syncs all exported environment variables from the bash runner
-// to the OS environment. This is useful after loading bash config files like
-// ~/.gshrc so that variables set there are available to the gsh interpreter
-// via env.VAR_NAME.
-func (e *REPLExecutor) SyncEnvToOS() {
-	e.varsMutex.RLock()
-	defer e.varsMutex.RUnlock()
+	runner := e.interpreter.Runner()
+	mu := e.interpreter.RunnerMutex()
 
-	if e.runner.Vars == nil {
-		return
-	}
-
-	for name, variable := range e.runner.Vars {
-		// Only sync exported variables
-		if variable.Exported {
-			os.Setenv(name, variable.String())
-		}
-	}
+	mu.Lock()
+	defer mu.Unlock()
+	return runner.Run(ctx, prog)
 }

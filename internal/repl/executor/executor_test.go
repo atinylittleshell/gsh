@@ -7,22 +7,31 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 	"go.uber.org/zap"
-	"mvdan.cc/sh/v3/interp"
+	shinterp "mvdan.cc/sh/v3/interp"
 )
+
+// newTestExecutor creates a REPLExecutor for testing with a fresh interpreter.
+func newTestExecutor(t *testing.T, logger *zap.Logger, handlers ...ExecMiddleware) *REPLExecutor {
+	t.Helper()
+	interp := interpreter.New()
+	exec, err := NewREPLExecutor(interp, logger, handlers...)
+	if err != nil {
+		t.Fatalf("NewREPLExecutor() error = %v", err)
+	}
+	return exec
+}
 
 func TestNewREPLExecutor(t *testing.T) {
 	t.Run("creates executor with defaults", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
-		if exec.runner == nil {
+		if exec.Runner() == nil {
 			t.Error("expected runner to be initialized")
 		}
-		if exec.interpreter == nil {
+		if exec.Interpreter() == nil {
 			t.Error("expected interpreter to be initialized")
 		}
 	})
@@ -30,10 +39,7 @@ func TestNewREPLExecutor(t *testing.T) {
 	t.Run("creates executor with logger", func(t *testing.T) {
 		logger := zap.NewNop()
 
-		exec, err := NewREPLExecutor(logger)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, logger)
 		defer exec.Close()
 
 		if exec.logger != logger {
@@ -43,7 +49,7 @@ func TestNewREPLExecutor(t *testing.T) {
 
 	t.Run("creates executor with exec handlers", func(t *testing.T) {
 		handlerCalled := false
-		handler := func(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
+		handler := func(next shinterp.ExecHandlerFunc) shinterp.ExecHandlerFunc {
 			return func(ctx context.Context, args []string) error {
 				if len(args) > 0 && args[0] == "testcmd" {
 					handlerCalled = true
@@ -53,14 +59,11 @@ func TestNewREPLExecutor(t *testing.T) {
 			}
 		}
 
-		exec, err := NewREPLExecutor(nil, handler)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil, handler)
 		defer exec.Close()
 
 		ctx := context.Background()
-		_, err = exec.ExecuteBash(ctx, "testcmd")
+		_, err := exec.ExecuteBash(ctx, "testcmd")
 		if err != nil {
 			t.Fatalf("ExecuteBash() error = %v", err)
 		}
@@ -69,14 +72,18 @@ func TestNewREPLExecutor(t *testing.T) {
 			t.Error("exec handler was not called")
 		}
 	})
+
+	t.Run("returns error for nil interpreter", func(t *testing.T) {
+		_, err := NewREPLExecutor(nil, nil)
+		if err == nil {
+			t.Error("expected error for nil interpreter")
+		}
+	})
 }
 
 func TestREPLExecutor_ExecuteBash(t *testing.T) {
 	t.Run("executes simple echo command", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		ctx := context.Background()
@@ -90,10 +97,7 @@ func TestREPLExecutor_ExecuteBash(t *testing.T) {
 	})
 
 	t.Run("returns exit code for failed command", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		ctx := context.Background()
@@ -107,14 +111,11 @@ func TestREPLExecutor_ExecuteBash(t *testing.T) {
 	})
 
 	t.Run("returns error for invalid syntax", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		ctx := context.Background()
-		_, err = exec.ExecuteBash(ctx, "if then else")
+		_, err := exec.ExecuteBash(ctx, "if then else")
 		if err == nil {
 			t.Error("expected error for invalid syntax")
 		}
@@ -123,10 +124,7 @@ func TestREPLExecutor_ExecuteBash(t *testing.T) {
 
 func TestREPLExecutor_ExecuteBashInSubshell(t *testing.T) {
 	t.Run("captures stdout", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		ctx := context.Background()
@@ -146,10 +144,7 @@ func TestREPLExecutor_ExecuteBashInSubshell(t *testing.T) {
 	})
 
 	t.Run("captures stderr", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		ctx := context.Background()
@@ -169,10 +164,7 @@ func TestREPLExecutor_ExecuteBashInSubshell(t *testing.T) {
 	})
 
 	t.Run("handles empty command", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		ctx := context.Background()
@@ -189,15 +181,12 @@ func TestREPLExecutor_ExecuteBashInSubshell(t *testing.T) {
 	})
 
 	t.Run("does not affect parent shell variables", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		// Set a variable via bash command (which populates runner.Vars)
 		ctx := context.Background()
-		_, err = exec.ExecuteBash(ctx, "TEST_VAR_PARENT=original")
+		_, err := exec.ExecuteBash(ctx, "TEST_VAR_PARENT=original")
 		if err != nil {
 			t.Fatalf("ExecuteBash() error = %v", err)
 		}
@@ -217,28 +206,22 @@ func TestREPLExecutor_ExecuteBashInSubshell(t *testing.T) {
 
 func TestREPLExecutor_ExecuteGsh(t *testing.T) {
 	t.Run("executes simple gsh script", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		ctx := context.Background()
-		err = exec.ExecuteGsh(ctx, `x = 1 + 2`)
+		err := exec.ExecuteGsh(ctx, `x = 1 + 2`)
 		if err != nil {
 			t.Fatalf("ExecuteGsh() error = %v", err)
 		}
 	})
 
 	t.Run("returns error for parse errors", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		ctx := context.Background()
-		err = exec.ExecuteGsh(ctx, `if { }`)
+		err := exec.ExecuteGsh(ctx, `if { }`)
 		if err == nil {
 			t.Error("expected error for invalid gsh syntax")
 		}
@@ -248,14 +231,11 @@ func TestREPLExecutor_ExecuteGsh(t *testing.T) {
 	})
 
 	t.Run("returns error for runtime errors", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		ctx := context.Background()
-		err = exec.ExecuteGsh(ctx, `undefinedVariable + 1`)
+		err := exec.ExecuteGsh(ctx, `undefinedVariable + 1`)
 		if err == nil {
 			t.Error("expected error for undefined variable")
 		}
@@ -267,10 +247,7 @@ func TestREPLExecutor_ExecuteGsh(t *testing.T) {
 
 func TestREPLExecutor_Environment(t *testing.T) {
 	t.Run("GetEnv returns empty for undefined variable", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		got := exec.GetEnv("UNDEFINED_VAR_12345")
@@ -280,10 +257,7 @@ func TestREPLExecutor_Environment(t *testing.T) {
 	})
 
 	t.Run("SetEnv and GetEnv work together", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		exec.SetEnv("MY_TEST_VAR", "test_value")
@@ -294,10 +268,7 @@ func TestREPLExecutor_Environment(t *testing.T) {
 	})
 
 	t.Run("SetEnv overwrites existing value", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		exec.SetEnv("MY_TEST_VAR", "first")
@@ -309,14 +280,11 @@ func TestREPLExecutor_Environment(t *testing.T) {
 	})
 
 	t.Run("bash commands can set environment variables", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		ctx := context.Background()
-		_, err = exec.ExecuteBash(ctx, "MY_BASH_VAR=from_bash")
+		_, err := exec.ExecuteBash(ctx, "MY_BASH_VAR=from_bash")
 		if err != nil {
 			t.Fatalf("ExecuteBash() error = %v", err)
 		}
@@ -330,10 +298,7 @@ func TestREPLExecutor_Environment(t *testing.T) {
 
 func TestREPLExecutor_GetPwd(t *testing.T) {
 	t.Run("returns current working directory", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		got := exec.GetPwd()
@@ -356,10 +321,7 @@ func TestREPLExecutor_GetPwd(t *testing.T) {
 			t.Fatalf("failed to create subdir: %v", err)
 		}
 
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		// Change to temp directory first, then to subdirectory
@@ -386,10 +348,7 @@ func TestREPLExecutor_GetPwd(t *testing.T) {
 
 func TestREPLExecutor_Close(t *testing.T) {
 	t.Run("close is idempotent", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 
 		// Close multiple times should not panic
 		if err := exec.Close(); err != nil {
@@ -403,10 +362,7 @@ func TestREPLExecutor_Close(t *testing.T) {
 
 func TestREPLExecutor_Runner(t *testing.T) {
 	t.Run("returns the underlying runner", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		if exec.Runner() == nil {
@@ -417,10 +373,7 @@ func TestREPLExecutor_Runner(t *testing.T) {
 
 func TestREPLExecutor_Interpreter(t *testing.T) {
 	t.Run("returns the underlying interpreter", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		if exec.Interpreter() == nil {
@@ -431,15 +384,12 @@ func TestREPLExecutor_Interpreter(t *testing.T) {
 
 func TestREPLExecutor_RunBashScriptFromReader(t *testing.T) {
 	t.Run("runs script from reader", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		ctx := context.Background()
 		reader := strings.NewReader("SCRIPT_RAN_VAR=yes")
-		err = exec.RunBashScriptFromReader(ctx, reader, "test.sh")
+		err := exec.RunBashScriptFromReader(ctx, reader, "test.sh")
 		if err != nil {
 			t.Fatalf("RunBashScriptFromReader() error = %v", err)
 		}
@@ -450,102 +400,15 @@ func TestREPLExecutor_RunBashScriptFromReader(t *testing.T) {
 	})
 
 	t.Run("returns error for invalid script", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
+		exec := newTestExecutor(t, nil)
 		defer exec.Close()
 
 		ctx := context.Background()
 		reader := strings.NewReader("if then else")
-		err = exec.RunBashScriptFromReader(ctx, reader, "test.sh")
+		err := exec.RunBashScriptFromReader(ctx, reader, "test.sh")
 		if err == nil {
 			t.Error("expected error for invalid script")
 		}
-	})
-}
-
-func TestREPLExecutor_SyncEnvToOS(t *testing.T) {
-	t.Run("syncs exported variables to OS environment", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
-		defer exec.Close()
-
-		// Clean up env var after test
-		testVarName := "GSH_TEST_SYNC_VAR"
-		os.Unsetenv(testVarName)
-		defer os.Unsetenv(testVarName)
-
-		// Run a bash script that exports a variable
-		ctx := context.Background()
-		reader := strings.NewReader("export " + testVarName + "=synced_value")
-		err = exec.RunBashScriptFromReader(ctx, reader, "test.sh")
-		if err != nil {
-			t.Fatalf("RunBashScriptFromReader() error = %v", err)
-		}
-
-		// Before sync, OS env should not have the variable
-		if got := os.Getenv(testVarName); got != "" {
-			t.Errorf("os.Getenv(%s) before sync = %q, want empty", testVarName, got)
-		}
-
-		// Sync to OS
-		exec.SyncEnvToOS()
-
-		// After sync, OS env should have the variable
-		if got := os.Getenv(testVarName); got != "synced_value" {
-			t.Errorf("os.Getenv(%s) after sync = %q, want %q", testVarName, got, "synced_value")
-		}
-	})
-
-	t.Run("does not sync non-exported variables", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
-		defer exec.Close()
-
-		// Clean up env var after test
-		testVarName := "GSH_TEST_NON_EXPORTED_VAR"
-		os.Unsetenv(testVarName)
-		defer os.Unsetenv(testVarName)
-
-		// Run a bash script that sets a variable WITHOUT export
-		ctx := context.Background()
-		reader := strings.NewReader(testVarName + "=local_value")
-		err = exec.RunBashScriptFromReader(ctx, reader, "test.sh")
-		if err != nil {
-			t.Fatalf("RunBashScriptFromReader() error = %v", err)
-		}
-
-		// Variable should be in runner but not exported
-		if got := exec.GetEnv(testVarName); got != "local_value" {
-			t.Errorf("GetEnv(%s) = %q, want %q", testVarName, got, "local_value")
-		}
-
-		// Sync to OS
-		exec.SyncEnvToOS()
-
-		// After sync, OS env should NOT have the non-exported variable
-		if got := os.Getenv(testVarName); got != "" {
-			t.Errorf("os.Getenv(%s) after sync = %q, want empty (non-exported var)", testVarName, got)
-		}
-	})
-
-	t.Run("handles nil Vars map", func(t *testing.T) {
-		exec, err := NewREPLExecutor(nil)
-		if err != nil {
-			t.Fatalf("NewREPLExecutor() error = %v", err)
-		}
-		defer exec.Close()
-
-		// Manually set Vars to nil to test nil handling
-		exec.runner.Vars = nil
-
-		// Should not panic
-		exec.SyncEnvToOS()
 	})
 }
 

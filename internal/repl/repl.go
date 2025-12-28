@@ -95,8 +95,11 @@ func NewREPL(opts Options) (*REPL, error) {
 		logger = zap.NewNop()
 	}
 
-	// Initialize executor first (needed for loading .gshrc)
-	exec, err := executor.NewREPLExecutor(logger, opts.ExecMiddleware...)
+	// Create ONE interpreter that will be shared by executor, config, and renderer
+	interp := interpreter.NewWithLogger(logger)
+
+	// Initialize executor with the shared interpreter
+	exec, err := executor.NewREPLExecutor(interp, logger, opts.ExecMiddleware...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create executor: %w", err)
 	}
@@ -107,19 +110,30 @@ func NewREPL(opts Options) (*REPL, error) {
 		logger.Warn("failed to load bash configs", zap.Error(err))
 	}
 
-	// Sync environment variables from bash runner to OS environment
-	// This ensures variables exported in ~/.gshrc are available to gsh scripts
-	// via env.VAR_NAME when loading ~/.gshrc.gsh
-	exec.SyncEnvToOS()
-
-	// Load gsh-specific configuration from .gshrc.gsh
+	// Load gsh-specific configuration into the shared interpreter
 	loader := config.NewLoader(logger)
 	var loadResult *config.LoadResult
 
 	if opts.ConfigPath != "" {
-		loadResult, err = loader.LoadFromFile(opts.ConfigPath)
+		content, err := os.ReadFile(opts.ConfigPath)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return nil, fmt.Errorf("failed to read config file: %w", err)
+			}
+			// File doesn't exist, use defaults
+			loadResult = &config.LoadResult{
+				Config:      config.DefaultConfig(),
+				Interpreter: interp,
+				Errors:      []error{},
+			}
+		} else {
+			loadResult, err = loader.LoadFromStringInto(interp, string(content))
+			if err != nil {
+				return nil, fmt.Errorf("failed to load config: %w", err)
+			}
+		}
 	} else {
-		loadResult, err = loader.LoadDefaultConfigPath(opts.DefaultConfigContent, opts.StarshipConfigContent)
+		loadResult, err = loader.LoadDefaultConfigPathInto(interp, opts.DefaultConfigContent, opts.StarshipConfigContent)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
@@ -182,7 +196,7 @@ func NewREPL(opts Options) (*REPL, error) {
 		}
 		return height
 	}
-	agentRenderer := render.New(loadResult.Interpreter, os.Stdout, termWidthFunc)
+	agentRenderer := render.New(interp, os.Stdout, termWidthFunc)
 	agentRenderer.SetTermHeight(termHeightFunc)
 	agentManager.SetRenderer(agentRenderer)
 
@@ -204,7 +218,7 @@ func NewREPL(opts Options) (*REPL, error) {
 			Agent:        defaultAgent,
 			Provider:     defaultAgentModel.Provider,
 			Conversation: []interpreter.ChatMessage{},
-			Interpreter:  loadResult.Interpreter,
+			Interpreter:  interp,
 		}
 		agent.SetupAgentWithDefaultTools(defaultState)
 		agentManager.AddAgent("default", defaultState)
@@ -233,7 +247,7 @@ func NewREPL(opts Options) (*REPL, error) {
 				Agent:        agentVal,
 				Provider:     provider,
 				Conversation: []interpreter.ChatMessage{},
-				Interpreter:  loadResult.Interpreter,
+				Interpreter:  interp,
 			}
 			agent.SetupAgentWithDefaultTools(customState)
 			agentManager.AddAgent(name, customState)

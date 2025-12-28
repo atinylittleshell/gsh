@@ -56,21 +56,26 @@ func (l *Loader) LoadFromFile(path string) (*LoadResult, error) {
 }
 
 // LoadFromString loads configuration from a gsh script string.
+// Creates a new interpreter internally. For loading into an existing interpreter,
+// use LoadFromStringInto.
 func (l *Loader) LoadFromString(source string) (*LoadResult, error) {
+	interp := interpreter.NewWithLogger(l.logger)
+	return l.LoadFromStringInto(interp, source)
+}
+
+// LoadFromStringInto loads configuration from a gsh script string into an existing interpreter.
+func (l *Loader) LoadFromStringInto(interp *interpreter.Interpreter, source string) (*LoadResult, error) {
 	result := &LoadResult{
-		Config: DefaultConfig(),
-		Errors: []error{},
+		Config:      DefaultConfig(),
+		Interpreter: interp,
+		Errors:      []error{},
 	}
 
-	// Create interpreter and evaluate
-	interp := interpreter.NewWithLogger(l.logger)
 	_, err := interp.EvalString(source)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
 		return result, nil
 	}
-
-	result.Interpreter = interp
 
 	// Extract configuration from the interpreter
 	l.extractConfigFromInterpreter(interp, result)
@@ -79,6 +84,9 @@ func (l *Loader) LoadFromString(source string) (*LoadResult, error) {
 }
 
 // LoadDefaultConfigPath loads configuration from the default path (~/.gshrc.gsh).
+// Creates a new interpreter internally. For loading into an existing interpreter,
+// use LoadDefaultConfigPathInto.
+//
 // Loading order:
 //  1. .gshrc.default.gsh (system defaults)
 //  2. ~/.gshrc.gsh (user config) - GSH_CONFIG is merged with defaults
@@ -95,22 +103,28 @@ func (l *Loader) LoadFromString(source string) (*LoadResult, error) {
 // defaultContent is the embedded content of .gshrc.default.gsh (can be empty).
 // starshipContent is the embedded content of .gshrc.starship.gsh (can be empty).
 func (l *Loader) LoadDefaultConfigPath(defaultContent string, starshipContent string) (*LoadResult, error) {
+	interp := interpreter.NewWithLogger(l.logger)
+	return l.LoadDefaultConfigPathInto(interp, defaultContent, starshipContent)
+}
+
+// LoadDefaultConfigPathInto loads configuration from the default path into an existing interpreter.
+// See LoadDefaultConfigPath for details on the loading order.
+func (l *Loader) LoadDefaultConfigPathInto(interp *interpreter.Interpreter, defaultContent string, starshipContent string) (*LoadResult, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return &LoadResult{
-			Config: DefaultConfig(),
-			Errors: []error{fmt.Errorf("failed to get home directory: %w", err)},
+			Config:      DefaultConfig(),
+			Interpreter: interp,
+			Errors:      []error{fmt.Errorf("failed to get home directory: %w", err)},
 		}, nil
 	}
 
 	// Start with default configuration
 	result := &LoadResult{
-		Config: DefaultConfig(),
-		Errors: []error{},
+		Config:      DefaultConfig(),
+		Interpreter: interp,
+		Errors:      []error{},
 	}
-
-	// Create ONE interpreter for all configs
-	interp := interpreter.NewWithLogger(l.logger)
 
 	// 1. Load default config first
 	if defaultContent != "" {
@@ -189,9 +203,6 @@ func (l *Loader) LoadDefaultConfigPath(defaultContent string, starshipContent st
 		// Re-extract config after loading starship integration
 		l.extractConfigFromInterpreter(interp, result)
 	}
-
-	// 5. Set interpreter in result
-	result.Interpreter = interp
 
 	return result, nil
 }

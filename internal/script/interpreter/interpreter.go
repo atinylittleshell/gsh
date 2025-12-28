@@ -1,15 +1,20 @@
 package interpreter
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/atinylittleshell/gsh/internal/script/lexer"
 	"github.com/atinylittleshell/gsh/internal/script/mcp"
 	"github.com/atinylittleshell/gsh/internal/script/parser"
 	"go.uber.org/zap"
+	"mvdan.cc/sh/v3/expand"
+	"mvdan.cc/sh/v3/interp"
+	"mvdan.cc/sh/v3/syntax"
 )
 
 // Interpreter represents the gsh script interpreter
@@ -17,9 +22,11 @@ type Interpreter struct {
 	env              *Environment
 	mcpManager       *mcp.Manager
 	providerRegistry *ProviderRegistry
-	callStack        []StackFrame // Track call stack for error reporting
-	logger           *zap.Logger  // Optional zap logger for log.* functions
-	stdin            io.Reader    // Reader for input() function, defaults to os.Stdin
+	callStack        []StackFrame   // Track call stack for error reporting
+	logger           *zap.Logger    // Optional zap logger for log.* functions
+	stdin            io.Reader      // Reader for input() function, defaults to os.Stdin
+	runner           *interp.Runner // Shared sh runner for env vars, working dir, and exec()
+	runnerMu         sync.RWMutex   // Protects runner access
 }
 
 // EvalResult represents the result of evaluating a program
@@ -62,15 +69,27 @@ func NewWithLogger(logger *zap.Logger) *Interpreter {
 	registry := NewProviderRegistry()
 	registry.Register(NewOpenAIProvider())
 
-	interp := &Interpreter{
+	// Create sh runner with OS environment
+	env := expand.ListEnviron(os.Environ()...)
+	runner, err := interp.New(
+		interp.Env(env),
+		interp.StdIO(os.Stdin, os.Stdout, os.Stderr),
+	)
+	if err != nil {
+		// This should never fail with basic options
+		panic(fmt.Sprintf("failed to create sh runner: %v", err))
+	}
+
+	i := &Interpreter{
 		env:              NewEnvironment(),
 		mcpManager:       mcp.NewManager(),
 		providerRegistry: registry,
 		logger:           logger,
 		stdin:            os.Stdin,
+		runner:           runner,
 	}
-	interp.registerBuiltins()
-	return interp
+	i.registerBuiltins()
+	return i
 }
 
 // NewWithEnvironment creates a new interpreter with a custom environment
@@ -79,25 +98,120 @@ func NewWithEnvironment(env *Environment) *Interpreter {
 }
 
 // NewWithEnvironmentAndLogger creates a new interpreter with a custom environment and optional logger
-func NewWithEnvironmentAndLogger(env *Environment, logger *zap.Logger) *Interpreter {
+func NewWithEnvironmentAndLogger(gshEnv *Environment, logger *zap.Logger) *Interpreter {
 	registry := NewProviderRegistry()
 	registry.Register(NewOpenAIProvider())
 
-	interp := &Interpreter{
-		env:              env,
+	// Create sh runner with OS environment
+	shEnv := expand.ListEnviron(os.Environ()...)
+	runner, err := interp.New(
+		interp.Env(shEnv),
+		interp.StdIO(os.Stdin, os.Stdout, os.Stderr),
+	)
+	if err != nil {
+		// This should never fail with basic options
+		panic(fmt.Sprintf("failed to create sh runner: %v", err))
+	}
+
+	i := &Interpreter{
+		env:              gshEnv,
 		mcpManager:       mcp.NewManager(),
 		providerRegistry: registry,
 		logger:           logger,
 		stdin:            os.Stdin,
+		runner:           runner,
 	}
-	interp.registerBuiltins()
-	return interp
+	i.registerBuiltins()
+	return i
 }
 
 // SetStdin sets the stdin reader for the input() function
 // This is useful for testing or for providing custom input sources
 func (i *Interpreter) SetStdin(r io.Reader) {
 	i.stdin = r
+}
+
+// Runner returns the underlying sh runner
+// This is used by the REPL executor to share the same runner for bash commands
+func (i *Interpreter) Runner() *interp.Runner {
+	return i.runner
+}
+
+// RunnerMutex returns the mutex protecting the runner
+// The REPL executor should hold this lock when accessing the runner
+func (i *Interpreter) RunnerMutex() *sync.RWMutex {
+	return &i.runnerMu
+}
+
+// GetWorkingDir returns the current working directory from the sh runner
+func (i *Interpreter) GetWorkingDir() string {
+	i.runnerMu.RLock()
+	defer i.runnerMu.RUnlock()
+	return i.runner.Dir
+}
+
+// GetEnv returns an environment variable
+// It first checks runner.Vars (for variables set during the session),
+// then falls back to os.Getenv (for inherited environment variables)
+func (i *Interpreter) GetEnv(name string) string {
+	i.runnerMu.RLock()
+	defer i.runnerMu.RUnlock()
+	// First check runner.Vars for variables set during the session
+	if i.runner.Vars != nil {
+		if v, ok := i.runner.Vars[name]; ok {
+			return v.String()
+		}
+	}
+	// Fall back to OS environment for inherited variables
+	return os.Getenv(name)
+}
+
+// SetEnv sets an environment variable by running an export command through the runner
+// This ensures the variable is properly inherited by subshells
+func (i *Interpreter) SetEnv(name, value string) {
+	i.runnerMu.Lock()
+	defer i.runnerMu.Unlock()
+
+	// Escape the value for shell (simple escaping - wrap in single quotes and escape single quotes)
+	escapedValue := strings.ReplaceAll(value, "'", "'\"'\"'")
+	cmd := fmt.Sprintf("export %s='%s'", name, escapedValue)
+
+	prog, err := syntax.NewParser().Parse(strings.NewReader(cmd), "")
+	if err != nil {
+		// Fallback to direct assignment if parsing fails
+		if i.runner.Vars == nil {
+			i.runner.Vars = make(map[string]expand.Variable)
+		}
+		i.runner.Vars[name] = expand.Variable{
+			Exported: true,
+			Kind:     expand.String,
+			Str:      value,
+		}
+		return
+	}
+
+	// Run the export command - ignore errors since this is best-effort
+	_ = i.runner.Run(context.Background(), prog)
+}
+
+// UnsetEnv removes an environment variable by running an unset command through the runner
+// This ensures the variable is properly removed from subshells
+func (i *Interpreter) UnsetEnv(name string) {
+	i.runnerMu.Lock()
+	defer i.runnerMu.Unlock()
+
+	cmd := fmt.Sprintf("unset %s", name)
+	prog, err := syntax.NewParser().Parse(strings.NewReader(cmd), "")
+	if err != nil {
+		// Fallback to direct deletion if parsing fails
+		if i.runner.Vars != nil {
+			delete(i.runner.Vars, name)
+		}
+		return
+	}
+
+	// Run the unset command - ignore errors since this is best-effort
+	_ = i.runner.Run(context.Background(), prog)
 }
 
 // EvalString parses and evaluates a source string in the interpreter

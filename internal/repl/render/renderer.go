@@ -677,3 +677,9 @@ func (r *Renderer) GetVariable(name string) interpreter.Value {
 	vars := r.interp.GetVariables()
 	return vars[name]
 }
+
+// Interpreter returns the underlying interpreter instance
+// This is useful for syncing state like working directory
+func (r *Renderer) Interpreter() *interpreter.Interpreter {
+	return r.interp
+}

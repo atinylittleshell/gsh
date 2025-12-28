@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"go.uber.org/zap/zapcore"
-	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/interp"
 	"mvdan.cc/sh/v3/syntax"
 )
@@ -103,7 +102,7 @@ func (i *Interpreter) registerBuiltins() {
 	i.env.Set("log", logObj)
 
 	// Register env object for environment variable access
-	i.env.Set("env", &EnvValue{})
+	i.env.Set("env", &EnvValue{interp: i})
 
 	// Register Map constructor
 	i.env.Set("Map", &BuiltinValue{
@@ -299,7 +298,10 @@ func valueToJSON(v Value) interface{} {
 }
 
 // EnvValue represents the env object for environment variable access
-type EnvValue struct{}
+// It holds a reference to the interpreter to access the shared sh runner
+type EnvValue struct {
+	interp *Interpreter
+}
 
 func (e *EnvValue) Type() ValueType { return ValueTypeObject }
 func (e *EnvValue) String() string  { return "<env>" }
@@ -309,9 +311,9 @@ func (e *EnvValue) Equals(other Value) bool {
 	return ok
 }
 
-// GetProperty gets an environment variable by name
+// GetProperty gets an environment variable from the sh runner
 func (e *EnvValue) GetProperty(name string) Value {
-	value := os.Getenv(name)
+	value := e.interp.GetEnv(name)
 	if value == "" {
 		// Return null if environment variable is not set
 		return &NullValue{}
@@ -319,7 +321,7 @@ func (e *EnvValue) GetProperty(name string) Value {
 	return &StringValue{Value: value}
 }
 
-// SetProperty sets an environment variable by name
+// SetProperty sets an environment variable in the sh runner
 func (e *EnvValue) SetProperty(name string, value Value) error {
 	// Convert value to string
 	var strValue string
@@ -336,14 +338,14 @@ func (e *EnvValue) SetProperty(name string, value Value) error {
 		}
 	case *NullValue:
 		// Setting to null unsets the variable
-		return os.Unsetenv(name)
+		e.interp.UnsetEnv(name)
+		return nil
 	default:
 		strValue = v.String()
 	}
 
-	// Set in OS environment
-	// The exec() function will sync all OS environment variables to the subshell
-	return os.Setenv(name, strValue)
+	e.interp.SetEnv(name, strValue)
+	return nil
 }
 
 // builtinMap implements the Map() constructor
@@ -475,22 +477,9 @@ func (i *Interpreter) builtinExec(args []Value) (Value, error) {
 }
 
 // executeBashInSubshell executes a bash command in a subshell and returns stdout, stderr, and exit code
+// It uses a subshell clone of the interpreter's runner to inherit env vars and working directory
 func (i *Interpreter) executeBashInSubshell(ctx context.Context, command string) (string, string, int, error) {
-	// Create a fresh bash runner with the current OS environment
-	// This ensures that any env variables set via env.VAR = "value" (which uses os.Setenv)
-	// are available in the exec() call
-	currentEnv := expand.ListEnviron(os.Environ()...)
-
-	var outBuf, errBuf strings.Builder
-	runner, err := interp.New(
-		interp.Env(currentEnv),
-		interp.StdIO(nil, &outBuf, &errBuf),
-	)
-	if err != nil {
-		return "", "", 1, fmt.Errorf("failed to create bash runner: %w", err)
-	}
-
-	// Parse the command
+	// Parse the command first (before locking)
 	var prog *syntax.Stmt
 	parseErr := syntax.NewParser().Stmts(strings.NewReader(command), func(stmt *syntax.Stmt) bool {
 		prog = stmt
@@ -504,8 +493,18 @@ func (i *Interpreter) executeBashInSubshell(ctx context.Context, command string)
 		return "", "", 0, nil
 	}
 
+	// Create a subshell from the interpreter's runner
+	// This inherits environment variables and working directory
+	i.runnerMu.RLock()
+	subShell := i.runner.Subshell()
+	i.runnerMu.RUnlock()
+
+	// Redirect stdout and stderr to buffers
+	var outBuf, errBuf strings.Builder
+	interp.StdIO(nil, &outBuf, &errBuf)(subShell) //nolint:errcheck
+
 	// Execute the command
-	err = runner.Run(ctx, prog)
+	err := subShell.Run(ctx, prog)
 
 	// Extract exit code
 	exitCode := 0

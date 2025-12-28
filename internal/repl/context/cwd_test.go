@@ -4,14 +4,23 @@ import (
 	"testing"
 
 	"github.com/atinylittleshell/gsh/internal/repl/executor"
+	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// newTestExecutor creates an executor with a fresh interpreter for testing.
+func newTestExecutor(t *testing.T) *executor.REPLExecutor {
+	t.Helper()
+	interp := interpreter.New()
+	exec, err := executor.NewREPLExecutor(interp, nil)
+	require.NoError(t, err)
+	return exec
+}
+
 func TestWorkingDirectoryRetriever(t *testing.T) {
 	t.Run("Name returns correct value", func(t *testing.T) {
-		exec, err := executor.NewREPLExecutor(nil)
-		require.NoError(t, err)
+		exec := newTestExecutor(t)
 		defer exec.Close()
 
 		retriever := NewWorkingDirectoryRetriever(exec)
@@ -19,8 +28,7 @@ func TestWorkingDirectoryRetriever(t *testing.T) {
 	})
 
 	t.Run("GetContext returns formatted working directory", func(t *testing.T) {
-		exec, err := executor.NewREPLExecutor(nil)
-		require.NoError(t, err)
+		exec := newTestExecutor(t)
 		defer exec.Close()
 
 		retriever := NewWorkingDirectoryRetriever(exec)
@@ -36,8 +44,7 @@ func TestWorkingDirectoryRetriever(t *testing.T) {
 	})
 
 	t.Run("GetContext format is correct", func(t *testing.T) {
-		exec, err := executor.NewREPLExecutor(nil)
-		require.NoError(t, err)
+		exec := newTestExecutor(t)
 		defer exec.Close()
 
 		retriever := NewWorkingDirectoryRetriever(exec)
