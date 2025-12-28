@@ -58,11 +58,15 @@ type Renderer struct {
 }
 
 // NewRenderer creates a new Renderer with the given configuration.
-func NewRenderer(config RenderConfig) *Renderer {
+func NewRenderer(config RenderConfig, h *Highlighter) *Renderer {
+	if h == nil {
+		h = NewHighlighter(nil)
+	}
+
 	return &Renderer{
 		config:      config,
 		width:       80, // default width
-		highlighter: NewHighlighter(),
+		highlighter: h,
 	}
 }
 

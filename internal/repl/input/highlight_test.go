@@ -8,7 +8,7 @@ import (
 )
 
 func TestNewHighlighter(t *testing.T) {
-	h := NewHighlighter()
+	h := NewHighlighter(nil)
 	if h == nil {
 		t.Fatal("NewHighlighter returned nil")
 	}
@@ -24,7 +24,7 @@ func TestNewHighlighter(t *testing.T) {
 }
 
 func TestHighlightEmpty(t *testing.T) {
-	h := NewHighlighter()
+	h := NewHighlighter(nil)
 	result := h.Highlight("")
 	if result != "" {
 		t.Errorf("expected empty string, got %q", result)
@@ -32,7 +32,7 @@ func TestHighlightEmpty(t *testing.T) {
 }
 
 func TestHighlightAgentMode(t *testing.T) {
-	h := NewHighlighter()
+	h := NewHighlighter(nil)
 
 	tests := []struct {
 		name     string
@@ -80,7 +80,7 @@ func TestHighlightAgentMode(t *testing.T) {
 }
 
 func TestHighlightCommandExists(t *testing.T) {
-	h := NewHighlighter()
+	h := NewHighlighter(nil)
 
 	// Test with a command that definitely exists
 	result := h.Highlight("ls")
@@ -92,7 +92,7 @@ func TestHighlightCommandExists(t *testing.T) {
 }
 
 func TestHighlightCommandNotExists(t *testing.T) {
-	h := NewHighlighter()
+	h := NewHighlighter(nil)
 
 	// Test with a command that definitely doesn't exist
 	input := "thiscommanddoesnotexist12345"
@@ -104,8 +104,23 @@ func TestHighlightCommandNotExists(t *testing.T) {
 	}
 }
 
+func TestHighlightAliasCountsAsExistingCommand(t *testing.T) {
+	// Use a command name that should not exist on PATH.
+	aliasName := "thiscommanddoesnotexist12345"
+
+	noAlias := NewHighlighter(nil)
+	if noAlias.commandExists(aliasName) {
+		t.Fatalf("expected %q to not exist without alias lookup", aliasName)
+	}
+
+	withAlias := NewHighlighter(func(name string) bool { return name == aliasName })
+	if !withAlias.commandExists(aliasName) {
+		t.Fatalf("expected %q to exist when alias lookup reports it as an alias", aliasName)
+	}
+}
+
 func TestHighlightStrings(t *testing.T) {
-	h := NewHighlighter()
+	h := NewHighlighter(nil)
 
 	tests := []struct {
 		name  string
@@ -134,7 +149,7 @@ func TestHighlightStrings(t *testing.T) {
 }
 
 func TestHighlightVariables(t *testing.T) {
-	h := NewHighlighter()
+	h := NewHighlighter(nil)
 
 	tests := []struct {
 		name  string
@@ -163,7 +178,7 @@ func TestHighlightVariables(t *testing.T) {
 }
 
 func TestHighlightFlags(t *testing.T) {
-	h := NewHighlighter()
+	h := NewHighlighter(nil)
 
 	tests := []struct {
 		name  string
@@ -196,7 +211,7 @@ func TestHighlightFlags(t *testing.T) {
 }
 
 func TestHighlightOperators(t *testing.T) {
-	h := NewHighlighter()
+	h := NewHighlighter(nil)
 
 	tests := []struct {
 		name  string
@@ -241,7 +256,7 @@ func TestHighlightOperators(t *testing.T) {
 }
 
 func TestHighlightBasicFallback(t *testing.T) {
-	h := NewHighlighter()
+	h := NewHighlighter(nil)
 
 	// Test with incomplete/invalid syntax that triggers basic fallback
 	tests := []struct {
@@ -270,7 +285,7 @@ func TestHighlightBasicFallback(t *testing.T) {
 }
 
 func TestCommandExistsCache(t *testing.T) {
-	h := NewHighlighter()
+	h := NewHighlighter(nil)
 
 	// First call - should check PATH
 	exists1 := h.commandExists("ls")
@@ -293,7 +308,7 @@ func TestCommandExistsCache(t *testing.T) {
 }
 
 func TestHighlightPreservesText(t *testing.T) {
-	h := NewHighlighter()
+	h := NewHighlighter(nil)
 
 	tests := []struct {
 		name  string

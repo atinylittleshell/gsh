@@ -126,7 +126,7 @@ func TestKeyMapActionsForVerticalNavigation(t *testing.T) {
 }
 
 func TestRendererViewContainsPromptAfterCompletionReset(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	renderer.SetWidth(80)
 
 	buffer := NewBuffer()

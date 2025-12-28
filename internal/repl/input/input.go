@@ -87,6 +87,10 @@ type Config struct {
 	// Prompt is the prompt string to display.
 	Prompt string
 
+	// AliasExistsFunc returns true if the given name is currently defined as a shell alias.
+	// If set, the input syntax highlighter will treat aliases as valid commands.
+	AliasExistsFunc func(name string) bool
+
 	// HistoryValues is the list of previous commands for history navigation.
 	// Index 0 is the most recent.
 	HistoryValues []string
@@ -140,7 +144,7 @@ func New(cfg Config) Model {
 		width = 80
 	}
 
-	renderer := NewRenderer(*renderConfig)
+	renderer := NewRenderer(*renderConfig, NewHighlighter(cfg.AliasExistsFunc))
 	renderer.SetWidth(width)
 
 	return Model{

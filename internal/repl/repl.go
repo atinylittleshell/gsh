@@ -330,6 +330,7 @@ func (r *REPL) Run(ctx context.Context) error {
 			HistoryValues:      historyValues,
 			HistorySearchFunc:  r.createHistorySearchFunc(),
 			CompletionProvider: r.completionProvider,
+			AliasExistsFunc:    r.executor.AliasExists,
 			PredictionState:    predictionState,
 			Width:              termWidth,
 			Logger:             r.logger,

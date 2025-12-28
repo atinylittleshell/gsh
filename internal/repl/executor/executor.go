@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -204,6 +205,26 @@ func (e *REPLExecutor) Close() error {
 // This is useful for advanced use cases that need direct access.
 func (e *REPLExecutor) Runner() *interp.Runner {
 	return e.runner
+}
+
+// AliasExists returns true if the given name is currently defined as a shell alias
+// in the underlying mvdan/sh runner.
+//
+// Note: mvdan/sh keeps aliases in an unexported field, so we use reflection.
+func (e *REPLExecutor) AliasExists(name string) bool {
+	if e.runner == nil {
+		return false
+	}
+
+	runnerValue := reflect.ValueOf(e.runner).Elem()
+	aliasField := runnerValue.FieldByName("alias")
+	if !aliasField.IsValid() || aliasField.IsNil() {
+		return false
+	}
+
+	// aliasField is a map[string]interp.alias; we only care about keys.
+	key := reflect.ValueOf(name)
+	return aliasField.MapIndex(key).IsValid()
 }
 
 // Interpreter returns the underlying gsh interpreter.

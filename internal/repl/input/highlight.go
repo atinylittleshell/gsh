@@ -46,7 +46,11 @@ type StyledSpan struct {
 type Highlighter struct {
 	parser *syntax.Parser
 
-	// Command existence cache
+	// aliasExists, if set, is consulted before checking PATH.
+	// This is used to treat shell aliases (e.g. from ~/.gshrc) as valid commands.
+	aliasExists func(name string) bool
+
+	// Command existence cache (for PATH lookups)
 	cmdCacheMu sync.RWMutex
 	cmdCache   map[string]bool
 
@@ -55,18 +59,22 @@ type Highlighter struct {
 }
 
 // NewHighlighter creates a new syntax highlighter.
-func NewHighlighter() *Highlighter {
+//
+// If aliasExists is non-nil, any name for which it returns true is treated as an
+// existing command (useful for shell aliases loaded at runtime).
+func NewHighlighter(aliasExists func(name string) bool) *Highlighter {
 	h := &Highlighter{
-		parser:   syntax.NewParser(),
-		cmdCache: make(map[string]bool),
-		styles:   make(map[TokenType]lipgloss.Style),
+		parser:      syntax.NewParser(),
+		aliasExists: aliasExists,
+		cmdCache:    make(map[string]bool),
+		styles:      make(map[TokenType]lipgloss.Style),
 	}
 
 	// Initialize styles
 	h.styles[TokenDefault] = lipgloss.NewStyle()
 	h.styles[TokenCommandOK] = lipgloss.NewStyle().Foreground(render.ColorGreen)
 	h.styles[TokenCommandErr] = lipgloss.NewStyle().Foreground(render.ColorRed)
-	h.styles[TokenString] = lipgloss.NewStyle().Foreground(render.ColorGreen)
+	h.styles[TokenString] = lipgloss.NewStyle().Foreground(render.ColorMagenta)
 	h.styles[TokenVariableOK] = lipgloss.NewStyle().Foreground(render.ColorGreen)
 	h.styles[TokenVariableErr] = lipgloss.NewStyle().Foreground(render.ColorRed)
 	h.styles[TokenOperator] = lipgloss.NewStyle().Foreground(render.ColorYellow)
@@ -78,10 +86,16 @@ func NewHighlighter() *Highlighter {
 	return h
 }
 
-// commandExists checks if a command exists in PATH or is a built-in (with caching).
+// commandExists checks if a command exists in PATH, is an alias, or is a built-in.
+// PATH lookups are cached; alias lookups are not.
 func (h *Highlighter) commandExists(cmd string) bool {
 	// Check built-ins first (no caching needed, it's a map lookup)
 	if builtinCommands[cmd] {
+		return true
+	}
+
+	// Treat aliases as valid commands (aliases can change at runtime).
+	if h.aliasExists != nil && h.aliasExists(cmd) {
 		return true
 	}
 

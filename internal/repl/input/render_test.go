@@ -32,7 +32,7 @@ func TestDefaultRenderConfig(t *testing.T) {
 
 func TestNewRenderer(t *testing.T) {
 	config := DefaultRenderConfig()
-	renderer := NewRenderer(config)
+	renderer := NewRenderer(config, nil)
 
 	if renderer == nil {
 		t.Fatal("NewRenderer returned nil")
@@ -44,7 +44,7 @@ func TestNewRenderer(t *testing.T) {
 }
 
 func TestRendererSetWidth(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 
 	renderer.SetWidth(120)
 	if renderer.Width() != 120 {
@@ -64,7 +64,7 @@ func TestRendererSetWidth(t *testing.T) {
 }
 
 func TestRenderInputLineBasic(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	buffer := NewBuffer()
 
 	// Empty buffer
@@ -82,7 +82,7 @@ func TestRenderInputLineBasic(t *testing.T) {
 }
 
 func TestRenderInputLineWithCursor(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	buffer := NewBufferWithText("hello")
 
 	// Cursor at end
@@ -101,7 +101,7 @@ func TestRenderInputLineWithCursor(t *testing.T) {
 }
 
 func TestRenderInputLineWithPrediction(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	buffer := NewBufferWithText("hel")
 
 	// Prediction that extends input
@@ -117,7 +117,7 @@ func TestRenderInputLineWithPrediction(t *testing.T) {
 }
 
 func TestRenderInputLineNonMatchingPrediction(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	buffer := NewBufferWithText("hello")
 
 	// Prediction that doesn't match (doesn't start with input)
@@ -132,7 +132,7 @@ func TestRenderInputLineNonMatchingPrediction(t *testing.T) {
 }
 
 func TestRenderInputLineUnfocused(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	buffer := NewBufferWithText("hello")
 
 	// Unfocused should still render text
@@ -143,7 +143,7 @@ func TestRenderInputLineUnfocused(t *testing.T) {
 }
 
 func TestRenderCompletionBoxEmpty(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	cs := NewCompletionState()
 
 	// Inactive completion state
@@ -154,7 +154,7 @@ func TestRenderCompletionBoxEmpty(t *testing.T) {
 }
 
 func TestRenderCompletionBoxSingleItem(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	cs := NewCompletionState()
 
 	// Single suggestion - IsVisible returns false for single item
@@ -167,7 +167,7 @@ func TestRenderCompletionBoxSingleItem(t *testing.T) {
 }
 
 func TestRenderCompletionBoxMultipleItems(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	renderer.SetWidth(80)
 	cs := NewCompletionState()
 
@@ -193,7 +193,7 @@ func TestRenderCompletionBoxMultipleItems(t *testing.T) {
 }
 
 func TestRenderCompletionBoxWithScrolling(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	renderer.SetWidth(80)
 	cs := NewCompletionState()
 
@@ -219,7 +219,7 @@ func TestRenderCompletionBoxWithScrolling(t *testing.T) {
 }
 
 func TestRenderInfoPanel(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	renderer.SetWidth(80)
 
 	// Nil content
@@ -244,7 +244,7 @@ func TestRenderInfoPanel(t *testing.T) {
 }
 
 func TestRenderHelpBox(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	renderer.SetWidth(80)
 
 	// Empty text
@@ -261,7 +261,7 @@ func TestRenderHelpBox(t *testing.T) {
 }
 
 func TestRenderFullView(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	renderer.SetWidth(80)
 	buffer := NewBufferWithText("hel")
 
@@ -295,7 +295,7 @@ func TestRenderFullView(t *testing.T) {
 }
 
 func TestRenderFullViewMinHeight(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	buffer := NewBuffer()
 
 	// With minimum height
@@ -581,7 +581,7 @@ func TestMaxInt(t *testing.T) {
 }
 
 func TestRendererConfigGetSet(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 
 	// Get config
 	config := renderer.Config()
@@ -602,7 +602,7 @@ func TestRendererConfigGetSet(t *testing.T) {
 }
 
 func TestRenderInputLineUnicodeCharacters(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	buffer := NewBufferWithText("こんにちは")
 
 	result := renderer.RenderInputLine("$ ", buffer, "", true)
@@ -612,7 +612,7 @@ func TestRenderInputLineUnicodeCharacters(t *testing.T) {
 }
 
 func TestRenderInputLineEmoji(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	buffer := NewBufferWithText("hello 🌍")
 
 	result := renderer.RenderInputLine("$ ", buffer, "", true)
@@ -638,7 +638,7 @@ func TestCalculateCursorPositionWithUnicode(t *testing.T) {
 }
 
 func TestRenderInputLineWrapping(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	renderer.SetWidth(20) // Set narrow width to force wrapping
 
 	// Create a buffer with text that exceeds the width
@@ -659,7 +659,7 @@ func TestRenderInputLineWrapping(t *testing.T) {
 }
 
 func TestRenderInputLineNoWrappingWhenFits(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	renderer.SetWidth(80) // Wide enough to fit
 
 	buffer := NewBufferWithText("hello")
@@ -674,7 +674,7 @@ func TestRenderInputLineNoWrappingWhenFits(t *testing.T) {
 }
 
 func TestRenderInputLineWrappingWithPrediction(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	renderer.SetWidth(20) // Narrow width
 
 	buffer := NewBufferWithText("hel")
@@ -690,7 +690,7 @@ func TestRenderInputLineWrappingWithPrediction(t *testing.T) {
 }
 
 func TestRenderInputLineWrappingWithUnicode(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	renderer.SetWidth(15) // Narrow width
 
 	// Japanese characters are 2 cells wide each
@@ -713,7 +713,7 @@ func TestRenderInputLineWrappingWithUnicode(t *testing.T) {
 }
 
 func TestRenderInputLineWrappingCursorInMiddle(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	renderer.SetWidth(20)
 
 	buffer := NewBufferWithText("abcdefghijklmnopqrstuvwxyz")
@@ -733,7 +733,7 @@ func TestRenderInputLineWrappingCursorInMiddle(t *testing.T) {
 }
 
 func TestRenderInputLineSyntaxHighlightingPreservedAfterCursor(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	renderer.SetWidth(80)
 
 	// Test with a command - cursor in middle shouldn't break the text
@@ -760,7 +760,7 @@ func TestRenderInputLineSyntaxHighlightingPreservedAfterCursor(t *testing.T) {
 }
 
 func TestRenderInputLineWrappingPreservesSyntaxHighlightingAcrossLines(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	renderer.SetWidth(40) // Narrow width to force wrapping
 
 	// A long command with a quoted string that will wrap
@@ -805,7 +805,7 @@ func TestRenderInputLineWrappingPreservesSyntaxHighlightingAcrossLines(t *testin
 }
 
 func TestRenderInputLineExactWidth(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	renderer.SetWidth(10) // "$ " + 8 chars = 10, exactly fits
 
 	buffer := NewBufferWithText("12345678")
@@ -822,7 +822,7 @@ func TestRenderInputLineExactWidth(t *testing.T) {
 }
 
 func TestRenderInputLineMultiLinePrompt(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	renderer.SetWidth(30) // Narrow width
 
 	// Multi-line prompt like "[dev] gsh v1*!+ ↑\n› # "
@@ -850,7 +850,7 @@ func TestRenderInputLineMultiLinePrompt(t *testing.T) {
 }
 
 func TestRenderInputLineMultiLinePromptWidthCalculation(t *testing.T) {
-	renderer := NewRenderer(DefaultRenderConfig())
+	renderer := NewRenderer(DefaultRenderConfig(), nil)
 	renderer.SetWidth(20)
 
 	// Prompt with newline - last line is "$ " (2 chars)
