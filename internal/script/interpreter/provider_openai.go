@@ -56,24 +56,25 @@ func extractStringContent(content interface{}) string {
 // convertMessageContent converts a ChatMessage's content to the appropriate format.
 // If ContentParts is set, it returns an array of openAIContentPart for multipart/cache control.
 // Otherwise, it returns the plain string content.
-func convertMessageContent(msg ChatMessage) interface{} {
+func convertMessageContent(msg ChatMessage) []openAIContentPart {
 	if len(msg.ContentParts) > 0 {
 		parts := make([]openAIContentPart, len(msg.ContentParts))
 		for i, part := range msg.ContentParts {
 			parts[i] = openAIContentPart{
 				Type: part.Type,
 				Text: part.Text,
-			}
-			if part.CacheControl != nil {
-				parts[i].CacheControl = &openAICacheControl{
-					Type: part.CacheControl.Type,
-					TTL:  part.CacheControl.TTL,
-				}
+				// deliberately omit CacheControl because we set it later
 			}
 		}
 		return parts
+	} else {
+		parts := make([]openAIContentPart, 1)
+		parts[0] = openAIContentPart{
+			Type: "text",
+			Text: msg.Content,
+		}
+		return parts
 	}
-	return msg.Content
 }
 
 // ChatCompletion sends a chat completion request to OpenAI
@@ -118,6 +119,7 @@ func (p *OpenAIProvider) ChatCompletion(request ChatRequest) (*ChatResponse, err
 	// Build OpenAI-specific request
 	openaiReq := openAIChatCompletionRequest{
 		Model:    modelID,
+		Usage:    &openAIUsageInclude{Include: true},
 		Messages: make([]openAIMessage, len(request.Messages)),
 	}
 
@@ -150,6 +152,14 @@ func (p *OpenAIProvider) ChatCompletion(request ChatRequest) (*ChatResponse, err
 						Arguments: string(argsJSON),
 					},
 				}
+			}
+		}
+		// Set cache control on the last content part if this is the last message
+		contentParts := openaiReq.Messages[i].Content.([]openAIContentPart)
+		if i == len(request.Messages)-1 && len(contentParts) > 0 {
+			contentParts[len(contentParts)-1].CacheControl = &openAICacheControl{
+				Type: "ephemeral",
+				TTL:  "5m",
 			}
 		}
 	}
@@ -321,6 +331,7 @@ func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callbacks 
 		StreamOptions: &openAIStreamOptions{
 			IncludeUsage: true,
 		},
+		Usage: &openAIUsageInclude{Include: true},
 	}
 
 	// Convert messages
@@ -352,6 +363,14 @@ func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callbacks 
 						Arguments: string(argsJSON),
 					},
 				}
+			}
+		}
+		// Set cache control on the last content part if this is the last message
+		contentParts := openaiReq.Messages[i].Content.([]openAIContentPart)
+		if i == len(request.Messages)-1 && len(contentParts) > 0 {
+			contentParts[len(contentParts)-1].CacheControl = &openAICacheControl{
+				Type: "ephemeral",
+				TTL:  "5m",
 			}
 		}
 	}
@@ -560,6 +579,7 @@ type openAIStreamingChatCompletionRequest struct {
 	Messages      []openAIMessage      `json:"messages"`
 	Stream        bool                 `json:"stream"`
 	StreamOptions *openAIStreamOptions `json:"stream_options,omitempty"`
+	Usage         *openAIUsageInclude  `json:"usage,omitempty"`
 	Temperature   *float64             `json:"temperature,omitempty"`
 	MaxTokens     *int                 `json:"max_tokens,omitempty"`
 	TopP          *float64             `json:"top_p,omitempty"`
@@ -568,6 +588,10 @@ type openAIStreamingChatCompletionRequest struct {
 
 type openAIStreamOptions struct {
 	IncludeUsage bool `json:"include_usage"`
+}
+
+type openAIUsageInclude struct {
+	Include bool `json:"include"`
 }
 
 type openAIStreamingChunk struct {
@@ -599,12 +623,13 @@ type openAIStreamDeltaToolCall struct {
 }
 
 type openAIChatCompletionRequest struct {
-	Model       string          `json:"model"`
-	Messages    []openAIMessage `json:"messages"`
-	Temperature *float64        `json:"temperature,omitempty"`
-	MaxTokens   *int            `json:"max_tokens,omitempty"`
-	TopP        *float64        `json:"top_p,omitempty"`
-	Tools       []openAITool    `json:"tools,omitempty"`
+	Model       string              `json:"model"`
+	Messages    []openAIMessage     `json:"messages"`
+	Usage       *openAIUsageInclude `json:"usage,omitempty"`
+	Temperature *float64            `json:"temperature,omitempty"`
+	MaxTokens   *int                `json:"max_tokens,omitempty"`
+	TopP        *float64            `json:"top_p,omitempty"`
+	Tools       []openAITool        `json:"tools,omitempty"`
 }
 
 // openAIMessage represents a message in the OpenAI API format.
@@ -623,6 +648,31 @@ type openAIContentPart struct {
 	Type         string              `json:"type"`                    // "text", "image_url"
 	Text         string              `json:"text,omitempty"`          // For "text" type
 	CacheControl *openAICacheControl `json:"cache_control,omitempty"` // For prompt caching
+}
+
+// MarshalJSON ensures that when Type == "text" we always include a "text" field
+// even if the string is empty.
+//
+// Why: Ollama's OpenAI-compatible endpoint rejects content parts like {"type":"text"}
+// (no text field) with "invalid message format".
+func (p openAIContentPart) MarshalJSON() ([]byte, error) {
+	m := map[string]interface{}{
+		"type": p.Type,
+	}
+
+	// Always include "text" for text parts (even if empty string).
+	if p.Type == "text" {
+		m["text"] = p.Text
+	} else if p.Text != "" {
+		// Only include non-empty text for non-text parts.
+		m["text"] = p.Text
+	}
+
+	if p.CacheControl != nil {
+		m["cache_control"] = p.CacheControl
+	}
+
+	return json.Marshal(m)
 }
 
 // openAICacheControl specifies caching behavior for a content part.

@@ -590,7 +590,6 @@ func (r *REPL) handleBuiltinCommand(command string) (bool, error) {
 	switch command {
 	case "exit":
 		// Signal exit by returning ErrExit
-		fmt.Println("Bye!")
 		return true, ErrExit
 
 	default:

@@ -48,16 +48,16 @@ func TestE2E_ModelDeclarationWithOllamaEndpoint(t *testing.T) {
 	skipIfOllamaNotAvailable(t)
 
 	script := `
-model gpt {
+model testModel {
     provider: "openai",
     apiKey: "ollama",
     baseURL: "http://localhost:11434/v1",
-    model: "gpt-oss:20b",
+		model: "devstral-small-2:latest",
     temperature: 0.5
 }
 
 agent Assistant {
-    model: gpt,
+    model: testModel,
     systemPrompt: "You are a helpful assistant"
 }
 `
@@ -68,9 +68,9 @@ agent Assistant {
 	}
 
 	// Verify model was created with correct config
-	modelVal, ok := result.Env.Get("gpt")
+	modelVal, ok := result.Env.Get("testModel")
 	if !ok {
-		t.Fatal("Model 'gpt' not found in environment")
+		t.Fatal("Model 'testModel' not found in environment")
 	}
 
 	model, ok := modelVal.(*ModelValue)
@@ -91,8 +91,8 @@ agent Assistant {
 		t.Errorf("Expected baseURL 'http://localhost:11434/v1'")
 	}
 
-	if modelName, ok := model.Config["model"].(*StringValue); !ok || modelName.Value != "gpt-oss:20b" {
-		t.Errorf("Expected model 'gpt-oss:20b'")
+	if modelName, ok := model.Config["model"].(*StringValue); !ok || modelName.Value != "devstral-small-2:latest" {
+		t.Errorf("Expected model 'devstral-small-2:latest'")
 	}
 
 	if temp, ok := model.Config["temperature"].(*NumberValue); !ok || temp.Value != 0.5 {
@@ -115,8 +115,8 @@ agent Assistant {
 		t.Fatal("Agent model not found or wrong type")
 	}
 
-	if agentModel.Name != "gpt" {
-		t.Errorf("Expected agent model name 'gpt', got %q", agentModel.Name)
+	if agentModel.Name != "testModel" {
+		t.Errorf("Expected agent model name 'testModel', got %q", agentModel.Name)
 	}
 }
 
@@ -125,16 +125,16 @@ func TestE2E_BasicPipePromptToAgent(t *testing.T) {
 	skipIfOllamaNotAvailable(t)
 
 	script := `
-model gpt {
+model testModel {
     provider: "openai",
     apiKey: "ollama",
     baseURL: "http://localhost:11434/v1",
-    model: "gpt-oss:20b",
+    model: "devstral-small-2:latest",
     temperature: 0.3
 }
 
 agent MathHelper {
-    model: gpt,
+    model: testModel,
     systemPrompt: "You are a helpful math assistant. Answer math questions concisely."
 }
 
@@ -188,16 +188,16 @@ func TestE2E_MultiTurnConversation(t *testing.T) {
 	skipIfOllamaNotAvailable(t)
 
 	script := `
-model gpt {
+model testModel {
     provider: "openai",
     apiKey: "ollama",
     baseURL: "http://localhost:11434/v1",
-    model: "gpt-oss:20b",
+    model: "devstral-small-2:latest",
     temperature: 0.3
 }
 
 agent MathHelper {
-    model: gpt,
+    model: testModel,
     systemPrompt: "You are a helpful math assistant. Answer math questions concisely with just the number."
 }
 
@@ -264,21 +264,21 @@ func TestE2E_AgentHandoff(t *testing.T) {
 	skipIfOllamaNotAvailable(t)
 
 	script := `
-model gpt {
+model testModel {
     provider: "openai",
     apiKey: "ollama",
     baseURL: "http://localhost:11434/v1",
-    model: "gpt-oss:20b",
+    model: "devstral-small-2:latest",
     temperature: 0.3
 }
 
 agent Mathematician {
-    model: gpt,
+    model: testModel,
     systemPrompt: "You are a mathematician. Solve math problems and explain your reasoning briefly."
 }
 
 agent Simplifier {
-    model: gpt,
+    model: testModel,
     systemPrompt: "You simplify explanations. Rewrite explanations in very simple terms."
 }
 
@@ -352,22 +352,22 @@ tool greet(name: string): string {
     return "Hello, " + name + "! Welcome to gsh."
 }
 
-model gpt {
+model testModel {
     provider: "openai",
     apiKey: "ollama",
     baseURL: "http://localhost:11434/v1",
-    model: "gpt-oss:20b",
+    model: "devstral-small-2:latest",
     temperature: 0.3
 }
 
 agent MathHelper {
-    model: gpt,
+    model: testModel,
     systemPrompt: "You are a math helper. Use the multiply tool when users ask for multiplication.",
     tools: [multiply]
 }
 
 agent Greeter {
-    model: gpt,
+    model: testModel,
     systemPrompt: "You are a friendly greeter. Use the greet tool to greet people by name.",
     tools: [greet]
 }

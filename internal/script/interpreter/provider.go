@@ -58,9 +58,8 @@ type ChatMessage struct {
 // ContentPart represents a part of a multipart message content.
 // Used for prompt caching with OpenRouter/Anthropic and vision content with OpenAI.
 type ContentPart struct {
-	Type         string        // "text", "image_url"
-	Text         string        // For "text" type
-	CacheControl *CacheControl // Optional cache control for prompt caching
+	Type string // "text", "image_url"
+	Text string // For "text" type
 }
 
 // CacheControl specifies caching behavior for a content part.

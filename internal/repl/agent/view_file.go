@@ -160,8 +160,11 @@ func truncateFromMiddle(lines []string, maxLen int) string {
 // ViewFileToolDefinition returns the tool definition for the view_file tool.
 func ViewFileToolDefinition() interpreter.ChatTool {
 	return interpreter.ChatTool{
-		Name:        "view_file",
-		Description: "View the contents of a file with line numbers. Each line is prefixed with a 5-digit 1-indexed line number (e.g., '    1:content'). Use start_line and end_line to view a specific range.",
+		Name: "view_file",
+		Description: "View the contents of a file with line numbers. " +
+			"Each line is prefixed with a 5-digit 1-indexed line number (e.g., '    1:content'). " +
+			"Prefer reading the whole file without specifying start_line and end-line, " +
+			"until you saw the file's too big and got truncated.",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{

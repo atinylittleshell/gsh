@@ -1052,11 +1052,9 @@ func TestHandleAgentCommand_ConversationHistory(t *testing.T) {
 	// Verify first request had system prompt + user message
 	assert.Equal(t, 2, len(lastRequestMessages)) // system + user
 	assert.Equal(t, "system", lastRequestMessages[0].Role)
-	// System prompt uses ContentParts for cache control
-	assert.Equal(t, "You are helpful", lastRequestMessages[0].ContentParts[0].Text)
+	assert.Equal(t, "You are helpful", lastRequestMessages[0].Content)
 	assert.Equal(t, "user", lastRequestMessages[1].Role)
-	// User message uses ContentParts for cache control
-	assert.Equal(t, "first message", lastRequestMessages[1].ContentParts[0].Text)
+	assert.Equal(t, "first message", lastRequestMessages[1].Content)
 
 	// Second message
 	err = repl.handleAgentCommand(ctx, "second message")
@@ -1071,8 +1069,7 @@ func TestHandleAgentCommand_ConversationHistory(t *testing.T) {
 	assert.Equal(t, "assistant", lastRequestMessages[2].Role)
 	assert.Equal(t, "Response", lastRequestMessages[2].Content)
 	assert.Equal(t, "user", lastRequestMessages[3].Role)
-	// Last user message uses ContentParts for cache control
-	assert.Equal(t, "second message", lastRequestMessages[3].ContentParts[0].Text)
+	assert.Equal(t, "second message", lastRequestMessages[3].Content)
 }
 
 func TestHandleAgentCommand_ProviderError(t *testing.T) {
@@ -1159,6 +1156,5 @@ func TestHandleAgentCommand_NoSystemPrompt(t *testing.T) {
 	// Should not include system message
 	assert.Equal(t, 1, len(lastRequestMessages))
 	assert.Equal(t, "user", lastRequestMessages[0].Role)
-	// User message uses ContentParts for cache control
-	assert.Equal(t, "hello", lastRequestMessages[0].ContentParts[0].Text)
+	assert.Equal(t, "hello", lastRequestMessages[0].Content)
 }
