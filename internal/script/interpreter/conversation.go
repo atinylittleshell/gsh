@@ -649,15 +649,6 @@ func (i *Interpreter) valueArrayToInterface(values []Value) []interface{} {
 	return result
 }
 
-// valueMapToInterface converts map[string]Value to map[string]interface{}
-func (i *Interpreter) valueMapToInterface(values map[string]Value) map[string]interface{} {
-	result := make(map[string]interface{})
-	for key, val := range values {
-		result[key] = i.valueToInterface(val)
-	}
-	return result
-}
-
 // valueToInterface converts a Value to interface{}
 func (i *Interpreter) valueToInterface(val Value) interface{} {
 	switch v := val.(type) {
