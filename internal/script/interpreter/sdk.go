@@ -91,6 +91,27 @@ type SDKConfig struct {
 	logFile          string // read-only, set at initialization
 	starshipEnabled  bool
 	lastAgentRequest Value
+	// REPL context (nil in script mode)
+	replContext *REPLContext
+}
+
+// REPLContext holds REPL-specific state that's available in gsh.repl
+type REPLContext struct {
+	Models      *REPLModels
+	LastCommand *REPLLastCommand
+}
+
+// REPLModels holds the model tier definitions
+type REPLModels struct {
+	Lite      *ModelValue
+	Workhorse *ModelValue
+	Premium   *ModelValue
+}
+
+// REPLLastCommand holds information about the last executed command
+type REPLLastCommand struct {
+	ExitCode   int
+	DurationMs int64
 }
 
 // NewSDKConfig creates a new SDK configuration
@@ -196,4 +217,28 @@ func (sc *SDKConfig) SetLastAgentRequest(value Value) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	sc.lastAgentRequest = value
+}
+
+// SetREPLContext sets the REPL context (called from REPL initialization)
+func (sc *SDKConfig) SetREPLContext(ctx *REPLContext) {
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
+	sc.replContext = ctx
+}
+
+// GetREPLContext returns the REPL context (nil in script mode)
+func (sc *SDKConfig) GetREPLContext() *REPLContext {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+	return sc.replContext
+}
+
+// UpdateLastCommand updates the last command's exit code and duration
+func (sc *SDKConfig) UpdateLastCommand(exitCode int, durationMs int64) {
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
+	if sc.replContext != nil && sc.replContext.LastCommand != nil {
+		sc.replContext.LastCommand.ExitCode = exitCode
+		sc.replContext.LastCommand.DurationMs = durationMs
+	}
 }

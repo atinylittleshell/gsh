@@ -270,6 +270,16 @@ func (i *Interpreter) GetVariables() map[string]Value {
 	return vars
 }
 
+// GetEventHandlers returns all registered handlers for a given event name
+func (i *Interpreter) GetEventHandlers(eventName string) []*ToolValue {
+	return i.eventManager.GetHandlers(eventName)
+}
+
+// SDKConfig returns the SDK configuration
+func (i *Interpreter) SDKConfig() *SDKConfig {
+	return i.sdkConfig
+}
+
 // Eval evaluates a program and returns the result
 func (i *Interpreter) Eval(program *parser.Program) (*EvalResult, error) {
 	var finalResult Value = &NullValue{}

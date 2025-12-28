@@ -37,6 +37,20 @@ func (i *Interpreter) registerGshSDK() {
 		Get: func() Value { return i.sdkConfig.GetLastAgentRequest() },
 	}
 
+	// Create gsh.repl object (null in script mode, set when running in REPL)
+	replObj := &DynamicValue{
+		Get: func() Value {
+			replCtx := i.sdkConfig.GetREPLContext()
+			if replCtx == nil {
+				return &NullValue{}
+			}
+			// Return the gsh.repl object with models and lastCommand
+			return &REPLObjectValue{
+				context: replCtx,
+			}
+		},
+	}
+
 	// Create gsh object
 	gshObj := &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
@@ -45,6 +59,7 @@ func (i *Interpreter) registerGshSDK() {
 			"logging":          {Value: loggingObj},
 			"integrations":     {Value: integrationsObj},
 			"lastAgentRequest": {Value: lastAgentRequestObj, ReadOnly: true},
+			"repl":             {Value: replObj, ReadOnly: true},
 			"on": {Value: &BuiltinValue{
 				Name: "gsh.on",
 				Fn:   i.builtinGshOn,
@@ -173,4 +188,123 @@ func (d *DynamicValue) Equals(other Value) bool {
 		return d.Get().Equals(other)
 	}
 	return false
+}
+func (d *DynamicValue) GetProperty(name string) Value {
+	if d.Get != nil {
+		innerVal := d.Get()
+		if obj, ok := innerVal.(interface{ GetProperty(string) Value }); ok {
+			return obj.GetProperty(name)
+		}
+	}
+	return &NullValue{}
+}
+func (d *DynamicValue) SetProperty(name string, value Value) error {
+	if d.Set != nil {
+		return d.Set(value)
+	}
+	return fmt.Errorf("cannot set property on dynamic value")
+}
+
+// REPLObjectValue represents the gsh.repl object with models and lastCommand properties
+type REPLObjectValue struct {
+	context *REPLContext
+}
+
+func (r *REPLObjectValue) Type() ValueType { return ValueTypeObject }
+func (r *REPLObjectValue) String() string  { return "<gsh.repl>" }
+func (r *REPLObjectValue) IsTruthy() bool  { return true }
+func (r *REPLObjectValue) Equals(other Value) bool {
+	_, ok := other.(*REPLObjectValue)
+	return ok
+}
+
+func (r *REPLObjectValue) GetProperty(name string) Value {
+	if r.context == nil {
+		return &NullValue{}
+	}
+	switch name {
+	case "models":
+		return &REPLModelsObjectValue{models: r.context.Models}
+	case "lastCommand":
+		return &REPLLastCommandObjectValue{lastCommand: r.context.LastCommand}
+	default:
+		return &NullValue{}
+	}
+}
+
+func (r *REPLObjectValue) SetProperty(name string, value Value) error {
+	return fmt.Errorf("cannot set property '%s' on gsh.repl", name)
+}
+
+// REPLModelsObjectValue represents the gsh.repl.models object
+type REPLModelsObjectValue struct {
+	models *REPLModels
+}
+
+func (m *REPLModelsObjectValue) Type() ValueType { return ValueTypeObject }
+func (m *REPLModelsObjectValue) String() string  { return "<gsh.repl.models>" }
+func (m *REPLModelsObjectValue) IsTruthy() bool  { return true }
+func (m *REPLModelsObjectValue) Equals(other Value) bool {
+	_, ok := other.(*REPLModelsObjectValue)
+	return ok
+}
+
+func (m *REPLModelsObjectValue) GetProperty(name string) Value {
+	if m.models == nil {
+		return &NullValue{}
+	}
+	switch name {
+	case "lite":
+		if m.models.Lite == nil {
+			return &NullValue{}
+		}
+		return m.models.Lite
+	case "workhorse":
+		if m.models.Workhorse == nil {
+			return &NullValue{}
+		}
+		return m.models.Workhorse
+	case "premium":
+		if m.models.Premium == nil {
+			return &NullValue{}
+		}
+		return m.models.Premium
+	default:
+		return &NullValue{}
+	}
+}
+
+func (m *REPLModelsObjectValue) SetProperty(name string, value Value) error {
+	return fmt.Errorf("cannot set property '%s' on gsh.repl.models", name)
+}
+
+// REPLLastCommandObjectValue represents the gsh.repl.lastCommand object
+type REPLLastCommandObjectValue struct {
+	lastCommand *REPLLastCommand
+}
+
+func (c *REPLLastCommandObjectValue) Type() ValueType { return ValueTypeObject }
+func (c *REPLLastCommandObjectValue) String() string  { return "<gsh.repl.lastCommand>" }
+func (c *REPLLastCommandObjectValue) IsTruthy() bool  { return true }
+func (c *REPLLastCommandObjectValue) Equals(other Value) bool {
+	_, ok := other.(*REPLLastCommandObjectValue)
+	return ok
+}
+
+func (c *REPLLastCommandObjectValue) GetProperty(name string) Value {
+	if c.lastCommand == nil {
+		return &NullValue{}
+	}
+	switch name {
+	case "exitCode":
+		return &NumberValue{Value: float64(c.lastCommand.ExitCode)}
+	case "durationMs":
+		return &NumberValue{Value: float64(c.lastCommand.DurationMs)}
+	default:
+		return &NullValue{}
+	}
+}
+
+func (c *REPLLastCommandObjectValue) SetProperty(name string, value Value) error {
+	return fmt.Errorf("cannot set property '%s' on gsh.repl.lastCommand", name)
 }

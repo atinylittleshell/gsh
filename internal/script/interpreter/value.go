@@ -466,6 +466,21 @@ func (m *ModelValue) Equals(other Value) bool {
 	return false
 }
 
+// GetProperty returns a property of the model
+func (m *ModelValue) GetProperty(name string) Value {
+	switch name {
+	case "name":
+		return &StringValue{Value: m.Name}
+	default:
+		return &NullValue{}
+	}
+}
+
+// SetProperty sets a property of the model (read-only, so always errors)
+func (m *ModelValue) SetProperty(name string, value Value) error {
+	return fmt.Errorf("cannot set property '%s' on model", name)
+}
+
 // ChatCompletion performs a chat completion using this model's provider.
 // This is a convenience method that delegates to the model's provider.
 func (m *ModelValue) ChatCompletion(request ChatRequest) (*ChatResponse, error) {

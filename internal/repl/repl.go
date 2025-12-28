@@ -283,6 +283,30 @@ func NewREPL(opts Options) (*REPL, error) {
 	// Set the REPL as the agent provider for completions
 	completionProvider.SetAgentProvider(repl)
 
+	// Initialize REPL context with model tiers for gsh.repl access
+	// These are the standard model tiers available in the REPL
+	replCtx := &interpreter.REPLContext{
+		Models: &interpreter.REPLModels{
+			Lite: &interpreter.ModelValue{
+				Name:   "lite",
+				Config: map[string]interpreter.Value{},
+			},
+			Workhorse: &interpreter.ModelValue{
+				Name:   "workhorse",
+				Config: map[string]interpreter.Value{},
+			},
+			Premium: &interpreter.ModelValue{
+				Name:   "premium",
+				Config: map[string]interpreter.Value{},
+			},
+		},
+		LastCommand: &interpreter.REPLLastCommand{
+			ExitCode:   0,
+			DurationMs: 0,
+		},
+	}
+	interp.SDKConfig().SetREPLContext(replCtx)
+
 	return repl, nil
 }
 
@@ -294,6 +318,9 @@ func (r *REPL) Run(ctx context.Context) error {
 	if r.config.ShowWelcomeEnabled() {
 		r.showWelcomeScreen()
 	}
+
+	// Emit repl.ready event
+	r.emitREPLEvent("repl.ready")
 
 	// Create prediction state if history or LLM predictor is available
 	// History-based prediction doesn't require an LLM model
@@ -322,12 +349,16 @@ func (r *REPL) Run(ctx context.Context) error {
 		// Check context cancellation
 		select {
 		case <-ctx.Done():
+			r.emitREPLEvent("repl.exit")
 			return ctx.Err()
 		default:
 		}
 
 		// Get prompt
 		prompt := r.getPrompt()
+
+		// Emit repl.prompt event
+		r.emitREPLEvent("repl.prompt")
 
 		// Get history values for navigation
 		historyValues := r.getHistoryValues()
@@ -399,6 +430,7 @@ func (r *REPL) Run(ctx context.Context) error {
 			if err := r.processCommand(ctx, result.Value); err != nil {
 				// Check if user requested exit
 				if err == ErrExit {
+					r.emitREPLEvent("repl.exit")
 					return nil
 				}
 				// Log other errors but continue
@@ -428,6 +460,9 @@ func (r *REPL) processCommand(ctx context.Context, command string) error {
 		return err // Will be ErrExit if user wants to exit
 	}
 
+	// Emit repl.command.before event with the command text
+	r.emitREPLEvent("repl.command.before", &interpreter.StringValue{Value: command})
+
 	// Record command in history
 	var historyEntry *history.HistoryEntry
 	if r.history != nil {
@@ -447,6 +482,15 @@ func (r *REPL) processCommand(ctx context.Context, command string) error {
 	// Update last exit code and duration
 	r.lastExitCode = exitCode
 	r.lastDurationMs = duration.Milliseconds()
+
+	// Update the interpreter's REPL context with the last command info
+	r.executor.Interpreter().SDKConfig().UpdateLastCommand(exitCode, r.lastDurationMs)
+
+	// Emit repl.command.after event with command, exit code, and duration
+	r.emitREPLEvent("repl.command.after",
+		&interpreter.StringValue{Value: command},
+		&interpreter.NumberValue{Value: float64(exitCode)},
+		&interpreter.NumberValue{Value: float64(r.lastDurationMs)})
 
 	// Finish history entry
 	if historyEntry != nil {
@@ -768,6 +812,19 @@ func (r *REPL) GetAgentNames() []string {
 // GetAgentCommands returns the list of valid agent commands for completion.
 func (r *REPL) GetAgentCommands() []string {
 	return AgentCommands
+}
+
+// emitREPLEvent emits a REPL event by calling all registered handlers for that event
+func (r *REPL) emitREPLEvent(eventName string, args ...interpreter.Value) {
+	interp := r.executor.Interpreter()
+	handlers := interp.GetEventHandlers(eventName)
+	for _, handler := range handlers {
+		// Call each handler with the provided arguments
+		// Errors are logged but don't stop other handlers
+		if _, err := interp.CallTool(handler, args); err != nil {
+			r.logger.Debug("error in event handler", zap.String("event", eventName), zap.Error(err))
+		}
+	}
 }
 
 // loadBashConfigs loads bash configuration files in the correct order.
