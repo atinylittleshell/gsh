@@ -682,7 +682,7 @@ Since gsh is not yet released, we can implement everything without backward comp
 - Custom agents addable via `gsh.repl.agents.push()`
 - `gsh.repl.currentAgent` read/write
 
-### Phase 5: Agent Lifecycle Events
+### Phase 5 (DONE): Agent Lifecycle Events
 
 **Files to modify:**
 

@@ -886,7 +886,7 @@ func (i *Interpreter) callNativeTool(tool *NativeToolValue, argExprs []parser.Ex
 		if objVal, ok := firstArg.(*ObjectValue); ok {
 			// Convert object properties to map[string]interface{}
 			for key := range objVal.Properties {
-				args[key] = i.valueToInterface(objVal.GetPropertyValue(key))
+				args[key] = ValueToInterface(objVal.GetPropertyValue(key))
 			}
 			result, err := tool.Invoke(args)
 			if err != nil {

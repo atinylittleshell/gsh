@@ -10,6 +10,19 @@ import (
 	"github.com/atinylittleshell/gsh/internal/script/parser"
 )
 
+// Agent lifecycle event names
+const (
+	EventAgentStart          = "agent.start"
+	EventAgentEnd            = "agent.end"
+	EventAgentIterationStart = "agent.iteration.start"
+	EventAgentIterationEnd   = "agent.iteration.end"
+	EventAgentChunk          = "agent.chunk"
+	EventAgentToolStart      = "agent.tool.start"
+	EventAgentToolEnd        = "agent.tool.end"
+	EventAgentExecStart      = "agent.exec.start"
+	EventAgentExecEnd        = "agent.exec.end"
+)
+
 // AgentCallbacks provides hooks for observing and customizing agent execution.
 // All callbacks are optional - nil callbacks are simply not called.
 // This allows the REPL to drive its UI without the interpreter knowing about rendering.
@@ -63,6 +76,17 @@ type AgentCallbacks struct {
 	// Streaming enables streaming responses.
 	// When true, OnChunk will be called for each content chunk.
 	Streaming bool
+
+	// EventEmitter is called to emit SDK events (agent.start, agent.end, etc.).
+	// If set, the interpreter will call this function to emit events.
+	// The function receives the event name and a context object.
+	// Handlers that want to produce output should print directly to stdout.
+	// This allows the REPL to handle event emission through the SDK system.
+	EventEmitter func(eventName string, ctx Value)
+
+	// UserMessage is the original user message that started this agent conversation.
+	// This is used for the agent.start event context.
+	UserMessage string
 }
 
 // evalPipeExpression evaluates a pipe expression
@@ -177,6 +201,198 @@ func (i *Interpreter) executeAgent(conv *ConversationValue, agent *AgentValue) (
 	return i.ExecuteAgentWithCallbacks(context.Background(), conv, agent, nil)
 }
 
+// Helper functions to create event context objects
+
+// createAgentStartContext creates the context object for agent.start event
+// ctx: { message: string }
+func createAgentStartContext(message string) Value {
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"message": {Value: &StringValue{Value: message}},
+		},
+	}
+}
+
+// createAgentEndContext creates the context object for agent.end event
+// ctx: { result: { stopReason, durationMs, totalInputTokens, totalOutputTokens, error } }
+func createAgentEndContext(stopReason string, durationMs int64, inputTokens, outputTokens int, err error) Value {
+	var errorVal Value = &NullValue{}
+	if err != nil {
+		errorVal = &StringValue{Value: err.Error()}
+	}
+
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"result": {Value: &ObjectValue{
+				Properties: map[string]*PropertyDescriptor{
+					"stopReason":        {Value: &StringValue{Value: stopReason}},
+					"durationMs":        {Value: &NumberValue{Value: float64(durationMs)}},
+					"totalInputTokens":  {Value: &NumberValue{Value: float64(inputTokens)}},
+					"totalOutputTokens": {Value: &NumberValue{Value: float64(outputTokens)}},
+					"error":             {Value: errorVal},
+				},
+			}},
+		},
+	}
+}
+
+// createIterationStartContext creates the context object for agent.iteration.start event
+// ctx: { iteration: number }
+func createIterationStartContext(iteration int) Value {
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"iteration": {Value: &NumberValue{Value: float64(iteration + 1)}}, // 1-based for users
+		},
+	}
+}
+
+// createIterationEndContext creates the context object for agent.iteration.end event
+// ctx: { iteration: number, usage: { inputTokens, outputTokens, cachedTokens } }
+func createIterationEndContext(iteration int, inputTokens, outputTokens, cachedTokens int) Value {
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"iteration": {Value: &NumberValue{Value: float64(iteration + 1)}}, // 1-based for users
+			"usage": {Value: &ObjectValue{
+				Properties: map[string]*PropertyDescriptor{
+					"inputTokens":  {Value: &NumberValue{Value: float64(inputTokens)}},
+					"outputTokens": {Value: &NumberValue{Value: float64(outputTokens)}},
+					"cachedTokens": {Value: &NumberValue{Value: float64(cachedTokens)}},
+				},
+			}},
+		},
+	}
+}
+
+// createChunkContext creates the context object for agent.chunk event
+// ctx: { content: string }
+func createChunkContext(content string) Value {
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"content": {Value: &StringValue{Value: content}},
+		},
+	}
+}
+
+// createToolCallContext creates the context object for agent.tool.start/end events
+// ctx: { toolCall: { id, name, args, durationMs?, output?, error? } }
+func createToolCallContext(id, name string, args map[string]interface{}, durationMs *int64, output *string, err error) Value {
+	// Convert args to ObjectValue
+	argsProps := make(map[string]*PropertyDescriptor)
+	for k, v := range args {
+		argsProps[k] = &PropertyDescriptor{Value: InterfaceToValue(v)}
+	}
+
+	toolCallProps := map[string]*PropertyDescriptor{
+		"id":   {Value: &StringValue{Value: id}},
+		"name": {Value: &StringValue{Value: name}},
+		"args": {Value: &ObjectValue{Properties: argsProps}},
+	}
+
+	if durationMs != nil {
+		toolCallProps["durationMs"] = &PropertyDescriptor{Value: &NumberValue{Value: float64(*durationMs)}}
+	}
+	if output != nil {
+		toolCallProps["output"] = &PropertyDescriptor{Value: &StringValue{Value: *output}}
+	}
+	if err != nil {
+		toolCallProps["error"] = &PropertyDescriptor{Value: &StringValue{Value: err.Error()}}
+	} else if durationMs != nil {
+		// Only set error to null on end events (when durationMs is present)
+		toolCallProps["error"] = &PropertyDescriptor{Value: &NullValue{}}
+	}
+
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"toolCall": {Value: &ObjectValue{Properties: toolCallProps}},
+		},
+	}
+}
+
+// CreateExecStartContext creates the context object for agent.exec.start event
+// ctx: { exec: { command, commandFirstWord } }
+func CreateExecStartContext(command string) Value {
+	firstWord := command
+	if idx := findFirstSpace(command); idx > 0 {
+		firstWord = command[:idx]
+	}
+
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"exec": {Value: &ObjectValue{
+				Properties: map[string]*PropertyDescriptor{
+					"command":          {Value: &StringValue{Value: command}},
+					"commandFirstWord": {Value: &StringValue{Value: firstWord}},
+				},
+			}},
+		},
+	}
+}
+
+// CreateExecEndContext creates the context object for agent.exec.end event
+// ctx: { exec: { command, commandFirstWord, durationMs, exitCode } }
+func CreateExecEndContext(command string, durationMs int64, exitCode int) Value {
+	firstWord := command
+	if idx := findFirstSpace(command); idx > 0 {
+		firstWord = command[:idx]
+	}
+
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"exec": {Value: &ObjectValue{
+				Properties: map[string]*PropertyDescriptor{
+					"command":          {Value: &StringValue{Value: command}},
+					"commandFirstWord": {Value: &StringValue{Value: firstWord}},
+					"durationMs":       {Value: &NumberValue{Value: float64(durationMs)}},
+					"exitCode":         {Value: &NumberValue{Value: float64(exitCode)}},
+				},
+			}},
+		},
+	}
+}
+
+// findFirstSpace returns the index of the first space in a string, or -1 if not found
+func findFirstSpace(s string) int {
+	for i, c := range s {
+		if c == ' ' || c == '\t' {
+			return i
+		}
+	}
+	return -1
+}
+
+// InterfaceToValue converts a Go interface{} to a Value.
+// This is the canonical conversion function used throughout the interpreter.
+func InterfaceToValue(val interface{}) Value {
+	switch v := val.(type) {
+	case nil:
+		return &NullValue{}
+	case bool:
+		return &BoolValue{Value: v}
+	case float64:
+		return &NumberValue{Value: v}
+	case int:
+		return &NumberValue{Value: float64(v)}
+	case int64:
+		return &NumberValue{Value: float64(v)}
+	case string:
+		return &StringValue{Value: v}
+	case []interface{}:
+		elements := make([]Value, len(v))
+		for idx, elem := range v {
+			elements[idx] = InterfaceToValue(elem)
+		}
+		return &ArrayValue{Elements: elements}
+	case map[string]interface{}:
+		properties := make(map[string]*PropertyDescriptor)
+		for key, val := range v {
+			properties[key] = &PropertyDescriptor{Value: InterfaceToValue(val)}
+		}
+		return &ObjectValue{Properties: properties}
+	default:
+		return &StringValue{Value: fmt.Sprintf("%v", v)}
+	}
+}
+
 // ExecuteAgentWithCallbacks executes an agent with optional callbacks for streaming and UI hooks.
 // This is the core agentic loop implementation that can be used by both the script interpreter
 // and the REPL. When callbacks is nil, it behaves like the simple executeAgent.
@@ -186,8 +402,36 @@ func (i *Interpreter) ExecuteAgentWithCallbacks(ctx context.Context, conv *Conve
 	// Track token usage across all iterations
 	var totalInputTokens, totalOutputTokens, totalCachedTokens int
 
+	// Helper to emit events if EventEmitter is configured
+	emitEvent := func(eventName string, eventCtx Value) {
+		if callbacks != nil && callbacks.EventEmitter != nil {
+			callbacks.EventEmitter(eventName, eventCtx)
+		}
+	}
+
+	// Get user message for events (from callbacks or from conversation)
+	userMessage := ""
+	if callbacks != nil && callbacks.UserMessage != "" {
+		userMessage = callbacks.UserMessage
+	} else if len(conv.Messages) > 0 {
+		// Find the last user message in conversation
+		for j := len(conv.Messages) - 1; j >= 0; j-- {
+			if conv.Messages[j].Role == "user" {
+				userMessage = conv.Messages[j].Content
+				break
+			}
+		}
+	}
+
+	// Emit agent.start event
+	emitEvent(EventAgentStart, createAgentStartContext(userMessage))
+
 	// Helper to call OnComplete callback with ACP-aligned result
 	callOnComplete := func(stopReason acp.StopReason, err error) {
+		// Emit agent.end event first
+		durationMs := time.Since(startTime).Milliseconds()
+		emitEvent(EventAgentEnd, createAgentEndContext(string(stopReason), durationMs, totalInputTokens, totalOutputTokens, err))
+
 		if callbacks != nil && callbacks.OnComplete != nil {
 			result := acp.AgentResult{
 				StopReason: stopReason,
@@ -313,6 +557,9 @@ func (i *Interpreter) ExecuteAgentWithCallbacks(ctx context.Context, conv *Conve
 			return newConv, err
 		}
 
+		// Emit agent.iteration.start event
+		emitEvent(EventAgentIterationStart, createIterationStartContext(iteration))
+
 		// Call iteration start callback
 		if callbacks != nil && callbacks.OnIterationStart != nil {
 			callbacks.OnIterationStart(iteration)
@@ -332,7 +579,14 @@ func (i *Interpreter) ExecuteAgentWithCallbacks(ctx context.Context, conv *Conve
 		if useStreaming {
 			// Use streaming with tool call detection
 			streamCallbacks := &StreamCallbacks{
-				OnContent: callbacks.OnChunk,
+				OnContent: func(content string) {
+					// Emit agent.chunk event
+					emitEvent(EventAgentChunk, createChunkContext(content))
+					// Also call the original callback
+					if callbacks.OnChunk != nil {
+						callbacks.OnChunk(content)
+					}
+				},
 			}
 			if callbacks.OnToolCallStreaming != nil {
 				streamCallbacks.OnToolCallStart = callbacks.OnToolCallStreaming
@@ -350,10 +604,14 @@ func (i *Interpreter) ExecuteAgentWithCallbacks(ctx context.Context, conv *Conve
 		}
 
 		// Accumulate token usage
+		iterInputTokens, iterOutputTokens, iterCachedTokens := 0, 0, 0
 		if response.Usage != nil {
-			totalInputTokens += response.Usage.PromptTokens
-			totalOutputTokens += response.Usage.CompletionTokens
-			totalCachedTokens += response.Usage.CachedTokens
+			iterInputTokens = response.Usage.PromptTokens
+			iterOutputTokens = response.Usage.CompletionTokens
+			iterCachedTokens = response.Usage.CachedTokens
+			totalInputTokens += iterInputTokens
+			totalOutputTokens += iterOutputTokens
+			totalCachedTokens += iterCachedTokens
 		}
 
 		// Call response callback
@@ -367,6 +625,8 @@ func (i *Interpreter) ExecuteAgentWithCallbacks(ctx context.Context, conv *Conve
 				Role:    "assistant",
 				Content: response.Content,
 			})
+			// Emit agent.iteration.end event before completing
+			emitEvent(EventAgentIterationEnd, createIterationEndContext(iteration, iterInputTokens, iterOutputTokens, iterCachedTokens))
 			callOnComplete(acp.StopReasonEndTurn, nil)
 			return newConv, nil
 		}
@@ -389,6 +649,9 @@ func (i *Interpreter) ExecuteAgentWithCallbacks(ctx context.Context, conv *Conve
 				Kind:      classifyToolKind(toolCall.Name),
 			}
 
+			// Emit agent.tool.start event
+			emitEvent(EventAgentToolStart, createToolCallContext(toolCall.ID, toolCall.Name, toolCall.Arguments, nil, nil, nil))
+
 			// Call tool start callback
 			if callbacks != nil && callbacks.OnToolCallStart != nil {
 				callbacks.OnToolCallStart(acpToolCall)
@@ -406,6 +669,10 @@ func (i *Interpreter) ExecuteAgentWithCallbacks(ctx context.Context, conv *Conve
 			}
 
 			toolDuration := time.Since(toolStart)
+			toolDurationMs := toolDuration.Milliseconds()
+
+			// Emit agent.tool.end event
+			emitEvent(EventAgentToolEnd, createToolCallContext(toolCall.ID, toolCall.Name, toolCall.Arguments, &toolDurationMs, &toolResult, toolErr))
 
 			// Call tool end callback with ACP-aligned update
 			if callbacks != nil && callbacks.OnToolCallEnd != nil {
@@ -436,6 +703,9 @@ func (i *Interpreter) ExecuteAgentWithCallbacks(ctx context.Context, conv *Conve
 				ToolCallID: toolCall.ID,
 			})
 		}
+
+		// Emit agent.iteration.end event
+		emitEvent(EventAgentIterationEnd, createIterationEndContext(iteration, iterInputTokens, iterOutputTokens, iterCachedTokens))
 
 		// Continue loop to make another call
 	}
@@ -554,36 +824,10 @@ func (i *Interpreter) executeNativeToolCall(tool *NativeToolValue, args map[stri
 	return i.valueToJSON(i.interfaceToValue(result))
 }
 
-// interfaceToValue converts a Go interface{} to a Value
+// interfaceToValue converts a Go interface{} to a Value.
+// This is a method wrapper around InterfaceToValue for backward compatibility.
 func (i *Interpreter) interfaceToValue(val interface{}) Value {
-	switch v := val.(type) {
-	case nil:
-		return &NullValue{}
-	case bool:
-		return &BoolValue{Value: v}
-	case float64:
-		return &NumberValue{Value: v}
-	case int:
-		return &NumberValue{Value: float64(v)}
-	case int64:
-		return &NumberValue{Value: float64(v)}
-	case string:
-		return &StringValue{Value: v}
-	case []interface{}:
-		elements := make([]Value, len(v))
-		for idx, elem := range v {
-			elements[idx] = i.interfaceToValue(elem)
-		}
-		return &ArrayValue{Elements: elements}
-	case map[string]interface{}:
-		properties := make(map[string]*PropertyDescriptor)
-		for key, val := range v {
-			properties[key] = &PropertyDescriptor{Value: i.interfaceToValue(val)}
-		}
-		return &ObjectValue{Properties: properties}
-	default:
-		return &StringValue{Value: fmt.Sprintf("%v", v)}
-	}
+	return InterfaceToValue(val)
 }
 
 // convertUserToolToChatTool converts a user-defined tool to ChatTool format
@@ -706,17 +950,9 @@ func (i *Interpreter) valueToJSON(val Value) (string, error) {
 	return string(jsonBytes), nil
 }
 
-// valueArrayToInterface converts []Value to []interface{}
-func (i *Interpreter) valueArrayToInterface(values []Value) []interface{} {
-	result := make([]interface{}, len(values))
-	for idx, val := range values {
-		result[idx] = i.valueToInterface(val)
-	}
-	return result
-}
-
-// valueToInterface converts a Value to interface{}
-func (i *Interpreter) valueToInterface(val Value) interface{} {
+// ValueToInterface converts a Value to interface{}.
+// This is the canonical conversion function used throughout the interpreter.
+func ValueToInterface(val Value) interface{} {
 	switch v := val.(type) {
 	case *NullValue:
 		return nil
@@ -727,14 +963,24 @@ func (i *Interpreter) valueToInterface(val Value) interface{} {
 	case *StringValue:
 		return v.Value
 	case *ArrayValue:
-		return i.valueArrayToInterface(v.Elements)
+		arr := make([]interface{}, len(v.Elements))
+		for i, elem := range v.Elements {
+			arr[i] = ValueToInterface(elem)
+		}
+		return arr
 	case *ObjectValue:
 		result := make(map[string]interface{})
 		for key := range v.Properties {
-			result[key] = i.valueToInterface(v.GetPropertyValue(key))
+			result[key] = ValueToInterface(v.GetPropertyValue(key))
 		}
 		return result
 	default:
 		return val.String()
 	}
+}
+
+// valueToInterface converts a Value to interface{}.
+// This is a method wrapper around ValueToInterface for backward compatibility.
+func (i *Interpreter) valueToInterface(val Value) interface{} {
+	return ValueToInterface(val)
 }

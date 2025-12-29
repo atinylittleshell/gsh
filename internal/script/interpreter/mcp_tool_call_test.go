@@ -195,14 +195,14 @@ func TestValueToInterface(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := valueToInterface(tt.val)
+			got := ValueToInterface(tt.val)
 
 			// Use JSON marshaling for deep equality check
 			gotJSON, _ := json.Marshal(got)
 			wantJSON, _ := json.Marshal(tt.want)
 
 			if string(gotJSON) != string(wantJSON) {
-				t.Errorf("valueToInterface() = %v, want %v", string(gotJSON), string(wantJSON))
+				t.Errorf("ValueToInterface() = %v, want %v", string(gotJSON), string(wantJSON))
 			}
 		})
 	}

@@ -275,6 +275,32 @@ func (i *Interpreter) GetEventHandlers(eventName string) []*ToolValue {
 	return i.eventManager.GetHandlers(eventName)
 }
 
+// EmitEvent emits an event by calling all registered handlers.
+// It passes a context object (ctx) to each handler as the first argument.
+// Handlers that want to produce output should print directly to stdout.
+func (i *Interpreter) EmitEvent(eventName string, ctx Value) {
+	handlers := i.eventManager.GetHandlers(eventName)
+	if len(handlers) == 0 {
+		return
+	}
+
+	args := []Value{ctx}
+
+	for _, handler := range handlers {
+		_, err := i.CallTool(handler, args)
+		if err != nil {
+			// Log errors but continue with other handlers
+			if i.logger != nil {
+				i.logger.Debug("error in event handler",
+					zap.String("event", eventName),
+					zap.String("handler", handler.Name),
+					zap.Error(err))
+			}
+			continue
+		}
+	}
+}
+
 // SDKConfig returns the SDK configuration
 func (i *Interpreter) SDKConfig() *SDKConfig {
 	return i.sdkConfig

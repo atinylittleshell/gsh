@@ -14,11 +14,17 @@ import (
 // It writes live output to the provided writer (typically os.Stdout).
 // This uses the shared native tool implementations from the interpreter package.
 func DefaultToolExecutor(liveOutput io.Writer) ToolExecutor {
+	return DefaultToolExecutorWithExecCallbacks(liveOutput, nil)
+}
+
+// DefaultToolExecutorWithExecCallbacks creates a tool executor with exec event callbacks.
+// This allows the REPL to emit agent.exec.start and agent.exec.end events.
+func DefaultToolExecutorWithExecCallbacks(liveOutput io.Writer, execCallbacks *interpreter.ExecEventCallbacks) ToolExecutor {
 	return func(ctx context.Context, toolName string, args map[string]interface{}) (string, error) {
 		switch toolName {
 		case "exec":
-			// Use shared implementation with live output support
-			return interpreter.ExecuteNativeExecTool(ctx, args, liveOutput)
+			// Use shared implementation with live output and event callbacks
+			return interpreter.ExecuteNativeExecToolWithCallbacks(ctx, args, liveOutput, execCallbacks)
 		case "grep":
 			return interpreter.ExecuteNativeGrepTool(ctx, args)
 		case "edit_file":

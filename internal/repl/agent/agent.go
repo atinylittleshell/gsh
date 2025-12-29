@@ -189,10 +189,40 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 	var stopPendingSpinner func()
 	var pendingSpinnerMu sync.Mutex
 
+	// Create exec event callbacks for agent.exec.start and agent.exec.end events
+	execEventCallbacks := &interpreter.ExecEventCallbacks{
+		OnStart: func(command string) {
+			state.Interpreter.EmitEvent(interpreter.EventAgentExecStart, interpreter.CreateExecStartContext(command))
+		},
+		OnEnd: func(command string, durationMs int64, exitCode int) {
+			state.Interpreter.EmitEvent(interpreter.EventAgentExecEnd, interpreter.CreateExecEndContext(command, durationMs, exitCode))
+		},
+	}
+
+	// Wrap the original tool executor to intercept exec tool calls for event emission
+	toolExecutor := state.ToolExecutor
+	if toolExecutor != nil {
+		originalExecutor := toolExecutor
+		toolExecutor = func(ctx context.Context, toolName string, args map[string]interface{}) (string, error) {
+			// Only intercept exec tool calls for event emission
+			if toolName == "exec" {
+				return interpreter.ExecuteNativeExecToolWithCallbacks(ctx, args, os.Stdout, execEventCallbacks)
+			}
+			// Pass through to original executor for all other tools
+			return originalExecutor(ctx, toolName, args)
+		}
+	}
+
 	// Build callbacks to drive the REPL UI
 	callbacks := &interpreter.AgentCallbacks{
-		Streaming: true,
-		Tools:     state.Tools, // Pass REPL built-in tools to be sent to the LLM
+		Streaming:   true,
+		Tools:       state.Tools, // Pass REPL built-in tools to be sent to the LLM
+		UserMessage: message,     // Pass user message for agent.start event
+
+		// EventEmitter allows the interpreter to emit SDK events through gsh.on() handlers
+		EventEmitter: func(eventName string, ctx interpreter.Value) {
+			state.Interpreter.EmitEvent(eventName, ctx)
+		},
 
 		OnIterationStart: func(iteration int) {
 			// Render header on first iteration
@@ -377,7 +407,7 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 			)
 		},
 
-		ToolExecutor: state.ToolExecutor,
+		ToolExecutor: toolExecutor,
 	}
 
 	// Execute using the interpreter's agentic loop

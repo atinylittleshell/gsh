@@ -297,7 +297,7 @@ func (i *Interpreter) callMCPTool(tool *MCPToolValue, argExprs []parser.Expressi
 		if objVal, ok := firstArg.(*ObjectValue); ok {
 			// Convert object properties to map[string]interface{}
 			for key := range objVal.Properties {
-				args[key] = valueToInterface(objVal.GetPropertyValue(key))
+				args[key] = ValueToInterface(objVal.GetPropertyValue(key))
 			}
 			return tool.Call(args)
 		}
@@ -308,37 +308,9 @@ func (i *Interpreter) callMCPTool(tool *MCPToolValue, argExprs []parser.Expressi
 	if len(argExprs) == 1 {
 		// Single non-object argument - try to use it as a single parameter
 		// This is a simplified approach; real implementation would need tool schema
-		args["value"] = valueToInterface(firstArg)
+		args["value"] = ValueToInterface(firstArg)
 		return tool.Call(args)
 	}
 
 	return nil, fmt.Errorf("MCP tool calls require either a single object argument or proper parameter mapping")
-}
-
-// valueToInterface converts a Value to interface{} for MCP calls
-func valueToInterface(val Value) interface{} {
-	switch v := val.(type) {
-	case *NullValue:
-		return nil
-	case *BoolValue:
-		return v.Value
-	case *NumberValue:
-		return v.Value
-	case *StringValue:
-		return v.Value
-	case *ArrayValue:
-		arr := make([]interface{}, len(v.Elements))
-		for i, elem := range v.Elements {
-			arr[i] = valueToInterface(elem)
-		}
-		return arr
-	case *ObjectValue:
-		obj := make(map[string]interface{})
-		for key := range v.Properties {
-			obj[key] = valueToInterface(v.GetPropertyValue(key))
-		}
-		return obj
-	default:
-		return v.String()
-	}
 }
