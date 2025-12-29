@@ -205,8 +205,11 @@ func (d *DynamicValue) GetProperty(name string) Value {
 	return &NullValue{}
 }
 func (d *DynamicValue) SetProperty(name string, value Value) error {
-	if d.Set != nil {
-		return d.Set(value)
+	if d.Get != nil {
+		innerVal := d.Get()
+		if obj, ok := innerVal.(interface{ SetProperty(string, Value) error }); ok {
+			return obj.SetProperty(name, value)
+		}
 	}
 	return fmt.Errorf("cannot set property on dynamic value")
 }
@@ -233,13 +236,35 @@ func (r *REPLObjectValue) GetProperty(name string) Value {
 		return &REPLModelsObjectValue{models: r.context.Models}
 	case "lastCommand":
 		return &REPLLastCommandObjectValue{lastCommand: r.context.LastCommand}
+	case "agents":
+		return &REPLAgentsArrayValue{context: r.context}
+	case "currentAgent":
+		if r.context.CurrentAgent == nil {
+			return &NullValue{}
+		}
+		return &REPLAgentObjectValue{agent: r.context.CurrentAgent, context: r.context, isDefault: r.context.CurrentAgent.Name == "default"}
 	default:
 		return &NullValue{}
 	}
 }
 
 func (r *REPLObjectValue) SetProperty(name string, value Value) error {
-	return fmt.Errorf("cannot set property '%s' on gsh.repl", name)
+	switch name {
+	case "currentAgent":
+		// Allow setting currentAgent to switch agents
+		agentObj, ok := value.(*REPLAgentObjectValue)
+		if !ok {
+			return fmt.Errorf("gsh.repl.currentAgent must be set to an agent from gsh.repl.agents")
+		}
+		r.context.CurrentAgent = agentObj.agent
+		// Notify REPL of agent switch
+		if r.context.OnAgentSwitch != nil {
+			r.context.OnAgentSwitch(agentObj.agent)
+		}
+		return nil
+	default:
+		return fmt.Errorf("cannot set property '%s' on gsh.repl", name)
+	}
 }
 
 // REPLModelsObjectValue represents the gsh.repl.models object
@@ -281,7 +306,29 @@ func (m *REPLModelsObjectValue) GetProperty(name string) Value {
 }
 
 func (m *REPLModelsObjectValue) SetProperty(name string, value Value) error {
-	return fmt.Errorf("cannot set property '%s' on gsh.repl.models", name)
+	if m.models == nil {
+		return fmt.Errorf("gsh.repl.models is not initialized")
+	}
+
+	// Validate that the value is a ModelValue
+	modelVal, ok := value.(*ModelValue)
+	if !ok {
+		return fmt.Errorf("gsh.repl.models.%s must be a model, got %s", name, value.Type())
+	}
+
+	switch name {
+	case "lite":
+		m.models.Lite = modelVal
+		return nil
+	case "workhorse":
+		m.models.Workhorse = modelVal
+		return nil
+	case "premium":
+		m.models.Premium = modelVal
+		return nil
+	default:
+		return fmt.Errorf("unknown property '%s' on gsh.repl.models", name)
+	}
 }
 
 // REPLLastCommandObjectValue represents the gsh.repl.lastCommand object
@@ -326,5 +373,284 @@ func (i *Interpreter) createNativeToolsObject() *ObjectValue {
 			"view_file": {Value: CreateViewFileNativeTool(), ReadOnly: true},
 			"edit_file": {Value: CreateEditFileNativeTool(), ReadOnly: true},
 		},
+	}
+}
+
+// REPLAgentsArrayValue represents the gsh.repl.agents array
+type REPLAgentsArrayValue struct {
+	context *REPLContext
+}
+
+func (a *REPLAgentsArrayValue) Type() ValueType { return ValueTypeArray }
+func (a *REPLAgentsArrayValue) String() string  { return "<gsh.repl.agents>" }
+func (a *REPLAgentsArrayValue) IsTruthy() bool  { return a.context != nil && len(a.context.Agents) > 0 }
+func (a *REPLAgentsArrayValue) Equals(other Value) bool {
+	_, ok := other.(*REPLAgentsArrayValue)
+	return ok
+}
+
+func (a *REPLAgentsArrayValue) GetProperty(name string) Value {
+	if a.context == nil {
+		return &NullValue{}
+	}
+
+	switch name {
+	case "length":
+		return &NumberValue{Value: float64(len(a.context.Agents))}
+	case "push":
+		// Return a builtin function for push
+		return &BuiltinValue{
+			Name: "gsh.repl.agents.push",
+			Fn:   a.pushMethod,
+		}
+	default:
+		return &NullValue{}
+	}
+}
+
+func (a *REPLAgentsArrayValue) SetProperty(name string, value Value) error {
+	return fmt.Errorf("cannot set property '%s' on gsh.repl.agents", name)
+}
+
+// GetIndex implements array indexing for gsh.repl.agents[i]
+func (a *REPLAgentsArrayValue) GetIndex(index int) Value {
+	if a.context == nil || index < 0 || index >= len(a.context.Agents) {
+		return &NullValue{}
+	}
+	agent := a.context.Agents[index]
+	return &REPLAgentObjectValue{
+		agent:     agent,
+		context:   a.context,
+		isDefault: index == 0,
+	}
+}
+
+// SetIndex implements array index assignment for gsh.repl.agents[i] = value
+func (a *REPLAgentsArrayValue) SetIndex(index int, value Value) error {
+	if index == 0 {
+		return fmt.Errorf("cannot replace agents[0] (the default agent)")
+	}
+	return fmt.Errorf("cannot set agent at index %d; use agents.push() to add new agents", index)
+}
+
+// Len returns the length of the agents array
+func (a *REPLAgentsArrayValue) Len() int {
+	if a.context == nil {
+		return 0
+	}
+	return len(a.context.Agents)
+}
+
+// pushMethod implements gsh.repl.agents.push(agentConfig)
+func (a *REPLAgentsArrayValue) pushMethod(args []Value) (Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("agents.push() takes exactly 1 argument (agent config object), got %d", len(args))
+	}
+
+	// Accept either an AgentValue directly or an object with name, model, systemPrompt, tools
+	if agentVal, ok := args[0].(*AgentValue); ok {
+		// Direct AgentValue - validate and add
+		if agentVal.Name == "" {
+			return nil, fmt.Errorf("agent must have a non-empty name")
+		}
+		if agentVal.Name == "default" {
+			return nil, fmt.Errorf("agent name 'default' is reserved for the built-in agent")
+		}
+		// Check for duplicate names
+		for _, existing := range a.context.Agents {
+			if existing.Name == agentVal.Name {
+				return nil, fmt.Errorf("agent with name '%s' already exists", agentVal.Name)
+			}
+		}
+		// Validate model is present
+		if _, hasModel := agentVal.Config["model"]; !hasModel {
+			return nil, fmt.Errorf("agent '%s' must have a 'model' in config", agentVal.Name)
+		}
+
+		// Add to agents array
+		a.context.Agents = append(a.context.Agents, agentVal)
+
+		// Notify REPL of new agent
+		if a.context.OnAgentAdded != nil {
+			a.context.OnAgentAdded(agentVal)
+		}
+
+		// Return the new length (like JavaScript Array.push)
+		return &NumberValue{Value: float64(len(a.context.Agents))}, nil
+	}
+
+	// Expect an object with name, model, systemPrompt, tools
+	obj, ok := args[0].(*ObjectValue)
+	if !ok {
+		return nil, fmt.Errorf("agents.push() argument must be an agent or an object with name, model, systemPrompt, and tools")
+	}
+
+	// Extract name (required)
+	nameVal := obj.GetPropertyValue("name")
+	nameStr, ok := nameVal.(*StringValue)
+	if !ok || nameStr.Value == "" {
+		return nil, fmt.Errorf("agent config must have a non-empty 'name' property")
+	}
+	if nameStr.Value == "default" {
+		return nil, fmt.Errorf("agent name 'default' is reserved for the built-in agent")
+	}
+
+	// Check for duplicate names
+	for _, existing := range a.context.Agents {
+		if existing.Name == nameStr.Value {
+			return nil, fmt.Errorf("agent with name '%s' already exists", nameStr.Value)
+		}
+	}
+
+	// Extract model (required)
+	modelVal := obj.GetPropertyValue("model")
+	model, ok := modelVal.(*ModelValue)
+	if !ok {
+		return nil, fmt.Errorf("agent config must have a 'model' property referencing a model declaration")
+	}
+
+	// Build the config map for AgentValue
+	config := make(map[string]Value)
+	config["model"] = model
+
+	// Extract systemPrompt (optional)
+	if promptVal := obj.GetPropertyValue("systemPrompt"); promptVal.Type() != ValueTypeNull {
+		config["systemPrompt"] = promptVal
+	}
+
+	// Extract tools (optional)
+	if toolsVal := obj.GetPropertyValue("tools"); toolsVal.Type() != ValueTypeNull {
+		config["tools"] = toolsVal
+	}
+
+	// Create the new agent using AgentValue
+	newAgent := &AgentValue{
+		Name:   nameStr.Value,
+		Config: config,
+	}
+
+	// Add to agents array
+	a.context.Agents = append(a.context.Agents, newAgent)
+
+	// Notify REPL of new agent
+	if a.context.OnAgentAdded != nil {
+		a.context.OnAgentAdded(newAgent)
+	}
+
+	// Return the new length (like JavaScript Array.push)
+	return &NumberValue{Value: float64(len(a.context.Agents))}, nil
+}
+
+// REPLAgentObjectValue represents an individual agent in gsh.repl.agents
+// It wraps an AgentValue and provides property access consistent with the SDK.
+// When properties are modified, the OnAgentModified callback is invoked to sync
+// changes to the REPL's agent manager.
+type REPLAgentObjectValue struct {
+	agent     *AgentValue
+	context   *REPLContext
+	isDefault bool // True if this is agents[0]
+}
+
+func (o *REPLAgentObjectValue) Type() ValueType { return ValueTypeObject }
+func (o *REPLAgentObjectValue) String() string {
+	if o.agent == nil {
+		return "<agent null>"
+	}
+	return fmt.Sprintf("<agent %s>", o.agent.Name)
+}
+func (o *REPLAgentObjectValue) IsTruthy() bool { return o.agent != nil }
+func (o *REPLAgentObjectValue) Equals(other Value) bool {
+	if otherAgent, ok := other.(*REPLAgentObjectValue); ok {
+		return o.agent == otherAgent.agent
+	}
+	return false
+}
+
+func (o *REPLAgentObjectValue) GetProperty(name string) Value {
+	if o.agent == nil {
+		return &NullValue{}
+	}
+
+	switch name {
+	case "name":
+		return &StringValue{Value: o.agent.Name}
+	case "model":
+		if model, ok := o.agent.Config["model"]; ok {
+			return model
+		}
+		return &NullValue{}
+	case "systemPrompt":
+		if prompt, ok := o.agent.Config["systemPrompt"]; ok {
+			return prompt
+		}
+		return &StringValue{Value: ""}
+	case "tools":
+		if tools, ok := o.agent.Config["tools"]; ok {
+			return tools
+		}
+		return &ArrayValue{Elements: []Value{}}
+	default:
+		// Allow access to any other config properties
+		if val, ok := o.agent.Config[name]; ok {
+			return val
+		}
+		return &NullValue{}
+	}
+}
+
+func (o *REPLAgentObjectValue) SetProperty(name string, value Value) error {
+	if o.agent == nil {
+		return fmt.Errorf("cannot set property on null agent")
+	}
+
+	switch name {
+	case "name":
+		// Agent names are immutable - they are used as keys in the agent manager
+		return fmt.Errorf("cannot change agent name; create a new agent instead")
+
+	case "model":
+		model, ok := value.(*ModelValue)
+		if !ok {
+			return fmt.Errorf("agent model must be a model reference")
+		}
+		o.agent.Config["model"] = model
+		o.notifyModified()
+		return nil
+
+	case "systemPrompt":
+		promptStr, ok := value.(*StringValue)
+		if !ok {
+			return fmt.Errorf("agent systemPrompt must be a string")
+		}
+		o.agent.Config["systemPrompt"] = promptStr
+		o.notifyModified()
+		return nil
+
+	case "tools":
+		toolsArr, ok := value.(*ArrayValue)
+		if !ok {
+			return fmt.Errorf("agent tools must be an array")
+		}
+		// Validate that all elements are tools
+		for i, elem := range toolsArr.Elements {
+			if _, isScript := elem.(*ToolValue); !isScript {
+				if _, isNative := elem.(*NativeToolValue); !isNative {
+					return fmt.Errorf("agent tools[%d] must be a tool, got %s", i, elem.Type())
+				}
+			}
+		}
+		o.agent.Config["tools"] = toolsArr
+		o.notifyModified()
+		return nil
+
+	default:
+		return fmt.Errorf("cannot set property '%s' on agent", name)
+	}
+}
+
+// notifyModified calls the OnAgentModified callback if set
+func (o *REPLAgentObjectValue) notifyModified() {
+	if o.context != nil && o.context.OnAgentModified != nil {
+		o.context.OnAgentModified(o.agent)
 	}
 }

@@ -650,7 +650,7 @@ Since gsh is not yet released, we can implement everything without backward comp
 - `gsh.repl.lastCommand.exitCode`, `gsh.repl.lastCommand.durationMs`
 - REPL events: `repl.ready`, `repl.prompt`, `repl.command.before`, `repl.command.after`, `repl.exit`
 
-### Phase 3: Native Tool Interop
+### Phase 3 (DONE): Native Tool Interop
 
 **Files to modify:**
 
@@ -666,7 +666,7 @@ Since gsh is not yet released, we can implement everything without backward comp
 - Native tools usable in agent tool arrays
 - These 4 tools should use a single implementation used across sdk and the repl agent
 
-### Phase 4: `gsh.repl.agents` Array
+### Phase 4 (DONE): `gsh.repl.agents` Array
 
 **Files to modify:**
 
@@ -702,8 +702,8 @@ Since gsh is not yet released, we can implement everything without backward comp
 **Files to modify:**
 
 - `cmd/gsh/.gshrc.default.gsh` - Rewrite using new SDK and events
-- `internal/repl/config/` - Remove `GSH_CONFIG` support
-- `internal/repl/render/renderer.go` - Remove old `GSH_*` hook support
+- `internal/repl/config/` - Remove `GSH_CONFIG` support, replaced by new SDK
+- `internal/repl/render/renderer.go` - Replaced by .gshrc.default.gsh using new SDK
 
 **Deliverables:**
 

@@ -846,6 +846,16 @@ func (i *Interpreter) evalIndexExpression(node *parser.IndexExpression) (Value, 
 		return &NullValue{}, nil
 	}
 
+	// Handle custom indexable types (like REPLAgentsArrayValue)
+	if indexable, ok := left.(Indexable); ok {
+		if index.Type() != ValueTypeNumber {
+			return nil, NewRuntimeError("index must be a number, got %s (line %d, column %d)",
+				index.Type(), node.Token.Line, node.Token.Column)
+		}
+		idx := int(index.(*NumberValue).Value)
+		return indexable.GetIndex(idx), nil
+	}
+
 	return nil, NewRuntimeError("cannot index type %s (line %d, column %d)",
 		left.Type(), node.Token.Line, node.Token.Column)
 }

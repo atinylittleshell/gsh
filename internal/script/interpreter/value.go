@@ -80,6 +80,12 @@ type Value interface {
 	Equals(other Value) bool
 }
 
+// Indexable is an interface for values that support index-based access (e.g., array[0])
+type Indexable interface {
+	Value
+	GetIndex(index int) Value
+}
+
 // NullValue represents a null value
 type NullValue struct{}
 

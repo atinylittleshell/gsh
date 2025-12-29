@@ -179,17 +179,6 @@ func (i *Interpreter) evalMemberAssignment(memberExpr *parser.MemberExpression, 
 
 // setProperty sets a property on an object, handling different value types
 func (i *Interpreter) setProperty(obj Value, key string, value Value) (Value, error) {
-	// Handle DynamicValue with Set function
-	if dynVal, ok := obj.(*DynamicValue); ok {
-		if dynVal.Set != nil {
-			if err := dynVal.Set(value); err != nil {
-				return nil, err
-			}
-			return value, nil
-		}
-		return nil, fmt.Errorf("cannot set read-only property")
-	}
-
 	// Handle regular objects
 	if objVal, ok := obj.(*ObjectValue); ok {
 		if err := objVal.SetPropertyValue(key, value); err != nil {
