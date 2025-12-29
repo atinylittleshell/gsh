@@ -255,6 +255,10 @@ func (i *Interpreter) ExecuteAgentWithCallbacks(ctx context.Context, conv *Conve
 						return nil, err
 					}
 					tools = append(tools, tool)
+				case *NativeToolValue:
+					// Native tool (gsh.tools.*)
+					tool := i.convertNativeToolToChatTool(toolVal)
+					tools = append(tools, tool)
 				default:
 					err := fmt.Errorf("invalid tool type in agent config: %s", toolVal.Type())
 					callOnComplete(acp.StopReasonError, err)
@@ -483,6 +487,10 @@ func (i *Interpreter) executeToolCall(agent *AgentValue, toolCall ChatToolCall) 
 			if toolVal.ToolName == toolCall.Name {
 				return i.executeMCPToolCall(toolVal, toolCall.Arguments)
 			}
+		case *NativeToolValue:
+			if toolVal.Name == toolCall.Name {
+				return i.executeNativeToolCall(toolVal, toolCall.Arguments)
+			}
 		}
 	}
 
@@ -529,6 +537,55 @@ func (i *Interpreter) executeMCPToolCall(tool *MCPToolValue, args map[string]int
 	return i.valueToJSON(result)
 }
 
+// executeNativeToolCall executes a native tool call (gsh.tools.*)
+func (i *Interpreter) executeNativeToolCall(tool *NativeToolValue, args map[string]interface{}) (string, error) {
+	// Call the native tool's Invoke function
+	result, err := tool.Invoke(args)
+	if err != nil {
+		return "", err
+	}
+
+	// Native tools return strings directly (already JSON formatted)
+	if str, ok := result.(string); ok {
+		return str, nil
+	}
+
+	// Fallback: convert to JSON string
+	return i.valueToJSON(i.interfaceToValue(result))
+}
+
+// interfaceToValue converts a Go interface{} to a Value
+func (i *Interpreter) interfaceToValue(val interface{}) Value {
+	switch v := val.(type) {
+	case nil:
+		return &NullValue{}
+	case bool:
+		return &BoolValue{Value: v}
+	case float64:
+		return &NumberValue{Value: v}
+	case int:
+		return &NumberValue{Value: float64(v)}
+	case int64:
+		return &NumberValue{Value: float64(v)}
+	case string:
+		return &StringValue{Value: v}
+	case []interface{}:
+		elements := make([]Value, len(v))
+		for idx, elem := range v {
+			elements[idx] = i.interfaceToValue(elem)
+		}
+		return &ArrayValue{Elements: elements}
+	case map[string]interface{}:
+		properties := make(map[string]*PropertyDescriptor)
+		for key, val := range v {
+			properties[key] = &PropertyDescriptor{Value: i.interfaceToValue(val)}
+		}
+		return &ObjectValue{Properties: properties}
+	default:
+		return &StringValue{Value: fmt.Sprintf("%v", v)}
+	}
+}
+
 // convertUserToolToChatTool converts a user-defined tool to ChatTool format
 func (i *Interpreter) convertUserToolToChatTool(tool *ToolValue) ChatTool {
 	// Build parameters schema
@@ -573,6 +630,15 @@ func (i *Interpreter) convertMCPToolToChatTool(tool *MCPToolValue) (ChatTool, er
 		Description: toolInfo.Description,
 		Parameters:  toolInfo.InputSchema,
 	}, nil
+}
+
+// convertNativeToolToChatTool converts a native tool to ChatTool format
+func (i *Interpreter) convertNativeToolToChatTool(tool *NativeToolValue) ChatTool {
+	return ChatTool{
+		Name:        tool.Name,
+		Description: tool.Description,
+		Parameters:  tool.Parameters,
+	}
 }
 
 // mapGSHTypeToJSONType maps GSH type annotations to JSON schema types

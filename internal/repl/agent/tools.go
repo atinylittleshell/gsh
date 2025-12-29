@@ -12,17 +12,19 @@ import (
 
 // DefaultToolExecutor creates a tool executor function that handles the built-in tools.
 // It writes live output to the provided writer (typically os.Stdout).
+// This uses the shared native tool implementations from the interpreter package.
 func DefaultToolExecutor(liveOutput io.Writer) ToolExecutor {
 	return func(ctx context.Context, toolName string, args map[string]interface{}) (string, error) {
 		switch toolName {
 		case "exec":
-			return ExecuteExecTool(ctx, args, liveOutput)
+			// Use shared implementation with live output support
+			return interpreter.ExecuteNativeExecTool(ctx, args, liveOutput)
 		case "grep":
-			return ExecuteGrepTool(ctx, args)
+			return interpreter.ExecuteNativeGrepTool(ctx, args)
 		case "edit_file":
-			return ExecuteEditTool(ctx, args)
+			return interpreter.ExecuteNativeEditFileTool(ctx, args)
 		case "view_file":
-			return ExecuteViewFileTool(ctx, args)
+			return interpreter.ExecuteNativeViewFileTool(ctx, args)
 		default:
 			return "", fmt.Errorf("unknown tool: %s", toolName)
 		}
@@ -30,12 +32,13 @@ func DefaultToolExecutor(liveOutput io.Writer) ToolExecutor {
 }
 
 // DefaultTools returns the default set of tools available to agents.
+// These use the shared tool definitions from the interpreter package.
 func DefaultTools() []interpreter.ChatTool {
 	return []interpreter.ChatTool{
-		ExecToolDefinition(),
-		GrepToolDefinition(),
-		EditToolDefinition(),
-		ViewFileToolDefinition(),
+		interpreter.ExecToolDefinition(),
+		interpreter.GrepToolDefinition(),
+		interpreter.EditFileToolDefinition(),
+		interpreter.ViewFileToolDefinition(),
 	}
 }
 

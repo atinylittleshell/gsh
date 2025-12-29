@@ -454,6 +454,11 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 		return i.callMCPTool(mcpTool, node.Arguments)
 	}
 
+	// Check if it's a native tool (gsh.tools.*)
+	if nativeTool, ok := function.(*NativeToolValue); ok {
+		return i.callNativeTool(nativeTool, node.Arguments)
+	}
+
 	// Check if it's a user-defined tool
 	tool, ok := function.(*ToolValue)
 	if !ok {
@@ -843,4 +848,85 @@ func (i *Interpreter) evalIndexExpression(node *parser.IndexExpression) (Value, 
 
 	return nil, NewRuntimeError("cannot index type %s (line %d, column %d)",
 		left.Type(), node.Token.Line, node.Token.Column)
+}
+
+// callNativeTool calls a native tool (gsh.tools.*) with the given arguments.
+// Native tools accept a single object argument containing all parameters.
+func (i *Interpreter) callNativeTool(tool *NativeToolValue, argExprs []parser.Expression) (Value, error) {
+	// Build arguments map from expressions
+	args := make(map[string]interface{})
+
+	if len(argExprs) == 0 {
+		// No arguments - call with empty args
+		result, err := tool.Invoke(args)
+		if err != nil {
+			return nil, err
+		}
+		return i.nativeResultToValue(result)
+	}
+
+	// Evaluate first argument
+	firstArg, err := i.evalExpression(argExprs[0])
+	if err != nil {
+		return nil, err
+	}
+
+	// If single object argument, use it as the arguments map
+	if len(argExprs) == 1 {
+		if objVal, ok := firstArg.(*ObjectValue); ok {
+			// Convert object properties to map[string]interface{}
+			for key := range objVal.Properties {
+				args[key] = i.valueToInterface(objVal.GetPropertyValue(key))
+			}
+			result, err := tool.Invoke(args)
+			if err != nil {
+				return nil, err
+			}
+			return i.nativeResultToValue(result)
+		}
+	}
+
+	// For native tools, we require an object argument
+	return nil, fmt.Errorf("native tool %s requires an object argument with named parameters", tool.Name)
+}
+
+// nativeResultToValue converts a native tool result to a Value.
+// Native tools typically return strings (JSON formatted), but can return other types.
+func (i *Interpreter) nativeResultToValue(result interface{}) (Value, error) {
+	switch v := result.(type) {
+	case nil:
+		return &NullValue{}, nil
+	case string:
+		return &StringValue{Value: v}, nil
+	case bool:
+		return &BoolValue{Value: v}, nil
+	case float64:
+		return &NumberValue{Value: v}, nil
+	case int:
+		return &NumberValue{Value: float64(v)}, nil
+	case int64:
+		return &NumberValue{Value: float64(v)}, nil
+	case []interface{}:
+		elements := make([]Value, len(v))
+		for idx, elem := range v {
+			val, err := i.nativeResultToValue(elem)
+			if err != nil {
+				return nil, err
+			}
+			elements[idx] = val
+		}
+		return &ArrayValue{Elements: elements}, nil
+	case map[string]interface{}:
+		properties := make(map[string]*PropertyDescriptor)
+		for key, val := range v {
+			gshVal, err := i.nativeResultToValue(val)
+			if err != nil {
+				return nil, err
+			}
+			properties[key] = &PropertyDescriptor{Value: gshVal}
+		}
+		return &ObjectValue{Properties: properties}, nil
+	default:
+		return &StringValue{Value: fmt.Sprintf("%v", v)}, nil
+	}
 }

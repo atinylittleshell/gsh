@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
 func TestExecuteViewFile(t *testing.T) {
@@ -21,7 +23,7 @@ func TestExecuteViewFile(t *testing.T) {
 			t.Fatalf("failed to create test file: %v", err)
 		}
 
-		result, err := ExecuteViewFile(ctx, filePath, 0, 0)
+		result, err := interpreter.ExecuteViewFile(ctx, filePath, 0, 0)
 		if err != nil {
 			t.Fatalf("ExecuteViewFile failed: %v", err)
 		}
@@ -41,7 +43,7 @@ func TestExecuteViewFile(t *testing.T) {
 			t.Fatalf("failed to create test file: %v", err)
 		}
 
-		result, err := ExecuteViewFile(ctx, filePath, 2, 4)
+		result, err := interpreter.ExecuteViewFile(ctx, filePath, 2, 4)
 		if err != nil {
 			t.Fatalf("ExecuteViewFile failed: %v", err)
 		}
@@ -61,7 +63,7 @@ func TestExecuteViewFile(t *testing.T) {
 			t.Fatalf("failed to create test file: %v", err)
 		}
 
-		result, err := ExecuteViewFile(ctx, filePath, 2, 2)
+		result, err := interpreter.ExecuteViewFile(ctx, filePath, 2, 2)
 		if err != nil {
 			t.Fatalf("ExecuteViewFile failed: %v", err)
 		}
@@ -85,7 +87,7 @@ func TestExecuteViewFile(t *testing.T) {
 			t.Fatalf("failed to create test file: %v", err)
 		}
 
-		result, err := ExecuteViewFile(ctx, filePath, 98, 102)
+		result, err := interpreter.ExecuteViewFile(ctx, filePath, 98, 102)
 		if err != nil {
 			t.Fatalf("ExecuteViewFile failed: %v", err)
 		}
@@ -106,7 +108,7 @@ func TestExecuteViewFile(t *testing.T) {
 		}
 
 		// end_line 100 should be clamped to 3
-		result, err := ExecuteViewFile(ctx, filePath, 1, 100)
+		result, err := interpreter.ExecuteViewFile(ctx, filePath, 1, 100)
 		if err != nil {
 			t.Fatalf("ExecuteViewFile failed: %v", err)
 		}
@@ -127,7 +129,7 @@ func TestExecuteViewFile(t *testing.T) {
 			t.Fatalf("failed to create test file: %v", err)
 		}
 
-		_, err = ExecuteViewFile(ctx, filePath, 10, 20)
+		_, err = interpreter.ExecuteViewFile(ctx, filePath, 10, 20)
 		if err == nil {
 			t.Fatal("expected error when start_line exceeds file length")
 		}
@@ -143,14 +145,14 @@ func TestExecuteViewFile(t *testing.T) {
 		}
 
 		// start_line > end_line
-		_, err = ExecuteViewFile(ctx, filePath, 3, 1)
+		_, err = interpreter.ExecuteViewFile(ctx, filePath, 3, 1)
 		if err == nil {
 			t.Fatal("expected error for invalid line range")
 		}
 	})
 
 	t.Run("file not found", func(t *testing.T) {
-		_, err := ExecuteViewFile(ctx, "/nonexistent/file.txt", 0, 0)
+		_, err := interpreter.ExecuteViewFile(ctx, "/nonexistent/file.txt", 0, 0)
 		if err == nil {
 			t.Fatal("expected error for nonexistent file")
 		}
@@ -173,7 +175,7 @@ func TestExecuteViewFile(t *testing.T) {
 			t.Fatalf("failed to create test file: %v", err)
 		}
 
-		result, err := ExecuteViewFile(ctx, "test.txt", 0, 0)
+		result, err := interpreter.ExecuteViewFile(ctx, "test.txt", 0, 0)
 		if err != nil {
 			t.Fatalf("ExecuteViewFile failed: %v", err)
 		}
@@ -194,7 +196,7 @@ func TestExecuteViewFile(t *testing.T) {
 			t.Fatalf("failed to create test file: %v", err)
 		}
 
-		result, err := ExecuteViewFile(ctx, filePath, 0, 0)
+		result, err := interpreter.ExecuteViewFile(ctx, filePath, 0, 0)
 		if err != nil {
 			t.Fatalf("ExecuteViewFile failed: %v", err)
 		}
@@ -214,7 +216,7 @@ func TestExecuteViewFile(t *testing.T) {
 			t.Fatalf("failed to create test file: %v", err)
 		}
 
-		result, err := ExecuteViewFile(ctx, filePath, 0, 0)
+		result, err := interpreter.ExecuteViewFile(ctx, filePath, 0, 0)
 		if err != nil {
 			t.Fatalf("ExecuteViewFile failed: %v", err)
 		}
@@ -242,7 +244,7 @@ func TestExecuteViewFileTool(t *testing.T) {
 			"file_path": filePath,
 		}
 
-		result, err := ExecuteViewFileTool(ctx, args)
+		result, err := interpreter.ExecuteNativeViewFileTool(ctx, args)
 		if err != nil {
 			t.Fatalf("ExecuteViewFileTool failed: %v", err)
 		}
@@ -268,7 +270,7 @@ func TestExecuteViewFileTool(t *testing.T) {
 			"end_line":   float64(3),
 		}
 
-		result, err := ExecuteViewFileTool(ctx, args)
+		result, err := interpreter.ExecuteNativeViewFileTool(ctx, args)
 		if err != nil {
 			t.Fatalf("ExecuteViewFileTool failed: %v", err)
 		}
@@ -284,7 +286,7 @@ func TestExecuteViewFileTool(t *testing.T) {
 			// missing "file_path"
 		}
 
-		_, err := ExecuteViewFileTool(ctx, args)
+		_, err := interpreter.ExecuteNativeViewFileTool(ctx, args)
 		if err == nil {
 			t.Fatal("expected error for missing argument")
 		}
@@ -295,7 +297,7 @@ func TestExecuteViewFileTool(t *testing.T) {
 			"file_path": "/nonexistent/file.txt",
 		}
 
-		_, err := ExecuteViewFileTool(ctx, args)
+		_, err := interpreter.ExecuteNativeViewFileTool(ctx, args)
 		if err == nil {
 			t.Fatal("expected error for nonexistent file")
 		}
@@ -308,7 +310,7 @@ func TestExecuteViewFileTool(t *testing.T) {
 func TestTruncateFromMiddle(t *testing.T) {
 	t.Run("no truncation needed", func(t *testing.T) {
 		lines := []string{"    1:short", "    2:line"}
-		result := truncateFromMiddle(lines, 1000)
+		result := interpreter.TruncateFromMiddle(lines, 1000)
 		expected := "    1:short\n    2:line"
 		if result != expected {
 			t.Errorf("expected %q, got %q", expected, result)
@@ -323,7 +325,7 @@ func TestTruncateFromMiddle(t *testing.T) {
 		}
 
 		// Use a small limit to force truncation
-		result := truncateFromMiddle(lines, 500)
+		result := interpreter.TruncateFromMiddle(lines, 500)
 
 		// Should contain (truncated) marker
 		if !strings.Contains(result, "(truncated)") {
@@ -347,7 +349,7 @@ func TestTruncateFromMiddle(t *testing.T) {
 	})
 
 	t.Run("empty lines", func(t *testing.T) {
-		result := truncateFromMiddle([]string{}, 1000)
+		result := interpreter.TruncateFromMiddle([]string{}, 1000)
 		if result != "" {
 			t.Errorf("expected empty string, got %q", result)
 		}
@@ -355,7 +357,7 @@ func TestTruncateFromMiddle(t *testing.T) {
 }
 
 func TestViewFileToolDefinition(t *testing.T) {
-	def := ViewFileToolDefinition()
+	def := interpreter.ViewFileToolDefinition()
 
 	if def.Name != "view_file" {
 		t.Errorf("expected name 'view_file', got %q", def.Name)

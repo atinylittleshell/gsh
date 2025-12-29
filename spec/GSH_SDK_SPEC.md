@@ -635,7 +635,7 @@ Since gsh is not yet released, we can implement everything without backward comp
 - Distinguish read-only vs read/write properties (writing to a read-only property raises error)
 - Updating properties should take effect immediately (logging for example via AtomicLevel)
 
-### Phase 2: `gsh.repl` Object & REPL Events
+### Phase 2 (DONE): `gsh.repl` Object & REPL Events
 
 **Files to modify:**
 
@@ -664,6 +664,7 @@ Since gsh is not yet released, we can implement everything without backward comp
 - `gsh.tools.exec`, `gsh.tools.grep`, `gsh.tools.view_file`, `gsh.tools.edit_file`
 - Native tools callable from gsh scripts
 - Native tools usable in agent tool arrays
+- These 4 tools should use a single implementation used across sdk and the repl agent
 
 ### Phase 4: `gsh.repl.agents` Array
 

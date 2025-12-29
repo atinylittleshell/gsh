@@ -13,9 +13,9 @@ import (
 func TestExecuteCommand_SimpleCommand(t *testing.T) {
 	ctx := context.Background()
 
-	result, err := ExecuteCommand(ctx, "echo hello", nil)
+	result, err := interpreter.ExecuteCommandWithPTY(ctx, "echo hello", nil)
 	if err != nil {
-		t.Fatalf("ExecuteCommand failed: %v", err)
+		t.Fatalf("ExecuteCommandWithPTY failed: %v", err)
 	}
 
 	if result.ExitCode != 0 {
@@ -30,9 +30,9 @@ func TestExecuteCommand_SimpleCommand(t *testing.T) {
 func TestExecuteCommand_NonZeroExitCode(t *testing.T) {
 	ctx := context.Background()
 
-	result, err := ExecuteCommand(ctx, "exit 42", nil)
+	result, err := interpreter.ExecuteCommandWithPTY(ctx, "exit 42", nil)
 	if err != nil {
-		t.Fatalf("ExecuteCommand failed: %v", err)
+		t.Fatalf("ExecuteCommandWithPTY failed: %v", err)
 	}
 
 	if result.ExitCode != 42 {
@@ -44,9 +44,9 @@ func TestExecuteCommand_WithLiveOutput(t *testing.T) {
 	ctx := context.Background()
 	var liveOutput bytes.Buffer
 
-	result, err := ExecuteCommand(ctx, "echo live_test", &liveOutput)
+	result, err := interpreter.ExecuteCommandWithPTY(ctx, "echo live_test", &liveOutput)
 	if err != nil {
-		t.Fatalf("ExecuteCommand failed: %v", err)
+		t.Fatalf("ExecuteCommandWithPTY failed: %v", err)
 	}
 
 	if result.ExitCode != 0 {
@@ -68,7 +68,7 @@ func TestExecuteCommand_ContextCancellation(t *testing.T) {
 	defer cancel()
 
 	// Run a command that takes longer than the timeout
-	result, err := ExecuteCommand(ctx, "sleep 10", nil)
+	result, err := interpreter.ExecuteCommandWithPTY(ctx, "sleep 10", nil)
 
 	// Either we get an error, or we get a non-zero exit code due to signal
 	if err == nil && result != nil && result.ExitCode == 0 {
@@ -87,9 +87,9 @@ func TestExecuteCommand_StderrCapture(t *testing.T) {
 	ctx := context.Background()
 
 	// PTY combines stdout and stderr, so both should appear in output
-	result, err := ExecuteCommand(ctx, "echo stdout_msg; echo stderr_msg >&2", nil)
+	result, err := interpreter.ExecuteCommandWithPTY(ctx, "echo stdout_msg; echo stderr_msg >&2", nil)
 	if err != nil {
-		t.Fatalf("ExecuteCommand failed: %v", err)
+		t.Fatalf("ExecuteCommandWithPTY failed: %v", err)
 	}
 
 	if result.ExitCode != 0 {
@@ -106,7 +106,7 @@ func TestExecuteCommand_StderrCapture(t *testing.T) {
 }
 
 func TestExecToolDefinition(t *testing.T) {
-	tool := ExecToolDefinition()
+	tool := interpreter.ExecToolDefinition()
 
 	if tool.Name != "exec" {
 		t.Errorf("Expected tool name 'exec', got %q", tool.Name)
@@ -349,7 +349,7 @@ func TestExecuteExecTool_Timeout(t *testing.T) {
 }
 
 func TestExecToolDefinition_HasTimeoutParam(t *testing.T) {
-	tool := ExecToolDefinition()
+	tool := interpreter.ExecToolDefinition()
 
 	params, ok := tool.Parameters["properties"].(map[string]interface{})
 	if !ok {

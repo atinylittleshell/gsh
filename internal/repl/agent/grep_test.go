@@ -7,27 +7,29 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
 func TestDetectGrepBackend(t *testing.T) {
-	backend := DetectGrepBackend()
+	backend := interpreter.DetectGrepBackend()
 
 	// Should detect at least one backend on most systems
 	// We don't fail if none is available, just log it
 	switch backend {
-	case GrepBackendRipgrep:
+	case interpreter.GrepBackendRipgrep:
 		t.Log("Detected ripgrep (rg)")
-	case GrepBackendGitGrep:
+	case interpreter.GrepBackendGitGrep:
 		t.Log("Detected git grep")
-	case GrepBackendGrep:
+	case interpreter.GrepBackendGrep:
 		t.Log("Detected grep")
-	case GrepBackendNone:
+	case interpreter.GrepBackendNone:
 		t.Log("No grep backend detected")
 	}
 }
 
 func TestBuildGrepCommand_Ripgrep(t *testing.T) {
-	cmdName, args, err := BuildGrepCommand(GrepBackendRipgrep, "test-pattern")
+	cmdName, args, err := interpreter.BuildGrepCommand(interpreter.GrepBackendRipgrep, "test-pattern")
 	if err != nil {
 		t.Fatalf("BuildGrepCommand failed: %v", err)
 	}
@@ -50,7 +52,7 @@ func TestBuildGrepCommand_Ripgrep(t *testing.T) {
 }
 
 func TestBuildGrepCommand_GitGrep(t *testing.T) {
-	cmdName, args, err := BuildGrepCommand(GrepBackendGitGrep, "test-pattern")
+	cmdName, args, err := interpreter.BuildGrepCommand(interpreter.GrepBackendGitGrep, "test-pattern")
 	if err != nil {
 		t.Fatalf("BuildGrepCommand failed: %v", err)
 	}
@@ -78,7 +80,7 @@ func TestBuildGrepCommand_GitGrep(t *testing.T) {
 }
 
 func TestBuildGrepCommand_Grep(t *testing.T) {
-	cmdName, args, err := BuildGrepCommand(GrepBackendGrep, "test-pattern")
+	cmdName, args, err := interpreter.BuildGrepCommand(interpreter.GrepBackendGrep, "test-pattern")
 	if err != nil {
 		t.Fatalf("BuildGrepCommand failed: %v", err)
 	}
@@ -101,9 +103,9 @@ func TestBuildGrepCommand_Grep(t *testing.T) {
 }
 
 func TestBuildGrepCommand_None(t *testing.T) {
-	_, _, err := BuildGrepCommand(GrepBackendNone, "test-pattern")
+	_, _, err := interpreter.BuildGrepCommand(interpreter.GrepBackendNone, "test-pattern")
 	if err == nil {
-		t.Fatal("Expected error for GrepBackendNone, got nil")
+		t.Fatal("Expected error for interpreter.GrepBackendNone, got nil")
 	}
 
 	if !strings.Contains(err.Error(), "no grep tool available") {
@@ -113,7 +115,7 @@ func TestBuildGrepCommand_None(t *testing.T) {
 
 func TestExecuteGrep_Integration(t *testing.T) {
 	// Skip if no grep backend is available
-	if !IsGrepAvailable() {
+	if interpreter.DetectGrepBackend() == interpreter.GrepBackendNone {
 		t.Skip("No grep backend available")
 	}
 
@@ -142,7 +144,7 @@ func TestExecuteGrep_Integration(t *testing.T) {
 	defer os.Chdir(origDir)
 
 	ctx := context.Background()
-	result, err := ExecuteGrep(ctx, "hello")
+	result, err := interpreter.ExecuteGrep(ctx, "hello")
 	if err != nil {
 		t.Fatalf("ExecuteGrep failed: %v", err)
 	}
@@ -165,7 +167,7 @@ func TestExecuteGrep_Integration(t *testing.T) {
 
 func TestExecuteGrep_NoMatches(t *testing.T) {
 	// Skip if no grep backend is available
-	if !IsGrepAvailable() {
+	if interpreter.DetectGrepBackend() == interpreter.GrepBackendNone {
 		t.Skip("No grep backend available")
 	}
 
@@ -194,7 +196,7 @@ func TestExecuteGrep_NoMatches(t *testing.T) {
 	defer os.Chdir(origDir)
 
 	ctx := context.Background()
-	result, err := ExecuteGrep(ctx, "nonexistent_pattern_xyz123")
+	result, err := interpreter.ExecuteGrep(ctx, "nonexistent_pattern_xyz123")
 	if err != nil {
 		t.Fatalf("ExecuteGrep failed: %v", err)
 	}
@@ -206,7 +208,7 @@ func TestExecuteGrep_NoMatches(t *testing.T) {
 }
 
 func TestGrepToolDefinition(t *testing.T) {
-	tool := GrepToolDefinition()
+	tool := interpreter.GrepToolDefinition()
 
 	if tool.Name != "grep" {
 		t.Errorf("Expected tool name 'grep', got %q", tool.Name)
@@ -246,7 +248,7 @@ func TestExecuteGrepTool_MissingPattern(t *testing.T) {
 	ctx := context.Background()
 	args := map[string]interface{}{} // No "pattern" argument
 
-	_, err := ExecuteGrepTool(ctx, args)
+	_, err := interpreter.ExecuteNativeGrepTool(ctx, args)
 	if err == nil {
 		t.Fatal("Expected error for missing pattern, got nil")
 	}
@@ -262,7 +264,7 @@ func TestExecuteGrepTool_EmptyPattern(t *testing.T) {
 		"pattern": "",
 	}
 
-	_, err := ExecuteGrepTool(ctx, args)
+	_, err := interpreter.ExecuteNativeGrepTool(ctx, args)
 	if err == nil {
 		t.Fatal("Expected error for empty pattern, got nil")
 	}
@@ -274,7 +276,7 @@ func TestExecuteGrepTool_EmptyPattern(t *testing.T) {
 
 func TestExecuteGrepTool_Integration(t *testing.T) {
 	// Skip if no grep backend is available
-	if !IsGrepAvailable() {
+	if interpreter.DetectGrepBackend() == interpreter.GrepBackendNone {
 		t.Skip("No grep backend available")
 	}
 
@@ -307,7 +309,7 @@ func TestExecuteGrepTool_Integration(t *testing.T) {
 		"pattern": "grep_tool_test_marker",
 	}
 
-	result, err := ExecuteGrepTool(ctx, args)
+	result, err := interpreter.ExecuteNativeGrepTool(ctx, args)
 	if err != nil {
 		t.Fatalf("ExecuteGrepTool failed: %v", err)
 	}
@@ -333,7 +335,7 @@ func TestExecuteGrepTool_Integration(t *testing.T) {
 
 func TestExecuteGrepTool_NoMatchesStatus(t *testing.T) {
 	// Skip if no grep backend is available
-	if !IsGrepAvailable() {
+	if interpreter.DetectGrepBackend() == interpreter.GrepBackendNone {
 		t.Skip("No grep backend available")
 	}
 
@@ -366,7 +368,7 @@ func TestExecuteGrepTool_NoMatchesStatus(t *testing.T) {
 		"pattern": "nonexistent_pattern_abc789",
 	}
 
-	result, err := ExecuteGrepTool(ctx, args)
+	result, err := interpreter.ExecuteNativeGrepTool(ctx, args)
 	if err != nil {
 		t.Fatalf("ExecuteGrepTool failed: %v", err)
 	}
@@ -398,7 +400,7 @@ func TestDefaultTools_IncludesGrep(t *testing.T) {
 
 func TestDefaultToolExecutor_GrepTool(t *testing.T) {
 	// Skip if no grep backend is available
-	if !IsGrepAvailable() {
+	if interpreter.DetectGrepBackend() == interpreter.GrepBackendNone {
 		t.Skip("No grep backend available")
 	}
 
@@ -444,13 +446,15 @@ func TestDefaultToolExecutor_GrepTool(t *testing.T) {
 }
 
 func TestIsGrepAvailable(t *testing.T) {
-	available := IsGrepAvailable()
-	backend, _ := GetGrepBackendInfo()
+	available := interpreter.DetectGrepBackend() != interpreter.GrepBackendNone
+	backend := interpreter.GrepBackendName(interpreter.DetectGrepBackend())
 	t.Logf("Grep available: %v, backend: %s", available, backend)
 }
 
 func TestGetGrepBackendInfo(t *testing.T) {
-	backend, available := GetGrepBackendInfo()
+	detectedBackend := interpreter.DetectGrepBackend()
+	backend := interpreter.GrepBackendName(detectedBackend)
+	available := detectedBackend != interpreter.GrepBackendNone
 
 	if available {
 		if backend == "" || backend == "none" {
@@ -465,21 +469,21 @@ func TestGetGrepBackendInfo(t *testing.T) {
 
 func TestBackendName(t *testing.T) {
 	tests := []struct {
-		backend  GrepBackend
+		backend  interpreter.GrepBackend
 		expected string
 	}{
-		{GrepBackendRipgrep, "rg"},
-		{GrepBackendGitGrep, "git-grep"},
-		{GrepBackendGrep, "grep"},
-		{GrepBackendNone, "none"},
-		{GrepBackend(999), "none"}, // Unknown backend
+		{interpreter.GrepBackendRipgrep, "rg"},
+		{interpreter.GrepBackendGitGrep, "git-grep"},
+		{interpreter.GrepBackendGrep, "grep"},
+		{interpreter.GrepBackendNone, "none"},
+		{interpreter.GrepBackend(999), "none"}, // Unknown backend
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.expected, func(t *testing.T) {
-			name := backendName(tt.backend)
+			name := interpreter.GrepBackendName(tt.backend)
 			if name != tt.expected {
-				t.Errorf("backendName(%d) = %q, want %q", tt.backend, name, tt.expected)
+				t.Errorf("GrepBackendName(%d) = %q, want %q", tt.backend, name, tt.expected)
 			}
 		})
 	}
@@ -487,7 +491,7 @@ func TestBackendName(t *testing.T) {
 
 func TestExecuteGrep_HiddenFiles(t *testing.T) {
 	// Skip if no grep backend is available
-	if !IsGrepAvailable() {
+	if interpreter.DetectGrepBackend() == interpreter.GrepBackendNone {
 		t.Skip("No grep backend available")
 	}
 
@@ -516,7 +520,7 @@ func TestExecuteGrep_HiddenFiles(t *testing.T) {
 	defer os.Chdir(origDir)
 
 	ctx := context.Background()
-	result, err := ExecuteGrep(ctx, "hidden_file_marker_xyz")
+	result, err := interpreter.ExecuteGrep(ctx, "hidden_file_marker_xyz")
 	if err != nil {
 		t.Fatalf("ExecuteGrep failed: %v", err)
 	}
@@ -565,19 +569,23 @@ func TestGitGrepDetection(t *testing.T) {
 		t.Fatalf("Failed to git add: %v", err)
 	}
 
-	// Verify isInsideGitRepo works
-	if !isInsideGitRepo(tmpDir) {
-		t.Error("Expected isInsideGitRepo to return true for git directory")
-	}
-
-	// Non-git directory should return false
-	nonGitDir, err := os.MkdirTemp("", "non-git-*")
+	// Verify git directory is detected properly by testing grep in it
+	origDir, err := os.Getwd()
 	if err != nil {
-		t.Fatalf("Failed to create non-git temp dir: %v", err)
+		t.Fatalf("Failed to get working directory: %v", err)
 	}
-	defer os.RemoveAll(nonGitDir)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Failed to change to git directory: %v", err)
+	}
+	defer os.Chdir(origDir)
 
-	if isInsideGitRepo(nonGitDir) {
-		t.Error("Expected isInsideGitRepo to return false for non-git directory")
+	// Grep should work in the git directory
+	ctx := context.Background()
+	result, err := interpreter.ExecuteGrep(ctx, "git grep test content")
+	if err != nil {
+		t.Fatalf("ExecuteGrep failed: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("Expected exit code 0, got %d", result.ExitCode)
 	}
 }

@@ -52,7 +52,7 @@ model testModel {
     provider: "openai",
     apiKey: "ollama",
     baseURL: "http://localhost:11434/v1",
-		model: "devstral-small-2:latest",
+		model: "gpt-oss:20b",
     temperature: 0.5
 }
 
@@ -91,8 +91,8 @@ agent Assistant {
 		t.Errorf("Expected baseURL 'http://localhost:11434/v1'")
 	}
 
-	if modelName, ok := model.Config["model"].(*StringValue); !ok || modelName.Value != "devstral-small-2:latest" {
-		t.Errorf("Expected model 'devstral-small-2:latest'")
+	if modelName, ok := model.Config["model"].(*StringValue); !ok || modelName.Value != "gpt-oss:20b" {
+		t.Errorf("Expected model 'gpt-oss:20b'")
 	}
 
 	if temp, ok := model.Config["temperature"].(*NumberValue); !ok || temp.Value != 0.5 {
@@ -129,7 +129,7 @@ model testModel {
     provider: "openai",
     apiKey: "ollama",
     baseURL: "http://localhost:11434/v1",
-    model: "devstral-small-2:latest",
+    model: "gpt-oss:20b",
     temperature: 0.3
 }
 
@@ -192,7 +192,7 @@ model testModel {
     provider: "openai",
     apiKey: "ollama",
     baseURL: "http://localhost:11434/v1",
-    model: "devstral-small-2:latest",
+    model: "gpt-oss:20b",
     temperature: 0.3
 }
 
@@ -268,7 +268,7 @@ model testModel {
     provider: "openai",
     apiKey: "ollama",
     baseURL: "http://localhost:11434/v1",
-    model: "devstral-small-2:latest",
+    model: "gpt-oss:20b",
     temperature: 0.3
 }
 
@@ -356,7 +356,7 @@ model testModel {
     provider: "openai",
     apiKey: "ollama",
     baseURL: "http://localhost:11434/v1",
-    model: "devstral-small-2:latest",
+    model: "gpt-oss:20b",
     temperature: 0.3
 }
 

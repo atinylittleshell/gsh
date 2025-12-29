@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
 func TestExecuteEdit(t *testing.T) {
@@ -21,7 +23,7 @@ func TestExecuteEdit(t *testing.T) {
 		}
 
 		// Perform edit
-		result, err := ExecuteEdit(ctx, filePath, "foo bar", "replaced text", 0, 0)
+		result, err := interpreter.ExecuteEdit(ctx, filePath, "foo bar", "replaced text", 0, 0)
 		if err != nil {
 			t.Fatalf("ExecuteEdit failed: %v", err)
 		}
@@ -48,7 +50,7 @@ func TestExecuteEdit(t *testing.T) {
 			t.Fatalf("failed to create test file: %v", err)
 		}
 
-		result, err := ExecuteEdit(ctx, filePath, "nonexistent", "replacement", 0, 0)
+		result, err := interpreter.ExecuteEdit(ctx, filePath, "nonexistent", "replacement", 0, 0)
 		if err != nil {
 			t.Fatalf("ExecuteEdit failed: %v", err)
 		}
@@ -68,7 +70,7 @@ func TestExecuteEdit(t *testing.T) {
 			t.Fatalf("failed to create test file: %v", err)
 		}
 
-		result, err := ExecuteEdit(ctx, filePath, "foo bar", "replacement", 0, 0)
+		result, err := interpreter.ExecuteEdit(ctx, filePath, "foo bar", "replacement", 0, 0)
 		if err != nil {
 			t.Fatalf("ExecuteEdit failed: %v", err)
 		}
@@ -90,7 +92,7 @@ func TestExecuteEdit(t *testing.T) {
 		}
 
 		// Replace only within lines 2-3
-		result, err := ExecuteEdit(ctx, filePath, "line 2 foo", "line 2 bar", 2, 3)
+		result, err := interpreter.ExecuteEdit(ctx, filePath, "line 2 foo", "line 2 bar", 2, 3)
 		if err != nil {
 			t.Fatalf("ExecuteEdit failed: %v", err)
 		}
@@ -118,7 +120,7 @@ func TestExecuteEdit(t *testing.T) {
 		}
 
 		// Try to find "foo" in lines 2-3 (it's only on line 1)
-		result, err := ExecuteEdit(ctx, filePath, "foo", "replacement", 2, 3)
+		result, err := interpreter.ExecuteEdit(ctx, filePath, "foo", "replacement", 2, 3)
 		if err != nil {
 			t.Fatalf("ExecuteEdit failed: %v", err)
 		}
@@ -136,7 +138,7 @@ func TestExecuteEdit(t *testing.T) {
 		}
 
 		// start_line > end_line
-		result, err := ExecuteEdit(ctx, filePath, "line", "replacement", 3, 1)
+		result, err := interpreter.ExecuteEdit(ctx, filePath, "line", "replacement", 3, 1)
 		if err != nil {
 			t.Fatalf("ExecuteEdit failed: %v", err)
 		}
@@ -153,7 +155,7 @@ func TestExecuteEdit(t *testing.T) {
 			t.Fatalf("failed to create test file: %v", err)
 		}
 
-		result, err := ExecuteEdit(ctx, filePath, "line", "replacement", 10, 20)
+		result, err := interpreter.ExecuteEdit(ctx, filePath, "line", "replacement", 10, 20)
 		if err != nil {
 			t.Fatalf("ExecuteEdit failed: %v", err)
 		}
@@ -181,7 +183,7 @@ func TestExecuteEdit(t *testing.T) {
 			t.Fatalf("failed to create test file: %v", err)
 		}
 
-		result, err := ExecuteEdit(ctx, "test.txt", "hello", "goodbye", 0, 0)
+		result, err := interpreter.ExecuteEdit(ctx, "test.txt", "hello", "goodbye", 0, 0)
 		if err != nil {
 			t.Fatalf("ExecuteEdit failed: %v", err)
 		}
@@ -208,7 +210,7 @@ func TestExecuteEdit(t *testing.T) {
 			t.Fatalf("failed to create test file: %v", err)
 		}
 
-		result, err := ExecuteEdit(ctx, filePath, "line 2", "modified", 0, 0)
+		result, err := interpreter.ExecuteEdit(ctx, filePath, "line 2", "modified", 0, 0)
 		if err != nil {
 			t.Fatalf("ExecuteEdit failed: %v", err)
 		}
@@ -239,7 +241,7 @@ func TestExecuteEdit(t *testing.T) {
 		find := "func foo() {\n    return 1\n}"
 		replace := "func foo() {\n    return 42\n}"
 
-		result, err := ExecuteEdit(ctx, filePath, find, replace, 0, 0)
+		result, err := interpreter.ExecuteEdit(ctx, filePath, find, replace, 0, 0)
 		if err != nil {
 			t.Fatalf("ExecuteEdit failed: %v", err)
 		}
@@ -275,7 +277,7 @@ func TestExecuteEditTool(t *testing.T) {
 			"replace":   "goodbye",
 		}
 
-		result, err := ExecuteEditTool(ctx, args)
+		result, err := interpreter.ExecuteNativeEditFileTool(ctx, args)
 		if err != nil {
 			t.Fatalf("ExecuteEditTool failed: %v", err)
 		}
@@ -300,7 +302,7 @@ func TestExecuteEditTool(t *testing.T) {
 			"end_line":   float64(2),
 		}
 
-		result, err := ExecuteEditTool(ctx, args)
+		result, err := interpreter.ExecuteNativeEditFileTool(ctx, args)
 		if err != nil {
 			t.Fatalf("ExecuteEditTool failed: %v", err)
 		}
@@ -324,7 +326,7 @@ func TestExecuteEditTool(t *testing.T) {
 			// missing "replace"
 		}
 
-		_, err := ExecuteEditTool(ctx, args)
+		_, err := interpreter.ExecuteNativeEditFileTool(ctx, args)
 		if err == nil {
 			t.Fatal("expected error for missing argument")
 		}
@@ -332,7 +334,7 @@ func TestExecuteEditTool(t *testing.T) {
 }
 
 func TestEditToolDefinition(t *testing.T) {
-	def := EditToolDefinition()
+	def := interpreter.EditFileToolDefinition()
 
 	if def.Name != "edit_file" {
 		t.Errorf("expected name 'edit_file', got %q", def.Name)

@@ -1,6 +1,8 @@
 package interpreter
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // registerGshSDK registers the gsh SDK object with all its properties
 func (i *Interpreter) registerGshSDK() {
@@ -51,6 +53,9 @@ func (i *Interpreter) registerGshSDK() {
 		},
 	}
 
+	// Create gsh.tools object with native tool implementations
+	toolsObj := i.createNativeToolsObject()
+
 	// Create gsh object
 	gshObj := &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
@@ -60,6 +65,7 @@ func (i *Interpreter) registerGshSDK() {
 			"integrations":     {Value: integrationsObj},
 			"lastAgentRequest": {Value: lastAgentRequestObj, ReadOnly: true},
 			"repl":             {Value: replObj, ReadOnly: true},
+			"tools":            {Value: toolsObj, ReadOnly: true},
 			"on": {Value: &BuiltinValue{
 				Name: "gsh.on",
 				Fn:   i.builtinGshOn,
@@ -307,4 +313,18 @@ func (c *REPLLastCommandObjectValue) GetProperty(name string) Value {
 
 func (c *REPLLastCommandObjectValue) SetProperty(name string, value Value) error {
 	return fmt.Errorf("cannot set property '%s' on gsh.repl.lastCommand", name)
+}
+
+// createNativeToolsObject creates the gsh.tools object with all native tool implementations.
+// These tools use a single implementation shared between the SDK and the REPL agent.
+// The tool definitions come from native_tools.go to avoid duplication.
+func (i *Interpreter) createNativeToolsObject() *ObjectValue {
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"exec":      {Value: CreateExecNativeTool(), ReadOnly: true},
+			"grep":      {Value: CreateGrepNativeTool(), ReadOnly: true},
+			"view_file": {Value: CreateViewFileNativeTool(), ReadOnly: true},
+			"edit_file": {Value: CreateEditFileNativeTool(), ReadOnly: true},
+		},
+	}
 }

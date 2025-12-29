@@ -589,6 +589,28 @@ type SetValue struct {
 	Elements map[string]Value // Using map for uniqueness, key is String() representation
 }
 
+// NativeToolValue represents a native (Go-implemented) tool that can be used by agents.
+// Unlike BuiltinValue which is for simple functions, NativeToolValue provides full tool
+// metadata (description, parameters) needed for LLM tool calling.
+type NativeToolValue struct {
+	Name        string                                                 // Tool name (e.g., "exec", "grep")
+	Description string                                                 // Human-readable description
+	Parameters  map[string]interface{}                                 // JSON schema for parameters
+	Invoke      func(args map[string]interface{}) (interface{}, error) // Go implementation
+}
+
+func (n *NativeToolValue) Type() ValueType { return ValueTypeTool }
+func (n *NativeToolValue) String() string {
+	return fmt.Sprintf("<native_tool %s>", n.Name)
+}
+func (n *NativeToolValue) IsTruthy() bool { return true }
+func (n *NativeToolValue) Equals(other Value) bool {
+	if otherNative, ok := other.(*NativeToolValue); ok {
+		return n.Name == otherNative.Name
+	}
+	return false
+}
+
 func (s *SetValue) Type() ValueType { return ValueTypeSet }
 func (s *SetValue) String() string {
 	var out strings.Builder
