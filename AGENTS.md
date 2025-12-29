@@ -21,6 +21,8 @@ If you need to build the gsh binary for testing, you can just run `make build` o
 
 It's okay to overwrite the existing binary during testing.
 
+The full test suite can take more than 3 minutes to run, so set timeout accordingly.
+
 ## UI Colors and Styling
 
 **Yellow is the primary UI color for gsh.** All UI elements that need highlighting or emphasis should use yellow (ANSI color 11).
@@ -68,4 +70,20 @@ When implementing features that span multiple packages (e.g., interpreter and RE
 Before creating new helper functions for type conversion, context creation, or similar utilities:
 
 1. Search for existing implementations. E.g. `grep -r "func.*ToInterface\|func.*ToValue" internal/`
-2. Check `internal/script/interpreter/conversation.go` and `internal/script/interpreter/value.go` for common existing utilities
+2. Check `internal/script/interpreter/value_convert.go` and `internal/script/interpreter/value.go` for common existing utilities
+
+### File Organization: Breaking Up Large Files
+
+When a package file exceeds ~500 lines and contains multiple distinct concerns, consider splitting it:
+
+**Example: conversation.go refactor**
+
+- **Original:** 986 lines mixing pipe expressions, agentic loop, tool execution, event handling, and value conversion
+- **Result:** 5 focused files:
+  - `conversation.go` (~180 lines) - Pipe expressions & AgentCallbacks struct
+  - `agent_loop.go` (~320 lines) - Core agentic loop (ExecuteAgentWithCallbacks)
+  - `agent_events.go` (~160 lines) - Event constants & context creation helpers
+  - `tool_execution.go` (~200 lines) - Tool execution & conversion functions
+  - `value_convert.go` (~120 lines) - Value/interface conversion utilities
+
+**Pattern to watch for:** If a file has multiple sections with disjoint imports or dependencies, it's a sign the file should be split.
