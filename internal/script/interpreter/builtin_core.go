@@ -7,16 +7,17 @@ import (
 
 // builtinNames contains all the names of built-in functions and objects
 var builtinNames = map[string]bool{
-	"print": true,
-	"input": true,
-	"JSON":  true,
-	"log":   true,
-	"env":   true,
-	"Map":   true,
-	"Set":   true,
-	"exec":  true,
-	"gsh":   true,
-	"Math":  true,
+	"print":  true,
+	"input":  true,
+	"JSON":   true,
+	"log":    true,
+	"env":    true,
+	"Map":    true,
+	"Set":    true,
+	"exec":   true,
+	"gsh":    true,
+	"Math":   true,
+	"typeof": true,
 }
 
 // isBuiltin checks if a name is a built-in function or object
@@ -118,4 +119,57 @@ func (i *Interpreter) registerBuiltins() {
 		Name: "input",
 		Fn:   i.builtinInput,
 	})
+
+	// Register typeof function for runtime type inspection
+	i.env.Set("typeof", &BuiltinValue{
+		Name: "typeof",
+		Fn:   builtinTypeof,
+	})
+}
+
+// builtinTypeof returns the type of a value as a string
+func builtinTypeof(args []Value) (Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("typeof() takes exactly 1 argument, got %d", len(args))
+	}
+
+	val := args[0]
+	var typeName string
+
+	switch val.(type) {
+	case *StringValue:
+		typeName = "string"
+	case *NumberValue:
+		typeName = "number"
+	case *BoolValue:
+		typeName = "boolean"
+	case *NullValue:
+		typeName = "null"
+	case *ArrayValue:
+		typeName = "array"
+	case *ObjectValue:
+		typeName = "object"
+	case *MapValue:
+		typeName = "map"
+	case *SetValue:
+		typeName = "set"
+	case *ToolValue:
+		typeName = "tool"
+	case *BuiltinValue:
+		typeName = "function"
+	case *ModelValue:
+		typeName = "model"
+	case *AgentValue:
+		typeName = "agent"
+	case *MCPProxyValue:
+		typeName = "mcp"
+	case *MCPToolValue:
+		typeName = "mcp_tool"
+	case *ConversationValue:
+		typeName = "conversation"
+	default:
+		typeName = "unknown"
+	}
+
+	return &StringValue{Value: typeName}, nil
 }

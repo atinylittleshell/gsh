@@ -125,10 +125,16 @@ func (p *Parser) parseCallExpression(function Expression) Expression {
 }
 
 // parseMemberExpression parses member access expressions
+// Allows both identifiers and keywords as property names (e.g., obj.model, obj.agent)
 func (p *Parser) parseMemberExpression(object Expression) Expression {
 	exp := &MemberExpression{Token: p.curToken, Object: object}
 
-	if !p.expectPeek(lexer.IDENT) {
+	p.nextToken()
+
+	// Accept identifiers or keywords as property names
+	if p.curToken.Type != lexer.IDENT && !lexer.IsKeyword(p.curToken.Type) {
+		p.addError("expected property name after '.', got %s '%s' instead (line %d, column %d)",
+			p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column)
 		return nil
 	}
 
@@ -159,9 +165,9 @@ func (p *Parser) parseObjectLiteral() Expression {
 	p.nextToken() // move to first key
 
 	for !p.curTokenIs(lexer.RBRACE) {
-		// Parse key (must be identifier or string)
+		// Parse key (must be identifier, keyword, or string)
 		var key string
-		if p.curTokenIs(lexer.IDENT) {
+		if p.curTokenIs(lexer.IDENT) || lexer.IsKeyword(p.curToken.Type) {
 			key = p.curToken.Literal
 		} else if p.curTokenIs(lexer.STRING) {
 			key = p.curToken.Literal

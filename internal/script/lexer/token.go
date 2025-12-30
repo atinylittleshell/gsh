@@ -101,3 +101,17 @@ func LookupIdent(ident string) TokenType {
 	}
 	return IDENT
 }
+
+// keywordTypes is a set of all keyword token types, derived from the keywords map
+var keywordTypes = func() map[TokenType]bool {
+	m := make(map[TokenType]bool)
+	for _, tokenType := range keywords {
+		m[tokenType] = true
+	}
+	return m
+}()
+
+// IsKeyword returns true if the token type is a keyword
+func IsKeyword(t TokenType) bool {
+	return keywordTypes[t]
+}
