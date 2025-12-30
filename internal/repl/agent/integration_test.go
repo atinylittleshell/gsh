@@ -112,8 +112,7 @@ func TestAgentState_ToolsAndExecutorConsistency(t *testing.T) {
 
 func TestAgentState_MissingInterpreter_ReturnsError(t *testing.T) {
 	// This test verifies that SendMessage fails with a clear error when Interpreter is missing
-	logger := newTestLogger()
-	manager := NewManager(logger)
+	manager := NewManager()
 
 	provider := newMockProvider()
 	provider.addResponse("Hello!", nil)

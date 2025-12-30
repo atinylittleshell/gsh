@@ -6,7 +6,7 @@ import (
 )
 
 // TestAgentEventsEmitted tests that agent lifecycle events are properly emitted
-// during agent execution when an EventEmitter is configured.
+// during agent execution through the event manager.
 func TestAgentEventsEmitted(t *testing.T) {
 	// Create a mock provider that returns a simple response
 	// SmartMockProvider auto-responds based on message content
@@ -18,6 +18,25 @@ func TestAgentEventsEmitted(t *testing.T) {
 	// Track emitted events
 	emittedEvents := []string{}
 	eventContexts := make(map[string]Value)
+
+	// Register test event callbacks to capture events
+	eventNames := []string{
+		EventAgentStart,
+		EventAgentIterationStart,
+		EventAgentIterationEnd,
+		EventAgentEnd,
+		EventAgentChunk,
+		EventAgentToolStart,
+		EventAgentToolEnd,
+	}
+	for _, eventName := range eventNames {
+		// Capture each event name and context
+		capturedEventName := eventName
+		interp.RegisterTestEventCallback(eventName, func(ctx Value) {
+			emittedEvents = append(emittedEvents, capturedEventName)
+			eventContexts[capturedEventName] = ctx
+		})
+	}
 
 	// Create agent
 	agent := &AgentValue{
@@ -37,19 +56,10 @@ func TestAgentEventsEmitted(t *testing.T) {
 		},
 	}
 
-	// Create callbacks with EventEmitter
-	callbacks := &AgentCallbacks{
-		UserMessage: "Hello",
-		EventEmitter: func(eventName string, ctx Value) {
-			emittedEvents = append(emittedEvents, eventName)
-			eventContexts[eventName] = ctx
-		},
-	}
-
 	// Execute agent
-	_, err := interp.ExecuteAgentWithCallbacks(context.Background(), conv, agent, callbacks)
+	_, err := interp.ExecuteAgent(context.Background(), conv, agent, false)
 	if err != nil {
-		t.Fatalf("ExecuteAgentWithCallbacks failed: %v", err)
+		t.Fatalf("ExecuteAgent failed: %v", err)
 	}
 
 	// Verify events were emitted in correct order
@@ -136,6 +146,25 @@ func TestAgentToolEventsEmitted(t *testing.T) {
 	emittedEvents := []string{}
 	eventContexts := make(map[string]Value)
 
+	// Register test event callbacks to capture events
+	eventNames := []string{
+		EventAgentStart,
+		EventAgentIterationStart,
+		EventAgentIterationEnd,
+		EventAgentEnd,
+		EventAgentChunk,
+		EventAgentToolStart,
+		EventAgentToolEnd,
+	}
+	for _, eventName := range eventNames {
+		// Capture each event name and context
+		capturedEventName := eventName
+		interp.RegisterTestEventCallback(eventName, func(ctx Value) {
+			emittedEvents = append(emittedEvents, capturedEventName)
+			eventContexts[capturedEventName] = ctx
+		})
+	}
+
 	// Create a weather tool that SmartMockProvider knows how to use
 	weatherTool := &ToolValue{
 		Name:       "get_weather",
@@ -162,22 +191,17 @@ func TestAgentToolEventsEmitted(t *testing.T) {
 		},
 	}
 
-	// Create callbacks with EventEmitter and a custom tool executor
+	// Create callbacks with just the ToolExecutor
 	callbacks := &AgentCallbacks{
-		UserMessage: "What is the weather in San Francisco?",
-		EventEmitter: func(eventName string, ctx Value) {
-			emittedEvents = append(emittedEvents, eventName)
-			eventContexts[eventName] = ctx
-		},
 		ToolExecutor: func(ctx context.Context, toolName string, args map[string]interface{}) (string, error) {
-			return `{"weather": "sunny", "temp": 72}`, nil
+			return `{\"weather\": \"sunny\", \"temp\": 72}`, nil
 		},
 	}
 
-	// Execute agent
-	_, err := interp.ExecuteAgentWithCallbacks(context.Background(), conv, agent, callbacks)
+	// Execute agent with callbacks for tool execution
+	_, err := interp.executeAgentInternal(context.Background(), conv, agent, false, callbacks)
 	if err != nil {
-		t.Fatalf("ExecuteAgentWithCallbacks failed: %v", err)
+		t.Fatalf("executeAgentInternal failed: %v", err)
 	}
 
 	// Check that tool events were emitted
@@ -235,8 +259,23 @@ func TestAgentChunkEventsEmitted(t *testing.T) {
 	// Create interpreter
 	interp := New(nil)
 
-	// Track emitted events
+	// Track emitted events and chunk contents
 	chunkContents := []string{}
+	emittedEvents := []string{}
+	eventContexts := make(map[string]Value)
+
+	// Register test event callback for chunk events to capture chunk contents
+	interp.RegisterTestEventCallback(EventAgentChunk, func(ctx Value) {
+		emittedEvents = append(emittedEvents, EventAgentChunk)
+		if chunkCtx, ok := ctx.(*ObjectValue); ok {
+			if contentProp, ok := chunkCtx.Properties["content"]; ok {
+				if contentStr, ok := contentProp.Value.(*StringValue); ok {
+					chunkContents = append(chunkContents, contentStr.Value)
+				}
+			}
+			eventContexts[EventAgentChunk] = ctx
+		}
+	})
 
 	// Create agent
 	agent := &AgentValue{
@@ -255,27 +294,10 @@ func TestAgentChunkEventsEmitted(t *testing.T) {
 		},
 	}
 
-	// Create callbacks with streaming and EventEmitter
-	callbacks := &AgentCallbacks{
-		Streaming:   true,
-		UserMessage: "Hello",
-		EventEmitter: func(eventName string, ctx Value) {
-			if eventName == EventAgentChunk {
-				if chunkCtx, ok := ctx.(*ObjectValue); ok {
-					if contentProp, ok := chunkCtx.Properties["content"]; ok {
-						if contentStr, ok := contentProp.Value.(*StringValue); ok {
-							chunkContents = append(chunkContents, contentStr.Value)
-						}
-					}
-				}
-			}
-		},
-	}
-
-	// Execute agent
-	_, err := interp.ExecuteAgentWithCallbacks(context.Background(), conv, agent, callbacks)
+	// Execute agent with streaming enabled
+	_, err := interp.ExecuteAgent(context.Background(), conv, agent, true)
 	if err != nil {
-		t.Fatalf("ExecuteAgentWithCallbacks failed: %v", err)
+		t.Fatalf("ExecuteAgent failed: %v", err)
 	}
 
 	// SmartMockProvider calls OnContent once with the full response

@@ -16,7 +16,7 @@ func TestSDKAgentAddSync(t *testing.T) {
 	interp := interpreter.New(&interpreter.Options{Logger: logger})
 	defer interp.Close()
 
-	agentManager := agent.NewManager(logger)
+	agentManager := agent.NewManager()
 
 	// Create a test model with a mock provider
 	testModel := &interpreter.ModelValue{
@@ -115,7 +115,7 @@ func TestSDKAgentModifySync(t *testing.T) {
 	interp := interpreter.New(&interpreter.Options{Logger: logger})
 	defer interp.Close()
 
-	agentManager := agent.NewManager(logger)
+	agentManager := agent.NewManager()
 
 	// Create test models
 	originalModel := &interpreter.ModelValue{
@@ -200,7 +200,7 @@ func TestSDKAgentToolsSync(t *testing.T) {
 	interp := interpreter.New(&interpreter.Options{Logger: logger})
 	defer interp.Close()
 
-	agentManager := agent.NewManager(logger)
+	agentManager := agent.NewManager()
 
 	// Create test model
 	testModel := &interpreter.ModelValue{

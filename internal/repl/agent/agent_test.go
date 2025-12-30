@@ -6,8 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"go.uber.org/zap"
-
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
@@ -159,8 +157,7 @@ func createTestStateWithName(provider interpreter.ModelProvider, name string, sy
 }
 
 func TestSendMessage_NoToolCalls(t *testing.T) {
-	logger := zap.NewNop()
-	manager := NewManager(logger)
+	manager := NewManager()
 
 	provider := newMockProvider()
 	provider.addResponse("Hello! I'm here to help.", nil)
@@ -191,8 +188,7 @@ func TestSendMessage_NoToolCalls(t *testing.T) {
 }
 
 func TestSendMessage_WithToolCalls(t *testing.T) {
-	logger := zap.NewNop()
-	manager := NewManager(logger)
+		manager := NewManager()
 
 	provider := newMockProvider()
 
@@ -276,8 +272,7 @@ func TestSendMessage_WithToolCalls(t *testing.T) {
 }
 
 func TestSendMessage_MultipleToolCalls(t *testing.T) {
-	logger := zap.NewNop()
-	manager := NewManager(logger)
+		manager := NewManager()
 
 	provider := newMockProvider()
 
@@ -343,8 +338,7 @@ func TestSendMessage_MultipleToolCalls(t *testing.T) {
 }
 
 func TestSendMessage_ChainedToolCalls(t *testing.T) {
-	logger := zap.NewNop()
-	manager := NewManager(logger)
+		manager := NewManager()
 
 	provider := newMockProvider()
 
@@ -393,8 +387,7 @@ func TestSendMessage_ChainedToolCalls(t *testing.T) {
 }
 
 func TestSendMessage_MaxIterationsReached(t *testing.T) {
-	logger := zap.NewNop()
-	manager := NewManager(logger)
+		manager := NewManager()
 
 	provider := newMockProvider()
 
@@ -439,8 +432,7 @@ func TestSendMessage_MaxIterationsReached(t *testing.T) {
 }
 
 func TestSendMessage_ToolExecutorError(t *testing.T) {
-	logger := zap.NewNop()
-	manager := NewManager(logger)
+		manager := NewManager()
 
 	provider := newMockProvider()
 
@@ -488,8 +480,7 @@ func TestSendMessage_ToolExecutorError(t *testing.T) {
 }
 
 func TestSendMessage_NoToolExecutor(t *testing.T) {
-	logger := zap.NewNop()
-	manager := NewManager(logger)
+		manager := NewManager()
 
 	provider := newMockProvider()
 

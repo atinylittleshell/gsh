@@ -173,7 +173,7 @@ func NewREPL(opts Options) (*REPL, error) {
 	// Note: We'll set the agent provider after initializing agents below
 
 	// Initialize agent manager
-	agentManager := agent.NewManager(logger)
+	agentManager := agent.NewManager()
 
 	// Always initialize the built-in default agent if a model is configured
 	defaultAgentModel := loadResult.Config.GetDefaultAgentModel()

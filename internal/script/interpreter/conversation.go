@@ -58,20 +58,12 @@ type AgentCallbacks struct {
 	// This allows the REPL to provide its own tool implementations (exec, grep, etc.)
 	ToolExecutor func(ctx context.Context, toolName string, args map[string]interface{}) (string, error)
 
-	// Streaming enables streaming responses.
-	// When true, OnChunk will be called for each content chunk.
-	Streaming bool
-
 	// EventEmitter is called to emit SDK events (agent.start, agent.end, etc.).
 	// If set, the interpreter will call this function to emit events.
 	// The function receives the event name and a context object.
 	// Handlers that want to produce output should print directly to stdout.
 	// This allows the REPL to handle event emission through the SDK system.
 	EventEmitter func(eventName string, ctx Value)
-
-	// UserMessage is the original user message that started this agent conversation.
-	// This is used for the agent.start event context.
-	UserMessage string
 }
 
 // evalPipeExpression evaluates a pipe expression
@@ -173,5 +165,5 @@ func (i *Interpreter) executeAgentWithConversation(conv *ConversationValue, agen
 		Messages: messages,
 	}
 
-	return i.executeAgent(execConv, agent)
+	return i.ExecuteAgent(context.Background(), execConv, agent, false)
 }

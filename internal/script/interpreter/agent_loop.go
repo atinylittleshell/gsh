@@ -12,33 +12,51 @@ import (
 // if not specified in the agent config.
 const DefaultMaxIterations = 100
 
-// executeAgent executes an agent with a conversation and returns the updated conversation.
-// This is the simple non-streaming version used by the script interpreter.
-func (i *Interpreter) executeAgent(conv *ConversationValue, agent *AgentValue) (Value, error) {
-	return i.ExecuteAgentWithCallbacks(context.Background(), conv, agent, nil)
+// ExecuteAgent executes an agent with a conversation and returns the updated conversation.
+// streaming parameter enables streaming responses.
+// SDK events (agent.start, agent.end, etc.) are emitted via the interpreter's event manager.
+// The user message is inferred from the conversation.
+func (i *Interpreter) ExecuteAgent(
+	ctx context.Context,
+	conv *ConversationValue,
+	agent *AgentValue,
+	streaming bool,
+) (Value, error) {
+	return i.executeAgentInternal(ctx, conv, agent, streaming, nil)
 }
 
-// ExecuteAgentWithCallbacks executes an agent with optional callbacks for streaming and UI hooks.
-// This is the core agentic loop implementation that can be used by both the script interpreter
-// and the REPL. When callbacks is nil, it behaves like the simple executeAgent.
-func (i *Interpreter) ExecuteAgentWithCallbacks(ctx context.Context, conv *ConversationValue, agent *AgentValue, callbacks *AgentCallbacks) (Value, error) {
+// ExecuteAgentWithCallbacks executes an agent with callbacks and returns the updated conversation.
+// streaming parameter enables streaming responses.
+// callbacks can be used to hook into agent execution events (tool execution, streaming chunks, etc.).
+// SDK events (agent.start, agent.end, etc.) are emitted via the interpreter's event manager regardless of callbacks.
+// The user message is inferred from the conversation.
+func (i *Interpreter) ExecuteAgentWithCallbacks(
+	ctx context.Context,
+	conv *ConversationValue,
+	agent *AgentValue,
+	streaming bool,
+	callbacks *AgentCallbacks,
+) (Value, error) {
+	return i.executeAgentInternal(ctx, conv, agent, streaming, callbacks)
+}
+
+// executeAgentInternal is the core agentic loop implementation.
+// It supports both simple execution (no callbacks) and REPL execution (with callbacks).
+// Events are always emitted via the interpreter's EmitEvent method.
+func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *ConversationValue, agent *AgentValue, streaming bool, callbacks *AgentCallbacks) (Value, error) {
 	startTime := time.Now()
 
 	// Track token usage across all iterations
 	var totalInputTokens, totalOutputTokens, totalCachedTokens int
 
-	// Helper to emit events if EventEmitter is configured
+	// Helper to emit events via the interpreter's event manager
 	emitEvent := func(eventName string, eventCtx Value) {
-		if callbacks != nil && callbacks.EventEmitter != nil {
-			callbacks.EventEmitter(eventName, eventCtx)
-		}
+		i.EmitEvent(eventName, eventCtx)
 	}
 
-	// Get user message for events (from callbacks or from conversation)
+	// Get user message for events from conversation (find the last user message)
 	userMessage := ""
-	if callbacks != nil && callbacks.UserMessage != "" {
-		userMessage = callbacks.UserMessage
-	} else if len(conv.Messages) > 0 {
+	if len(conv.Messages) > 0 {
 		// Find the last user message in conversation
 		for j := len(conv.Messages) - 1; j >= 0; j-- {
 			if conv.Messages[j].Role == "user" {
@@ -171,7 +189,7 @@ func (i *Interpreter) ExecuteAgentWithCallbacks(ctx context.Context, conv *Conve
 	}
 
 	// Determine if we should use streaming
-	useStreaming := callbacks != nil && callbacks.Streaming
+	useStreaming := streaming
 
 	// Agentic loop - continue until no tool calls or max iterations reached
 	for iteration := 0; iteration < maxIterations; iteration++ {
@@ -208,12 +226,12 @@ func (i *Interpreter) ExecuteAgentWithCallbacks(ctx context.Context, conv *Conve
 					// Emit agent.chunk event
 					emitEvent(EventAgentChunk, createChunkContext(content))
 					// Also call the original callback
-					if callbacks.OnChunk != nil {
+					if callbacks != nil && callbacks.OnChunk != nil {
 						callbacks.OnChunk(content)
 					}
 				},
 			}
-			if callbacks.OnToolCallStreaming != nil {
+			if callbacks != nil && callbacks.OnToolCallStreaming != nil {
 				streamCallbacks.OnToolCallStart = callbacks.OnToolCallStreaming
 			}
 			response, err = model.Provider.StreamingChatCompletion(request, streamCallbacks)

@@ -5,9 +5,6 @@ import (
 	"context"
 	"fmt"
 
-	"go.uber.org/zap"
-
-	"github.com/atinylittleshell/gsh/internal/acp"
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
@@ -24,17 +21,12 @@ type State struct {
 type Manager struct {
 	states           map[string]*State
 	currentAgentName string
-	logger           *zap.Logger
 }
 
 // NewManager creates a new agent manager.
-func NewManager(logger *zap.Logger) *Manager {
-	if logger == nil {
-		logger = zap.NewNop()
-	}
+func NewManager() *Manager {
 	return &Manager{
 		states: make(map[string]*State),
-		logger: logger,
 	}
 }
 
@@ -110,8 +102,8 @@ func (m *Manager) ClearCurrentConversation() error {
 
 // SendMessage sends a message to the current agent and streams the response.
 // All rendering (spinner, text output) is handled via gsh script event handlers.
-// This uses the interpreter's ExecuteAgentWithCallbacks for the agentic loop,
-// with the EventEmitter callback to bridge interpreter events to gsh.on() handlers.
+// This uses the interpreter's ExecuteAgent for the agentic loop,
+// with streaming enabled and event emission bridged to gsh.on() handlers.
 func (m *Manager) SendMessage(ctx context.Context, message string) error {
 	if m.currentAgentName == "" {
 		return fmt.Errorf("no current agent")
@@ -139,41 +131,9 @@ func (m *Manager) SendMessage(ctx context.Context, message string) error {
 		Content: message,
 	})
 
-	// Build callbacks to drive the REPL UI via events
-	// All rendering is handled by gsh script event handlers (agent.chunk, agent.iteration.start, etc.)
-	// Event emission is handled entirely by the interpreter's agentic loop
-	callbacks := &interpreter.AgentCallbacks{
-		Streaming:   true,
-		UserMessage: message, // Pass user message for agent.start event
-
-		// EventEmitter allows the interpreter to emit SDK events through gsh.on() handlers
-		EventEmitter: func(eventName string, ctx interpreter.Value) {
-			state.Interpreter.EmitEvent(eventName, ctx)
-		},
-
-		OnToolCallEnd: func(toolCall acp.ToolCall, update acp.ToolCallUpdate) {
-			// Log tool errors
-			if update.Error != nil {
-				m.logger.Warn("tool execution failed",
-					zap.String("tool", toolCall.Name),
-					zap.Error(update.Error),
-				)
-			}
-		},
-
-		OnComplete: func(result acp.AgentResult) {
-			// Log agent completion
-			m.logger.Debug("agent interaction",
-				zap.String("agent", m.currentAgentName),
-				zap.String("message", message),
-				zap.String("stopReason", string(result.StopReason)),
-				zap.Duration("duration", result.Duration),
-			)
-		},
-	}
-
-	// Execute using the interpreter's agentic loop
-	result, err := state.Interpreter.ExecuteAgentWithCallbacks(ctx, conv, state.Agent, callbacks)
+	// Execute using the interpreter's agentic loop with streaming enabled
+	// Event emission is handled via the interpreter's event manager, which calls gsh.on() handlers
+	result, err := state.Interpreter.ExecuteAgent(ctx, conv, state.Agent, true)
 
 	// Update state conversation from result
 	if result != nil {

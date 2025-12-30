@@ -73,7 +73,7 @@ func TestParseAgentInput(t *testing.T) {
 
 // createTestREPLWithAgents is a helper to create a REPL with agents for testing
 func createTestREPLWithAgents(logger *zap.Logger, agents map[string]*agent.State, currentAgent string) *REPL {
-	mgr := agent.NewManager(logger)
+	mgr := agent.NewManager()
 	for name, state := range agents {
 		mgr.AddAgent(name, state)
 	}
