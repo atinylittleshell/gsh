@@ -24,7 +24,6 @@ import (
 	"github.com/atinylittleshell/gsh/internal/repl/executor"
 	"github.com/atinylittleshell/gsh/internal/repl/input"
 	"github.com/atinylittleshell/gsh/internal/repl/predict"
-	"github.com/atinylittleshell/gsh/internal/repl/render"
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
@@ -48,15 +47,9 @@ type REPL struct {
 	// Agent mode support - multiple agents
 	agentManager *agent.Manager
 
-	// Renderer for prompt and agent output
-	renderer *render.Renderer
-
 	// Track last command exit code and duration for prompt updates
 	lastExitCode   int
 	lastDurationMs int64
-
-	// Build version for dev mode indicator
-	buildVersion string
 }
 
 // Options holds configuration options for creating a new REPL.
@@ -182,27 +175,6 @@ func NewREPL(opts Options) (*REPL, error) {
 	// Initialize agent manager
 	agentManager := agent.NewManager(logger)
 
-	// Create renderer for agent output and prompt rendering
-	// Terminal width function that queries the terminal
-	termWidthFunc := func() int {
-		width, _, err := term.GetSize(int(os.Stdout.Fd()))
-		if err != nil || width <= 0 {
-			return 80 // Default fallback
-		}
-		return width
-	}
-	// Terminal height function that queries the terminal
-	termHeightFunc := func() int {
-		_, height, err := term.GetSize(int(os.Stdout.Fd()))
-		if err != nil || height <= 0 {
-			return 24 // Default fallback
-		}
-		return height
-	}
-	agentRenderer := render.New(interp, os.Stdout, termWidthFunc)
-	agentRenderer.SetTermHeight(termHeightFunc)
-	agentManager.SetRenderer(agentRenderer)
-
 	// Always initialize the built-in default agent if a model is configured
 	defaultAgentModel := loadResult.Config.GetDefaultAgentModel()
 	if defaultAgentModel != nil && defaultAgentModel.Provider != nil {
@@ -275,9 +247,7 @@ func NewREPL(opts Options) (*REPL, error) {
 		contextProvider:    contextProvider,
 		completionProvider: completionProvider,
 		agentManager:       agentManager,
-		renderer:           agentRenderer,
 		logger:             logger,
-		buildVersion:       opts.BuildVersion,
 	}
 
 	// Set the REPL as the agent provider for completions
@@ -335,17 +305,11 @@ func NewREPL(opts Options) (*REPL, error) {
 	return repl, nil
 }
 
-
 // Run starts the interactive REPL loop.
 func (r *REPL) Run(ctx context.Context) error {
 	r.logger.Info("starting REPL")
 
-	// Show welcome screen if enabled
-	if r.config.ShowWelcomeEnabled() {
-		r.showWelcomeScreen()
-	}
-
-	// Emit repl.ready event
+	// Emit repl.ready event (welcome screen is handled by event handler in .gshrc.default.gsh)
 	r.emitREPLEvent("repl.ready")
 
 	// Create prediction state if history or LLM predictor is available
@@ -380,11 +344,8 @@ func (r *REPL) Run(ctx context.Context) error {
 		default:
 		}
 
-		// Get prompt
+		// Get prompt - emits repl.prompt event internally
 		prompt := r.getPrompt()
-
-		// Emit repl.prompt event
-		r.emitREPLEvent("repl.prompt")
 
 		// Get history values for navigation
 		historyValues := r.getHistoryValues()
@@ -534,34 +495,25 @@ func (r *REPL) processCommand(ctx context.Context, command string) error {
 	return nil
 }
 
-
 // getPrompt returns the prompt string to display.
+// Emits repl.prompt event to allow dynamic prompt updates (e.g., Starship integration).
+// Event handlers can set gsh.repl.prompt to customize the prompt.
 func (r *REPL) getPrompt() string {
-	var prompt string
+	interp := r.executor.Interpreter()
 
-	// Check if GSH_PROMPT tool is defined and renderer is available
-	promptTool := r.config.GetUpdatePromptTool()
-	if promptTool != nil && r.renderer != nil {
-		// Use the renderer to call GSH_PROMPT with RenderContext
-		ctx := r.renderer.NewPromptContext(r.lastExitCode, r.lastDurationMs)
-		result := r.renderer.CallPromptHook(ctx)
-		if result != "" {
-			prompt = result
-		} else {
-			// Hook returned empty or failed, use static prompt
-			prompt = r.config.Prompt
+	// Emit repl.prompt event to let handlers update the prompt dynamically
+	interp.EmitEvent("repl.prompt", &interpreter.NullValue{})
+
+	// Read gsh.repl.prompt property (may have been updated by event handler)
+	replCtx := interp.SDKConfig().GetREPLContext()
+	if replCtx != nil && replCtx.PromptValue != nil {
+		if strVal, ok := replCtx.PromptValue.(*interpreter.StringValue); ok && strVal.Value != "" {
+			return strVal.Value
 		}
-	} else {
-		// Fall back to static prompt
-		prompt = r.config.Prompt
 	}
 
-	// Add [dev] prefix for development builds
-	if r.buildVersion == "dev" {
-		prompt = "[dev] " + prompt
-	}
-
-	return prompt
+	// Fallback to config prompt if gsh.repl.prompt not set
+	return r.config.Prompt
 }
 
 // updatePredictorContext updates the predictor with current context information.
@@ -618,7 +570,6 @@ func (r *REPL) createHistorySearchFunc() input.HistorySearchFunc {
 	}
 }
 
-
 // Close cleans up REPL resources.
 func (r *REPL) Close() error {
 	if r.executor != nil {
@@ -641,7 +592,6 @@ func (r *REPL) Executor() *executor.REPLExecutor {
 func (r *REPL) History() *history.HistoryManager {
 	return r.history
 }
-
 
 // emitREPLEvent emits a REPL event by calling all registered handlers for that event
 func (r *REPL) emitREPLEvent(eventName string, args ...interpreter.Value) {

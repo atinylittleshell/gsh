@@ -11,7 +11,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/atinylittleshell/gsh/internal/acp"
-	"github.com/atinylittleshell/gsh/internal/repl/render"
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
@@ -35,7 +34,6 @@ type Manager struct {
 	states           map[string]*State
 	currentAgentName string
 	logger           *zap.Logger
-	renderer         *render.Renderer
 }
 
 // NewManager creates a new agent manager.
@@ -47,12 +45,6 @@ func NewManager(logger *zap.Logger) *Manager {
 		states: make(map[string]*State),
 		logger: logger,
 	}
-}
-
-// SetRenderer sets the renderer for agent output.
-// If not set, output will use simple fmt.Print calls.
-func (m *Manager) SetRenderer(r *render.Renderer) {
-	m.renderer = r
 }
 
 // AddAgent adds an agent state to the manager.
@@ -179,11 +171,6 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 	// This helps us decide whether to reuse the spinner line when transitioning to tool calls.
 	printedRealText := false
 
-	// Track if we've shown a streaming tool call for the current response.
-	// When the LLM returns multiple tool calls in one response, we only show
-	// the streaming (pending) status for the first one to avoid display issues.
-	streamingToolShown := false
-
 	// Store the stop function for the pending spinner so we can stop it
 	// when the tool call starts executing
 	var stopPendingSpinner func()
@@ -225,14 +212,14 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 		},
 
 		OnIterationStart: func(iteration int) {
-			// Render header on first iteration
-			if !headerRendered && m.renderer != nil {
-				m.renderer.RenderAgentHeader(m.currentAgentName)
+			// Emit agent.start event on first iteration
+			if !headerRendered {
+				ctx := interpreter.CreateAgentStartContext(m.currentAgentName, message)
+				state.Interpreter.EmitEvent(interpreter.EventAgentStart, ctx)
 				headerRendered = true
 			}
 
-			// Reset streaming tool flag and pending spinner for new iteration
-			streamingToolShown = false
+			// Reset pending spinner for new iteration
 			printedRealText = false
 			pendingSpinnerMu.Lock()
 			stopPendingSpinner = nil
@@ -241,9 +228,7 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 			// Start thinking spinner for each iteration
 			spinnerMu.Lock()
 			firstChunkReceived = false
-			if m.renderer != nil {
-				stopSpinner = m.renderer.StartThinkingSpinner(ctx)
-			}
+			// Spinner is now controlled via gsh.ui.spinner in event handlers
 			spinnerMu.Unlock()
 		},
 
@@ -271,10 +256,8 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 				return
 			}
 
-			// Render text through renderer if available
-			if m.renderer != nil {
-				m.renderer.RenderAgentText(content)
-			}
+			// Direct print of agent text (not rendered through events)
+			fmt.Fprint(os.Stdout, content)
 			if onChunk != nil {
 				onChunk(content)
 			}
@@ -292,11 +275,7 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 
 		OnToolCallStreaming: func(toolCallID string, toolName string) {
 			// Called when a tool call starts streaming (before arguments are complete)
-			// Show pending state to give user immediate feedback
-			if m.renderer == nil {
-				return
-			}
-
+			// Tool pending state is now controlled via gsh.ui.spinner in event handlers
 			// Stop thinking spinner since we're now showing tool pending state
 			spinnerMu.Lock()
 			if stopSpinner != nil {
@@ -304,26 +283,9 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 				stopSpinner = nil
 			}
 			spinnerMu.Unlock()
-
-			// Only render pending state for the first streaming tool call in this response.
-			// When the LLM returns multiple tool calls, showing pending for all of them
-			// causes display issues since RenderToolComplete can only replace one line.
-			if streamingToolShown {
-				return
-			}
-			streamingToolShown = true
-
-			// Start pending spinner - it will be stopped when OnToolCallStart is called
-			pendingSpinnerMu.Lock()
-			stopPendingSpinner = m.renderer.StartToolPendingSpinner(ctx, toolName)
-			pendingSpinnerMu.Unlock()
 		},
 
 		OnToolCallStart: func(toolCall acp.ToolCall) {
-			if m.renderer == nil {
-				return
-			}
-
 			// Stop pending spinner if it's running (for the first tool call in a batch)
 			pendingSpinnerMu.Lock()
 			if stopPendingSpinner != nil {
@@ -332,22 +294,19 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 			}
 			pendingSpinnerMu.Unlock()
 
-			// Check if this is an exec tool call for special rendering
+			// Emit tool.start events for rendering
 			if toolCall.Name == "exec" {
 				if cmd, ok := toolCall.Arguments["command"].(string); ok && cmd != "" {
-					m.renderer.RenderExecStart(cmd)
+					state.Interpreter.EmitEvent(interpreter.EventAgentExecStart, interpreter.CreateExecStartContext(cmd))
 				}
 			} else {
-				// For non-exec tools, render executing state with args
-				m.renderer.RenderToolExecuting(toolCall.Name, toolCall.Arguments)
+				// For non-exec tools, emit agent.tool.start event
+				ctx := interpreter.CreateToolStartContext(toolCall.Name, toolCall.Arguments)
+				state.Interpreter.EmitEvent(interpreter.EventAgentToolStart, ctx)
 			}
 		},
 
 		OnToolCallEnd: func(toolCall acp.ToolCall, update acp.ToolCallUpdate) {
-			if m.renderer == nil {
-				return
-			}
-
 			isExecTool := toolCall.Name == "exec"
 
 			if isExecTool {
@@ -365,14 +324,13 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 				}
 
 				if command != "" {
-					m.renderer.RenderExecEnd(command, update.Duration, execExitCode)
+					state.Interpreter.EmitEvent(interpreter.EventAgentExecEnd, interpreter.CreateExecEndContext(command, update.Duration.Milliseconds(), execExitCode))
 				}
 			} else {
-				// For non-exec tools, render completion state
+				// For non-exec tools, emit agent.tool.end event
 				success := update.Status == acp.ToolCallStatusCompleted
-				m.renderer.RenderToolComplete(toolCall.Name, toolCall.Arguments, update.Duration, success)
-				// Render tool output
-				m.renderer.RenderToolOutput(toolCall.Name, update.Content)
+				ctx := interpreter.CreateToolEndContext(toolCall.Name, toolCall.Arguments, update.Duration.Milliseconds(), success, update.Error)
+				state.Interpreter.EmitEvent(interpreter.EventAgentToolEnd, ctx)
 			}
 
 			// Log tool errors
@@ -385,18 +343,14 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 		},
 
 		OnComplete: func(result acp.AgentResult) {
-			// Render error if any
-			if result.Error != nil && headerRendered && m.renderer != nil {
-				m.renderer.RenderAgentError(result.Error)
-			}
-
-			// Render footer with stats
-			if m.renderer != nil {
+			// Emit agent.end event with stats
+			if headerRendered {
 				usage := result.Usage
 				if usage == nil {
 					usage = &acp.TokenUsage{}
 				}
-				m.renderer.RenderAgentFooter(usage.PromptTokens, usage.CompletionTokens, usage.CachedTokens, result.Duration)
+				ctx := interpreter.CreateAgentEndContext(m.currentAgentName, usage.PromptTokens, usage.CompletionTokens, usage.CachedTokens, result.Duration.Milliseconds(), result.Error)
+				state.Interpreter.EmitEvent(interpreter.EventAgentEnd, ctx)
 			}
 
 			m.logger.Debug("agent interaction",
@@ -458,30 +412,14 @@ func parseExecExitCode(result string) int {
 
 // SendMessageToCurrentAgent sends a message to the current agent with default output handling.
 // This is a convenience method that prints chunks to stdout and handles errors.
-// If a renderer is set, it handles all output formatting. Otherwise, it falls back to
-// simple fmt.Print calls.
+// SendMessageToCurrentAgent sends a message to the current agent.
+// Output is now handled via events (gsh.ui.* and event handlers).
 func (m *Manager) SendMessageToCurrentAgent(ctx context.Context, message string) error {
-	// If renderer is set, it handles output - we don't need the callback
-	var callback func(string)
-	if m.renderer == nil {
-		callback = func(content string) {
-			// Print each chunk immediately without newline
-			fmt.Print(content)
-		}
-	}
-
-	err := m.SendMessage(ctx, message, callback)
-
-	// Print final newline after streaming completes (only if no renderer)
-	if m.renderer == nil {
-		fmt.Println()
-	}
+	// Events and gsh.ui handle all rendering
+	err := m.SendMessage(ctx, message, nil)
 
 	if err != nil {
-		// If no renderer, print error to stderr (otherwise it's already rendered inside the agent block)
-		if m.renderer == nil {
-			fmt.Fprintf(os.Stderr, "gsh: %v\n", err)
-		}
+		fmt.Fprintf(os.Stderr, "gsh: %v\n", err)
 		return nil // Return nil to not propagate error to caller (matches original behavior)
 	}
 

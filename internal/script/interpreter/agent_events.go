@@ -162,6 +162,101 @@ func CreateExecEndContext(command string, durationMs int64, exitCode int) Value 
 	}
 }
 
+// CreateAgentStartContext creates the context object for agent.start event (public version)
+func CreateAgentStartContext(agentName, message string) Value {
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"agent": {Value: &ObjectValue{
+				Properties: map[string]*PropertyDescriptor{
+					"name": {Value: &StringValue{Value: agentName}},
+				},
+			}},
+			"message": {Value: &StringValue{Value: message}},
+		},
+	}
+}
+
+// CreateAgentEndContext creates the context object for agent.end event (public version)
+func CreateAgentEndContext(agentName string, inputTokens, outputTokens, cachedTokens int, durationMs int64, err error) Value {
+	var errorVal Value = &NullValue{}
+	if err != nil {
+		errorVal = &StringValue{Value: err.Error()}
+	}
+
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"agent": {Value: &ObjectValue{
+				Properties: map[string]*PropertyDescriptor{
+					"name": {Value: &StringValue{Value: agentName}},
+				},
+			}},
+			"query": {Value: &ObjectValue{
+				Properties: map[string]*PropertyDescriptor{
+					"inputTokens":  {Value: &NumberValue{Value: float64(inputTokens)}},
+					"outputTokens": {Value: &NumberValue{Value: float64(outputTokens)}},
+					"cachedTokens": {Value: &NumberValue{Value: float64(cachedTokens)}},
+					"durationMs":   {Value: &NumberValue{Value: float64(durationMs)}},
+				},
+			}},
+			"error": {Value: errorVal},
+		},
+	}
+}
+
+// CreateToolStartContext creates the context object for agent.tool.start event (public version)
+func CreateToolStartContext(name string, args map[string]interface{}) Value {
+	// Convert args to ObjectValue
+	argsProps := make(map[string]*PropertyDescriptor)
+	for k, v := range args {
+		argsProps[k] = &PropertyDescriptor{Value: InterfaceToValue(v)}
+	}
+
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"toolCall": {Value: &ObjectValue{
+				Properties: map[string]*PropertyDescriptor{
+					"name":   {Value: &StringValue{Value: name}},
+					"status": {Value: &StringValue{Value: "executing"}},
+					"args":   {Value: &ObjectValue{Properties: argsProps}},
+				},
+			}},
+		},
+	}
+}
+
+// CreateToolEndContext creates the context object for agent.tool.end event (public version)
+func CreateToolEndContext(name string, args map[string]interface{}, durationMs int64, success bool, err error) Value {
+	// Convert args to ObjectValue
+	argsProps := make(map[string]*PropertyDescriptor)
+	for k, v := range args {
+		argsProps[k] = &PropertyDescriptor{Value: InterfaceToValue(v)}
+	}
+
+	status := "success"
+	if !success {
+		status = "error"
+	}
+
+	var errorVal Value = &NullValue{}
+	if err != nil {
+		errorVal = &StringValue{Value: err.Error()}
+	}
+
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"toolCall": {Value: &ObjectValue{
+				Properties: map[string]*PropertyDescriptor{
+					"name":       {Value: &StringValue{Value: name}},
+					"status":     {Value: &StringValue{Value: status}},
+					"args":       {Value: &ObjectValue{Properties: argsProps}},
+					"durationMs": {Value: &NumberValue{Value: float64(durationMs)}},
+					"error":      {Value: errorVal},
+				},
+			}},
+		},
+	}
+}
+
 // findFirstSpace returns the index of the first space in a string, or -1 if not found
 func findFirstSpace(s string) int {
 	for i, c := range s {

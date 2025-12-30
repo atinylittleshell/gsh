@@ -2,11 +2,9 @@ package repl
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/atinylittleshell/gsh/internal/repl/agent"
-	"github.com/atinylittleshell/gsh/internal/repl/render"
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -82,12 +80,10 @@ func createTestREPLWithAgents(logger *zap.Logger, agents map[string]*agent.State
 	if currentAgent != "" {
 		_ = mgr.SetCurrentAgent(currentAgent)
 	}
-	// Create a renderer for system messages
-	renderer := render.New(nil, os.Stdout, func() int { return 80 })
+	// Rendering is now handled via events
 	return &REPL{
 		logger:       logger,
 		agentManager: mgr,
-		renderer:     renderer,
 	}
 }
 

@@ -6,9 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"golang.org/x/term"
-
-	"github.com/atinylittleshell/gsh/internal/repl/render"
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
@@ -91,7 +88,7 @@ func (r *REPL) handleClearCommand() error {
 		fmt.Fprintf(os.Stderr, "gsh: %v\n", err)
 		return nil
 	}
-	r.renderer.RenderSystemMessage("Conversation cleared")
+	fmt.Println("Conversation cleared")
 	return nil
 }
 
@@ -143,9 +140,9 @@ func (r *REPL) handleSwitchAgentCommand(agentName string) error {
 	state := r.agentManager.GetAgent(agentName)
 	msgCount := len(state.Conversation)
 	if msgCount > 0 {
-		r.renderer.RenderSystemMessage(fmt.Sprintf("Switched to agent '%s' (%d messages in history)", agentName, msgCount))
+		fmt.Printf("Switched to agent '%s' (%d messages in history)\n", agentName, msgCount)
 	} else {
-		r.renderer.RenderSystemMessage(fmt.Sprintf("Switched to agent '%s'", agentName))
+		fmt.Printf("Switched to agent '%s'\n", agentName)
 	}
 	return nil
 }
@@ -161,43 +158,4 @@ func (r *REPL) handleBuiltinCommand(command string) (bool, error) {
 	default:
 		return false, nil
 	}
-}
-
-// showWelcomeScreen displays the welcome screen with configuration info.
-func (r *REPL) showWelcomeScreen() {
-	// Get terminal width
-	termWidth, _, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil || termWidth <= 0 {
-		termWidth = 80 // Default fallback
-	}
-
-	// Gather welcome info
-	info := render.WelcomeInfo{
-		Version: r.buildVersion,
-	}
-
-	// Get predict model info
-	if predictModel := r.config.GetPredictModel(); predictModel != nil {
-		info.PredictModel = getModelID(predictModel)
-	}
-
-	// Get agent model info
-	if agentModel := r.config.GetDefaultAgentModel(); agentModel != nil {
-		info.AgentModel = getModelID(agentModel)
-	}
-
-	render.RenderWelcome(os.Stdout, info, termWidth)
-}
-
-// getModelID extracts the model ID string from a ModelValue's config.
-func getModelID(model *interpreter.ModelValue) string {
-	if model == nil || model.Config == nil {
-		return ""
-	}
-	if modelVal, ok := model.Config["model"]; ok {
-		if strVal, ok := modelVal.(*interpreter.StringValue); ok {
-			return strVal.Value
-		}
-	}
-	return model.Name // Fallback to the declaration name
 }

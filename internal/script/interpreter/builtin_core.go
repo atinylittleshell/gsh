@@ -16,6 +16,7 @@ var builtinNames = map[string]bool{
 	"Set":   true,
 	"exec":  true,
 	"gsh":   true,
+	"Math":  true,
 }
 
 // isBuiltin checks if a name is a built-in function or object

@@ -17,66 +17,62 @@ model GSH_AGENT_MODEL {
     baseURL: "http://localhost:11434/v1",
 }
 
-# Default GSH configuration
-GSH_CONFIG = {
-    # Simple prompt (fallback if starship or GSH_PROMPT fails)
-    prompt: "gsh> ",
+# =============================================================================
+# SDK Configuration
+# =============================================================================
 
-    # Enable automatic starship integration
-    starshipIntegration: true,
-    
-    # Show welcome screen on startup
-    showWelcome: true,
-    
-    # Log level: "debug", "info", "warn", "error"
-    logLevel: "info",
-    
-    # Model to use for predictions (reference to model defined above)
-    predictModel: GSH_PREDICT_MODEL,
-    
-    # Model to use for the built-in default agent
-    defaultAgentModel: GSH_AGENT_MODEL,
+# Configure integrations
+gsh.integrations.starship = true
+
+# Set log level: "debug", "info", "warn", "error"
+if (gsh.version == "dev") {
+    gsh.logging.level = "debug"
+} else {
+    gsh.logging.level = "info"
+}
+
+# Configure REPL models
+if (gsh.repl != null) {
+    # Fast, lightweight for simple operations such as command prediction
+    gsh.repl.models.lite = GSH_PREDICT_MODEL
+    # Capable model for agentic work
+    gsh.repl.models.workhorse = GSH_AGENT_MODEL
+    # gsh.repl.models.premium not set - reserved for future high-value tasks
 }
 
 # =============================================================================
-# Agent Rendering Hooks
+# Event Handlers
 # =============================================================================
-# These tools customize how agent interactions are displayed in the REPL.
+# These event handlers customize how agent interactions are displayed in the REPL.
 # Override any of these in your ~/.gshrc.gsh to customize the appearance.
-#
-# All hooks receive a single `ctx` parameter - a RenderContext object with:
-#   ctx.terminal: { width, height }
-#   ctx.agent: { name } or null
-#   ctx.query: { durationMs, inputTokens, outputTokens } or null
-#   ctx.exec: { command, commandFirstWord, durationMs, exitCode } or null
-#   ctx.toolCall: { name, status, args, durationMs, output } or null
 
 # Renders the header line when an agent starts responding
-# Example output: "── agent: default ─────────────────────────────"
-# Note: "agent" is a keyword in gsh, so we use bracket notation ctx["agent"]
-tool GSH_AGENT_HEADER(ctx: object): string {
-    width = ctx.terminal.width
+# Example output: "── gsh ─────────────────────────────"
+tool onAgentStart(ctx) {
+    width = gsh.terminal.width
     if (width > 80) {
         width = 80
     }
-    text = ctx["agent"].name
-    if (text == "default") {
-        text = "gsh"
+    name = gsh.repl.currentAgent.name
+    if (name == "default") {
+        name = "gsh"
     }
-    padding = width - 4 - text.length  # "── " prefix (3) + " " before padding (1)
+    padding = width - 4 - name.length  # "── " prefix (3) + " " before padding (1)
     if (padding < 3) {
         padding = 3
     }
-    return "── " + text + " " + "─".repeat(padding)
+    header = "── " + name + " " + "─".repeat(padding)
+    print(gsh.ui.styles.primary(header))
 }
+gsh.on("agent.start", onAgentStart)
 
 # Renders the footer line when an agent finishes responding
 # Example output: "── 523 in · 324 out · 1.2s ────────────────────"
 # Example with cache: "── 523 in (80% cached) · 324 out · 1.2s ─────"
 # Tokens are formatted with K/M suffix for large numbers
 # Duration uses appropriate units (ms, s, m, h, d)
-tool GSH_AGENT_FOOTER(ctx: object): string {
-    width = ctx.terminal.width
+tool onAgentEnd(ctx) {
+    width = gsh.terminal.width
     if (width > 80) {
         width = 80
     }
@@ -115,9 +111,9 @@ tool GSH_AGENT_FOOTER(ctx: object): string {
     # Build the text, including cache ratio next to input tokens if there are cached tokens
     inputStr = formatTokens(ctx.query.inputTokens)
     text = inputStr + " in"
-    if (ctx.query.cachedTokens > 0 && ctx.query.inputTokens > 0) {
-        cacheRatio = (ctx.query.cachedTokens / ctx.query.inputTokens) * 100
-        text = text + " (" + cacheRatio.toFixed(0) + "% cached)"
+    if (ctx.query.cachedTokens > 0) {
+        cacheRatio = (ctx.query.cachedTokens / ctx.query.inputTokens * 100).toFixed(0)
+        text = text + " (" + cacheRatio + "% cached)"
     }
     text = text + " · " + formatTokens(ctx.query.outputTokens) + " out · " + formatDuration(ctx.query.durationMs)
 
@@ -125,73 +121,225 @@ tool GSH_AGENT_FOOTER(ctx: object): string {
     if (padding < 3) {
         padding = 3
     }
-    return "── " + text + " " + "─".repeat(padding)
+    footer = "── " + text + " " + "─".repeat(padding)
+    print("")
+    print(gsh.ui.styles.primary(footer))
 }
+gsh.on("agent.end", onAgentEnd)
 
 # Renders the start line for exec (shell command) tool calls
 # Example output: "▶ ls -la"
-tool GSH_EXEC_START(ctx: object): string {
-    return "▶ " + ctx.exec.command
+tool onExecStart(ctx) {
+    print("")
+    print(gsh.ui.styles.primary("▶") + " " + ctx.exec.command)
 }
+gsh.on("agent.exec.start", onExecStart)
+
 
 # Renders the completion line for exec (shell command) tool calls
 # Example output (success): "● ls ✓ (0.1s)"
 # Example output (failure): "● cat ✗ (0.1s) exit code 1"
-tool GSH_EXEC_END(ctx: object): string {
+tool onExecEnd(ctx) {
     durationSec = (ctx.exec.durationMs / 1000).toFixed(1)
     if (ctx.exec.exitCode == 0) {
-        return "● " + ctx.exec.commandFirstWord + " ✓ (" + durationSec + "s)"
+        line = "● " + ctx.exec.commandFirstWord + " ✓ " + gsh.ui.styles.dim("(" + durationSec + "s)")
+        print(gsh.ui.styles.success(line))
+    } else {
+        line = "● " + ctx.exec.commandFirstWord + " ✗ " + gsh.ui.styles.dim("(" + durationSec + "s) exit code " + ctx.exec.exitCode)
+        print(gsh.ui.styles.error(line))
     }
-    return "● " + ctx.exec.commandFirstWord + " ✗ (" + durationSec + "s) exit code " + ctx.exec.exitCode
 }
+gsh.on("agent.exec.end", onExecEnd)
 
-# Renders the status line for non-exec tool calls
-# ctx.toolCall.status is one of: "pending", "executing", "success", "error"
-# Example output (pending):   "○ read_file"
-# Example output (executing): "○ read_file\n   path: \"/config.json\""
-# Example output (success):   "● read_file ✓ (0.02s)\n   path: \"/config.json\""
-# Example output (error):     "● read_file ✗ (0.01s)\n   path: \"/missing.txt\""
-tool GSH_TOOL_STATUS(ctx: object): string {
-    # Format arguments - one per line, indented
-    argsStr = ""
-    keys = ctx.toolCall.args.keys()
-    for (key of keys) {
-        value = ctx.toolCall.args[key]
-        # Truncate long values
-        valueStr = "" + value
-        if (valueStr.length > 60) {
-            valueStr = valueStr.substring(0, 57) + "..."
-        }
-        argsStr = argsStr + "   " + key + ": " + valueStr + "\n"
+
+# Map to track spinner IDs by tool call ID
+__toolSpinnerMap = {}
+
+# Renders the status line for non-exec tool calls (start)
+# Example output: "○ read_file"
+tool onToolStart(ctx) {
+    id = gsh.ui.spinner.start(ctx.toolCall.name)
+    __toolSpinnerMap[ctx.toolCall.id] = id
+}
+gsh.on("agent.tool.start", onToolStart)
+
+# Renders the status line for non-exec tool calls (end)
+# Example output (success): "● read_file ✓ (0.02s)"
+# Example output (error):   "● read_file ✗ (0.01s)"
+tool onToolEnd(ctx) {
+    spinnerId = __toolSpinnerMap[ctx.toolCall.id]
+    if (spinnerId != null) {
+        gsh.ui.spinner.stop(spinnerId)
     }
-    
     durationSec = (ctx.toolCall.durationMs / 1000).toFixed(2)
     
-    if (ctx.toolCall.status == "pending") {
-        return "○ " + ctx.toolCall.name
+    if (ctx.toolCall.error != null) {
+        line = "● " + ctx.toolCall.name + " " + gsh.ui.styles.error("✗") + " " + gsh.ui.styles.dim("(" + durationSec + "s)")
+        print(line)
+    } else {
+        line = "● " + ctx.toolCall.name + " " + gsh.ui.styles.success("✓") + " " + gsh.ui.styles.dim("(" + durationSec + "s)")
+        print(line)
     }
-    if (ctx.toolCall.status == "executing") {
-        if (argsStr == "") {
-            return "○ " + ctx.toolCall.name
-        }
-        return "○ " + ctx.toolCall.name + "\n" + argsStr
-    }
-    if (ctx.toolCall.status == "success") {
-        if (argsStr == "") {
-            return "● " + ctx.toolCall.name + " ✓ (" + durationSec + "s)"
-        }
-        return "● " + ctx.toolCall.name + " ✓ (" + durationSec + "s)\n" + argsStr
-    }
-    # error status
-    if (argsStr == "") {
-        return "● " + ctx.toolCall.name + " ✗ (" + durationSec + "s)"
-    }
-    return "● " + ctx.toolCall.name + " ✗ (" + durationSec + "s)\n" + argsStr
 }
+gsh.on("agent.tool.end", onToolEnd)
 
-# Renders the output of non-exec tool calls
-# Default returns empty string (no output shown)
-# Override to display tool output if desired
-tool GSH_TOOL_OUTPUT(ctx: object): string {
-    return ""  # Default: show nothing
+# =============================================================================
+# REPL Events
+# =============================================================================
+
+# Show welcome message when REPL starts
+tool onReplReady() {
+    # ASCII art logo
+    logo = [
+        "  __ _ ___| |__  ",
+        " / _` / __| '_ \\ ",
+        "| (_| \\__ \\ | | |",
+        " \\__, |___/_| |_|",
+        " |___/           "
+    ]
+    
+    # Tips pool (randomly selected)
+    tips = [
+        "use # to chat with the agent",
+        "use # /clear to reset the conversation",
+        "use # /agents to list available agents",
+        "use # /agent <name> to switch agents",
+        "agents remember context across messages in a session",
+        "press Tab to autocomplete commands and file paths",
+        "press Up/Down to navigate command history",
+        "press Ctrl+A to jump to start of line",
+        "press Ctrl+E to jump to end of line",
+        "you can customize event handlers in ~/.gshrc.gsh",
+        "starship integration is automatic if starship is in PATH",
+        "use gsh.logging.level for troubleshooting (\"debug\", \"info\", \"warn\", \"error\")",
+        "you can define bash aliases in ~/.bashrc",
+        "press Ctrl+F to accept a command prediction",
+        "command predictions use your command history for context",
+        "use a small fast model like gemma3:1b for predictions",
+        "define custom agents with specialized system prompts and tools",
+        "agents in the REPL can execute shell commands and access files",
+        "connect to MCP servers to give agents more capabilities",
+        "define custom agents, tools, and MCP servers in ~/.gshrc.gsh",
+        "run gsh scripts with: gsh script.gsh",
+        "use exec() in scripts to run bash commands",
+        "press Ctrl+D on an empty line to exit"
+    ]
+    
+    # Get a random tip using Math.random() and Math.floor()
+    tipIndex = Math.floor(Math.random() * tips.length)
+    tip = tips[tipIndex]
+    
+    # ANSI color codes
+    yellow = "\u001b[38;5;11m"
+    gray = "\u001b[38;5;8m"
+    bold = "\u001b[1m"
+    italic = "\u001b[3m"
+    reset = "\u001b[0m"
+    
+    # Get terminal width
+    width = gsh.terminal.width
+    logoWidth = 18
+    minGap = 4
+    maxInfoWidth = 40
+    
+    # Build info lines
+    infoLines = []
+    infoLines.push(yellow + bold + "The G Shell" + reset)
+    infoLines.push("")
+    
+    # Version
+    if (gsh.version != "" && gsh.version != "dev") {
+        infoLines.push(gray + "version: " + reset + yellow + gsh.version + reset)
+    } else if (gsh.version == "dev") {
+        infoLines.push(gray + "version: " + reset + gray + italic + "development" + reset)
+    }
+    
+    # Predict model
+    if (gsh.repl != null && gsh.repl.models.lite != null) {
+        predictModel = gsh.repl.models.lite
+        predictName = predictModel["model"]
+        infoLines.push(gray + "predict: " + reset + yellow + predictName + reset)
+    } else {
+        infoLines.push(gray + "predict: " + reset + gray + italic + "not configured" + reset)
+    }
+    
+    # Agent model
+    if (gsh.repl != null && gsh.repl.models.workhorse != null) {
+        agentModel = gsh.repl.models.workhorse
+        agentName = agentModel["model"]
+        infoLines.push(gray + "agent:   " + reset + yellow + agentName + reset)
+    } else {
+        infoLines.push(gray + "agent:   " + reset + gray + italic + "not configured" + reset)
+    }
+    
+    # Calculate layout
+    infoWidth = width - logoWidth - minGap
+    if (infoWidth > maxInfoWidth) {
+        infoWidth = maxInfoWidth
+    }
+    
+    # Check if terminal is too narrow
+    if (infoWidth < 20) {
+        # Just show info without logo
+        for (line of infoLines) {
+            print(line)
+        }
+        print("")
+        if (tip != "") {
+            print(gray + italic + "tip: " + reset + gray + tip + reset)
+        }
+        print("")
+        return ""
+    }
+    
+    # Two-column layout
+    numLines = logo.length
+    if (infoLines.length > numLines) {
+        numLines = infoLines.length
+    }
+    
+    print("")
+    i = 0
+    while (i < numLines) {
+        # Logo line
+        logoLine = ""
+        if (i < logo.length) {
+            logoLine = yellow + logo[i] + reset
+        } else {
+            logoLine = " ".repeat(logoWidth)
+        }
+        
+        # Info line
+        infoLine = ""
+        if (i < infoLines.length) {
+            infoLine = infoLines[i]
+        }
+        
+        # Combine
+        gap = " ".repeat(minGap)
+        print(logoLine + gap + infoLine)
+        
+        i = i + 1
+    }
+    
+    # Tip at bottom
+    print("")
+    if (tip != "") {
+        print(gray + italic + "tip: " + tip + reset)
+    }
+    print("")
+    
+    return ""
 }
+gsh.on("repl.ready", onReplReady)
+
+# Custom prompt handler - called before each prompt is displayed
+# Add [dev] prefix for development builds
+tool onReplPrompt() {
+    if (gsh.version == "dev") {
+        gsh.repl.prompt = "[dev] gsh> "
+    } else {
+        gsh.repl.prompt = "gsh> "
+    }
+}
+gsh.on("repl.prompt", onReplPrompt)

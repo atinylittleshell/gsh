@@ -101,6 +101,7 @@ type REPLContext struct {
 	LastCommand     *REPLLastCommand
 	Agents          []*AgentValue     // Array of agent configurations (agents[0] is always "default")
 	CurrentAgent    *AgentValue       // Currently active agent (reference to an agent in Agents array)
+	PromptValue     Value             // Prompt string set by event handlers (read/write via gsh.repl.prompt)
 	OnAgentAdded    func(*AgentValue) // Callback when an agent is added via push()
 	OnAgentSwitch   func(*AgentValue) // Callback when currentAgent is changed
 	OnAgentModified func(*AgentValue) // Callback when an agent's properties are modified

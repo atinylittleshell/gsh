@@ -2,6 +2,8 @@ package interpreter
 
 import (
 	"fmt"
+	"math"
+	"math/rand"
 )
 
 // registerGshSDK registers the gsh SDK object with all its properties
@@ -56,6 +58,83 @@ func (i *Interpreter) registerGshSDK() {
 	// Create gsh.tools object with native tool implementations
 	toolsObj := i.createNativeToolsObject()
 
+	// Create gsh.ui object for UI control (spinner, styles, cursor)
+	uiObj := i.createUIObject()
+
+	// Create Math object with common methods and constants
+	mathObj := &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			// Methods
+			"random": {Value: &BuiltinValue{
+				Name: "Math.random",
+				Fn:   builtinMathRandom,
+			}, ReadOnly: true},
+			"floor": {Value: &BuiltinValue{
+				Name: "Math.floor",
+				Fn:   builtinMathFloor,
+			}, ReadOnly: true},
+			"ceil": {Value: &BuiltinValue{
+				Name: "Math.ceil",
+				Fn:   builtinMathCeil,
+			}, ReadOnly: true},
+			"round": {Value: &BuiltinValue{
+				Name: "Math.round",
+				Fn:   builtinMathRound,
+			}, ReadOnly: true},
+			"abs": {Value: &BuiltinValue{
+				Name: "Math.abs",
+				Fn:   builtinMathAbs,
+			}, ReadOnly: true},
+			"min": {Value: &BuiltinValue{
+				Name: "Math.min",
+				Fn:   builtinMathMin,
+			}, ReadOnly: true},
+			"max": {Value: &BuiltinValue{
+				Name: "Math.max",
+				Fn:   builtinMathMax,
+			}, ReadOnly: true},
+			"pow": {Value: &BuiltinValue{
+				Name: "Math.pow",
+				Fn:   builtinMathPow,
+			}, ReadOnly: true},
+			"sqrt": {Value: &BuiltinValue{
+				Name: "Math.sqrt",
+				Fn:   builtinMathSqrt,
+			}, ReadOnly: true},
+			"sin": {Value: &BuiltinValue{
+				Name: "Math.sin",
+				Fn:   builtinMathSin,
+			}, ReadOnly: true},
+			"cos": {Value: &BuiltinValue{
+				Name: "Math.cos",
+				Fn:   builtinMathCos,
+			}, ReadOnly: true},
+			"tan": {Value: &BuiltinValue{
+				Name: "Math.tan",
+				Fn:   builtinMathTan,
+			}, ReadOnly: true},
+			"log": {Value: &BuiltinValue{
+				Name: "Math.log",
+				Fn:   builtinMathLog,
+			}, ReadOnly: true},
+			"log10": {Value: &BuiltinValue{
+				Name: "Math.log10",
+				Fn:   builtinMathLog10,
+			}, ReadOnly: true},
+			"log2": {Value: &BuiltinValue{
+				Name: "Math.log2",
+				Fn:   builtinMathLog2,
+			}, ReadOnly: true},
+			"exp": {Value: &BuiltinValue{
+				Name: "Math.exp",
+				Fn:   builtinMathExp,
+			}, ReadOnly: true},
+			// Constants
+			"PI": {Value: &NumberValue{Value: math.Pi}, ReadOnly: true},
+			"E":  {Value: &NumberValue{Value: math.E}, ReadOnly: true},
+		},
+	}
+
 	// Create gsh object
 	gshObj := &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
@@ -66,6 +145,7 @@ func (i *Interpreter) registerGshSDK() {
 			"lastAgentRequest": {Value: lastAgentRequestObj, ReadOnly: true},
 			"repl":             {Value: replObj, ReadOnly: true},
 			"tools":            {Value: toolsObj, ReadOnly: true},
+			"ui":               {Value: uiObj, ReadOnly: true},
 			"on": {Value: &BuiltinValue{
 				Name: "gsh.on",
 				Fn:   i.builtinGshOn,
@@ -76,6 +156,9 @@ func (i *Interpreter) registerGshSDK() {
 			}, ReadOnly: true},
 		},
 	}
+
+	// Register Math as a global object (not under gsh)
+	i.env.Set("Math", mathObj)
 
 	i.env.Set("gsh", gshObj)
 }
@@ -125,6 +208,257 @@ func (i *Interpreter) builtinGshOff(args []Value) (Value, error) {
 
 	i.eventManager.Off(eventName.Value, handlerID)
 	return &NullValue{}, nil
+}
+
+// builtinMathRandom implements Math.random()
+// Returns a random number between 0 (inclusive) and 1 (exclusive)
+func builtinMathRandom(args []Value) (Value, error) {
+	if len(args) != 0 {
+		return nil, fmt.Errorf("Math.random() takes no arguments, got %d", len(args))
+	}
+	return &NumberValue{Value: rand.Float64()}, nil
+}
+
+// builtinMathFloor implements Math.floor()
+// Returns the largest integer less than or equal to a given number
+func builtinMathFloor(args []Value) (Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("Math.floor() takes exactly 1 argument, got %d", len(args))
+	}
+
+	numVal, ok := args[0].(*NumberValue)
+	if !ok {
+		return nil, fmt.Errorf("Math.floor() argument must be a number, got %s", args[0].Type())
+	}
+
+	return &NumberValue{Value: math.Floor(numVal.Value)}, nil
+}
+
+// builtinMathCeil implements Math.ceil()
+// Returns the smallest integer greater than or equal to a given number
+func builtinMathCeil(args []Value) (Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("Math.ceil() takes exactly 1 argument, got %d", len(args))
+	}
+
+	numVal, ok := args[0].(*NumberValue)
+	if !ok {
+		return nil, fmt.Errorf("Math.ceil() argument must be a number, got %s", args[0].Type())
+	}
+
+	return &NumberValue{Value: math.Ceil(numVal.Value)}, nil
+}
+
+// builtinMathRound implements Math.round()
+// Returns the value of a number rounded to the nearest integer
+func builtinMathRound(args []Value) (Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("Math.round() takes exactly 1 argument, got %d", len(args))
+	}
+
+	numVal, ok := args[0].(*NumberValue)
+	if !ok {
+		return nil, fmt.Errorf("Math.round() argument must be a number, got %s", args[0].Type())
+	}
+
+	return &NumberValue{Value: math.Round(numVal.Value)}, nil
+}
+
+// builtinMathAbs implements Math.abs()
+// Returns the absolute value of a number
+func builtinMathAbs(args []Value) (Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("Math.abs() takes exactly 1 argument, got %d", len(args))
+	}
+
+	numVal, ok := args[0].(*NumberValue)
+	if !ok {
+		return nil, fmt.Errorf("Math.abs() argument must be a number, got %s", args[0].Type())
+	}
+
+	return &NumberValue{Value: math.Abs(numVal.Value)}, nil
+}
+
+// builtinMathMin implements Math.min()
+// Returns the smallest of zero or more numbers
+func builtinMathMin(args []Value) (Value, error) {
+	if len(args) == 0 {
+		return &NumberValue{Value: math.Inf(1)}, nil
+	}
+
+	min := math.Inf(1)
+	for _, arg := range args {
+		numVal, ok := arg.(*NumberValue)
+		if !ok {
+			return nil, fmt.Errorf("Math.min() arguments must be numbers, got %s", arg.Type())
+		}
+		if numVal.Value < min {
+			min = numVal.Value
+		}
+	}
+
+	return &NumberValue{Value: min}, nil
+}
+
+// builtinMathMax implements Math.max()
+// Returns the largest of zero or more numbers
+func builtinMathMax(args []Value) (Value, error) {
+	if len(args) == 0 {
+		return &NumberValue{Value: math.Inf(-1)}, nil
+	}
+
+	max := math.Inf(-1)
+	for _, arg := range args {
+		numVal, ok := arg.(*NumberValue)
+		if !ok {
+			return nil, fmt.Errorf("Math.max() arguments must be numbers, got %s", arg.Type())
+		}
+		if numVal.Value > max {
+			max = numVal.Value
+		}
+	}
+
+	return &NumberValue{Value: max}, nil
+}
+
+// builtinMathPow implements Math.pow()
+// Returns the base to the exponent power
+func builtinMathPow(args []Value) (Value, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("Math.pow() takes exactly 2 arguments, got %d", len(args))
+	}
+
+	base, ok := args[0].(*NumberValue)
+	if !ok {
+		return nil, fmt.Errorf("Math.pow() first argument must be a number, got %s", args[0].Type())
+	}
+
+	exponent, ok := args[1].(*NumberValue)
+	if !ok {
+		return nil, fmt.Errorf("Math.pow() second argument must be a number, got %s", args[1].Type())
+	}
+
+	return &NumberValue{Value: math.Pow(base.Value, exponent.Value)}, nil
+}
+
+// builtinMathSqrt implements Math.sqrt()
+// Returns the square root of a number
+func builtinMathSqrt(args []Value) (Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("Math.sqrt() takes exactly 1 argument, got %d", len(args))
+	}
+
+	numVal, ok := args[0].(*NumberValue)
+	if !ok {
+		return nil, fmt.Errorf("Math.sqrt() argument must be a number, got %s", args[0].Type())
+	}
+
+	return &NumberValue{Value: math.Sqrt(numVal.Value)}, nil
+}
+
+// builtinMathSin implements Math.sin()
+// Returns the sine of a number (in radians)
+func builtinMathSin(args []Value) (Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("Math.sin() takes exactly 1 argument, got %d", len(args))
+	}
+
+	numVal, ok := args[0].(*NumberValue)
+	if !ok {
+		return nil, fmt.Errorf("Math.sin() argument must be a number, got %s", args[0].Type())
+	}
+
+	return &NumberValue{Value: math.Sin(numVal.Value)}, nil
+}
+
+// builtinMathCos implements Math.cos()
+// Returns the cosine of a number (in radians)
+func builtinMathCos(args []Value) (Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("Math.cos() takes exactly 1 argument, got %d", len(args))
+	}
+
+	numVal, ok := args[0].(*NumberValue)
+	if !ok {
+		return nil, fmt.Errorf("Math.cos() argument must be a number, got %s", args[0].Type())
+	}
+
+	return &NumberValue{Value: math.Cos(numVal.Value)}, nil
+}
+
+// builtinMathTan implements Math.tan()
+// Returns the tangent of a number (in radians)
+func builtinMathTan(args []Value) (Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("Math.tan() takes exactly 1 argument, got %d", len(args))
+	}
+
+	numVal, ok := args[0].(*NumberValue)
+	if !ok {
+		return nil, fmt.Errorf("Math.tan() argument must be a number, got %s", args[0].Type())
+	}
+
+	return &NumberValue{Value: math.Tan(numVal.Value)}, nil
+}
+
+// builtinMathLog implements Math.log()
+// Returns the natural logarithm (base e) of a number
+func builtinMathLog(args []Value) (Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("Math.log() takes exactly 1 argument, got %d", len(args))
+	}
+
+	numVal, ok := args[0].(*NumberValue)
+	if !ok {
+		return nil, fmt.Errorf("Math.log() argument must be a number, got %s", args[0].Type())
+	}
+
+	return &NumberValue{Value: math.Log(numVal.Value)}, nil
+}
+
+// builtinMathLog10 implements Math.log10()
+// Returns the base-10 logarithm of a number
+func builtinMathLog10(args []Value) (Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("Math.log10() takes exactly 1 argument, got %d", len(args))
+	}
+
+	numVal, ok := args[0].(*NumberValue)
+	if !ok {
+		return nil, fmt.Errorf("Math.log10() argument must be a number, got %s", args[0].Type())
+	}
+
+	return &NumberValue{Value: math.Log10(numVal.Value)}, nil
+}
+
+// builtinMathLog2 implements Math.log2()
+// Returns the base-2 logarithm of a number
+func builtinMathLog2(args []Value) (Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("Math.log2() takes exactly 1 argument, got %d", len(args))
+	}
+
+	numVal, ok := args[0].(*NumberValue)
+	if !ok {
+		return nil, fmt.Errorf("Math.log2() argument must be a number, got %s", args[0].Type())
+	}
+
+	return &NumberValue{Value: math.Log2(numVal.Value)}, nil
+}
+
+// builtinMathExp implements Math.exp()
+// Returns e raised to the power of a number
+func builtinMathExp(args []Value) (Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("Math.exp() takes exactly 1 argument, got %d", len(args))
+	}
+
+	numVal, ok := args[0].(*NumberValue)
+	if !ok {
+		return nil, fmt.Errorf("Math.exp() argument must be a number, got %s", args[0].Type())
+	}
+
+	return &NumberValue{Value: math.Exp(numVal.Value)}, nil
 }
 
 // LoggingObjectValue represents the gsh.logging object with dynamic properties
@@ -243,6 +577,11 @@ func (r *REPLObjectValue) GetProperty(name string) Value {
 			return &NullValue{}
 		}
 		return &REPLAgentObjectValue{agent: r.context.CurrentAgent, context: r.context, isDefault: r.context.CurrentAgent.Name == "default"}
+	case "prompt":
+		if r.context.PromptValue == nil {
+			return &StringValue{Value: ""}
+		}
+		return r.context.PromptValue
 	default:
 		return &NullValue{}
 	}
@@ -260,6 +599,16 @@ func (r *REPLObjectValue) SetProperty(name string, value Value) error {
 		// Notify REPL of agent switch
 		if r.context.OnAgentSwitch != nil {
 			r.context.OnAgentSwitch(agentObj.agent)
+		}
+		return nil
+	case "prompt":
+		// Allow setting the prompt string
+		promptStr, ok := value.(*StringValue)
+		if !ok {
+			return fmt.Errorf("gsh.repl.prompt must be a string, got %s", value.Type())
+		}
+		if r.context != nil {
+			r.context.PromptValue = promptStr
 		}
 		return nil
 	default:
