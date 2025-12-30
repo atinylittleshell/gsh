@@ -188,7 +188,7 @@ func TestSendMessage_NoToolCalls(t *testing.T) {
 }
 
 func TestSendMessage_WithToolCalls(t *testing.T) {
-		manager := NewManager()
+	manager := NewManager()
 
 	provider := newMockProvider()
 
@@ -272,7 +272,7 @@ func TestSendMessage_WithToolCalls(t *testing.T) {
 }
 
 func TestSendMessage_MultipleToolCalls(t *testing.T) {
-		manager := NewManager()
+	manager := NewManager()
 
 	provider := newMockProvider()
 
@@ -338,7 +338,7 @@ func TestSendMessage_MultipleToolCalls(t *testing.T) {
 }
 
 func TestSendMessage_ChainedToolCalls(t *testing.T) {
-		manager := NewManager()
+	manager := NewManager()
 
 	provider := newMockProvider()
 
@@ -387,7 +387,7 @@ func TestSendMessage_ChainedToolCalls(t *testing.T) {
 }
 
 func TestSendMessage_MaxIterationsReached(t *testing.T) {
-		manager := NewManager()
+	manager := NewManager()
 
 	provider := newMockProvider()
 
@@ -432,7 +432,7 @@ func TestSendMessage_MaxIterationsReached(t *testing.T) {
 }
 
 func TestSendMessage_ToolExecutorError(t *testing.T) {
-		manager := NewManager()
+	manager := NewManager()
 
 	provider := newMockProvider()
 
@@ -480,7 +480,7 @@ func TestSendMessage_ToolExecutorError(t *testing.T) {
 }
 
 func TestSendMessage_NoToolExecutor(t *testing.T) {
-		manager := NewManager()
+	manager := NewManager()
 
 	provider := newMockProvider()
 

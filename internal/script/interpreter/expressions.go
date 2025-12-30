@@ -530,10 +530,10 @@ func (i *Interpreter) CallTool(tool *ToolValue, args []Value) (Value, error) {
 		i.popStackFrame()
 	}()
 
-	// Create a new isolated environment for the tool execution (closure)
-	// Start with the tool's captured environment, but use isolated mode
-	// so assignments inside the tool don't leak to parent scopes
-	toolEnv := NewIsolatedEnvironment(tool.Env)
+	// Create a new enclosed environment for the tool execution (closure)
+	// Start with the tool's captured environment, allowing read/write access
+	// to outer scope variables for consistency with if/for blocks
+	toolEnv := NewEnclosedEnvironment(tool.Env)
 
 	// Bind parameters to arguments
 	for idx, paramName := range tool.Parameters {

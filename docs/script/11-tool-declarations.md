@@ -484,7 +484,7 @@ Parse error: JSON.parse error: invalid character 'i' looking for beginning of ob
 
 ## Tool Scope and Variables
 
-Each time you call a tool, it creates a new **scope** with its own local environment. Variables from the parent scope are accessible inside the tool, but any modifications are **local only** and don't affect the outer scope:
+Each time you call a tool, it creates a new **scope** that is enclosed by the parent scope. This means tools can both **read and modify** variables from the outer scope, just like `if` blocks and `for` loops:
 
 ```gsh
 x = "global"
@@ -504,12 +504,14 @@ Output:
 ```
 Before: global
 Inside tool: inside tool
-After: global
+After: inside tool
 ```
 
-When the tool executes, it gets its own local copy of `x`. Inside the tool, you modify that local copy. After the tool returns, the global `x` remains unchanged. This prevents bugs and makes tools predictable—they can't accidentally modify variables they shouldn't.
+When the tool assigns to `x`, it modifies the outer variable because `x` already exists in the parent scope. This makes tools behave consistently with other block types in gsh.
 
-You can also create new local variables inside a tool:
+### Creating Local Variables
+
+If you assign to a variable that doesn't exist in the parent scope, a new local variable is created:
 
 ```gsh
 globalValue = 100
@@ -517,7 +519,7 @@ globalValue = 100
 tool localWork() {
     globalValue = 200
     localValue = 50
-    print("Global copy in tool: " + globalValue)
+    print("Global modified in tool: " + globalValue)
     print("Local var: " + localValue)
 }
 
@@ -528,12 +530,41 @@ print("Global after tool: " + globalValue)
 Output:
 
 ```
-Global copy in tool: 200
+Global modified in tool: 200
 Local var: 50
-Global after tool: 100
+Global after tool: 200
 ```
 
-This scoping model gives you the benefits of closures—tools can read and work with outer variables—while maintaining safety by keeping modifications local. Each tool execution has its own isolated environment where you can work freely without side effects.
+Notice that `globalValue` is modified (it exists in the outer scope), but `localValue` only exists inside the tool.
+
+### Practical Example: Counters and State
+
+This scoping behavior is useful for maintaining state across tool calls:
+
+```gsh
+counter = 0
+
+tool increment() {
+    counter = counter + 1
+}
+
+tool getCount() {
+    return counter
+}
+
+increment()
+increment()
+increment()
+print("Count: " + getCount())
+```
+
+Output:
+
+```
+Count: 3
+```
+
+This makes tools flexible for both stateful operations (modifying outer variables) and pure functions (using only parameters and local variables).
 
 ---
 
@@ -667,7 +698,7 @@ Each tool does one thing. By combining them, you create more complex behavior.
 2. **Parameters pass data in** - Tools accept input through parameters
 3. **Return statements pass data out** - Tools send results back to callers
 4. **Type annotations add safety** - Declare what types you expect (validated at runtime)
-5. **Tools have their own scope** - Variables inside don't affect variables outside
+5. **Tools share scope with their parent** - Tools can read and modify outer variables, just like `if`/`for` blocks
 6. **Compose tools together** - Call tools from other tools to build complex logic
 7. **Tools handle errors** - Use `try-catch` inside tools to handle failures gracefully
 8. **Small, focused tools are powerful** - Each tool should do one thing well
