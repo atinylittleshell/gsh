@@ -87,3 +87,20 @@ When a package file exceeds ~500 lines and contains multiple distinct concerns, 
   - `value_convert.go` (~120 lines) - Value/interface conversion utilities
 
 **Pattern to watch for:** If a file has multiple sections with disjoint imports or dependencies, it's a sign the file should be split.
+
+## Error Visibility
+
+When logging errors that users need to see for debugging, use appropriate log levels:
+
+- `Debug` - Only visible when `gsh.logging.level = "debug"` (hidden by default)
+- `Info` - Visible with default settings
+- `Warn` - Visible with default settings, indicates something may be wrong
+- `Error` - Always visible, indicates failure
+
+**Pattern to avoid:** Logging user-facing errors at `Debug` level, which makes them invisible by default. If an error would help users debug their scripts (e.g., event handler failures), use `Warn` level and consider a stderr fallback.
+
+**Error message format:** User-facing errors printed to stderr should start with `gsh:` prefix:
+
+```go
+fmt.Fprintf(os.Stderr, "gsh: error message here\n")
+```

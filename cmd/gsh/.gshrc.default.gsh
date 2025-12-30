@@ -78,7 +78,7 @@ tool onAgentEnd(ctx) {
     }
 
     # Format tokens with K/M suffix
-    tool formatTokens (count: int) {
+    tool formatTokens (count: number) {
         if (count >= 1000000) {
             return (count / 1000000).toFixed(2) + "M"
         }
@@ -89,7 +89,7 @@ tool onAgentEnd(ctx) {
     }
 
     # Format duration with appropriate units
-    tool formatDuration (durationMs: int) {
+    tool formatDuration (durationMs: number) {
         if (durationMs < 1000) {
             return "" + durationMs + "ms"
         }

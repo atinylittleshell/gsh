@@ -278,6 +278,8 @@ func (i *Interpreter) GetEventHandlers(eventName string) []*ToolValue {
 // EmitEvent emits an event by calling all registered handlers.
 // It passes a context object (ctx) to each handler as the first argument.
 // Handlers that want to produce output should print directly to stdout.
+// Errors in event handlers are logged at Warn level and printed to stderr
+// to ensure they are visible to users for debugging.
 func (i *Interpreter) EmitEvent(eventName string, ctx Value) {
 	handlers := i.eventManager.GetHandlers(eventName)
 	if len(handlers) == 0 {
@@ -289,12 +291,15 @@ func (i *Interpreter) EmitEvent(eventName string, ctx Value) {
 	for _, handler := range handlers {
 		_, err := i.CallTool(handler, args)
 		if err != nil {
-			// Log errors but continue with other handlers
+			// Log errors at Warn level so they're visible by default, and continue with other handlers
 			if i.logger != nil {
-				i.logger.Debug("error in event handler",
+				i.logger.Warn("error in event handler",
 					zap.String("event", eventName),
 					zap.String("handler", handler.Name),
 					zap.Error(err))
+			} else {
+				// Fallback to stderr if no logger configured
+				fmt.Fprintf(os.Stderr, "gsh: error in event handler '%s' for event '%s': %v\n", handler.Name, eventName, err)
 			}
 			continue
 		}
