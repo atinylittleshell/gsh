@@ -135,9 +135,11 @@ func NewREPL(opts Options) (*REPL, error) {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Log any non-fatal config errors
+	// Log and display any non-fatal config errors
+	// These are important for debugging - show them to the user
 	for _, configErr := range loadResult.Errors {
 		logger.Warn("config warning", zap.Error(configErr))
+		fmt.Fprintf(os.Stderr, "gsh: config error: %v\n", configErr)
 	}
 
 	// Initialize history manager
@@ -254,14 +256,15 @@ func NewREPL(opts Options) (*REPL, error) {
 	completionProvider.SetAgentProvider(repl)
 
 	// Initialize REPL context with model tiers for gsh.repl access
-	// Model tiers start as nil and are configured by the user in .gshrc via:
+	// Models are populated from config (predictModel -> lite, defaultAgentModel -> workhorse)
+	// Users can also configure them directly in .gshrc via:
 	//   gsh.repl.models.lite = myLiteModel
 	//   gsh.repl.models.workhorse = myWorkhorseModel
 	//   gsh.repl.models.premium = myPremiumModel
 	replCtx := &interpreter.REPLContext{
 		Models: &interpreter.REPLModels{
-			Lite:      nil,
-			Workhorse: nil,
+			Lite:      loadResult.Config.GetPredictModel(),      // Use predictModel for lite tier
+			Workhorse: loadResult.Config.GetDefaultAgentModel(), // Use defaultAgentModel for workhorse tier
 			Premium:   nil,
 		},
 		LastCommand: &interpreter.REPLLastCommand{
@@ -602,6 +605,9 @@ func (r *REPL) emitREPLEvent(eventName string, args ...interpreter.Value) {
 		// Errors are logged but don't stop other handlers
 		if _, err := interp.CallTool(handler, args); err != nil {
 			r.logger.Debug("error in event handler", zap.String("event", eventName), zap.Error(err))
+			// Print errors to stderr for critical events so users can debug
+			// This helps catch issues in .gshrc.gsh event handlers
+			fmt.Fprintf(os.Stderr, "gsh: error in %s handler: %v\n", eventName, err)
 		}
 	}
 }

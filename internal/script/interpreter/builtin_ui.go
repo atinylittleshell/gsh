@@ -361,6 +361,21 @@ func (s *UIStylesObjectValue) GetProperty(name string) Value {
 				return &StringValue{Value: style.Render(textVal.Value)}, nil
 			},
 		}
+	case "italic":
+		return &BuiltinValue{
+			Name: "gsh.ui.styles.italic",
+			Fn: func(args []Value) (Value, error) {
+				if len(args) != 1 {
+					return nil, fmt.Errorf("styles.italic() takes 1 argument (text: string), got %d", len(args))
+				}
+				textVal, ok := args[0].(*StringValue)
+				if !ok {
+					return nil, fmt.Errorf("styles.italic() argument must be a string, got %s", args[0].Type())
+				}
+				style := lipgloss.NewStyle().Italic(true)
+				return &StringValue{Value: style.Render(textVal.Value)}, nil
+			},
+		}
 	default:
 		return &NullValue{}
 	}

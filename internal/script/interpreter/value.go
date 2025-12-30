@@ -478,6 +478,10 @@ func (m *ModelValue) GetProperty(name string) Value {
 	case "name":
 		return &StringValue{Value: m.Name}
 	default:
+		// Check if the property exists in the Config map
+		if val, ok := m.Config[name]; ok {
+			return val
+		}
 		return &NullValue{}
 	}
 }
@@ -652,4 +656,22 @@ func (s *SetValue) Equals(other Value) bool {
 		return true
 	}
 	return false
+}
+
+// DynamicValueGetter is an interface for values that wrap other values dynamically.
+// This is implemented by DynamicValue to allow unwrapping without circular dependencies.
+type DynamicValueGetter interface {
+	GetDynamicValue() Value
+}
+
+// UnwrapValue unwraps a DynamicValue to its underlying value.
+// If the value is not a DynamicValue (or doesn't implement DynamicValueGetter),
+// it returns the original value unchanged.
+// This should be called before type checks in operations like arithmetic,
+// comparisons, indexing, etc.
+func UnwrapValue(v Value) Value {
+	if getter, ok := v.(DynamicValueGetter); ok {
+		return getter.GetDynamicValue()
+	}
+	return v
 }

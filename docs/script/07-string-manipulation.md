@@ -47,16 +47,28 @@ Hello, world!
 
 Double-quoted strings support **escape sequences** for special characters:
 
+| Escape | Meaning            |
+|--------|--------------------|
+| `\n`   | Newline            |
+| `\t`   | Tab                |
+| `\r`   | Carriage return    |
+| `\\`   | Backslash          |
+| `\"`   | Double quote       |
+| `\'`   | Single quote       |
+| `\uXXXX` | Unicode character (4 hex digits) |
+
 ```gsh
 newline = "Line 1\nLine 2"
 tab = "Column 1\tColumn 2"
 quote = "She said \"Hello\""
 backslash = "Path: C:\\Users"
+smiley = "\u263A"
 
 print(newline)
 print(tab)
 print(quote)
 print(backslash)
+print(smiley)
 ```
 
 Output:
@@ -67,6 +79,15 @@ Line 2
 Column 1	Column 2
 She said "Hello"
 Path: C:\Users
+☺
+```
+
+Unicode escapes are particularly useful for ANSI color codes in terminal output:
+
+```gsh
+yellow = "\u001b[38;5;11m"
+reset = "\u001b[0m"
+print(yellow + "This text is yellow!" + reset)
 ```
 
 ### Single-Quoted Strings

@@ -504,13 +504,23 @@ func (l *LoggingObjectValue) SetProperty(name string, value Value) error {
 	}
 }
 
-// DynamicValue represents a value with custom get/set behavior
+// DynamicValue represents a value with custom get/set behavior.
+// It implements DynamicValueGetter so it can be unwrapped via UnwrapValue().
 type DynamicValue struct {
 	Get func() Value
 	Set func(Value) error
 }
 
 func (d *DynamicValue) Type() ValueType { return ValueTypeObject }
+
+// GetDynamicValue implements DynamicValueGetter interface.
+// This allows UnwrapValue() to unwrap DynamicValue to its underlying value.
+func (d *DynamicValue) GetDynamicValue() Value {
+	if d.Get != nil {
+		return d.Get()
+	}
+	return &NullValue{}
+}
 func (d *DynamicValue) String() string {
 	if d.Get != nil {
 		return d.Get().String()

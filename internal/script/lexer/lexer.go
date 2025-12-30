@@ -2,6 +2,7 @@ package lexer
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -284,6 +285,28 @@ func (l *Lexer) readString(quote byte) string {
 				result.WriteByte('"')
 			case '\'':
 				result.WriteByte('\'')
+			case 'u':
+				// Unicode escape sequence: \uXXXX (4 hex digits)
+				l.readChar() // consume 'u'
+				hex := ""
+				for i := 0; i < 4 && isHexDigit(l.ch); i++ {
+					hex += string(l.ch)
+					l.readChar()
+				}
+				if len(hex) == 4 {
+					if codePoint, err := strconv.ParseInt(hex, 16, 32); err == nil {
+						result.WriteRune(rune(codePoint))
+					} else {
+						// Invalid hex, write literal
+						result.WriteString("\\u")
+						result.WriteString(hex)
+					}
+				} else {
+					// Not enough hex digits, write literal
+					result.WriteString("\\u")
+					result.WriteString(hex)
+				}
+				continue // Already consumed the next character
 			default:
 				// For unknown escapes, keep the backslash and character
 				result.WriteByte('\\')
@@ -373,6 +396,28 @@ func (l *Lexer) readTemplateString() string {
 				// Use a placeholder that won't be confused with real interpolation
 				// The interpreter will convert this back to a literal $
 				result.WriteString("\x00ESCAPED_DOLLAR\x00")
+			case 'u':
+				// Unicode escape sequence: \uXXXX (4 hex digits)
+				l.readChar() // consume 'u'
+				hex := ""
+				for i := 0; i < 4 && isHexDigit(l.ch); i++ {
+					hex += string(l.ch)
+					l.readChar()
+				}
+				if len(hex) == 4 {
+					if codePoint, err := strconv.ParseInt(hex, 16, 32); err == nil {
+						result.WriteRune(rune(codePoint))
+					} else {
+						// Invalid hex, write literal
+						result.WriteString("\\u")
+						result.WriteString(hex)
+					}
+				} else {
+					// Not enough hex digits, write literal
+					result.WriteString("\\u")
+					result.WriteString(hex)
+				}
+				continue // Already consumed the next character
 			default:
 				result.WriteByte('\\')
 				result.WriteByte(l.ch)
@@ -411,6 +456,10 @@ func isLetter(ch byte) bool {
 // isDigit checks if a character is a digit
 func isDigit(ch byte) bool {
 	return '0' <= ch && ch <= '9'
+}
+
+func isHexDigit(ch byte) bool {
+	return ('0' <= ch && ch <= '9') || ('a' <= ch && ch <= 'f') || ('A' <= ch && ch <= 'F')
 }
 
 // newToken creates a new token from a single character

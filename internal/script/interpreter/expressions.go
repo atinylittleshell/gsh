@@ -8,38 +8,52 @@ import (
 	"github.com/atinylittleshell/gsh/internal/script/parser"
 )
 
-// evalExpression evaluates an expression
+// evalExpression evaluates an expression.
+// The returned value is always unwrapped (DynamicValue is resolved to its underlying value).
+// This ensures consumers don't need to manually unwrap DynamicValue.
 func (i *Interpreter) evalExpression(expr parser.Expression) (Value, error) {
+	var result Value
+	var err error
+
 	switch node := expr.(type) {
 	case *parser.NumberLiteral:
-		return i.evalNumberLiteral(node)
+		result, err = i.evalNumberLiteral(node)
 	case *parser.StringLiteral:
-		return i.evalStringLiteral(node)
+		result, err = i.evalStringLiteral(node)
 	case *parser.BooleanLiteral:
-		return i.evalBooleanLiteral(node)
+		result, err = i.evalBooleanLiteral(node)
 	case *parser.NullLiteral:
-		return i.evalNullLiteral(node)
+		result, err = i.evalNullLiteral(node)
 	case *parser.Identifier:
-		return i.evalIdentifier(node)
+		result, err = i.evalIdentifier(node)
 	case *parser.BinaryExpression:
-		return i.evalBinaryExpression(node)
+		result, err = i.evalBinaryExpression(node)
 	case *parser.UnaryExpression:
-		return i.evalUnaryExpression(node)
+		result, err = i.evalUnaryExpression(node)
 	case *parser.ArrayLiteral:
-		return i.evalArrayLiteral(node)
+		result, err = i.evalArrayLiteral(node)
 	case *parser.ObjectLiteral:
-		return i.evalObjectLiteral(node)
+		result, err = i.evalObjectLiteral(node)
 	case *parser.CallExpression:
-		return i.evalCallExpression(node)
+		result, err = i.evalCallExpression(node)
 	case *parser.MemberExpression:
-		return i.evalMemberExpression(node)
+		result, err = i.evalMemberExpression(node)
 	case *parser.IndexExpression:
-		return i.evalIndexExpression(node)
+		result, err = i.evalIndexExpression(node)
 	case *parser.PipeExpression:
-		return i.evalPipeExpression(node)
+		result, err = i.evalPipeExpression(node)
 	default:
 		return nil, fmt.Errorf("unsupported expression type: %T", expr)
 	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Always unwrap DynamicValue at the exit point.
+	// This ensures all consumers of evalExpression get the underlying value
+	// without needing to remember to call UnwrapValue manually.
+	return UnwrapValue(result), nil
 }
 
 // evalNumberLiteral evaluates a number literal
@@ -197,11 +211,48 @@ func (i *Interpreter) evalIdentifier(node *parser.Identifier) (Value, error) {
 
 // evalBinaryExpression evaluates a binary expression
 func (i *Interpreter) evalBinaryExpression(node *parser.BinaryExpression) (Value, error) {
+	// Evaluate left operand first
 	left, err := i.evalExpression(node.Left)
 	if err != nil {
 		return nil, err
 	}
 
+	// Handle short-circuit evaluation for logical operators
+	// For &&: if left is falsy, return false without evaluating right
+	// For ||: if left is truthy, return true without evaluating right
+	// Note: DynamicValue unwrapping is handled by evalExpression
+	switch node.Operator {
+	case "&&":
+		if !left.IsTruthy() {
+			return &BoolValue{Value: false}, nil
+		}
+		// Left is truthy, evaluate right and return its truthiness
+		right, err := i.evalExpression(node.Right)
+		if err != nil {
+			return nil, err
+		}
+		return &BoolValue{Value: right.IsTruthy()}, nil
+
+	case "||":
+		if left.IsTruthy() {
+			return &BoolValue{Value: true}, nil
+		}
+		// Left is falsy, evaluate right and return its truthiness
+		right, err := i.evalExpression(node.Right)
+		if err != nil {
+			return nil, err
+		}
+		return &BoolValue{Value: right.IsTruthy()}, nil
+
+	case "??":
+		// Nullish coalescing: if left is null, return right; otherwise return left
+		if left.Type() == ValueTypeNull {
+			return i.evalExpression(node.Right)
+		}
+		return left, nil
+	}
+
+	// For all other operators, evaluate both operands
 	right, err := i.evalExpression(node.Right)
 	if err != nil {
 		return nil, err
@@ -262,21 +313,7 @@ func (i *Interpreter) applyBinaryOperator(op string, left, right Value) (Value, 
 		return &BoolValue{Value: !left.Equals(right)}, nil
 	}
 
-	// Handle logical operations
-	if op == "&&" {
-		return &BoolValue{Value: left.IsTruthy() && right.IsTruthy()}, nil
-	}
-	if op == "||" {
-		return &BoolValue{Value: left.IsTruthy() || right.IsTruthy()}, nil
-	}
-
-	// Handle nullish coalescing (??)
-	if op == "??" {
-		if left.Type() == ValueTypeNull {
-			return right, nil
-		}
-		return left, nil
-	}
+	// Note: &&, ||, and ?? are handled in evalBinaryExpression for short-circuit evaluation
 
 	return nil, fmt.Errorf("unsupported operator '%s' for types %s and %s", op, left.Type(), right.Type())
 }
@@ -844,6 +881,16 @@ func (i *Interpreter) evalIndexExpression(node *parser.IndexExpression) (Value, 
 		}
 		// Return null for missing keys (consistent with map.get() behavior)
 		return &NullValue{}, nil
+	}
+
+	// Handle model indexing with string keys (access config properties)
+	if modelVal, ok := left.(*ModelValue); ok {
+		if index.Type() != ValueTypeString {
+			return nil, NewRuntimeError("model index must be a string, got %s (line %d, column %d)",
+				index.Type(), node.Token.Line, node.Token.Column)
+		}
+		key := index.(*StringValue).Value
+		return modelVal.GetProperty(key), nil
 	}
 
 	// Handle custom indexable types (like REPLAgentsArrayValue)

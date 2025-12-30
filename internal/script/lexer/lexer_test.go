@@ -861,6 +861,12 @@ func TestEscapeSequences(t *testing.T) {
 		{name: "double quote", input: `"say \"hi\""`, expected: `say "hi"`},
 		{name: "single quote in double", input: `"it's"`, expected: "it's"},
 		{name: "single quote escaped", input: `'it\'s'`, expected: "it's"},
+		{name: "unicode escape ESC", input: `"\u001b[31m"`, expected: "\x1b[31m"},
+		{name: "unicode escape multiple", input: `"\u001b[38;5;11mtext\u001b[0m"`, expected: "\x1b[38;5;11mtext\x1b[0m"},
+		{name: "unicode escape emoji", input: `"\u263A"`, expected: "\u263A"},
+		{name: "unicode escape lowercase", input: `"\u00e9"`, expected: "é"},
+		{name: "unicode escape uppercase hex", input: `"\u00E9"`, expected: "é"},
+		{name: "unicode incomplete fallback", input: `"\u00"`, expected: "\\u00"},
 	}
 
 	for _, tt := range tests {

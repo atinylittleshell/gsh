@@ -278,12 +278,8 @@ tool onReplReady() {
     tipIndex = Math.floor(Math.random() * tips.length)
     tip = tips[tipIndex]
     
-    # ANSI color codes
-    yellow = "\u001b[38;5;11m"
-    gray = "\u001b[38;5;8m"
-    bold = "\u001b[1m"
-    italic = "\u001b[3m"
-    reset = "\u001b[0m"
+    # Style helpers using gsh.ui.styles
+    styles = gsh.ui.styles
     
     # Get terminal width
     width = gsh.terminal.width
@@ -293,32 +289,32 @@ tool onReplReady() {
     
     # Build info lines
     infoLines = []
-    infoLines.push(yellow + bold + "The G Shell" + reset)
+    infoLines.push(styles.primary(styles.bold("The G Shell")))
     infoLines.push("")
     
     # Version
     if (gsh.version != "" && gsh.version != "dev") {
-        infoLines.push(gray + "version: " + reset + yellow + gsh.version + reset)
+        infoLines.push(styles.dim("version: ") + styles.primary(gsh.version))
     } else if (gsh.version == "dev") {
-        infoLines.push(gray + "version: " + reset + gray + italic + "development" + reset)
+        infoLines.push(styles.dim("version: ") + styles.dim(styles.italic("development")))
     }
     
     # Predict model
-    if (gsh.repl != null && gsh.repl.models.lite != null) {
-        predictModel = gsh.repl.models.lite
-        predictName = predictModel["model"]
-        infoLines.push(gray + "predict: " + reset + yellow + predictName + reset)
+    if (gsh.repl != null && gsh.repl.models != null && gsh.repl.models.lite != null) {
+        liteModel = gsh.repl.models.lite
+        predictName = liteModel["model"]
+        infoLines.push(styles.dim("predict: ") + styles.primary(predictName))
     } else {
-        infoLines.push(gray + "predict: " + reset + gray + italic + "not configured" + reset)
+        infoLines.push(styles.dim("predict: ") + styles.dim(styles.italic("not configured")))
     }
     
     # Agent model
-    if (gsh.repl != null && gsh.repl.models.workhorse != null) {
-        agentModel = gsh.repl.models.workhorse
-        agentName = agentModel["model"]
-        infoLines.push(gray + "agent:   " + reset + yellow + agentName + reset)
+    if (gsh.repl != null && gsh.repl.models != null && gsh.repl.models.workhorse != null) {
+        workhorseModel = gsh.repl.models.workhorse
+        agentName = workhorseModel["model"]
+        infoLines.push(styles.dim("agent:   ") + styles.primary(agentName))
     } else {
-        infoLines.push(gray + "agent:   " + reset + gray + italic + "not configured" + reset)
+        infoLines.push(styles.dim("agent:   ") + styles.dim(styles.italic("not configured")))
     }
     
     # Calculate layout
@@ -335,7 +331,7 @@ tool onReplReady() {
         }
         print("")
         if (tip != "") {
-            print(gray + italic + "tip: " + reset + gray + tip + reset)
+            print(styles.dim(styles.italic("tip: ")) + styles.dim(tip))
         }
         print("")
         return ""
@@ -353,7 +349,7 @@ tool onReplReady() {
         # Logo line
         logoLine = ""
         if (i < logo.length) {
-            logoLine = yellow + logo[i] + reset
+            logoLine = styles.primary(logo[i])
         } else {
             logoLine = " ".repeat(logoWidth)
         }
@@ -374,7 +370,7 @@ tool onReplReady() {
     # Tip at bottom
     print("")
     if (tip != "") {
-        print(gray + italic + "tip: " + tip + reset)
+        print(styles.dim(styles.italic("tip: ") + tip))
     }
     print("")
     
