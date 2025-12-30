@@ -7,6 +7,7 @@ const (
 	EventAgentIterationStart = "agent.iteration.start"
 	EventAgentIterationEnd   = "agent.iteration.end"
 	EventAgentChunk          = "agent.chunk"
+	EventAgentToolPending    = "agent.tool.pending"
 	EventAgentToolStart      = "agent.tool.start"
 	EventAgentToolEnd        = "agent.tool.end"
 	EventAgentExecStart      = "agent.exec.start"
@@ -91,6 +92,23 @@ func createChunkContext(content string) Value {
 	return &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
 			"content": {Value: &StringValue{Value: content}},
+		},
+	}
+}
+
+// createToolPendingContext creates the context object for agent.tool.pending event
+// This fires when a tool call starts streaming from the LLM (status: pending, before args are complete)
+// ctx: { toolCall: { id, name, status } }
+func createToolPendingContext(id, name string) Value {
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"toolCall": {Value: &ObjectValue{
+				Properties: map[string]*PropertyDescriptor{
+					"id":     {Value: &StringValue{Value: id}},
+					"name":   {Value: &StringValue{Value: name}},
+					"status": {Value: &StringValue{Value: "pending"}},
+				},
+			}},
 		},
 	}
 }

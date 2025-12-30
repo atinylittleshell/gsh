@@ -231,8 +231,13 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 					}
 				},
 			}
-			if callbacks != nil && callbacks.OnToolCallStreaming != nil {
-				streamCallbacks.OnToolCallStart = callbacks.OnToolCallStreaming
+			// Always emit SDK event when tool call enters pending state (streaming from LLM)
+			streamCallbacks.OnToolPending = func(toolCallID string, toolName string) {
+				emitEvent(EventAgentToolPending, createToolPendingContext(toolCallID, toolName))
+				// Also call the original callback if provided
+				if callbacks != nil && callbacks.OnToolPending != nil {
+					callbacks.OnToolPending(toolCallID, toolName)
+				}
 			}
 			response, err = model.Provider.StreamingChatCompletion(request, streamCallbacks)
 		} else {

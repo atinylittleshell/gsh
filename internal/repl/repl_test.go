@@ -929,9 +929,9 @@ func (m *MockProvider) StreamingChatCompletion(request interpreter.ChatRequest, 
 			callbacks.OnContent(response.Content)
 		}
 		// Notify about tool calls starting
-		if callbacks != nil && callbacks.OnToolCallStart != nil {
+		if callbacks != nil && callbacks.OnToolPending != nil {
 			for _, tc := range response.ToolCalls {
-				callbacks.OnToolCallStart(tc.ID, tc.Name)
+				callbacks.OnToolPending(tc.ID, tc.Name)
 			}
 		}
 		return response, nil

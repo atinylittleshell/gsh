@@ -472,9 +472,22 @@ tool onChunk(ctx) {
 gsh.on("agent.chunk", onChunk)
 ```
 
+#### `agent.tool.pending`
+
+Called when a tool call enters pending state (starts streaming from LLM). This fires as soon as the LLM begins outputting a tool call, before arguments are complete. Aligns with ACP's `pending` status. Useful for showing early feedback (e.g., spinner with tool name).
+
+```gsh
+tool onToolPending(ctx) {
+    # ctx.toolCall: { id, name, status }
+    # status is "pending"
+    # Note: args are not available yet (still streaming)
+}
+gsh.on("agent.tool.pending", onToolPending)
+```
+
 #### `agent.tool.start`
 
-Called when a non-exec tool call begins. Handler can return a string to render.
+Called when a non-exec tool call begins execution (after streaming is complete and args are available). Handler can return a string to render.
 
 ```gsh
 tool onToolStart(ctx) {

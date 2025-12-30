@@ -23,11 +23,11 @@ type AgentCallbacks struct {
 	// Aligned with ACP's session/update message_chunk notifications.
 	OnChunk func(content string)
 
-	// OnToolCallStreaming is called when a tool call starts streaming from the LLM.
+	// OnToolPending is called when a tool call enters pending state (starts streaming from LLM).
 	// At this point, we know the tool name but arguments may be incomplete/empty.
 	// This allows showing a "pending" state to the user while arguments stream in.
 	// The toolName is always available; partialArgs may be empty or partial.
-	OnToolCallStreaming func(toolCallID string, toolName string)
+	OnToolPending func(toolCallID string, toolName string)
 
 	// OnToolCallStart is called before executing a tool.
 	// The ToolCall contains the tool's initial state with Status = pending.

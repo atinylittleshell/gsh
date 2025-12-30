@@ -131,6 +131,12 @@ gsh.on("agent.end", onAgentEnd)
 # Renders the start line for exec (shell command) tool calls
 # Example output: "▶ ls -la"
 tool onExecStart(ctx) {
+    # Stop any spinner if still running (exec may start without any text chunks)
+    if (__currentSpinnerId != null) {
+        gsh.ui.spinner.stop(__currentSpinnerId)
+        __currentSpinnerId = null
+    }
+    
     print("")
     print(gsh.ui.styles.primary("▶") + " " + ctx.exec.command)
 }
@@ -153,22 +159,25 @@ tool onExecEnd(ctx) {
 gsh.on("agent.exec.end", onExecEnd)
 
 
-# Map to track spinner IDs by tool call ID
-__toolSpinnerMap = {}
-
-# Track the thinking spinner ID
-__thinkingSpinnerId = null
-__thinkingSpinnerStopped = false
+# Track the current spinner ID (shared between thinking and tool streaming)
+__currentSpinnerId = null
 
 # Track if we've printed any real (non-whitespace) text content in this iteration.
 # This helps us skip leading whitespace before tool calls.
 __printedRealText = false
 
+# Track if we're currently in tool streaming phase (waiting for all tools to finish streaming)
+__toolStreamingStarted = false
+
+# Track current tool being executed (for updating spinner message)
+__currentToolName = null
+
 # Renders the thinking spinner when agent iteration starts
 tool onIterationStart(ctx) {
-    __thinkingSpinnerId = gsh.ui.spinner.start("Thinking...")
-    __thinkingSpinnerStopped = false
+    __currentSpinnerId = gsh.ui.spinner.start("Thinking...")
     __printedRealText = false
+    __toolStreamingStarted = false
+    __currentToolName = null
 }
 gsh.on("agent.iteration.start", onIterationStart)
 
@@ -179,11 +188,10 @@ tool onChunk(ctx) {
     # Check if this is real content (not just whitespace)
     isRealContent = content.trim() != ""
 
-    # Stop spinner on first content chunk
-    if (__thinkingSpinnerId != null && !__thinkingSpinnerStopped) {
-        gsh.ui.spinner.stop(__thinkingSpinnerId)
-        __thinkingSpinnerId = null
-        __thinkingSpinnerStopped = true
+    # Stop spinner on first content chunk (if not in tool streaming phase)
+    if (__currentSpinnerId != null && !__toolStreamingStarted) {
+        gsh.ui.spinner.stop(__currentSpinnerId)
+        __currentSpinnerId = null
     }
 
     # Track if we've printed real text
@@ -202,11 +210,54 @@ tool onChunk(ctx) {
 }
 gsh.on("agent.chunk", onChunk)
 
-# Renders the status line for non-exec tool calls (start)
-# Example output: "○ read_file"
+# Handles when a tool call enters pending state (streaming from LLM)
+# This fires before args are complete - we show the tool name spinner
+tool onToolPending(ctx) {
+    # If this is the first tool pending in this iteration, replace thinking spinner
+    if (!__toolStreamingStarted) {
+        __toolStreamingStarted = true
+        # Stop the thinking spinner if running
+        if (__currentSpinnerId != null) {
+            gsh.ui.spinner.stop(__currentSpinnerId)
+        }
+        # Start a new spinner with the tool name
+        __currentSpinnerId = gsh.ui.spinner.start(ctx.toolCall.name)
+        __currentToolName = ctx.toolCall.name
+    }
+    # For subsequent tool calls in same iteration, keep the first spinner running
+}
+gsh.on("agent.tool.pending", onToolPending)
+
+# Renders the status line for non-exec tool calls (execution start)
+# This fires when tool execution actually begins (after streaming is complete)
 tool onToolStart(ctx) {
-    id = gsh.ui.spinner.start(ctx.toolCall.name)
-    __toolSpinnerMap[ctx.toolCall.id] = id
+    # Stop any existing spinner and start a new one with tool name + args
+    if (__currentSpinnerId != null) {
+        gsh.ui.spinner.stop(__currentSpinnerId)
+    }
+    
+    # Build message with tool name and args
+    message = ctx.toolCall.name
+    args = ctx.toolCall.args
+    if (args != null) {
+        argKeys = Object.keys(args)
+        if (argKeys.length > 0) {
+            argLines = []
+            for (key of argKeys) {
+                value = args[key]
+                valueStr = "" + value
+                # Truncate long values
+                if (valueStr.length > 50) {
+                    valueStr = valueStr.substring(0, 47) + "..."
+                }
+                argLines.push("   " + key + ": " + valueStr)
+            }
+            message = message + "\n" + argLines.join("\n")
+        }
+    }
+    
+    __currentSpinnerId = gsh.ui.spinner.start(message)
+    __currentToolName = ctx.toolCall.name
 }
 gsh.on("agent.tool.start", onToolStart)
 
@@ -214,17 +265,39 @@ gsh.on("agent.tool.start", onToolStart)
 # Example output (success): "● read_file ✓ (0.02s)"
 # Example output (error):   "● read_file ✗ (0.01s)"
 tool onToolEnd(ctx) {
-    spinnerId = __toolSpinnerMap[ctx.toolCall.id]
-    if (spinnerId != null) {
-        gsh.ui.spinner.stop(spinnerId)
+    # Stop the current spinner
+    if (__currentSpinnerId != null) {
+        gsh.ui.spinner.stop(__currentSpinnerId)
+        __currentSpinnerId = null
     }
+    
     durationSec = (ctx.toolCall.durationMs / 1000).toFixed(2)
     
+    # Build completion line with args
+    args = ctx.toolCall.args
+    argLines = ""
+    if (args != null) {
+        argKeys = Object.keys(args)
+        if (argKeys.length > 0) {
+            lines = []
+            for (key of argKeys) {
+                value = args[key]
+                valueStr = "" + value
+                # Truncate long values
+                if (valueStr.length > 50) {
+                    valueStr = valueStr.substring(0, 47) + "..."
+                }
+                lines.push("   " + key + ": " + valueStr)
+            }
+            argLines = "\n" + lines.join("\n")
+        }
+    }
+    
     if (ctx.toolCall.error != null) {
-        line = "● " + ctx.toolCall.name + " " + gsh.ui.styles.error("✗") + " " + gsh.ui.styles.dim("(" + durationSec + "s)")
+        line = "● " + ctx.toolCall.name + " " + gsh.ui.styles.error("✗") + " " + gsh.ui.styles.dim("(" + durationSec + "s)") + argLines
         print(line)
     } else {
-        line = "● " + ctx.toolCall.name + " " + gsh.ui.styles.success("✓") + " " + gsh.ui.styles.dim("(" + durationSec + "s)")
+        line = "● " + ctx.toolCall.name + " " + gsh.ui.styles.success("✓") + " " + gsh.ui.styles.dim("(" + durationSec + "s)") + argLines
         print(line)
     }
 }

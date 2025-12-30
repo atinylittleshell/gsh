@@ -104,3 +104,18 @@ When logging errors that users need to see for debugging, use appropriate log le
 ```go
 fmt.Fprintf(os.Stderr, "gsh: error message here\n")
 ```
+
+## SDK Events and ACP Alignment
+
+When adding new SDK events (in `internal/script/interpreter/agent_events.go`), check if they should align with the Agent Client Protocol (ACP):
+
+- Use Context7 to look up ACP documentation for standard event names and lifecycle states
+- ACP defines tool call statuses: `pending`, `in_progress`, `completed`, `failed`
+- Prefer ACP-aligned naming (e.g., `agent.tool.pending` not `agent.tool.streaming`)
+
+**Tool call event lifecycle:**
+- `agent.tool.pending` - Tool call starts streaming from LLM (args not yet complete)
+- `agent.tool.start` - Tool execution begins (args available)
+- `agent.tool.end` - Tool execution completes
+
+When debugging event handler issues, trace the full event flow in `agent_loop.go` to understand when each event fires relative to streaming vs execution phases.

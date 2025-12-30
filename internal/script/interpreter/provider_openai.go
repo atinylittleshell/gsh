@@ -525,8 +525,8 @@ func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callbacks 
 					toolCalls[tc.Index].ID != "" &&
 					toolCalls[tc.Index].Name != "" {
 					toolCallNotified[tc.Index] = true
-					if callbacks != nil && callbacks.OnToolCallStart != nil {
-						callbacks.OnToolCallStart(toolCalls[tc.Index].ID, toolCalls[tc.Index].Name)
+					if callbacks != nil && callbacks.OnToolPending != nil {
+						callbacks.OnToolPending(toolCalls[tc.Index].ID, toolCalls[tc.Index].Name)
 					}
 				}
 

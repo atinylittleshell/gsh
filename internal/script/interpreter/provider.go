@@ -24,9 +24,9 @@ type StreamCallbacks struct {
 	// OnContent is called for each chunk of content text.
 	OnContent func(content string)
 
-	// OnToolCallStart is called when a tool call starts streaming.
+	// OnToolPending is called when a tool call enters pending state (starts streaming).
 	// At this point, the tool ID and name are known but arguments may still be streaming.
-	OnToolCallStart func(toolCallID string, toolName string)
+	OnToolPending func(toolCallID string, toolName string)
 }
 
 // ChatRequest represents a chat completion request

@@ -370,10 +370,24 @@ tool onExecEnd(ctx) {
 gsh.on("agent.exec.end", onExecEnd)
 ```
 
+### `agent.tool.pending`
+
+```gsh
+# ctx: { toolCall: { id, name, status } }
+# Fires when tool call enters pending state (streaming from LLM, before args are complete)
+# Aligns with ACP's pending status
+tool onToolPending(ctx) {
+    # Show spinner with tool name while streaming
+    return "○ " + ctx.toolCall.name + " ⠋"
+}
+gsh.on("agent.tool.pending", onToolPending)
+```
+
 ### `agent.tool.start`
 
 ```gsh
 # ctx: { toolCall: { id, name, args } }
+# Fires when tool execution begins (after streaming is complete)
 tool onToolStart(ctx) {
     return "○ " + ctx.toolCall.name
 }

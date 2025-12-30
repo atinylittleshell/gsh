@@ -349,9 +349,9 @@ func (s *SmartMockProvider) StreamingChatCompletion(request ChatRequest, callbac
 	}
 
 	// Notify about tool calls starting
-	if callbacks != nil && callbacks.OnToolCallStart != nil {
+	if callbacks != nil && callbacks.OnToolPending != nil {
 		for _, tc := range response.ToolCalls {
-			callbacks.OnToolCallStart(tc.ID, tc.Name)
+			callbacks.OnToolPending(tc.ID, tc.Name)
 		}
 	}
 
