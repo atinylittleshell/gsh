@@ -383,11 +383,27 @@ func TestExecuteGrepTool_NoMatchesStatus(t *testing.T) {
 }
 
 func TestDefaultTools_IncludesGrep(t *testing.T) {
-	tools := DefaultTools()
+	state := &State{
+		Agent: &interpreter.AgentValue{
+			Name:   "test",
+			Config: map[string]interpreter.Value{},
+		},
+	}
+	SetupAgentWithDefaultTools(state)
+
+	toolsVal, ok := state.Agent.Config["tools"]
+	if !ok {
+		t.Fatal("Tools should be set in agent config")
+	}
+
+	toolsArr, ok := toolsVal.(*interpreter.ArrayValue)
+	if !ok {
+		t.Fatal("Tools should be an array value")
+	}
 
 	found := false
-	for _, tool := range tools {
-		if tool.Name == "grep" {
+	for _, toolVal := range toolsArr.Elements {
+		if nativeTool, ok := toolVal.(*interpreter.NativeToolValue); ok && nativeTool.Name == "grep" {
 			found = true
 			break
 		}
@@ -398,7 +414,7 @@ func TestDefaultTools_IncludesGrep(t *testing.T) {
 	}
 }
 
-func TestDefaultToolExecutor_GrepTool(t *testing.T) {
+func TestExecuteGrepTool_Direct(t *testing.T) {
 	// Skip if no grep backend is available
 	if interpreter.DetectGrepBackend() == interpreter.GrepBackendNone {
 		t.Skip("No grep backend available")
@@ -428,16 +444,14 @@ func TestDefaultToolExecutor_GrepTool(t *testing.T) {
 	}
 	defer os.Chdir(origDir)
 
-	executor := DefaultToolExecutor(nil)
-
 	ctx := context.Background()
 	args := map[string]interface{}{
 		"pattern": "executor_grep_test",
 	}
 
-	result, err := executor(ctx, "grep", args)
+	result, err := interpreter.ExecuteNativeGrepTool(ctx, args)
 	if err != nil {
-		t.Fatalf("Tool executor failed: %v", err)
+		t.Fatalf("ExecuteNativeGrepTool failed: %v", err)
 	}
 
 	if !strings.Contains(result, "executor_grep_test") {

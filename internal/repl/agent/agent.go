@@ -4,9 +4,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"os"
-	"strings"
-	"sync"
 
 	"go.uber.org/zap"
 
@@ -14,17 +11,11 @@ import (
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
-// ToolExecutor is a function that executes a tool call and returns the result.
-// It receives the tool name and arguments, and returns the result as a string.
-type ToolExecutor func(ctx context.Context, toolName string, args map[string]interface{}) (string, error)
-
 // State holds the state for a single agent.
 type State struct {
 	Agent         *interpreter.AgentValue
 	Provider      interpreter.ModelProvider
 	Conversation  []interpreter.ChatMessage
-	Tools         []interpreter.ChatTool   // Available tools for this agent
-	ToolExecutor  ToolExecutor             // Function to execute tool calls
 	MaxIterations int                      // Maximum iterations for the agentic loop (0 uses default)
 	Interpreter   *interpreter.Interpreter // Interpreter for executing the agent loop
 }
@@ -118,10 +109,10 @@ func (m *Manager) ClearCurrentConversation() error {
 }
 
 // SendMessage sends a message to the current agent and streams the response.
-// The onChunk callback is called for each chunk of the response as it streams.
+// All rendering (spinner, text output) is handled via gsh script event handlers.
 // This uses the interpreter's ExecuteAgentWithCallbacks for the agentic loop,
-// with callbacks to drive the REPL's UI.
-func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(string)) error {
+// with the EventEmitter callback to bridge interpreter events to gsh.on() handlers.
+func (m *Manager) SendMessage(ctx context.Context, message string) error {
 	if m.currentAgentName == "" {
 		return fmt.Errorf("no current agent")
 	}
@@ -136,16 +127,6 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 		return fmt.Errorf("BUG: interpreter not configured for agent '%s' - this is an internal error in gsh", m.currentAgentName)
 	}
 
-	if state.ToolExecutor != nil && len(state.Tools) == 0 {
-		m.logger.Warn("agent has tool executor but no tools defined - tools will not be available to the LLM",
-			zap.String("agent", m.currentAgentName))
-	}
-
-	if len(state.Tools) > 0 && state.ToolExecutor == nil {
-		m.logger.Warn("agent has tools defined but no tool executor - tool calls will fail",
-			zap.String("agent", m.currentAgentName))
-	}
-
 	// Build initial conversation from state
 	conv := &interpreter.ConversationValue{
 		Messages: make([]interpreter.ChatMessage, len(state.Conversation)),
@@ -158,181 +139,19 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 		Content: message,
 	})
 
-	// Track if we've rendered the header (only render once at the start)
-	headerRendered := false
-
-	// Spinner management - we need to handle this specially because the spinner
-	// should stop on the first content chunk
-	var stopSpinner func()
-	var spinnerMu sync.Mutex
-	firstChunkReceived := false
-
-	// Track if we've printed any real (non-whitespace) text content.
-	// This helps us decide whether to reuse the spinner line when transitioning to tool calls.
-	printedRealText := false
-
-	// Store the stop function for the pending spinner so we can stop it
-	// when the tool call starts executing
-	var stopPendingSpinner func()
-	var pendingSpinnerMu sync.Mutex
-
-	// Create exec event callbacks for agent.exec.start and agent.exec.end events
-	execEventCallbacks := &interpreter.ExecEventCallbacks{
-		OnStart: func(command string) {
-			state.Interpreter.EmitEvent(interpreter.EventAgentExecStart, interpreter.CreateExecStartContext(command))
-		},
-		OnEnd: func(command string, durationMs int64, exitCode int) {
-			state.Interpreter.EmitEvent(interpreter.EventAgentExecEnd, interpreter.CreateExecEndContext(command, durationMs, exitCode))
-		},
-	}
-
-	// Wrap the original tool executor to intercept exec tool calls for event emission
-	toolExecutor := state.ToolExecutor
-	if toolExecutor != nil {
-		originalExecutor := toolExecutor
-		toolExecutor = func(ctx context.Context, toolName string, args map[string]interface{}) (string, error) {
-			// Only intercept exec tool calls for event emission
-			if toolName == "exec" {
-				return interpreter.ExecuteNativeExecToolWithCallbacks(ctx, args, os.Stdout, execEventCallbacks)
-			}
-			// Pass through to original executor for all other tools
-			return originalExecutor(ctx, toolName, args)
-		}
-	}
-
-	// Build callbacks to drive the REPL UI
+	// Build callbacks to drive the REPL UI via events
+	// All rendering is handled by gsh script event handlers (agent.chunk, agent.iteration.start, etc.)
+	// Event emission is handled entirely by the interpreter's agentic loop
 	callbacks := &interpreter.AgentCallbacks{
 		Streaming:   true,
-		Tools:       state.Tools, // Pass REPL built-in tools to be sent to the LLM
-		UserMessage: message,     // Pass user message for agent.start event
+		UserMessage: message, // Pass user message for agent.start event
 
 		// EventEmitter allows the interpreter to emit SDK events through gsh.on() handlers
 		EventEmitter: func(eventName string, ctx interpreter.Value) {
 			state.Interpreter.EmitEvent(eventName, ctx)
 		},
 
-		OnIterationStart: func(iteration int) {
-			// Emit agent.start event on first iteration
-			if !headerRendered {
-				ctx := interpreter.CreateAgentStartContext(m.currentAgentName, message)
-				state.Interpreter.EmitEvent(interpreter.EventAgentStart, ctx)
-				headerRendered = true
-			}
-
-			// Reset pending spinner for new iteration
-			printedRealText = false
-			pendingSpinnerMu.Lock()
-			stopPendingSpinner = nil
-			pendingSpinnerMu.Unlock()
-
-			// Start thinking spinner for each iteration
-			spinnerMu.Lock()
-			firstChunkReceived = false
-			// Spinner is now controlled via gsh.ui.spinner in event handlers
-			spinnerMu.Unlock()
-		},
-
-		OnChunk: func(content string) {
-			// Check if this is real content (not just whitespace)
-			isRealContent := strings.TrimSpace(content) != ""
-
-			// Stop spinner on first content chunk
-			spinnerMu.Lock()
-			if !firstChunkReceived && stopSpinner != nil {
-				stopSpinner()
-				stopSpinner = nil
-				firstChunkReceived = true
-			}
-			spinnerMu.Unlock()
-
-			// Track if we've printed real text (for deciding whether to reuse lines later)
-			if isRealContent {
-				printedRealText = true
-			}
-
-			// Skip rendering whitespace-only chunks if we haven't printed real text yet.
-			// This prevents empty lines from appearing before tool calls.
-			if !isRealContent && !printedRealText {
-				return
-			}
-
-			// Direct print of agent text (not rendered through events)
-			fmt.Fprint(os.Stdout, content)
-			if onChunk != nil {
-				onChunk(content)
-			}
-		},
-
-		OnResponse: func(response *interpreter.ChatResponse) {
-			// Make sure spinner is stopped even if no content was received
-			spinnerMu.Lock()
-			if stopSpinner != nil {
-				stopSpinner()
-				stopSpinner = nil
-			}
-			spinnerMu.Unlock()
-		},
-
-		OnToolCallStreaming: func(toolCallID string, toolName string) {
-			// Called when a tool call starts streaming (before arguments are complete)
-			// Tool pending state is now controlled via gsh.ui.spinner in event handlers
-			// Stop thinking spinner since we're now showing tool pending state
-			spinnerMu.Lock()
-			if stopSpinner != nil {
-				stopSpinner()
-				stopSpinner = nil
-			}
-			spinnerMu.Unlock()
-		},
-
-		OnToolCallStart: func(toolCall acp.ToolCall) {
-			// Stop pending spinner if it's running (for the first tool call in a batch)
-			pendingSpinnerMu.Lock()
-			if stopPendingSpinner != nil {
-				stopPendingSpinner()
-				stopPendingSpinner = nil
-			}
-			pendingSpinnerMu.Unlock()
-
-			// Emit tool.start events for rendering
-			if toolCall.Name == "exec" {
-				if cmd, ok := toolCall.Arguments["command"].(string); ok && cmd != "" {
-					state.Interpreter.EmitEvent(interpreter.EventAgentExecStart, interpreter.CreateExecStartContext(cmd))
-				}
-			} else {
-				// For non-exec tools, emit agent.tool.start event
-				ctx := interpreter.CreateToolStartContext(toolCall.Name, toolCall.Arguments)
-				state.Interpreter.EmitEvent(interpreter.EventAgentToolStart, ctx)
-			}
-		},
-
 		OnToolCallEnd: func(toolCall acp.ToolCall, update acp.ToolCallUpdate) {
-			isExecTool := toolCall.Name == "exec"
-
-			if isExecTool {
-				var command string
-				if cmd, ok := toolCall.Arguments["command"].(string); ok {
-					command = cmd
-				}
-
-				// Parse exit code from exec result for rendering
-				var execExitCode int
-				if update.Error == nil {
-					execExitCode = parseExecExitCode(update.Content)
-				} else {
-					execExitCode = 1
-				}
-
-				if command != "" {
-					state.Interpreter.EmitEvent(interpreter.EventAgentExecEnd, interpreter.CreateExecEndContext(command, update.Duration.Milliseconds(), execExitCode))
-				}
-			} else {
-				// For non-exec tools, emit agent.tool.end event
-				success := update.Status == acp.ToolCallStatusCompleted
-				ctx := interpreter.CreateToolEndContext(toolCall.Name, toolCall.Arguments, update.Duration.Milliseconds(), success, update.Error)
-				state.Interpreter.EmitEvent(interpreter.EventAgentToolEnd, ctx)
-			}
-
 			// Log tool errors
 			if update.Error != nil {
 				m.logger.Warn("tool execution failed",
@@ -343,16 +162,7 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 		},
 
 		OnComplete: func(result acp.AgentResult) {
-			// Emit agent.end event with stats
-			if headerRendered {
-				usage := result.Usage
-				if usage == nil {
-					usage = &acp.TokenUsage{}
-				}
-				ctx := interpreter.CreateAgentEndContext(m.currentAgentName, usage.PromptTokens, usage.CompletionTokens, usage.CachedTokens, result.Duration.Milliseconds(), result.Error)
-				state.Interpreter.EmitEvent(interpreter.EventAgentEnd, ctx)
-			}
-
+			// Log agent completion
 			m.logger.Debug("agent interaction",
 				zap.String("agent", m.currentAgentName),
 				zap.String("message", message),
@@ -360,8 +170,6 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 				zap.Duration("duration", result.Duration),
 			)
 		},
-
-		ToolExecutor: toolExecutor,
 	}
 
 	// Execute using the interpreter's agentic loop
@@ -377,49 +185,13 @@ func (m *Manager) SendMessage(ctx context.Context, message string, onChunk func(
 	return err
 }
 
-// parseExecExitCode extracts the exit code from an exec tool result JSON.
-func parseExecExitCode(result string) int {
-	// Simple parsing - look for "exitCode": N pattern
-	// The result format is: {"output": "...", "exitCode": N}
-	const prefix = `"exitCode":`
-	idx := strings.Index(result, prefix)
-	if idx == -1 {
-		return 0
-	}
-
-	// Skip to the number
-	start := idx + len(prefix)
-	// Skip whitespace
-	for start < len(result) && (result[start] == ' ' || result[start] == '\t') {
-		start++
-	}
-
-	// Read digits
-	end := start
-	for end < len(result) && result[end] >= '0' && result[end] <= '9' {
-		end++
-	}
-
-	if start == end {
-		return 0
-	}
-
-	// Parse the number
-	var exitCode int
-	_, _ = fmt.Sscanf(result[start:end], "%d", &exitCode)
-	return exitCode
-}
-
-// SendMessageToCurrentAgent sends a message to the current agent with default output handling.
-// This is a convenience method that prints chunks to stdout and handles errors.
 // SendMessageToCurrentAgent sends a message to the current agent.
-// Output is now handled via events (gsh.ui.* and event handlers).
+// All rendering is handled via events (gsh.ui.* and event handlers in gsh script).
 func (m *Manager) SendMessageToCurrentAgent(ctx context.Context, message string) error {
-	// Events and gsh.ui handle all rendering
-	err := m.SendMessage(ctx, message, nil)
+	err := m.SendMessage(ctx, message)
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "gsh: %v\n", err)
+		fmt.Printf("gsh: %v\n", err)
 		return nil // Return nil to not propagate error to caller (matches original behavior)
 	}
 

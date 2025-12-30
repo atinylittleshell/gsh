@@ -49,13 +49,13 @@ func (i *Interpreter) ExecuteAgentWithCallbacks(ctx context.Context, conv *Conve
 	}
 
 	// Emit agent.start event
-	emitEvent(EventAgentStart, createAgentStartContext(userMessage))
+	emitEvent(EventAgentStart, createAgentStartContext(agent.Name, userMessage))
 
 	// Helper to call OnComplete callback with ACP-aligned result
 	callOnComplete := func(stopReason acp.StopReason, err error) {
 		// Emit agent.end event first
 		durationMs := time.Since(startTime).Milliseconds()
-		emitEvent(EventAgentEnd, createAgentEndContext(string(stopReason), durationMs, totalInputTokens, totalOutputTokens, err))
+		emitEvent(EventAgentEnd, createAgentEndContext(agent.Name, string(stopReason), durationMs, totalInputTokens, totalOutputTokens, totalCachedTokens, err))
 
 		if callbacks != nil && callbacks.OnComplete != nil {
 			result := acp.AgentResult{
@@ -286,12 +286,8 @@ func (i *Interpreter) ExecuteAgentWithCallbacks(ctx context.Context, conv *Conve
 			var toolResult string
 			var toolErr error
 
-			// Use custom tool executor if provided, otherwise use interpreter's built-in
-			if callbacks != nil && callbacks.ToolExecutor != nil {
-				toolResult, toolErr = callbacks.ToolExecutor(ctx, toolCall.Name, toolCall.Arguments)
-			} else {
-				toolResult, toolErr = i.executeToolCall(agent, toolCall)
-			}
+			// Execute the tool
+			toolResult, toolErr = i.executeToolCall(agent, toolCall)
 
 			toolDuration := time.Since(toolStart)
 			toolDurationMs := toolDuration.Milliseconds()

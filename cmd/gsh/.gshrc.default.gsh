@@ -124,6 +124,7 @@ tool onAgentEnd(ctx) {
     footer = "── " + text + " " + "─".repeat(padding)
     print("")
     print(gsh.ui.styles.primary(footer))
+    print("")
 }
 gsh.on("agent.end", onAgentEnd)
 
@@ -154,6 +155,54 @@ gsh.on("agent.exec.end", onExecEnd)
 
 # Map to track spinner IDs by tool call ID
 __toolSpinnerMap = {}
+
+# Track the thinking spinner ID
+__thinkingSpinnerId = null
+__thinkingSpinnerStopped = false
+
+# Track if we've printed any real (non-whitespace) text content in this iteration.
+# This helps us skip leading whitespace before tool calls.
+__printedRealText = false
+
+# Renders the thinking spinner when agent iteration starts
+tool onIterationStart(ctx) {
+    __thinkingSpinnerId = gsh.ui.spinner.start("Thinking...")
+    __thinkingSpinnerStopped = false
+    __printedRealText = false
+}
+gsh.on("agent.iteration.start", onIterationStart)
+
+# Handles each chunk of agent output - stops spinner and prints content
+tool onChunk(ctx) {
+    content = ctx.content
+
+    # Check if this is real content (not just whitespace)
+    isRealContent = content.trim() != ""
+
+    # Stop spinner on first content chunk
+    if (__thinkingSpinnerId != null && !__thinkingSpinnerStopped) {
+        gsh.ui.spinner.stop(__thinkingSpinnerId)
+        __thinkingSpinnerId = null
+        __thinkingSpinnerStopped = true
+        # Print a newline to separate spinner from content
+        print("")
+    }
+
+    # Track if we've printed real text
+    if (isRealContent) {
+        __printedRealText = true
+    }
+
+    # Skip rendering whitespace-only chunks if we haven't printed real text yet.
+    # This prevents empty lines from appearing before tool calls.
+    if (!isRealContent && !__printedRealText) {
+        return ""
+    }
+
+    # Print the content (without trailing newline - content already includes formatting)
+    gsh.ui.write(content)
+}
+gsh.on("agent.chunk", onChunk)
 
 # Renders the status line for non-exec tool calls (start)
 # Example output: "○ read_file"

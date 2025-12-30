@@ -96,9 +96,14 @@ func TestSDKAgentAddSync(t *testing.T) {
 		t.Error("expected custom agent to have a provider")
 	}
 
-	// Verify the agent has default tools
-	if len(customState.Tools) == 0 {
-		t.Error("expected custom agent to have default tools")
+	// Verify the agent has default tools in its config
+	toolsVal, ok := customState.Agent.Config["tools"]
+	if !ok {
+		t.Error("expected custom agent to have tools in config")
+	} else if arr, ok := toolsVal.(*interpreter.ArrayValue); ok {
+		if len(arr.Elements) == 0 {
+			t.Error("expected custom agent to have default tools")
+		}
 	}
 }
 
@@ -161,20 +166,8 @@ func TestSDKAgentModifySync(t *testing.T) {
 				}
 			}
 
-			// Sync tools if changed
-			if toolsVal, ok := modifiedAgent.Config["tools"]; ok {
-				if toolsArr, ok := toolsVal.(*interpreter.ArrayValue); ok {
-					state.Tools = make([]interpreter.ChatTool, 0, len(toolsArr.Elements))
-					for _, toolVal := range toolsArr.Elements {
-						if chatTool := valueToToolForTest(toolVal); chatTool != nil {
-							state.Tools = append(state.Tools, *chatTool)
-						}
-					}
-					if len(state.Tools) == 0 {
-						agent.SetupAgentWithDefaultTools(state)
-					}
-				}
-			}
+			// Tools are now stored in agent.Config["tools"], no syncing needed
+			// Agent config is the source of truth
 		},
 	}
 	interp.SDKConfig().SetREPLContext(replCtx)
@@ -239,7 +232,13 @@ func TestSDKAgentToolsSync(t *testing.T) {
 	agent.SetupAgentWithDefaultTools(defaultState)
 	agentManager.AddAgent("default", defaultState)
 
-	originalToolCount := len(defaultState.Tools)
+	// Get original tool count from agent config
+	originalToolCount := 0
+	if toolsVal, ok := defaultState.Agent.Config["tools"]; ok {
+		if toolsArr, ok := toolsVal.(*interpreter.ArrayValue); ok {
+			originalToolCount = len(toolsArr.Elements)
+		}
+	}
 
 	// Set up REPL context with OnAgentModified callback
 	replCtx := &interpreter.REPLContext{
@@ -248,24 +247,8 @@ func TestSDKAgentToolsSync(t *testing.T) {
 		Agents:       []*interpreter.AgentValue{defaultAgent},
 		CurrentAgent: defaultAgent,
 		OnAgentModified: func(modifiedAgent *interpreter.AgentValue) {
-			state := agentManager.GetAgent(modifiedAgent.Name)
-			if state == nil {
-				return
-			}
-
-			if toolsVal, ok := modifiedAgent.Config["tools"]; ok {
-				if toolsArr, ok := toolsVal.(*interpreter.ArrayValue); ok {
-					state.Tools = make([]interpreter.ChatTool, 0, len(toolsArr.Elements))
-					for _, toolVal := range toolsArr.Elements {
-						if chatTool := valueToToolForTest(toolVal); chatTool != nil {
-							state.Tools = append(state.Tools, *chatTool)
-						}
-					}
-					if len(state.Tools) == 0 {
-						agent.SetupAgentWithDefaultTools(state)
-					}
-				}
-			}
+			// Tools are now stored in agent.Config["tools"], no syncing needed
+			// Agent config is the source of truth
 		},
 	}
 	interp.SDKConfig().SetREPLContext(replCtx)
@@ -279,13 +262,27 @@ func TestSDKAgentToolsSync(t *testing.T) {
 		t.Fatalf("unexpected error modifying tools: %v", err)
 	}
 
-	// Verify tools were synced - should now have just the custom tool
-	if len(defaultState.Tools) != 1 {
-		t.Errorf("expected 1 tool after modification, got %d (was %d)", len(defaultState.Tools), originalToolCount)
+	// Verify tools were updated in agent config
+	toolsVal, ok := defaultState.Agent.Config["tools"]
+	if !ok {
+		t.Fatalf("expected tools to be set in agent config after modification")
+	}
+	toolsArr, ok := toolsVal.(*interpreter.ArrayValue)
+	if !ok {
+		t.Fatalf("expected tools to be an array")
 	}
 
-	if len(defaultState.Tools) > 0 && defaultState.Tools[0].Name != "custom_tool" {
-		t.Errorf("expected custom_tool, got %s", defaultState.Tools[0].Name)
+	// Should now have just the custom tool
+	if len(toolsArr.Elements) != 1 {
+		t.Errorf("expected 1 tool after modification, got %d (was %d)", len(toolsArr.Elements), originalToolCount)
+	}
+
+	if len(toolsArr.Elements) > 0 {
+		if nativeTool, ok := toolsArr.Elements[0].(*interpreter.NativeToolValue); ok {
+			if nativeTool.Name != "custom_tool" {
+				t.Errorf("expected custom_tool, got %s", nativeTool.Name)
+			}
+		}
 	}
 }
 
@@ -308,24 +305,4 @@ func (m *mockProvider) StreamingChatCompletion(request interpreter.ChatRequest, 
 	return &interpreter.ChatResponse{
 		Content: "mock response",
 	}, nil
-}
-
-// valueToToolForTest converts a Value to a ChatTool (simplified version for tests)
-func valueToToolForTest(v interpreter.Value) *interpreter.ChatTool {
-	switch tool := v.(type) {
-	case *interpreter.NativeToolValue:
-		return &interpreter.ChatTool{
-			Name:        tool.Name,
-			Description: tool.Description,
-			Parameters:  tool.Parameters,
-		}
-	case *interpreter.ToolValue:
-		return &interpreter.ChatTool{
-			Name:        tool.Name,
-			Description: "Script tool",
-			Parameters:  map[string]interface{}{},
-		}
-	default:
-		return nil
-	}
 }

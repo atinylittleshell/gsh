@@ -81,7 +81,7 @@ func (m *mockProvider) StreamingChatCompletion(request interpreter.ChatRequest, 
 }
 
 // createTestState creates a test State with all required fields populated
-func createTestState(provider interpreter.ModelProvider, systemPrompt string, tools []interpreter.ChatTool, toolExecutor ToolExecutor, maxIterations int) *State {
+func createTestState(provider interpreter.ModelProvider, systemPrompt string, tools []interpreter.ChatTool, toolExecutor interface{}, maxIterations int) *State {
 	interp := interpreter.New(nil)
 
 	model := &interpreter.ModelValue{
@@ -104,6 +104,7 @@ func createTestState(provider interpreter.ModelProvider, systemPrompt string, to
 	if len(tools) > 0 {
 		toolValues := make([]interpreter.Value, len(tools))
 		for i, tool := range tools {
+			// Create ToolValue objects that delegate to the executor
 			toolValues[i] = &interpreter.ToolValue{
 				Name:       tool.Name,
 				Parameters: []string{}, // Simplified for tests
@@ -122,15 +123,13 @@ func createTestState(provider interpreter.ModelProvider, systemPrompt string, to
 		Agent:         agent,
 		Provider:      provider,
 		Conversation:  []interpreter.ChatMessage{},
-		Tools:         tools,
-		ToolExecutor:  toolExecutor,
 		MaxIterations: maxIterations,
 		Interpreter:   interp,
 	}
 }
 
 // createTestStateWithName creates a test State with a custom agent name
-func createTestStateWithName(provider interpreter.ModelProvider, name string, systemPrompt string, tools []interpreter.ChatTool, toolExecutor ToolExecutor) *State {
+func createTestStateWithName(provider interpreter.ModelProvider, name string, systemPrompt string, tools []interpreter.ChatTool, toolExecutor interface{}) *State {
 	interp := interpreter.New(nil)
 
 	model := &interpreter.ModelValue{
@@ -155,8 +154,6 @@ func createTestStateWithName(provider interpreter.ModelProvider, name string, sy
 		Agent:        agent,
 		Provider:     provider,
 		Conversation: []interpreter.ChatMessage{},
-		Tools:        tools,
-		ToolExecutor: toolExecutor,
 		Interpreter:  interp,
 	}
 }
@@ -173,18 +170,10 @@ func TestSendMessage_NoToolCalls(t *testing.T) {
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
 
-	var chunks []string
-	err := manager.SendMessage(context.Background(), "Hello", func(s string) {
-		chunks = append(chunks, s)
-	})
+	err := manager.SendMessage(context.Background(), "Hello")
 
 	if err != nil {
 		t.Fatalf("SendMessage failed: %v", err)
-	}
-
-	// Should have received the response
-	if len(chunks) == 0 {
-		t.Error("Expected at least one chunk")
 	}
 
 	// Conversation should have user message and assistant response
@@ -247,10 +236,7 @@ func TestSendMessage_WithToolCalls(t *testing.T) {
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
 
-	var chunks []string
-	err := manager.SendMessage(context.Background(), "What's the weather in San Francisco?", func(s string) {
-		chunks = append(chunks, s)
-	})
+	err := manager.SendMessage(context.Background(), "What's the weather in San Francisco?")
 
 	if err != nil {
 		t.Fatalf("SendMessage failed: %v", err)
@@ -333,7 +319,7 @@ func TestSendMessage_MultipleToolCalls(t *testing.T) {
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
 
-	err := manager.SendMessage(context.Background(), "Weather in SF and NY?", nil)
+	err := manager.SendMessage(context.Background(), "Weather in SF and NY?")
 
 	if err != nil {
 		t.Fatalf("SendMessage failed: %v", err)
@@ -389,7 +375,7 @@ func TestSendMessage_ChainedToolCalls(t *testing.T) {
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
 
-	err := manager.SendMessage(context.Background(), "Search and analyze gsh", nil)
+	err := manager.SendMessage(context.Background(), "Search and analyze gsh")
 
 	if err != nil {
 		t.Fatalf("SendMessage failed: %v", err)
@@ -435,7 +421,7 @@ func TestSendMessage_MaxIterationsReached(t *testing.T) {
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
 
-	err := manager.SendMessage(context.Background(), "Do something infinite", nil)
+	err := manager.SendMessage(context.Background(), "Do something infinite")
 
 	// Should return max iterations error
 	if err == nil {
@@ -479,7 +465,7 @@ func TestSendMessage_ToolExecutorError(t *testing.T) {
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
 
-	err := manager.SendMessage(context.Background(), "Use the failing tool", nil)
+	err := manager.SendMessage(context.Background(), "Use the failing tool")
 
 	// Should NOT return an error - the model should be able to recover
 	if err != nil {
@@ -524,7 +510,7 @@ func TestSendMessage_NoToolExecutor(t *testing.T) {
 	manager.AddAgent("test", state)
 	manager.SetCurrentAgent("test")
 
-	err := manager.SendMessage(context.Background(), "Use a tool", nil)
+	err := manager.SendMessage(context.Background(), "Use a tool")
 
 	// Should complete (error is sent to model as tool result)
 	if err != nil {

@@ -1,9 +1,6 @@
 package repl
 
 import (
-	"fmt"
-	"os"
-
 	"go.uber.org/zap"
 
 	"github.com/atinylittleshell/gsh/internal/repl/agent"
@@ -37,24 +34,9 @@ func (r *REPL) handleAgentAddedFromSDK(newAgent *interpreter.AgentValue) {
 		Interpreter:  r.executor.Interpreter(),
 	}
 
-	// Convert tools from Config["tools"] to ChatTool if present
-	if toolsVal, ok := newAgent.Config["tools"]; ok {
-		if toolsArr, ok := toolsVal.(*interpreter.ArrayValue); ok && len(toolsArr.Elements) > 0 {
-			state.Tools = make([]interpreter.ChatTool, 0, len(toolsArr.Elements))
-			for _, toolVal := range toolsArr.Elements {
-				if chatTool := valueToTool(toolVal); chatTool != nil {
-					state.Tools = append(state.Tools, *chatTool)
-				}
-			}
-		}
-	}
-
-	// Set up default tools if none provided
-	if len(state.Tools) == 0 {
+	// Set up default tools if none provided in agent config
+	if _, ok := newAgent.Config["tools"]; !ok {
 		agent.SetupAgentWithDefaultTools(state)
-	} else {
-		// Still need tool executor
-		state.ToolExecutor = agent.DefaultToolExecutor(os.Stdout)
 	}
 
 	r.agentManager.AddAgent(newAgent.Name, state)
@@ -91,55 +73,10 @@ func (r *REPL) handleAgentModifiedFromSDK(modifiedAgent *interpreter.AgentValue)
 		}
 	}
 
-	// Sync tools if changed
-	if toolsVal, ok := modifiedAgent.Config["tools"]; ok {
-		if toolsArr, ok := toolsVal.(*interpreter.ArrayValue); ok {
-			state.Tools = make([]interpreter.ChatTool, 0, len(toolsArr.Elements))
-			for _, toolVal := range toolsArr.Elements {
-				if chatTool := valueToTool(toolVal); chatTool != nil {
-					state.Tools = append(state.Tools, *chatTool)
-				}
-			}
-		}
-	}
+	// Tools are now stored in agent.Config["tools"] and don't need syncing here
+	// The agent config is already the source of truth
 
 	r.logger.Debug("synced agent modifications from SDK", zap.String("agent", modifiedAgent.Name))
-}
-
-// valueToTool converts a Value (ToolValue or NativeToolValue) to a ChatTool
-func valueToTool(v interpreter.Value) *interpreter.ChatTool {
-	switch tool := v.(type) {
-	case *interpreter.NativeToolValue:
-		return &interpreter.ChatTool{
-			Name:        tool.Name,
-			Description: tool.Description,
-			Parameters:  tool.Parameters,
-		}
-	case *interpreter.ToolValue:
-		// For script-defined tools, create a ChatTool with the tool's parameter info
-		params := make(map[string]interface{})
-		props := make(map[string]interface{})
-		required := make([]string, 0)
-
-		for _, param := range tool.Parameters {
-			props[param] = map[string]interface{}{
-				"type":        "string",
-				"description": param,
-			}
-			required = append(required, param)
-		}
-		params["type"] = "object"
-		params["properties"] = props
-		params["required"] = required
-
-		return &interpreter.ChatTool{
-			Name:        tool.Name,
-			Description: fmt.Sprintf("Script tool: %s", tool.Name),
-			Parameters:  params,
-		}
-	default:
-		return nil
-	}
 }
 
 // GetAgentNames returns all configured agent names for completion.

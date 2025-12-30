@@ -16,18 +16,23 @@ const (
 // Helper functions to create event context objects
 
 // createAgentStartContext creates the context object for agent.start event
-// ctx: { message: string }
-func createAgentStartContext(message string) Value {
+// ctx: { agent: { name }, message: string }
+func createAgentStartContext(agentName, message string) Value {
 	return &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
+			"agent": {Value: &ObjectValue{
+				Properties: map[string]*PropertyDescriptor{
+					"name": {Value: &StringValue{Value: agentName}},
+				},
+			}},
 			"message": {Value: &StringValue{Value: message}},
 		},
 	}
 }
 
 // createAgentEndContext creates the context object for agent.end event
-// ctx: { result: { stopReason, durationMs, totalInputTokens, totalOutputTokens, error } }
-func createAgentEndContext(stopReason string, durationMs int64, inputTokens, outputTokens int, err error) Value {
+// ctx: { agent: { name }, query: { inputTokens, outputTokens, cachedTokens, durationMs }, error }
+func createAgentEndContext(agentName string, stopReason string, durationMs int64, inputTokens, outputTokens, cachedTokens int, err error) Value {
 	var errorVal Value = &NullValue{}
 	if err != nil {
 		errorVal = &StringValue{Value: err.Error()}
@@ -35,15 +40,20 @@ func createAgentEndContext(stopReason string, durationMs int64, inputTokens, out
 
 	return &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
-			"result": {Value: &ObjectValue{
+			"agent": {Value: &ObjectValue{
 				Properties: map[string]*PropertyDescriptor{
-					"stopReason":        {Value: &StringValue{Value: stopReason}},
-					"durationMs":        {Value: &NumberValue{Value: float64(durationMs)}},
-					"totalInputTokens":  {Value: &NumberValue{Value: float64(inputTokens)}},
-					"totalOutputTokens": {Value: &NumberValue{Value: float64(outputTokens)}},
-					"error":             {Value: errorVal},
+					"name": {Value: &StringValue{Value: agentName}},
 				},
 			}},
+			"query": {Value: &ObjectValue{
+				Properties: map[string]*PropertyDescriptor{
+					"inputTokens":  {Value: &NumberValue{Value: float64(inputTokens)}},
+					"outputTokens": {Value: &NumberValue{Value: float64(outputTokens)}},
+					"cachedTokens": {Value: &NumberValue{Value: float64(cachedTokens)}},
+					"durationMs":   {Value: &NumberValue{Value: float64(durationMs)}},
+				},
+			}},
+			"error": {Value: errorVal},
 		},
 	}
 }
@@ -158,47 +168,6 @@ func CreateExecEndContext(command string, durationMs int64, exitCode int) Value 
 					"exitCode":         {Value: &NumberValue{Value: float64(exitCode)}},
 				},
 			}},
-		},
-	}
-}
-
-// CreateAgentStartContext creates the context object for agent.start event (public version)
-func CreateAgentStartContext(agentName, message string) Value {
-	return &ObjectValue{
-		Properties: map[string]*PropertyDescriptor{
-			"agent": {Value: &ObjectValue{
-				Properties: map[string]*PropertyDescriptor{
-					"name": {Value: &StringValue{Value: agentName}},
-				},
-			}},
-			"message": {Value: &StringValue{Value: message}},
-		},
-	}
-}
-
-// CreateAgentEndContext creates the context object for agent.end event (public version)
-func CreateAgentEndContext(agentName string, inputTokens, outputTokens, cachedTokens int, durationMs int64, err error) Value {
-	var errorVal Value = &NullValue{}
-	if err != nil {
-		errorVal = &StringValue{Value: err.Error()}
-	}
-
-	return &ObjectValue{
-		Properties: map[string]*PropertyDescriptor{
-			"agent": {Value: &ObjectValue{
-				Properties: map[string]*PropertyDescriptor{
-					"name": {Value: &StringValue{Value: agentName}},
-				},
-			}},
-			"query": {Value: &ObjectValue{
-				Properties: map[string]*PropertyDescriptor{
-					"inputTokens":  {Value: &NumberValue{Value: float64(inputTokens)}},
-					"outputTokens": {Value: &NumberValue{Value: float64(outputTokens)}},
-					"cachedTokens": {Value: &NumberValue{Value: float64(cachedTokens)}},
-					"durationMs":   {Value: &NumberValue{Value: float64(durationMs)}},
-				},
-			}},
-			"error": {Value: errorVal},
 		},
 	}
 }

@@ -134,6 +134,16 @@ func (i *Interpreter) createUIObject() *ObjectValue {
 			"spinner": {Value: &UISpinnerObjectValue{interp: i}, ReadOnly: true},
 			"styles":  {Value: &UIStylesObjectValue{}, ReadOnly: true},
 			"cursor":  {Value: &UICursorObjectValue{}, ReadOnly: true},
+			"write": {Value: &BuiltinValue{
+				Name: "gsh.ui.write",
+				Fn: func(args []Value) (Value, error) {
+					// Write text to stdout without trailing newline
+					for _, arg := range args {
+						fmt.Fprint(os.Stdout, arg.String())
+					}
+					return &NullValue{}, nil
+				},
+			}, ReadOnly: true},
 		},
 	}
 }

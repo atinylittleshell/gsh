@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"testing"
 
 	"go.uber.org/zap"
@@ -35,7 +36,7 @@ func TestAgentState_RequiredFields(t *testing.T) {
 		Interpreter: interp,
 	}
 
-	// SetupAgentWithDefaultTools should populate Tools and ToolExecutor
+	// SetupAgentWithDefaultTools should populate tools in agent config
 	SetupAgentWithDefaultTools(state)
 
 	// Verify all required fields are set
@@ -51,33 +52,54 @@ func TestAgentState_RequiredFields(t *testing.T) {
 		t.Error("Agent should be set")
 	}
 
-	if len(state.Tools) == 0 {
-		t.Error("Tools should be populated by SetupAgentWithDefaultTools")
+	// Verify tools were added to agent config
+	toolsVal, ok := state.Agent.Config["tools"]
+	if !ok {
+		t.Error("Tools should be populated in agent config by SetupAgentWithDefaultTools")
 	}
-
-	if state.ToolExecutor == nil {
-		t.Error("ToolExecutor should be populated by SetupAgentWithDefaultTools")
+	if toolsVal != nil {
+		if arr, ok := toolsVal.(*interpreter.ArrayValue); ok {
+			if len(arr.Elements) == 0 {
+				t.Error("Tools array should not be empty")
+			}
+		}
 	}
 }
 
 func TestAgentState_ToolsAndExecutorConsistency(t *testing.T) {
-	// This test verifies that tools and executor are set together
-	state := &State{}
+	// This test verifies that tools are configured in agent config
+	state := &State{
+		Agent: &interpreter.AgentValue{
+			Name:   "test",
+			Config: map[string]interpreter.Value{},
+		},
+	}
 	SetupAgentWithDefaultTools(state)
 
-	// Both should be set
-	if len(state.Tools) == 0 {
-		t.Error("Tools should be set")
+	// Tools should be set in agent config
+	toolsVal, ok := state.Agent.Config["tools"]
+	if !ok {
+		t.Error("Tools should be set in agent config")
+		return
 	}
 
-	if state.ToolExecutor == nil {
-		t.Error("ToolExecutor should be set")
+	toolsArr, ok := toolsVal.(*interpreter.ArrayValue)
+	if !ok {
+		t.Error("Tools should be an array value")
+		return
 	}
 
-	// Verify default tools are present
+	if len(toolsArr.Elements) == 0 {
+		t.Error("Tools array should not be empty")
+		return
+	}
+
+	// Verify default tools are present by name
 	toolNames := make(map[string]bool)
-	for _, tool := range state.Tools {
-		toolNames[tool.Name] = true
+	for _, toolVal := range toolsArr.Elements {
+		if nativeTool, ok := toolVal.(*interpreter.NativeToolValue); ok {
+			toolNames[nativeTool.Name] = true
+		}
 	}
 
 	expectedTools := []string{"exec", "grep", "edit_file", "view_file"}
@@ -119,7 +141,7 @@ func TestAgentState_MissingInterpreter_ReturnsError(t *testing.T) {
 	manager.AddAgent("test", state)
 	_ = manager.SetCurrentAgent("test")
 
-	err := manager.SendMessage(nil, "hello", nil)
+	err := manager.SendMessage(context.Background(), "hello")
 
 	if err == nil {
 		t.Fatal("Expected error when Interpreter is nil")
@@ -131,37 +153,44 @@ func TestAgentState_MissingInterpreter_ReturnsError(t *testing.T) {
 	}
 }
 
-func TestDefaultTools_AllHaveExecutors(t *testing.T) {
-	// Verify that all default tools can be executed
-	tools := DefaultTools()
-	executor := DefaultToolExecutor(nil) // nil writer is fine for this test
-
-	for _, tool := range tools {
-		// The executor should recognize all default tools (even if execution fails due to missing args)
-		_, err := executor(nil, tool.Name, map[string]interface{}{})
-
-		// We expect errors due to missing arguments, but NOT "unknown tool" errors
-		if err != nil && containsString(err.Error(), "unknown tool") {
-			t.Errorf("Tool '%s' is defined but not handled by executor", tool.Name)
-		}
+func TestDefaultTools_AllHaveDefinitions(t *testing.T) {
+	// Verify that all default tools are properly defined
+	state := &State{
+		Agent: &interpreter.AgentValue{
+			Name:   "test",
+			Config: map[string]interpreter.Value{},
+		},
 	}
-}
+	SetupAgentWithDefaultTools(state)
 
-func TestDefaultTools_Definitions(t *testing.T) {
-	tools := DefaultTools()
+	toolsVal, ok := state.Agent.Config["tools"]
+	if !ok {
+		t.Fatal("Tools should be set in agent config")
+	}
 
-	// Verify each tool has required fields
-	for _, tool := range tools {
-		if tool.Name == "" {
-			t.Error("Tool has empty name")
-		}
+	toolsArr, ok := toolsVal.(*interpreter.ArrayValue)
+	if !ok {
+		t.Fatal("Tools should be an array value")
+	}
 
-		if tool.Description == "" {
-			t.Errorf("Tool '%s' has empty description", tool.Name)
-		}
+	// Verify each tool has the required properties
+	for _, toolVal := range toolsArr.Elements {
+		if nativeTool, ok := toolVal.(*interpreter.NativeToolValue); ok {
+			if nativeTool.Name == "" {
+				t.Error("Tool has empty name")
+			}
 
-		if tool.Parameters == nil {
-			t.Errorf("Tool '%s' has nil parameters", tool.Name)
+			if nativeTool.Description == "" {
+				t.Errorf("Tool '%s' has empty description", nativeTool.Name)
+			}
+
+			if nativeTool.Parameters == nil {
+				t.Errorf("Tool '%s' has nil parameters", nativeTool.Name)
+			}
+
+			if nativeTool.Invoke == nil {
+				t.Errorf("Tool '%s' has nil Invoke function", nativeTool.Name)
+			}
 		}
 	}
 }

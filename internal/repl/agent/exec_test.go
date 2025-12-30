@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -142,88 +143,6 @@ func TestExecToolDefinition(t *testing.T) {
 	}
 }
 
-func TestDefaultToolExecutor_ExecTool(t *testing.T) {
-	var output bytes.Buffer
-	executor := DefaultToolExecutor(&output)
-
-	ctx := context.Background()
-	args := map[string]interface{}{
-		"command": "echo executor_test",
-	}
-
-	result, err := executor(ctx, "exec", args)
-	if err != nil {
-		t.Fatalf("Tool executor failed: %v", err)
-	}
-
-	// Result should be JSON with output and exit code
-	if !strings.Contains(result, "executor_test") {
-		t.Errorf("Expected result to contain 'executor_test', got: %q", result)
-	}
-
-	if !strings.Contains(result, `"exitCode": 0`) {
-		t.Errorf("Expected result to contain exitCode 0, got: %q", result)
-	}
-
-	// Live output should also have received the output
-	if !strings.Contains(output.String(), "executor_test") {
-		t.Errorf("Expected live output to contain 'executor_test', got: %q", output.String())
-	}
-}
-
-func TestDefaultToolExecutor_UnknownTool(t *testing.T) {
-	executor := DefaultToolExecutor(nil)
-
-	ctx := context.Background()
-	args := map[string]interface{}{}
-
-	_, err := executor(ctx, "unknown_tool", args)
-	if err == nil {
-		t.Fatal("Expected error for unknown tool, got nil")
-	}
-
-	if !strings.Contains(err.Error(), "unknown tool") {
-		t.Errorf("Expected 'unknown tool' error, got: %v", err)
-	}
-}
-
-func TestDefaultToolExecutor_MissingCommand(t *testing.T) {
-	executor := DefaultToolExecutor(nil)
-
-	ctx := context.Background()
-	args := map[string]interface{}{} // No "command" argument
-
-	_, err := executor(ctx, "exec", args)
-	if err == nil {
-		t.Fatal("Expected error for missing command, got nil")
-	}
-
-	if !strings.Contains(err.Error(), "command") {
-		t.Errorf("Expected error about missing command, got: %v", err)
-	}
-}
-
-func TestDefaultTools(t *testing.T) {
-	tools := DefaultTools()
-
-	if len(tools) == 0 {
-		t.Fatal("Expected at least one default tool")
-	}
-
-	// Check that exec tool is included
-	found := false
-	for _, tool := range tools {
-		if tool.Name == "exec" {
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		t.Error("Expected 'exec' tool in default tools")
-	}
-}
-
 func TestSetupAgentWithDefaultTools(t *testing.T) {
 	state := &State{
 		Agent: &interpreter.AgentValue{
@@ -235,20 +154,27 @@ func TestSetupAgentWithDefaultTools(t *testing.T) {
 
 	SetupAgentWithDefaultTools(state)
 
-	// Check that tools were added
-	if len(state.Tools) == 0 {
-		t.Error("Expected tools to be set up")
+	// Check that tools were added to agent config
+	toolsVal, ok := state.Agent.Config["tools"]
+	if !ok {
+		t.Error("Expected tools to be set in agent config")
+		return
 	}
 
-	// Check that tool executor was added
-	if state.ToolExecutor == nil {
-		t.Error("Expected tool executor to be set up")
+	toolsArr, ok := toolsVal.(*interpreter.ArrayValue)
+	if !ok {
+		t.Error("Expected tools to be an array")
+		return
+	}
+
+	if len(toolsArr.Elements) == 0 {
+		t.Error("Expected tools to be set up")
 	}
 
 	// Verify exec tool is available
 	found := false
-	for _, tool := range state.Tools {
-		if tool.Name == "exec" {
+	for _, toolVal := range toolsArr.Elements {
+		if nativeTool, ok := toolVal.(*interpreter.NativeToolValue); ok && nativeTool.Name == "exec" {
 			found = true
 			break
 		}
@@ -258,54 +184,17 @@ func TestSetupAgentWithDefaultTools(t *testing.T) {
 	}
 }
 
-func TestSetupAgentWithDefaultTools_PreserveExisting(t *testing.T) {
-	existingTool := interpreter.ChatTool{
-		Name:        "custom_tool",
-		Description: "A custom tool",
-	}
-
-	existingExecutor := func(ctx context.Context, toolName string, args map[string]interface{}) (string, error) {
-		return "custom result", nil
-	}
-
-	state := &State{
-		Agent: &interpreter.AgentValue{
-			Name:   "test",
-			Config: map[string]interpreter.Value{},
-		},
-		Conversation: []interpreter.ChatMessage{},
-		Tools:        []interpreter.ChatTool{existingTool},
-		ToolExecutor: existingExecutor,
-	}
-
-	SetupAgentWithDefaultTools(state)
-
-	// Should preserve existing tools (not overwrite)
-	if len(state.Tools) != 1 || state.Tools[0].Name != "custom_tool" {
-		t.Error("Expected existing tools to be preserved")
-	}
-
-	// Should preserve existing executor
-	result, _ := state.ToolExecutor(context.Background(), "test", nil)
-	if result != "custom result" {
-		t.Error("Expected existing executor to be preserved")
-	}
-}
-
 func TestExecuteExecTool_OutputTruncation(t *testing.T) {
 	// Test that very long outputs are truncated
-	var output bytes.Buffer
-	executor := DefaultToolExecutor(&output)
-
 	ctx := context.Background()
 	// Generate output longer than maxOutputLen (50000)
 	args := map[string]interface{}{
 		"command": "yes 'test' | head -n 20000", // Generates lots of output
 	}
 
-	result, err := executor(ctx, "exec", args)
+	result, err := interpreter.ExecuteNativeExecTool(ctx, args, io.Discard)
 	if err != nil {
-		t.Fatalf("Tool executor failed: %v", err)
+		t.Fatalf("ExecuteNativeExecTool failed: %v", err)
 	}
 
 	// For very long outputs, result should indicate truncation
@@ -316,9 +205,6 @@ func TestExecuteExecTool_OutputTruncation(t *testing.T) {
 }
 
 func TestExecuteExecTool_Timeout(t *testing.T) {
-	var output bytes.Buffer
-	executor := DefaultToolExecutor(&output)
-
 	ctx := context.Background()
 	args := map[string]interface{}{
 		"command": "sleep 10",
@@ -326,7 +212,7 @@ func TestExecuteExecTool_Timeout(t *testing.T) {
 	}
 
 	start := time.Now()
-	result, err := executor(ctx, "exec", args)
+	result, err := interpreter.ExecuteNativeExecTool(ctx, args, io.Discard)
 	elapsed := time.Since(start)
 
 	// Should complete quickly due to timeout, not wait 10 seconds
@@ -336,7 +222,7 @@ func TestExecuteExecTool_Timeout(t *testing.T) {
 
 	// Should not return an error (timeout is handled gracefully)
 	if err != nil {
-		t.Fatalf("Tool executor failed: %v", err)
+		t.Fatalf("ExecuteNativeExecTool failed: %v", err)
 	}
 
 	// Result should indicate an error due to timeout

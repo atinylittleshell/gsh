@@ -17,12 +17,6 @@ import (
 // ExecuteNativeExecTool executes a shell command with PTY support.
 // This is the shared implementation used by both gsh.tools.exec and the REPL agent.
 func ExecuteNativeExecTool(ctx context.Context, args map[string]interface{}, liveOutput io.Writer) (string, error) {
-	return ExecuteNativeExecToolWithCallbacks(ctx, args, liveOutput, nil)
-}
-
-// ExecuteNativeExecToolWithCallbacks executes a shell command with PTY support and event callbacks.
-// This is used by the REPL to emit agent.exec.start and agent.exec.end events.
-func ExecuteNativeExecToolWithCallbacks(ctx context.Context, args map[string]interface{}, liveOutput io.Writer, callbacks *ExecEventCallbacks) (string, error) {
 	command, ok := args["command"].(string)
 	if !ok {
 		return "", fmt.Errorf("exec tool requires 'command' argument as string")
@@ -45,26 +39,8 @@ func ExecuteNativeExecToolWithCallbacks(ctx context.Context, args map[string]int
 	execCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Emit exec start event
-	if callbacks != nil && callbacks.OnStart != nil {
-		callbacks.OnStart(command)
-	}
-
-	startTime := time.Now()
-
 	// Execute with live output
 	result, err := ExecuteCommandWithPTY(execCtx, command, liveOutput)
-
-	durationMs := time.Since(startTime).Milliseconds()
-	exitCode := 0
-	if result != nil {
-		exitCode = result.ExitCode
-	}
-
-	// Emit exec end event
-	if callbacks != nil && callbacks.OnEnd != nil {
-		callbacks.OnEnd(command, durationMs, exitCode)
-	}
 
 	if err != nil {
 		return fmt.Sprintf(`{"error": %q}`, err.Error()), nil
@@ -210,13 +186,14 @@ func ExecToolDefinition() ChatTool {
 }
 
 // CreateExecNativeTool creates the exec native tool for use in gsh.tools.
+// Output is streamed to stderr in real-time.
 func CreateExecNativeTool() *NativeToolValue {
 	return &NativeToolValue{
 		Name:        execToolName,
 		Description: execToolDescription,
 		Parameters:  execToolParameters(),
 		Invoke: func(args map[string]interface{}) (interface{}, error) {
-			return ExecuteNativeExecTool(context.Background(), args, nil)
+			return ExecuteNativeExecTool(context.Background(), args, os.Stderr)
 		},
 	}
 }
