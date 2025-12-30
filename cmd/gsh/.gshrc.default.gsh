@@ -184,8 +184,6 @@ tool onChunk(ctx) {
         gsh.ui.spinner.stop(__thinkingSpinnerId)
         __thinkingSpinnerId = null
         __thinkingSpinnerStopped = true
-        # Print a newline to separate spinner from content
-        print("")
     }
 
     # Track if we've printed real text
