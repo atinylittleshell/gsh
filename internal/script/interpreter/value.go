@@ -491,6 +491,12 @@ func (m *ModelValue) SetProperty(name string, value Value) error {
 	return fmt.Errorf("cannot set property '%s' on model", name)
 }
 
+// GetModel implements ModelResolver interface.
+// For a direct ModelValue, it simply returns itself.
+func (m *ModelValue) GetModel() *ModelValue {
+	return m
+}
+
 // ChatCompletion performs a chat completion using this model's provider.
 // This is a convenience method that delegates to the model's provider.
 func (m *ModelValue) ChatCompletion(request ChatRequest) (*ChatResponse, error) {
@@ -662,6 +668,71 @@ func (s *SetValue) Equals(other Value) bool {
 // This is implemented by DynamicValue to allow unwrapping without circular dependencies.
 type DynamicValueGetter interface {
 	GetDynamicValue() Value
+}
+
+// ModelResolver is an interface for values that can resolve to a ModelValue.
+// This enables lazy model resolution for SDK model references (gsh.models.lite, etc.)
+// while still allowing direct ModelValue assignment.
+type ModelResolver interface {
+	Value
+	// GetModel resolves to a concrete ModelValue.
+	// For direct ModelValue assignments, this returns itself.
+	// For SDK model references, this looks up the current value from the internal Models registry.
+	GetModel() *ModelValue
+}
+
+// SDKModelRef represents a lazy reference to a model tier (gsh.models.lite, etc.).
+// Instead of storing a concrete ModelValue at declaration time, this stores which
+// tier to look up, enabling dynamic model resolution at runtime.
+type SDKModelRef struct {
+	Tier   string  // "lite", "workhorse", or "premium"
+	Models *Models // Reference to the models registry for resolution
+}
+
+func (r *SDKModelRef) Type() ValueType { return ValueTypeModel }
+func (r *SDKModelRef) String() string  { return fmt.Sprintf("gsh.models.%s", r.Tier) }
+func (r *SDKModelRef) IsTruthy() bool  { return true }
+func (r *SDKModelRef) Equals(other Value) bool {
+	if o, ok := other.(*SDKModelRef); ok {
+		return r.Tier == o.Tier
+	}
+	return false
+}
+
+// GetModel resolves the SDK model reference to a concrete ModelValue by looking up
+// the current value from the internal Models registry.
+func (r *SDKModelRef) GetModel() *ModelValue {
+	if r.Models == nil {
+		return nil
+	}
+	switch r.Tier {
+	case "lite":
+		return r.Models.Lite
+	case "workhorse":
+		return r.Models.Workhorse
+	case "premium":
+		return r.Models.Premium
+	}
+	return nil
+}
+
+// GetProperty forwards property access to the resolved ModelValue.
+// This allows gsh.models.lite.name to work transparently.
+func (r *SDKModelRef) GetProperty(name string) Value {
+	model := r.GetModel()
+	if model == nil {
+		return &NullValue{}
+	}
+	return model.GetProperty(name)
+}
+
+// SetProperty forwards property setting to the resolved ModelValue.
+func (r *SDKModelRef) SetProperty(name string, value Value) error {
+	model := r.GetModel()
+	if model == nil {
+		return fmt.Errorf("cannot set property on unresolved model reference")
+	}
+	return model.SetProperty(name, value)
 }
 
 // UnwrapValue unwraps a DynamicValue to its underlying value.

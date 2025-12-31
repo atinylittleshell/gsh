@@ -575,11 +575,12 @@ func TestDelimiters(t *testing.T) {
 }
 
 func TestKeywords(t *testing.T) {
-	input := `mcp model agent tool if else for of while break continue try catch return`
+	input := `mcp model agent tool if else for of while break continue try catch return import export from`
 
 	expectedTypes := []TokenType{
 		KW_MCP, KW_MODEL, KW_AGENT, KW_TOOL, KW_IF, KW_ELSE,
 		KW_FOR, KW_OF, KW_WHILE, KW_BREAK, KW_CONTINUE, KW_TRY, KW_CATCH, KW_RETURN,
+		KW_IMPORT, KW_EXPORT, KW_FROM,
 	}
 
 	l := New(input)

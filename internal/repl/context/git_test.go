@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/atinylittleshell/gsh/internal/repl/executor"
@@ -43,8 +44,10 @@ func TestGitStatusRetriever(t *testing.T) {
 		assert.Contains(t, ctx, "<git_status>")
 		assert.Contains(t, ctx, "</git_status>")
 		assert.Contains(t, ctx, "Project root:")
-		// Should contain some git status info
-		assert.Contains(t, ctx, "branch")
+		// Should contain some git status info - either a branch name or detached HEAD (in CI)
+		hasBranch := strings.Contains(ctx, "branch")
+		hasDetachedHead := strings.Contains(ctx, "HEAD detached")
+		assert.True(t, hasBranch || hasDetachedHead, "expected git status to contain 'branch' or 'HEAD detached', got: %s", ctx)
 	})
 
 	t.Run("GetContext outside git repository", func(t *testing.T) {

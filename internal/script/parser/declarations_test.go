@@ -1432,3 +1432,162 @@ func TestParseToolDeclarationErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestParseImportStatement(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        string
+		expectedPath string
+		expectedSyms []string
+		expectError  bool
+	}{
+		{
+			name:         "side-effect import",
+			input:        `import "./helpers.gsh"`,
+			expectedPath: "./helpers.gsh",
+			expectedSyms: []string{},
+		},
+		{
+			name:         "selective import single symbol",
+			input:        `import { helper } from "./helpers.gsh"`,
+			expectedPath: "./helpers.gsh",
+			expectedSyms: []string{"helper"},
+		},
+		{
+			name:         "selective import multiple symbols",
+			input:        `import { foo, bar, baz } from "./lib.gsh"`,
+			expectedPath: "./lib.gsh",
+			expectedSyms: []string{"foo", "bar", "baz"},
+		},
+		{
+			name:         "import with relative path",
+			input:        `import { config } from "../config.gsh"`,
+			expectedPath: "../config.gsh",
+			expectedSyms: []string{"config"},
+		},
+		{
+			name:        "missing path",
+			input:       `import`,
+			expectError: true,
+		},
+		{
+			name:        "missing from keyword",
+			input:       `import { foo } "./file.gsh"`,
+			expectError: true,
+		},
+		{
+			name:        "missing closing brace",
+			input:       `import { foo from "./file.gsh"`,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l)
+			program := p.ParseProgram()
+
+			if tt.expectError {
+				if len(p.Errors()) == 0 {
+					t.Fatalf("expected parsing error, got none")
+				}
+				return
+			}
+
+			if len(p.Errors()) > 0 {
+				t.Fatalf("parser errors: %v", p.Errors())
+			}
+
+			if len(program.Statements) != 1 {
+				t.Fatalf("expected 1 statement, got %d", len(program.Statements))
+			}
+
+			importStmt, ok := program.Statements[0].(*ImportStatement)
+			if !ok {
+				t.Fatalf("expected ImportStatement, got %T", program.Statements[0])
+			}
+
+			if importStmt.Path.Value != tt.expectedPath {
+				t.Errorf("expected path %q, got %q", tt.expectedPath, importStmt.Path.Value)
+			}
+
+			if len(importStmt.Symbols) != len(tt.expectedSyms) {
+				t.Fatalf("expected %d symbols, got %d", len(tt.expectedSyms), len(importStmt.Symbols))
+			}
+
+			for i, sym := range tt.expectedSyms {
+				if importStmt.Symbols[i] != sym {
+					t.Errorf("symbol[%d] expected %q, got %q", i, sym, importStmt.Symbols[i])
+				}
+			}
+		})
+	}
+}
+
+func TestParseExportStatement(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        string
+		expectedName string
+		expectError  bool
+	}{
+		{
+			name:         "export variable",
+			input:        `export myVar = 42`,
+			expectedName: "myVar",
+		},
+		{
+			name:         "export tool",
+			input:        "export tool myFunc(x) {\n    return x * 2\n}",
+			expectedName: "myFunc",
+		},
+		{
+			name:         "export model",
+			input:        "export model myModel {\n    provider: \"openai\",\n    model: \"gpt-4\",\n}",
+			expectedName: "myModel",
+		},
+		{
+			name:         "export agent",
+			input:        "export agent myAgent {\n    model: myModel,\n}",
+			expectedName: "myAgent",
+		},
+		{
+			name:        "export without declaration",
+			input:       `export`,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l)
+			program := p.ParseProgram()
+
+			if tt.expectError {
+				if len(p.Errors()) == 0 {
+					t.Fatalf("expected parsing error, got none")
+				}
+				return
+			}
+
+			if len(p.Errors()) > 0 {
+				t.Fatalf("parser errors: %v", p.Errors())
+			}
+
+			if len(program.Statements) != 1 {
+				t.Fatalf("expected 1 statement, got %d", len(program.Statements))
+			}
+
+			exportStmt, ok := program.Statements[0].(*ExportStatement)
+			if !ok {
+				t.Fatalf("expected ExportStatement, got %T", program.Statements[0])
+			}
+
+			if exportStmt.Name != tt.expectedName {
+				t.Errorf("expected name %q, got %q", tt.expectedName, exportStmt.Name)
+			}
+		})
+	}
+}

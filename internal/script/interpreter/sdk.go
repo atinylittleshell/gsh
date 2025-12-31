@@ -89,26 +89,23 @@ type SDKConfig struct {
 	logger           *zap.Logger
 	atomicLevel      zap.AtomicLevel
 	logFile          string // read-only, set at initialization
-	starshipEnabled  bool
 	lastAgentRequest Value
+	// Models holds the model tier definitions (available in both REPL and script mode)
+	models *Models
 	// REPL context (nil in script mode)
 	replContext *REPLContext
 }
 
-// REPLContext holds REPL-specific state that's available in gsh.repl
+// REPLContext holds REPL-specific state that's available in the SDK
 type REPLContext struct {
-	Models          *REPLModels
-	LastCommand     *REPLLastCommand
-	Agents          []*AgentValue     // Array of agent configurations (agents[0] is always "default")
-	CurrentAgent    *AgentValue       // Currently active agent (reference to an agent in Agents array)
-	PromptValue     Value             // Prompt string set by event handlers (read/write via gsh.repl.prompt)
-	OnAgentAdded    func(*AgentValue) // Callback when an agent is added via push()
-	OnAgentSwitch   func(*AgentValue) // Callback when currentAgent is changed
-	OnAgentModified func(*AgentValue) // Callback when an agent's properties are modified
+	LastCommand       *REPLLastCommand
+	PromptValue       Value              // Prompt string set by event handlers (read/write via gsh.prompt)
+	MiddlewareManager *MiddlewareManager // Middleware manager for input processing
+	Interpreter       *Interpreter       // Reference to interpreter for middleware execution
 }
 
-// REPLModels holds the model tier definitions
-type REPLModels struct {
+// Models holds the model tier definitions (available in both REPL and script mode)
+type Models struct {
 	Lite      *ModelValue
 	Workhorse *ModelValue
 	Premium   *ModelValue
@@ -132,8 +129,8 @@ func NewSDKConfig(logger *zap.Logger, atomicLevel zap.AtomicLevel) *SDKConfig {
 		logger:           logger,
 		atomicLevel:      atomicLevel,
 		logFile:          logFile,
-		starshipEnabled:  false,
 		lastAgentRequest: &NullValue{},
+		models:           &Models{}, // Initialize empty models (available in both REPL and script mode)
 	}
 }
 
@@ -197,20 +194,6 @@ func (sc *SDKConfig) GetLogFile() string {
 	return sc.logFile
 }
 
-// GetStarshipEnabled returns whether starship integration is enabled
-func (sc *SDKConfig) GetStarshipEnabled() bool {
-	sc.mu.RLock()
-	defer sc.mu.RUnlock()
-	return sc.starshipEnabled
-}
-
-// SetStarshipEnabled sets whether starship integration is enabled
-func (sc *SDKConfig) SetStarshipEnabled(enabled bool) {
-	sc.mu.Lock()
-	defer sc.mu.Unlock()
-	sc.starshipEnabled = enabled
-}
-
 // GetLastAgentRequest returns the last agent request data
 func (sc *SDKConfig) GetLastAgentRequest() Value {
 	sc.mu.RLock()
@@ -247,4 +230,11 @@ func (sc *SDKConfig) UpdateLastCommand(exitCode int, durationMs int64) {
 		sc.replContext.LastCommand.ExitCode = exitCode
 		sc.replContext.LastCommand.DurationMs = durationMs
 	}
+}
+
+// GetModels returns the models configuration (available in both REPL and script mode)
+func (sc *SDKConfig) GetModels() *Models {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+	return sc.models
 }

@@ -32,6 +32,12 @@ type Interpreter struct {
 	eventManager *EventManager
 	sdkConfig    *SDKConfig
 	version      string // gsh version
+
+	// Module/import infrastructure
+	currentOrigin *ScriptOrigin               // Origin of currently executing script
+	importedFiles map[string]bool             // Track imported files (prevent circular imports)
+	moduleExports map[string]map[string]Value // Cache of exported symbols per module
+	exportedNames map[string]bool             // Names exported by the current module
 }
 
 // EvalResult represents the result of evaluating a program
@@ -134,6 +140,9 @@ func New(opts *Options) *Interpreter {
 		eventManager:     NewEventManager(),
 		sdkConfig:        NewSDKConfig(opts.Logger, atomicLevel),
 		version:          version,
+		importedFiles:    make(map[string]bool),
+		moduleExports:    make(map[string]map[string]Value),
+		exportedNames:    make(map[string]bool),
 	}
 	i.registerBuiltins()
 	i.registerGshSDK()
@@ -229,9 +238,25 @@ func (i *Interpreter) UnsetEnv(name string) {
 	_ = i.runner.Run(context.Background(), prog)
 }
 
-// EvalString parses and evaluates a source string in the interpreter
-// This is useful for evaluating multiple scripts into the same interpreter
-func (i *Interpreter) EvalString(source string) (*EvalResult, error) {
+// EvalString parses and evaluates a source string in the interpreter.
+// Pass nil for origin if no import resolution is needed (e.g., REPL input).
+// For filesystem scripts, pass a ScriptOrigin with Type=OriginFilesystem.
+// For embedded scripts, pass a ScriptOrigin with Type=OriginEmbed and EmbedFS set.
+func (i *Interpreter) EvalString(source string, origin *ScriptOrigin) (*EvalResult, error) {
+	// Set up origin if provided
+	var prevOrigin *ScriptOrigin
+	if origin != nil {
+		prevOrigin = i.currentOrigin
+		i.currentOrigin = origin
+	}
+
+	// Ensure we restore state on exit
+	defer func() {
+		if origin != nil {
+			i.currentOrigin = prevOrigin
+		}
+	}()
+
 	lex := lexer.New(source)
 	p := parser.New(lex)
 	program := p.ParseProgram()
@@ -280,16 +305,22 @@ func (i *Interpreter) GetEventHandlers(eventName string) []*ToolValue {
 // Handlers that want to produce output should print directly to stdout.
 // Errors in event handlers are logged at Warn level and printed to stderr
 // to ensure they are visible to users for debugging.
-func (i *Interpreter) EmitEvent(eventName string, ctx Value) {
+//
+// Event handlers can optionally return a value to override default behavior.
+// The first non-null return value from a handler is returned to the caller.
+// If no handler returns a value (or all return null), nil is returned.
+// The interpretation of the return value is event-specific - see documentation
+// for each event type.
+func (i *Interpreter) EmitEvent(eventName string, ctx Value) Value {
 	handlers := i.eventManager.GetHandlers(eventName)
 	if len(handlers) == 0 {
-		return
+		return nil
 	}
 
 	args := []Value{ctx}
 
 	for _, handler := range handlers {
-		_, err := i.CallTool(handler, args)
+		result, err := i.CallTool(handler, args)
 		if err != nil {
 			// Log errors at Warn level so they're visible by default, and continue with other handlers
 			if i.logger != nil {
@@ -303,7 +334,15 @@ func (i *Interpreter) EmitEvent(eventName string, ctx Value) {
 			}
 			continue
 		}
+
+		// If handler returned a non-null value, return it (first-wins)
+		// This allows handlers to override default behavior
+		if result != nil && result.Type() != ValueTypeNull {
+			return result
+		}
 	}
+
+	return nil
 }
 
 // SDKConfig returns the SDK configuration

@@ -22,8 +22,9 @@ func (i *Interpreter) evalAgentDeclaration(node *parser.AgentDeclaration) (Value
 		// Validate common config fields
 		switch key {
 		case "model":
-			// model must be a reference to a ModelValue (not a string)
-			if _, ok := value.(*ModelValue); !ok {
+			// model must be a ModelResolver (ModelValue or SDKModelRef)
+			// gsh.models.* now returns SDKModelRef directly, so no special AST handling needed
+			if _, ok := value.(ModelResolver); !ok {
 				return nil, fmt.Errorf("agent config 'model' must be a model reference, got %s", value.Type())
 			}
 		case "systemPrompt":

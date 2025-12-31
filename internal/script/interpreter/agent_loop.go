@@ -49,11 +49,6 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 	// Track token usage across all iterations
 	var totalInputTokens, totalOutputTokens, totalCachedTokens int
 
-	// Helper to emit events via the interpreter's event manager
-	emitEvent := func(eventName string, eventCtx Value) {
-		i.EmitEvent(eventName, eventCtx)
-	}
-
 	// Get user message for events from conversation (find the last user message)
 	userMessage := ""
 	if len(conv.Messages) > 0 {
@@ -67,13 +62,13 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 	}
 
 	// Emit agent.start event
-	emitEvent(EventAgentStart, createAgentStartContext(agent.Name, userMessage))
+	i.EmitEvent(EventAgentStart, createAgentStartContext(agent.Name, userMessage))
 
 	// Helper to call OnComplete callback with ACP-aligned result
 	callOnComplete := func(stopReason acp.StopReason, err error) {
 		// Emit agent.end event first
 		durationMs := time.Since(startTime).Milliseconds()
-		emitEvent(EventAgentEnd, createAgentEndContext(agent.Name, string(stopReason), durationMs, totalInputTokens, totalOutputTokens, totalCachedTokens, err))
+		i.EmitEvent(EventAgentEnd, createAgentEndContext(agent.Name, string(stopReason), durationMs, totalInputTokens, totalOutputTokens, totalCachedTokens, err))
 
 		if callbacks != nil && callbacks.OnComplete != nil {
 			result := acp.AgentResult{
@@ -91,16 +86,23 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 		}
 	}
 
-	// Get model from agent config
+	// Get model from agent config using ModelResolver for lazy resolution
 	modelVal, ok := agent.Config["model"]
 	if !ok {
 		err := fmt.Errorf("agent '%s' has no model configured", agent.Name)
 		callOnComplete(acp.StopReasonError, err)
 		return nil, err
 	}
-	model, ok := modelVal.(*ModelValue)
+	modelResolver, ok := modelVal.(ModelResolver)
 	if !ok {
-		err := fmt.Errorf("agent '%s' model config is not a model", agent.Name)
+		err := fmt.Errorf("agent '%s' model config is not a model resolver", agent.Name)
+		callOnComplete(acp.StopReasonError, err)
+		return nil, err
+	}
+	// Resolve the model (handles both direct ModelValue and SDKModelRef)
+	model := modelResolver.GetModel()
+	if model == nil {
+		err := fmt.Errorf("agent '%s' model could not be resolved (check gsh.models configuration)", agent.Name)
 		callOnComplete(acp.StopReasonError, err)
 		return nil, err
 	}
@@ -201,7 +203,7 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 		}
 
 		// Emit agent.iteration.start event
-		emitEvent(EventAgentIterationStart, createIterationStartContext(iteration))
+		i.EmitEvent(EventAgentIterationStart, createIterationStartContext(iteration))
 
 		// Call iteration start callback
 		if callbacks != nil && callbacks.OnIterationStart != nil {
@@ -224,7 +226,7 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 			streamCallbacks := &StreamCallbacks{
 				OnContent: func(content string) {
 					// Emit agent.chunk event
-					emitEvent(EventAgentChunk, createChunkContext(content))
+					i.EmitEvent(EventAgentChunk, createChunkContext(content))
 					// Also call the original callback
 					if callbacks != nil && callbacks.OnChunk != nil {
 						callbacks.OnChunk(content)
@@ -233,7 +235,7 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 			}
 			// Always emit SDK event when tool call enters pending state (streaming from LLM)
 			streamCallbacks.OnToolPending = func(toolCallID string, toolName string) {
-				emitEvent(EventAgentToolPending, createToolPendingContext(toolCallID, toolName))
+				i.EmitEvent(EventAgentToolPending, createToolPendingContext(toolCallID, toolName))
 				// Also call the original callback if provided
 				if callbacks != nil && callbacks.OnToolPending != nil {
 					callbacks.OnToolPending(toolCallID, toolName)
@@ -274,7 +276,7 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 				Content: response.Content,
 			})
 			// Emit agent.iteration.end event before completing
-			emitEvent(EventAgentIterationEnd, createIterationEndContext(iteration, iterInputTokens, iterOutputTokens, iterCachedTokens))
+			i.EmitEvent(EventAgentIterationEnd, createIterationEndContext(iteration, iterInputTokens, iterOutputTokens, iterCachedTokens))
 			callOnComplete(acp.StopReasonEndTurn, nil)
 			return newConv, nil
 		}
@@ -297,8 +299,10 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 				Kind:      classifyToolKind(toolCall.Name),
 			}
 
-			// Emit agent.tool.start event
-			emitEvent(EventAgentToolStart, createToolCallContext(toolCall.ID, toolCall.Name, toolCall.Arguments, nil, nil, nil))
+			// Emit agent.tool.start event and check for override
+			// If handler returns { result: "..." }, skip execution and use that result
+			startCtx := createToolCallContext(toolCall.ID, toolCall.Name, toolCall.Arguments, nil, nil, nil)
+			startOverride := i.EmitEvent(EventAgentToolStart, startCtx)
 
 			// Call tool start callback
 			if callbacks != nil && callbacks.OnToolCallStart != nil {
@@ -308,15 +312,40 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 			toolStart := time.Now()
 			var toolResult string
 			var toolErr error
+			var skippedExecution bool
 
-			// Execute the tool
-			toolResult, toolErr = i.executeToolCall(agent, toolCall)
+			// Check if agent.tool.start handler wants to override execution
+			if override := extractToolOverride(startOverride); override != nil {
+				// Handler returned an override - skip actual tool execution
+				toolResult = override.Result
+				if override.Error != "" {
+					toolErr = fmt.Errorf("%s", override.Error)
+				}
+				skippedExecution = true
+			} else {
+				// Execute the tool normally
+				toolResult, toolErr = i.executeToolCall(agent, toolCall)
+			}
 
 			toolDuration := time.Since(toolStart)
 			toolDurationMs := toolDuration.Milliseconds()
 
-			// Emit agent.tool.end event
-			emitEvent(EventAgentToolEnd, createToolCallContext(toolCall.ID, toolCall.Name, toolCall.Arguments, &toolDurationMs, &toolResult, toolErr))
+			// Emit agent.tool.end event and check for override
+			// If handler returns { result: "..." }, override the tool result
+			endCtx := createToolCallContext(toolCall.ID, toolCall.Name, toolCall.Arguments, &toolDurationMs, &toolResult, toolErr)
+			endOverride := i.EmitEvent(EventAgentToolEnd, endCtx)
+
+			// Check if agent.tool.end handler wants to override the result
+			if override := extractToolOverride(endOverride); override != nil {
+				toolResult = override.Result
+				if override.Error != "" {
+					toolErr = fmt.Errorf("%s", override.Error)
+				} else if skippedExecution {
+					// If we skipped execution due to start override, clear the error if end handler
+					// provides a result without an error
+					toolErr = nil
+				}
+			}
 
 			// Call tool end callback with ACP-aligned update
 			if callbacks != nil && callbacks.OnToolCallEnd != nil {
@@ -349,7 +378,7 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 		}
 
 		// Emit agent.iteration.end event
-		emitEvent(EventAgentIterationEnd, createIterationEndContext(iteration, iterInputTokens, iterOutputTokens, iterCachedTokens))
+		i.EmitEvent(EventAgentIterationEnd, createIterationEndContext(iteration, iterInputTokens, iterOutputTokens, iterCachedTokens))
 
 		// Continue loop to make another call
 	}

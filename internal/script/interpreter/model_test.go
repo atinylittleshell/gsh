@@ -332,6 +332,94 @@ func TestModelDeclaration(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "Model with custom headers",
+			input: `model withHeaders {
+				provider: "openai",
+				model: "gpt-4",
+				headers: {
+					"X-Custom-Header": "custom-value",
+					"X-Another-Header": "another-value",
+				},
+			}`,
+			checkFunc: func(t *testing.T, result *EvalResult, err error) {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
+				modelVal, ok := result.Env.Get("withHeaders")
+				if !ok {
+					t.Fatalf("model 'withHeaders' not found in environment")
+				}
+
+				model, ok := modelVal.(*ModelValue)
+				if !ok {
+					t.Fatalf("expected *ModelValue, got %T", modelVal)
+				}
+
+				// Check headers
+				headers, ok := model.Config["headers"]
+				if !ok {
+					t.Fatalf("model config missing 'headers'")
+				}
+				headersObj, ok := headers.(*ObjectValue)
+				if !ok {
+					t.Fatalf("expected headers to be *ObjectValue, got %T", headers)
+				}
+
+				// Check specific header values
+				customHeader := headersObj.GetPropertyValue("X-Custom-Header")
+				if customHeader.Type() != ValueTypeString {
+					t.Fatalf("expected X-Custom-Header to be string, got %s", customHeader.Type())
+				}
+				if customHeader.String() != "custom-value" {
+					t.Errorf("expected X-Custom-Header 'custom-value', got %q", customHeader.String())
+				}
+
+				anotherHeader := headersObj.GetPropertyValue("X-Another-Header")
+				if anotherHeader.Type() != ValueTypeString {
+					t.Fatalf("expected X-Another-Header to be string, got %s", anotherHeader.Type())
+				}
+				if anotherHeader.String() != "another-value" {
+					t.Errorf("expected X-Another-Header 'another-value', got %q", anotherHeader.String())
+				}
+			},
+		},
+		{
+			name: "Model with headers using env vars",
+			input: `model withEnvHeaders {
+				provider: "openai",
+				model: "gpt-4",
+				headers: {
+					"Authorization": "Bearer ${env.CUSTOM_TOKEN}",
+				},
+			}`,
+			checkFunc: func(t *testing.T, result *EvalResult, err error) {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
+				modelVal, ok := result.Env.Get("withEnvHeaders")
+				if !ok {
+					t.Fatalf("model 'withEnvHeaders' not found in environment")
+				}
+
+				model, ok := modelVal.(*ModelValue)
+				if !ok {
+					t.Fatalf("expected *ModelValue, got %T", modelVal)
+				}
+
+				// Check headers exist
+				headers, ok := model.Config["headers"]
+				if !ok {
+					t.Fatalf("model config missing 'headers'")
+				}
+				_, ok = headers.(*ObjectValue)
+				if !ok {
+					t.Fatalf("expected headers to be *ObjectValue, got %T", headers)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -397,6 +485,24 @@ func TestModelDeclarationErrors(t *testing.T) {
 				maxTokens: "many",
 			}`,
 			expectedError: "maxTokens' must be a number",
+		},
+		{
+			name: "Model with invalid headers type (not an object)",
+			input: `model bad {
+				provider: "openai",
+				headers: "not-an-object",
+			}`,
+			expectedError: "headers' must be an object",
+		},
+		{
+			name: "Model with invalid header value type (not a string)",
+			input: `model bad {
+				provider: "openai",
+				headers: {
+					"X-Custom-Header": 123,
+				},
+			}`,
+			expectedError: "headers.X-Custom-Header' must be a string",
 		},
 	}
 

@@ -1064,6 +1064,132 @@ func TestArrayValue_DeepCopy(t *testing.T) {
 	})
 }
 
+func TestModelResolver(t *testing.T) {
+	t.Run("ModelValue implements ModelResolver and returns itself", func(t *testing.T) {
+		model := &ModelValue{
+			Name: "testModel",
+		}
+
+		// ModelValue should implement ModelResolver
+		var resolver ModelResolver = model
+
+		// GetModel should return the model itself
+		result := resolver.GetModel()
+		if result != model {
+			t.Errorf("expected ModelValue.GetModel() to return itself, got %v", result)
+		}
+	})
+
+	t.Run("SDKModelRef implements Value interface", func(t *testing.T) {
+		ref := &SDKModelRef{Tier: "workhorse"}
+
+		if ref.Type() != ValueTypeModel {
+			t.Errorf("expected type %v, got %v", ValueTypeModel, ref.Type())
+		}
+		if ref.String() != "gsh.models.workhorse" {
+			t.Errorf("expected String() 'gsh.models.workhorse', got %q", ref.String())
+		}
+		if !ref.IsTruthy() {
+			t.Error("expected SDKModelRef to be truthy")
+		}
+	})
+
+	t.Run("SDKModelRef.Equals", func(t *testing.T) {
+		ref1 := &SDKModelRef{Tier: "lite"}
+		ref2 := &SDKModelRef{Tier: "lite"}
+		ref3 := &SDKModelRef{Tier: "workhorse"}
+
+		if !ref1.Equals(ref2) {
+			t.Error("expected SDKModelRef with same tier to be equal")
+		}
+		if ref1.Equals(ref3) {
+			t.Error("expected SDKModelRef with different tier to not be equal")
+		}
+		if ref1.Equals(&StringValue{Value: "lite"}) {
+			t.Error("expected SDKModelRef to not equal other value types")
+		}
+	})
+
+	t.Run("SDKModelRef resolves to correct model tier", func(t *testing.T) {
+		liteModel := &ModelValue{Name: "liteModel"}
+		workhorseModel := &ModelValue{Name: "workhorseModel"}
+		premiumModel := &ModelValue{Name: "premiumModel"}
+
+		models := &Models{
+			Lite:      liteModel,
+			Workhorse: workhorseModel,
+			Premium:   premiumModel,
+		}
+
+		tests := []struct {
+			tier     string
+			expected *ModelValue
+		}{
+			{"lite", liteModel},
+			{"workhorse", workhorseModel},
+			{"premium", premiumModel},
+		}
+
+		for _, tc := range tests {
+			ref := &SDKModelRef{Tier: tc.tier, Models: models}
+			result := ref.GetModel()
+			if result != tc.expected {
+				t.Errorf("SDKModelRef{Tier: %q}.GetModel() = %v, expected %v", tc.tier, result, tc.expected)
+			}
+		}
+	})
+
+	t.Run("SDKModelRef returns nil when Models is nil", func(t *testing.T) {
+		ref := &SDKModelRef{Tier: "lite", Models: nil}
+		result := ref.GetModel()
+		if result != nil {
+			t.Errorf("expected nil when Models is nil, got %v", result)
+		}
+	})
+
+	t.Run("SDKModelRef returns nil for unknown tier", func(t *testing.T) {
+		models := &Models{
+			Lite: &ModelValue{Name: "liteModel"},
+		}
+		ref := &SDKModelRef{Tier: "unknown", Models: models}
+		result := ref.GetModel()
+		if result != nil {
+			t.Errorf("expected nil for unknown tier, got %v", result)
+		}
+	})
+
+	t.Run("SDKModelRef dynamically resolves when model tier changes", func(t *testing.T) {
+		// Initial model
+		initialModel := &ModelValue{Name: "initialModel"}
+		models := &Models{
+			Workhorse: initialModel,
+		}
+
+		ref := &SDKModelRef{Tier: "workhorse", Models: models}
+
+		// First resolution
+		result1 := ref.GetModel()
+		if result1 != initialModel {
+			t.Errorf("first resolution: expected %v, got %v", initialModel, result1)
+		}
+
+		// Change the model in the tier
+		newModel := &ModelValue{Name: "newModel"}
+		models.Workhorse = newModel
+
+		// Second resolution should return the new model
+		result2 := ref.GetModel()
+		if result2 != newModel {
+			t.Errorf("second resolution: expected %v, got %v", newModel, result2)
+		}
+
+		// Verify the first result is still the old model (static)
+		if result1 == result2 {
+			t.Error("expected different model instances after tier change")
+		}
+	})
+}
+
 func TestErrorValue(t *testing.T) {
 	tests := []struct {
 		name    string

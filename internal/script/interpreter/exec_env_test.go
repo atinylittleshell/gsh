@@ -149,7 +149,7 @@ func TestExec_WorkingDirectory(t *testing.T) {
 	defer interp.Close()
 
 	// Get initial working directory
-	result1, err := interp.EvalString(`exec("pwd")`)
+	result1, err := interp.EvalString(`exec("pwd")`, nil)
 	if err != nil {
 		t.Fatalf("initial pwd failed: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestExec_WorkingDirectory(t *testing.T) {
 	mu.Unlock()
 
 	// Now exec("pwd") should return /tmp
-	result2, err := interp.EvalString(`exec("pwd")`)
+	result2, err := interp.EvalString(`exec("pwd")`, nil)
 	if err != nil {
 		t.Fatalf("pwd after cd failed: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestExec_EnvVarInheritedBySubshell(t *testing.T) {
 	interp.SetEnv("GSH_SUBSHELL_TEST", "subshell_value")
 
 	// The env var should be visible in exec()
-	result, err := interp.EvalString(`exec("echo $GSH_SUBSHELL_TEST")`)
+	result, err := interp.EvalString(`exec("echo $GSH_SUBSHELL_TEST")`, nil)
 	if err != nil {
 		t.Fatalf("exec failed: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestExec_PWDEnvVarMatchesWorkingDir(t *testing.T) {
 	mu.Unlock()
 
 	// Check both pwd command output and $PWD env var
-	result, err := interp.EvalString(`exec("echo pwd=$(pwd) PWD=$PWD")`)
+	result, err := interp.EvalString(`exec("echo pwd=$(pwd) PWD=$PWD")`, nil)
 	if err != nil {
 		t.Fatalf("exec failed: %v", err)
 	}

@@ -1,37 +1,58 @@
-# Bash Parity
+# Roadmap
 
-- history expansion
-- [1.0] multiline input
+## Bash Parity
 
-# Ergonomics
+- [ ] History expansion
+- [ ] Multiline input
 
-- keybind configuration (inputrc)
-- syntax highlighting in shellinput
-- better rendering of agent loading state
+## Ergonomics
 
-# AI
+- [ ] ESC to interrupt agent
+- [ ] Keybind configuration (inputrc)
+- [ ] Markdown rendering for agent text responses in REPL
 
-- agent chat macros
-  - ui auto suggestions
-- stop using go-openai - use raw http requests
-- [1.0] support custom instructions
-- support agent modifying memory
-- [set ollama context window](https://github.com/ollama/ollama/pull/6504)
-- [1.0] built-in eval
-- MCP support
-  - allow agent to search the web
-  - allow agent to browse web urls
-- training a small command prediction model
-  - log context and prediction history
+## Language
 
-# Engineering
+- [ ] Agent structured output
+- [ ] Parse time type checks
+- [ ] Runtime type validation for tool parameters
+- [ ] Type checking for tool return values
+- [ ] Type annotations for variables and functions
+- [ ] Type inference improvements
+- [ ] Package management (optional)
+- [ ] HTTP client
+- [ ] JSON/CSV parsing
+- [ ] Timezone support for DateTime
+- [ ] File I/O helpers
+- [ ] TreeSitter syntax highlighting
+- [ ] Language Server Protocol (LSP)
+- [ ] Built-in formatter
+- [ ] Debugger
+- [ ] Bytecode compilation
+- [ ] VM optimization
+- [ ] Caching and precompilation
+- [ ] [concurrency support](./spec/GSH_CONCURRENCY_SPEC.md)
+- [ ] Pattern matching
+- [ ] Using ACP as agents
 
-- limit total history size
+## SDK
 
-# Distribution
+- [ ] [Keystroke middleware](./spec/GSH_KEYSTROKE_MIDDLEWARE_SPEC.md)
 
-- Official Homebrew
-- apt
-- nix
-- Starship
-- Windows
+## Default agent
+
+- [ ] Improve default agent system prompt (context)
+- [ ] Loading AGENTS.md
+- [ ] Skills
+
+## Performance
+
+- [ ] Optimize startup time
+- [ ] Limit total history size
+
+## Distribution
+
+- [ ] Official Homebrew
+- [ ] Apt
+- [ ] Nix
+- [ ] Starship

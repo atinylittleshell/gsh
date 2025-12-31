@@ -122,14 +122,46 @@ Before running your script, set the environment variable:
 
 ```bash
 export OPENAI_API_KEY="sk-..."
-gsh your_script.gsh
+gsh run your_script.gsh
 ```
 
 Or pass it inline:
 
 ```bash
-OPENAI_API_KEY="sk-..." gsh your_script.gsh
+OPENAI_API_KEY="sk-..." gsh run your_script.gsh
 ```
+
+---
+
+## Custom Headers
+
+When working with API proxies, enterprise gateways, or services that require additional authentication, you can specify custom HTTP headers that will be sent with every LLM request:
+
+```gsh
+model proxyModel {
+    provider: "openai",
+    apiKey: env.OPENAI_API_KEY,
+    model: "gpt-4",
+    baseURL: "https://my-proxy.example.com/v1",
+    headers: {
+        "X-Proxy-Auth": env.PROXY_AUTH_TOKEN,
+        "X-Team-ID": "my-team",
+        "X-Request-Source": "gsh-script",
+    },
+}
+```
+
+The `headers` configuration accepts an object where:
+
+- Keys are the header names (strings)
+- Values must be strings (you can use environment variables)
+
+**Common use cases for custom headers:**
+
+- **API Proxies:** Authentication tokens for corporate proxies
+- **Rate limiting:** Team or user identifiers for quota tracking
+- **Observability:** Request tracing and correlation IDs
+- **Custom authentication:** Additional auth tokens beyond the API key
 
 ---
 
@@ -417,6 +449,7 @@ In the next chapter, you'll learn how to use these models in agents!
 - **Common providers:** OpenAI (GPT) and Ollama (local)
 - **Always use environment variables** for API keys, never hardcode them
 - **`temperature` parameter controls creativity:** Low for precision, high for diversity
+- **`headers` parameter allows custom HTTP headers** for proxies, auth, and observability
 - **Multiple models** can coexist in one script for different purposes
 - **Models are passive** — they just sit there configured; agents actually use them (Chapter 18)
 - **Ollama enables local execution** without API calls or cloud costs

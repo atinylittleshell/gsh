@@ -12,6 +12,53 @@ const (
 	EventAgentToolEnd        = "agent.tool.end"
 )
 
+// ToolOverride represents an override returned by an event handler for tool events.
+// Used by agent.tool.start and agent.tool.end event handlers to override tool execution.
+type ToolOverride struct {
+	Result string // The result to use instead of actual tool execution
+	Error  string // Optional error message (if set, tool is considered failed)
+}
+
+// extractToolOverride extracts a ToolOverride from an event handler return value.
+// Event handlers can return { result: "..." } or { result: "...", error: "..." }
+// to override tool execution behavior.
+// Returns nil if the value is not a valid override.
+func extractToolOverride(val Value) *ToolOverride {
+	if val == nil {
+		return nil
+	}
+
+	obj, ok := val.(*ObjectValue)
+	if !ok {
+		return nil
+	}
+
+	// Check for "result" property - required for an override
+	resultProp := obj.GetPropertyValue("result")
+	if resultProp == nil || resultProp.Type() == ValueTypeNull {
+		return nil
+	}
+
+	override := &ToolOverride{}
+
+	// Extract result (required)
+	if str, ok := resultProp.(*StringValue); ok {
+		override.Result = str.Value
+	} else {
+		// Result must be a string
+		return nil
+	}
+
+	// Extract error (optional)
+	if errorProp := obj.GetPropertyValue("error"); errorProp != nil && errorProp.Type() == ValueTypeString {
+		if str, ok := errorProp.(*StringValue); ok {
+			override.Error = str.Value
+		}
+	}
+
+	return override
+}
+
 // Helper functions to create event context objects
 
 // createAgentStartContext creates the context object for agent.start event

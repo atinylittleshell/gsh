@@ -38,6 +38,11 @@ test: generate
 	@echo "Running go test..."
 	@go test -coverprofile=coverage.txt ./...
 
+.PHONY: test-e2e
+test-e2e: generate
+	@echo "Running E2E tests (requires Ollama)..."
+	@go test -tags=e2e -v ./internal/script/interpreter/... -run TestE2E
+
 .PHONY: clean
 clean:
 	@rm -rf ./bin

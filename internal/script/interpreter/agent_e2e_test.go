@@ -1,28 +1,15 @@
+//go:build e2e
+
 package interpreter
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/atinylittleshell/gsh/internal/script/lexer"
 	"github.com/atinylittleshell/gsh/internal/script/parser"
 )
-
-// skipIfOllamaNotAvailable skips the test if ollama is not running
-func skipIfOllamaNotAvailable(t *testing.T) {
-	client := &http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Get("http://localhost:11434/api/tags")
-	if err != nil {
-		t.Skip("Ollama not available at localhost:11434, skipping E2E test")
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Skip("Ollama not responding correctly, skipping E2E test")
-	}
-}
 
 // runScript is a helper to execute a gsh script and return the result
 func runScript(script string) (*EvalResult, error) {
@@ -45,8 +32,6 @@ func runScript(script string) (*EvalResult, error) {
 // TestE2E_ModelDeclarationWithOllamaEndpoint tests declaring a model using OpenAI provider
 // but pointing to a local ollama endpoint
 func TestE2E_ModelDeclarationWithOllamaEndpoint(t *testing.T) {
-	skipIfOllamaNotAvailable(t)
-
 	script := `
 model testModel {
     provider: "openai",
@@ -122,8 +107,6 @@ agent Assistant {
 
 // TestE2E_BasicPipePromptToAgent tests the basic pipe: "prompt" | Agent
 func TestE2E_BasicPipePromptToAgent(t *testing.T) {
-	skipIfOllamaNotAvailable(t)
-
 	script := `
 model testModel {
     provider: "openai",
@@ -185,8 +168,6 @@ result = "What is 7 plus 5?" | MathHelper
 
 // TestE2E_MultiTurnConversation tests: conv | "message" | Agent
 func TestE2E_MultiTurnConversation(t *testing.T) {
-	skipIfOllamaNotAvailable(t)
-
 	script := `
 model testModel {
     provider: "openai",
@@ -261,8 +242,6 @@ conv = "What is 2+2?" | MathHelper
 
 // TestE2E_AgentHandoff tests: conv | Agent1 | "message" | Agent2
 func TestE2E_AgentHandoff(t *testing.T) {
-	skipIfOllamaNotAvailable(t)
-
 	script := `
 model testModel {
     provider: "openai",
@@ -341,8 +320,6 @@ conv = "What is 15 multiplied by 4?" | Mathematician
 
 // TestE2E_AgentWithUserDefinedTools tests agents calling user-defined tools
 func TestE2E_AgentWithUserDefinedTools(t *testing.T) {
-	skipIfOllamaNotAvailable(t)
-
 	script := `
 tool multiply(a: number, b: number): number {
     return a * b

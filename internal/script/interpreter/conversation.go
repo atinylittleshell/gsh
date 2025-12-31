@@ -165,5 +165,9 @@ func (i *Interpreter) executeAgentWithConversation(conv *ConversationValue, agen
 		Messages: messages,
 	}
 
-	return i.ExecuteAgent(context.Background(), execConv, agent, false)
+	// Enable streaming when running in REPL mode so agent.chunk events are emitted
+	// and the response is displayed to the user
+	streaming := i.sdkConfig.GetREPLContext() != nil
+
+	return i.ExecuteAgent(context.Background(), execConv, agent, streaming)
 }

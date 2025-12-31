@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/atinylittleshell/gsh/internal/repl/config"
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -201,37 +200,13 @@ func TestRouter_Accessors(t *testing.T) {
 }
 
 func TestNewRouterFromConfig(t *testing.T) {
-	t.Run("returns nil when no predict model configured", func(t *testing.T) {
-		cfg := config.DefaultConfig()
-		router := NewRouterFromConfig(cfg, nil)
+	t.Run("returns nil when model resolver is nil", func(t *testing.T) {
+		router := NewRouterFromConfig(nil, nil)
 		assert.Nil(t, router)
 	})
 
-	t.Run("returns nil when predict model references non-existent model", func(t *testing.T) {
-		cfg := config.DefaultConfig()
-		cfg.PredictModel = "non-existent"
-		router := NewRouterFromConfig(cfg, nil)
-		assert.Nil(t, router)
-	})
-
-	t.Run("returns nil when model has no provider", func(t *testing.T) {
-		cfg := config.DefaultConfig()
-		cfg.Models["testModel"] = &interpreter.ModelValue{
-			Name:     "testModel",
-			Provider: nil, // No provider set
-			Config: map[string]interpreter.Value{
-				"model": &interpreter.StringValue{Value: "some-model"},
-			},
-		}
-		cfg.PredictModel = "testModel"
-
-		router := NewRouterFromConfig(cfg, nil)
-		assert.Nil(t, router)
-	})
-
-	t.Run("creates router when model has provider", func(t *testing.T) {
-		cfg := config.DefaultConfig()
-		cfg.Models["testModel"] = &interpreter.ModelValue{
+	t.Run("creates router with model resolver", func(t *testing.T) {
+		model := &interpreter.ModelValue{
 			Name:     "testModel",
 			Provider: interpreter.NewOpenAIProvider(),
 			Config: map[string]interpreter.Value{
@@ -240,11 +215,66 @@ func TestNewRouterFromConfig(t *testing.T) {
 				"apiKey":   &interpreter.StringValue{Value: "test-key"},
 			},
 		}
-		cfg.PredictModel = "testModel"
 
-		router := NewRouterFromConfig(cfg, nil)
+		router := NewRouterFromConfig(model, nil)
 		require.NotNil(t, router)
 		assert.NotNil(t, router.PrefixPredictor())
 		assert.NotNil(t, router.NullStatePredictor())
+	})
+
+	t.Run("creates router with SDKModelRef", func(t *testing.T) {
+		models := &interpreter.Models{
+			Lite: &interpreter.ModelValue{Name: "liteModel"},
+		}
+		modelRef := &interpreter.SDKModelRef{Tier: "lite", Models: models}
+
+		router := NewRouterFromConfig(modelRef, nil)
+		require.NotNil(t, router)
+		assert.NotNil(t, router.PrefixPredictor())
+		assert.NotNil(t, router.NullStatePredictor())
+	})
+
+	t.Run("SDKModelRef enables dynamic model resolution", func(t *testing.T) {
+		// Create initial model
+		initialModel := &interpreter.ModelValue{
+			Name:     "initialModel",
+			Provider: interpreter.NewOpenAIProvider(),
+			Config: map[string]interpreter.Value{
+				"provider": &interpreter.StringValue{Value: "openai"},
+				"model":    &interpreter.StringValue{Value: "gpt-4o-mini"},
+				"apiKey":   &interpreter.StringValue{Value: "test-key"},
+			},
+		}
+
+		// Set up models registry
+		models := &interpreter.Models{
+			Lite: initialModel,
+		}
+
+		// Create router with SDKModelRef that holds reference to the models registry
+		modelRef := &interpreter.SDKModelRef{Tier: "lite", Models: models}
+		router := NewRouterFromConfig(modelRef, nil)
+		require.NotNil(t, router)
+
+		// Verify the SDKModelRef resolves to the initial model
+		resolved := modelRef.GetModel()
+		assert.Equal(t, initialModel, resolved)
+
+		// Change the model in the tier
+		newModel := &interpreter.ModelValue{
+			Name:     "newModel",
+			Provider: interpreter.NewOpenAIProvider(),
+			Config: map[string]interpreter.Value{
+				"provider": &interpreter.StringValue{Value: "openai"},
+				"model":    &interpreter.StringValue{Value: "gpt-4-turbo"},
+				"apiKey":   &interpreter.StringValue{Value: "test-key"},
+			},
+		}
+		models.Lite = newModel
+
+		// The same SDKModelRef should now resolve to the new model
+		resolvedAfterChange := modelRef.GetModel()
+		assert.Equal(t, newModel, resolvedAfterChange)
+		assert.NotEqual(t, resolved, resolvedAfterChange, "SDKModelRef should dynamically resolve to the new model")
 	})
 }

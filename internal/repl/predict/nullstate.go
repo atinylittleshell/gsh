@@ -14,9 +14,9 @@ import (
 // NullStatePredictor predicts commands when the input is empty.
 // It uses context (cwd, git status, history, etc.) to suggest a likely next command.
 type NullStatePredictor struct {
-	model     *interpreter.ModelValue
-	logger    *zap.Logger
-	formatter ContextFormatter
+	modelResolver interpreter.ModelResolver
+	logger        *zap.Logger
+	formatter     ContextFormatter
 
 	contextText   string
 	contextTextMu sync.RWMutex
@@ -24,8 +24,9 @@ type NullStatePredictor struct {
 
 // NullStatePredictorConfig holds configuration for creating a NullStatePredictor.
 type NullStatePredictorConfig struct {
-	// Model is the LLM model to use for predictions (must have Provider set).
-	Model *interpreter.ModelValue
+	// ModelResolver resolves to an LLM model for predictions.
+	// Can be a direct ModelValue or an SDKModelRef for lazy resolution.
+	ModelResolver interpreter.ModelResolver
 
 	// Logger for debug output. If nil, a no-op logger is used.
 	Logger *zap.Logger
@@ -47,9 +48,9 @@ func NewNullStatePredictor(cfg NullStatePredictorConfig) *NullStatePredictor {
 	}
 
 	return &NullStatePredictor{
-		model:     cfg.Model,
-		logger:    logger,
-		formatter: formatter,
+		modelResolver: cfg.ModelResolver,
+		logger:        logger,
+		formatter:     formatter,
 	}
 }
 
@@ -74,7 +75,13 @@ func (p *NullStatePredictor) Predict(ctx context.Context, input string) (string,
 		return "", nil
 	}
 
-	if p.model == nil || p.model.Provider == nil {
+	if p.modelResolver == nil {
+		return "", nil
+	}
+
+	// Resolve the model lazily (supports both direct ModelValue and SDKModelRef)
+	model := p.modelResolver.GetModel()
+	if model == nil || model.Provider == nil {
 		return "", nil
 	}
 
@@ -102,7 +109,7 @@ Now predict what my next command should be.`, BestPractices, contextText)
 	p.logger.Debug("null state prediction request", zap.String("userMessage", userMessage))
 
 	request := interpreter.ChatRequest{
-		Model: p.model,
+		Model: model,
 		Messages: []interpreter.ChatMessage{
 			{
 				Role:    "user",
@@ -111,7 +118,7 @@ Now predict what my next command should be.`, BestPractices, contextText)
 		},
 	}
 
-	response, err := p.model.ChatCompletion(request)
+	response, err := model.ChatCompletion(request)
 	if err != nil {
 		return "", err
 	}

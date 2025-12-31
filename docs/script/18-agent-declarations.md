@@ -53,9 +53,11 @@ agent DataExpert {
 
 **`model` (required):**
 
-- Must reference a declared model by name
+- Must reference a declared model by name or use `gsh.models.*` tiers
 - This is where the agent gets its "brain"
 - The agent uses this model for all reasoning
+- When using `gsh.models.lite`, `gsh.models.workhorse`, or `gsh.models.premium`, the model is resolved dynamically at runtime (see below)
+- The `gsh.models` object is available in both REPL mode and standalone script execution
 
 **`systemPrompt` (recommended):**
 
@@ -76,6 +78,48 @@ agent DataExpert {
 - Overrides the model's default temperature
 - Range: 0.0 (deterministic) to 1.0 (creative)
 - Default: inherits from the model
+
+### Dynamic vs. Static Model Assignment
+
+When you assign a model to an agent, gsh supports two modes:
+
+**Direct model assignment (static):**
+
+```gsh
+model myCustomModel {
+    provider: "openai",
+    apiKey: env.OPENAI_API_KEY,
+    model: "gpt-4o",
+}
+
+agent MyAgent {
+    model: myCustomModel,  # Always uses this specific model
+    systemPrompt: "You are helpful.",
+}
+```
+
+The agent will always use `myCustomModel`, even if you later change `gsh.models.workhorse`.
+
+**SDK model tier reference (dynamic):**
+
+```gsh
+agent MyAgent {
+    model: gsh.models.workhorse,  # Resolved at runtime
+    systemPrompt: "You are helpful.",
+}
+```
+
+The agent looks up `gsh.models.workhorse` each time it runs. This means:
+
+- You can change `gsh.models.workhorse` at any time and the agent will use the new model
+- Event handlers can switch models based on context
+- Multiple agents can share the same tier but use different models if the tier is updated
+
+This dynamic resolution is useful for:
+
+- Switching between local and cloud models based on network availability
+- A/B testing different models
+- Adjusting model choice based on task complexity
 
 ---
 

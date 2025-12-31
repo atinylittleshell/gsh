@@ -555,6 +555,35 @@ func (a *AgentDeclaration) String() string {
 	return out.String()
 }
 
+// ImportStatement represents: import "./file.gsh" or import { a, b } from "./file.gsh"
+type ImportStatement struct {
+	Token   lexer.Token    // The 'import' token
+	Path    *StringLiteral // The import path
+	Symbols []string       // Symbols to import (empty for side-effect imports)
+}
+
+func (i *ImportStatement) statementNode()       {}
+func (i *ImportStatement) TokenLiteral() string { return i.Token.Literal }
+func (i *ImportStatement) String() string {
+	if len(i.Symbols) == 0 {
+		return "import \"" + i.Path.Value + "\""
+	}
+	return "import { " + strings.Join(i.Symbols, ", ") + " } from \"" + i.Path.Value + "\""
+}
+
+// ExportStatement represents: export <declaration>
+type ExportStatement struct {
+	Token       lexer.Token // The 'export' token
+	Declaration Statement   // The declaration being exported (tool, variable assignment, etc.)
+	Name        string      // The name of the exported symbol (extracted from declaration)
+}
+
+func (e *ExportStatement) statementNode()       {}
+func (e *ExportStatement) TokenLiteral() string { return e.Token.Literal }
+func (e *ExportStatement) String() string {
+	return "export " + e.Declaration.String()
+}
+
 // ToolParameter represents a parameter in a tool declaration
 type ToolParameter struct {
 	Name *Identifier

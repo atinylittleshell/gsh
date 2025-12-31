@@ -4,69 +4,107 @@ import (
 	"testing"
 )
 
-// TestGshReplNull tests that gsh.repl is null when no REPL context is set
-func TestGshReplNull(t *testing.T) {
+// TestGshModelsAvailableInScriptMode tests that gsh.models is available even without REPL context
+func TestGshModelsAvailableInScriptMode(t *testing.T) {
 	interp := New(&Options{})
 	defer interp.Close()
 
-	// Without setting REPL context, gsh.repl should be null
-	result, err := interp.EvalString(`gsh.repl == null`)
+	// gsh.models should be available in both REPL and script mode (not null)
+	result, err := interp.EvalString(`gsh.models != null`, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Should be true (gsh.repl is null)
+	// Should be true (gsh.models is always initialized)
 	if boolVal, ok := result.FinalResult.(*BoolValue); ok {
 		if !boolVal.Value {
-			t.Errorf("expected true, got false")
+			t.Errorf("expected gsh.models to be available in script mode, but it was null")
+		}
+	} else {
+		t.Errorf("expected bool, got %s", result.FinalResult.Type())
+	}
+
+	// Model tiers should be null by default (not yet assigned)
+	result, err = interp.EvalString(`gsh.models.lite == null`, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if boolVal, ok := result.FinalResult.(*BoolValue); ok {
+		if !boolVal.Value {
+			t.Errorf("expected gsh.models.lite to be null by default")
 		}
 	} else {
 		t.Errorf("expected bool, got %s", result.FinalResult.Type())
 	}
 }
 
-// TestGshReplModels tests that gsh.repl.models is accessible and settable when REPL context is set
+// TestGshReplModels tests that gsh.models is accessible and settable when REPL context is set
+func TestModelsObjectValue_PointerIdentity(t *testing.T) {
+	// Test that repeated access to gsh.models.lite returns the same SDKModelRef instance
+	models := &Models{
+		Lite:      &ModelValue{Name: "liteModel"},
+		Workhorse: &ModelValue{Name: "workhorseModel"},
+	}
+	modelsObj := NewModelsObjectValue(models)
+
+	// Multiple accesses should return the same pointer
+	ref1 := modelsObj.GetProperty("lite")
+	ref2 := modelsObj.GetProperty("lite")
+
+	if ref1 != ref2 {
+		t.Error("expected same SDKModelRef instance on repeated access")
+	}
+
+	// Different tiers should return different pointers
+	workhorseRef := modelsObj.GetProperty("workhorse")
+	if ref1 == workhorseRef {
+		t.Error("expected different SDKModelRef instances for different tiers")
+	}
+
+	// Verify they're SDKModelRef
+	sdkRef1, ok := ref1.(*SDKModelRef)
+	if !ok {
+		t.Fatalf("expected *SDKModelRef, got %T", ref1)
+	}
+	if sdkRef1.Tier != "lite" {
+		t.Errorf("expected tier 'lite', got %q", sdkRef1.Tier)
+	}
+}
+
 func TestGshReplModels(t *testing.T) {
 	interp := New(&Options{})
 	defer interp.Close()
 
-	// Set up REPL context with empty model tiers (starts as nil)
-	replCtx := &REPLContext{
-		Models: &REPLModels{
-			Lite:      nil,
-			Workhorse: nil,
-			Premium:   nil,
-		},
-		LastCommand: &REPLLastCommand{
-			ExitCode:   0,
-			DurationMs: 0,
-		},
-	}
-	interp.SDKConfig().SetREPLContext(replCtx)
+	// Models are initialized in SDKConfig (available in both REPL and script mode)
+	// They start as nil by default
+	models := interp.SDKConfig().GetModels()
+	models.Lite = nil
+	models.Workhorse = nil
+	models.Premium = nil
 
 	// Test that model tiers start as null
-	result, err := interp.EvalString(`gsh.repl.models.lite == null`)
+	result, err := interp.EvalString(`gsh.models.lite == null`, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if boolVal, ok := result.FinalResult.(*BoolValue); !ok || !boolVal.Value {
-		t.Errorf("expected gsh.repl.models.lite to be null initially")
+		t.Errorf("expected gsh.models.lite to be null initially")
 	}
 
-	// Define a model and assign it to gsh.repl.models.lite
+	// Define a model and assign it to gsh.models.lite
 	_, err = interp.EvalString(`
 model testLite {
 	provider: "openai",
 	model: "gpt-4-mini",
 }
-gsh.repl.models.lite = testLite
-`)
+gsh.models.lite = testLite
+`, nil)
 	if err != nil {
 		t.Fatalf("unexpected error setting lite model: %v", err)
 	}
 
-	// Test accessing gsh.repl.models.lite.name after assignment
-	result, err = interp.EvalString(`gsh.repl.models.lite.name`)
+	// Test accessing gsh.models.lite.name after assignment
+	result, err = interp.EvalString(`gsh.models.lite.name`, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -80,29 +118,28 @@ gsh.repl.models.lite = testLite
 	}
 
 	// Test that workhorse and premium are still null
-	result, err = interp.EvalString(`gsh.repl.models.workhorse == null`)
+	result, err = interp.EvalString(`gsh.models.workhorse == null`, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if boolVal, ok := result.FinalResult.(*BoolValue); !ok || !boolVal.Value {
-		t.Errorf("expected gsh.repl.models.workhorse to still be null")
+		t.Errorf("expected gsh.models.workhorse to still be null")
 	}
 
 	// Test assigning a non-model value should fail
-	_, err = interp.EvalString(`gsh.repl.models.premium = "not a model"`)
+	_, err = interp.EvalString(`gsh.models.premium = "not a model"`, nil)
 	if err == nil {
-		t.Fatal("expected error when assigning non-model to gsh.repl.models.premium")
+		t.Fatal("expected error when assigning non-model to gsh.models.premium")
 	}
 }
 
-// TestGshReplLastCommand tests that gsh.repl.lastCommand is accessible
+// TestGshReplLastCommand tests that gsh.lastCommand is accessible
 func TestGshReplLastCommand(t *testing.T) {
 	interp := New(&Options{})
 	defer interp.Close()
 
-	// Set up REPL context
+	// Set up REPL context (lastCommand is REPL-specific)
 	replCtx := &REPLContext{
-		Models: &REPLModels{},
 		LastCommand: &REPLLastCommand{
 			ExitCode:   0,
 			DurationMs: 0,
@@ -111,7 +148,7 @@ func TestGshReplLastCommand(t *testing.T) {
 	interp.SDKConfig().SetREPLContext(replCtx)
 
 	// Test initial values
-	result, err := interp.EvalString(`gsh.repl.lastCommand.exitCode`)
+	result, err := interp.EvalString(`gsh.lastCommand.exitCode`, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -128,7 +165,7 @@ func TestGshReplLastCommand(t *testing.T) {
 	interp.SDKConfig().UpdateLastCommand(42, 1500)
 
 	// Test updated values
-	result, err = interp.EvalString(`gsh.repl.lastCommand.exitCode`)
+	result, err = interp.EvalString(`gsh.lastCommand.exitCode`, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -142,7 +179,7 @@ func TestGshReplLastCommand(t *testing.T) {
 	}
 
 	// Test durationMs
-	result, err = interp.EvalString(`gsh.repl.lastCommand.durationMs`)
+	result, err = interp.EvalString(`gsh.lastCommand.durationMs`, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -162,12 +199,12 @@ func TestGshEventHandlers(t *testing.T) {
 	defer interp.Close()
 
 	// Register an event handler using gsh.on
-	result, err := interp.EvalString("tool myHandler() { return \"handler called\" }")
+	result, err := interp.EvalString("tool myHandler() { return \"handler called\" }", nil)
 	if err != nil {
 		t.Fatalf("unexpected error registering tool: %v", err)
 	}
 
-	result, err = interp.EvalString("gsh.on(\"test.event\", myHandler)")
+	result, err = interp.EvalString("gsh.on(\"test.event\", myHandler)", nil)
 	if err != nil {
 		t.Fatalf("unexpected error calling gsh.on: %v", err)
 	}
@@ -190,7 +227,7 @@ func TestGshOnWithoutHandler(t *testing.T) {
 	defer interp.Close()
 
 	// Try to register a non-tool as handler (should fail)
-	_, err := interp.EvalString(`gsh.on("test.event", "not a tool")`)
+	_, err := interp.EvalString(`gsh.on("test.event", "not a tool")`, nil)
 	if err == nil {
 		t.Fatal("expected error when passing non-tool to gsh.on")
 	}
@@ -207,7 +244,7 @@ func TestGshOffRemovesAllHandlers(t *testing.T) {
 		tool handler2() { return "handler2" }
 		gsh.on("test.event", handler1)
 		gsh.on("test.event", handler2)
-	`)
+	`, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -219,7 +256,7 @@ func TestGshOffRemovesAllHandlers(t *testing.T) {
 	}
 
 	// Remove all handlers
-	_, err = interp.EvalString(`gsh.off("test.event")`)
+	_, err = interp.EvalString(`gsh.off("test.event")`, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -231,453 +268,184 @@ func TestGshOffRemovesAllHandlers(t *testing.T) {
 	}
 }
 
-// TestGshReplReadOnly tests that gsh.repl properties are read-only
-func TestGshReplReadOnly(t *testing.T) {
+// TestGshVersionReadOnly tests that gsh.version is read-only
+func TestGshVersionReadOnly(t *testing.T) {
 	interp := New(&Options{})
 	defer interp.Close()
 
-	// Set up REPL context
-	replCtx := &REPLContext{
-		Models:      &REPLModels{},
-		LastCommand: &REPLLastCommand{},
-	}
-	interp.SDKConfig().SetREPLContext(replCtx)
-
-	// Try to modify gsh.repl (should fail)
-	_, err := interp.EvalString(`gsh.repl = "something"`)
+	// Try to modify gsh.version (should fail)
+	_, err := interp.EvalString(`gsh.version = "hacked"`, nil)
 	if err == nil {
-		t.Fatal("expected error when trying to assign to gsh.repl")
+		t.Fatal("expected error when trying to assign to gsh.version")
 	}
 }
 
-// TestGshReplAgentsArray tests the gsh.repl.agents array
-func TestGshReplAgentsArray(t *testing.T) {
+func TestGshUseCommandMiddleware(t *testing.T) {
 	interp := New(&Options{})
 	defer interp.Close()
 
-	// Create a test model
-	testModel := &ModelValue{
-		Name: "test-model",
-		Config: map[string]Value{
-			"model": &StringValue{Value: "gpt-4"},
-		},
-	}
-
-	// Set up REPL context with a default agent using AgentValue
-	defaultAgent := &AgentValue{
-		Name: "default",
-		Config: map[string]Value{
-			"model":        testModel,
-			"systemPrompt": &StringValue{Value: "You are a helpful assistant."},
-			"tools":        &ArrayValue{Elements: []Value{}},
-		},
-	}
-
 	replCtx := &REPLContext{
-		Models:       &REPLModels{},
-		LastCommand:  &REPLLastCommand{},
-		Agents:       []*AgentValue{defaultAgent},
-		CurrentAgent: defaultAgent,
+		LastCommand:       &REPLLastCommand{},
+		MiddlewareManager: NewMiddlewareManager(),
+		Interpreter:       interp,
 	}
 	interp.SDKConfig().SetREPLContext(replCtx)
 
-	// Test agents.length
-	result, err := interp.EvalString(`gsh.repl.agents.length`)
+	// Define a middleware tool
+	_, err := interp.EvalString(`
+tool testMiddleware(ctx, next) {
+	return { handled: true }
+}
+`, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if numVal, ok := result.FinalResult.(*NumberValue); ok {
-		if numVal.Value != 1 {
-			t.Errorf("expected agents.length == 1, got %v", numVal.Value)
-		}
-	} else {
-		t.Errorf("expected number, got %s", result.FinalResult.Type())
 	}
 
-	// Test accessing agents[0].name
-	result, err = interp.EvalString(`gsh.repl.agents[0].name`)
+	// Register middleware using gsh.useCommandMiddleware()
+	result, err := interp.EvalString(`gsh.useCommandMiddleware(testMiddleware)`, nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if strVal, ok := result.FinalResult.(*StringValue); ok {
-		if strVal.Value != "default" {
-			t.Errorf("expected 'default', got '%s'", strVal.Value)
-		}
-	} else {
-		t.Errorf("expected string, got %s", result.FinalResult.Type())
+		t.Fatalf("unexpected error calling gsh.useCommandMiddleware(): %v", err)
 	}
 
-	// Test accessing agents[0].systemPrompt
-	result, err = interp.EvalString(`gsh.repl.agents[0].systemPrompt`)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	// Should return a string ID
+	if _, ok := result.FinalResult.(*StringValue); !ok {
+		t.Errorf("expected string ID from gsh.useCommandMiddleware(), got %s", result.FinalResult.Type())
 	}
-	if strVal, ok := result.FinalResult.(*StringValue); ok {
-		if strVal.Value != "You are a helpful assistant." {
-			t.Errorf("expected system prompt, got '%s'", strVal.Value)
-		}
-	} else {
-		t.Errorf("expected string, got %s", result.FinalResult.Type())
+
+	// Verify middleware was registered
+	if replCtx.MiddlewareManager.Len() != 1 {
+		t.Errorf("expected 1 middleware registered, got %d", replCtx.MiddlewareManager.Len())
 	}
 }
 
-// TestGshReplAgentsModifyDefaultAgent tests modifying the default agent's properties
-func TestGshReplAgentsModifyDefaultAgent(t *testing.T) {
+func TestGshUseCommandMiddlewareValidation(t *testing.T) {
 	interp := New(&Options{})
 	defer interp.Close()
 
-	testModel := &ModelValue{
-		Name:   "test-model",
-		Config: map[string]Value{},
-	}
-	newModel := &ModelValue{
-		Name:   "new-model",
-		Config: map[string]Value{},
-	}
-
-	defaultAgent := &AgentValue{
-		Name: "default",
-		Config: map[string]Value{
-			"model":        testModel,
-			"systemPrompt": &StringValue{Value: "Original prompt"},
-			"tools":        &ArrayValue{Elements: []Value{}},
-		},
-	}
-
 	replCtx := &REPLContext{
-		Models:       &REPLModels{},
-		LastCommand:  &REPLLastCommand{},
-		Agents:       []*AgentValue{defaultAgent},
-		CurrentAgent: defaultAgent,
+		LastCommand:       &REPLLastCommand{},
+		MiddlewareManager: NewMiddlewareManager(),
+		Interpreter:       interp,
 	}
 	interp.SDKConfig().SetREPLContext(replCtx)
 
-	// Store the new model in the interpreter so we can reference it
-	interp.env.Set("newModel", newModel)
-
-	// Test modifying systemPrompt
-	_, err := interp.EvalString(`gsh.repl.agents[0].systemPrompt = "New system prompt"`)
-	if err != nil {
-		t.Fatalf("unexpected error modifying systemPrompt: %v", err)
-	}
-
-	// Verify the change - now stored in Config map
-	if promptVal, ok := defaultAgent.Config["systemPrompt"].(*StringValue); ok {
-		if promptVal.Value != "New system prompt" {
-			t.Errorf("expected systemPrompt to be updated, got '%s'", promptVal.Value)
-		}
-	} else {
-		t.Error("expected systemPrompt to be a StringValue")
-	}
-
-	// Test modifying model using the "model" property (quoted because 'model' is a keyword)
-	_, err = interp.EvalString(`gsh.repl.agents[0]["model"] = newModel`)
-	if err != nil {
-		t.Fatalf("unexpected error modifying model: %v", err)
-	}
-
-	if modelVal, ok := defaultAgent.Config["model"].(*ModelValue); ok {
-		if modelVal.Name != "new-model" {
-			t.Errorf("expected model to be updated to new-model, got '%s'", modelVal.Name)
-		}
-	} else {
-		t.Error("expected model to be a ModelValue")
-	}
-
-	// Test that agent names cannot be changed (they are used as keys in agent manager)
-	_, err = interp.EvalString(`gsh.repl.agents[0].name = "renamed"`)
+	// Test that non-tool argument fails
+	_, err := interp.EvalString(`gsh.useCommandMiddleware("not a tool")`, nil)
 	if err == nil {
-		t.Fatal("expected error when trying to rename an agent")
+		t.Fatal("expected error when passing non-tool to gsh.useCommandMiddleware()")
+	}
+
+	// Test that wrong parameter count fails
+	_, err = interp.EvalString(`
+tool wrongParams(ctx) {
+	return { handled: true }
+}
+gsh.useCommandMiddleware(wrongParams)
+`, nil)
+	if err == nil {
+		t.Fatal("expected error when middleware has wrong parameter count")
 	}
 }
 
-// TestGshReplAgentsPush tests adding new agents via agents.push()
-func TestGshReplAgentsPush(t *testing.T) {
+func TestGshRemoveCommandMiddleware(t *testing.T) {
 	interp := New(&Options{})
 	defer interp.Close()
 
-	testModel := &ModelValue{
-		Name:   "test-model",
-		Config: map[string]Value{},
-	}
-
-	defaultAgent := &AgentValue{
-		Name: "default",
-		Config: map[string]Value{
-			"model":        testModel,
-			"systemPrompt": &StringValue{Value: "Default prompt"},
-			"tools":        &ArrayValue{Elements: []Value{}},
-		},
-	}
-
-	var addedAgent *AgentValue
 	replCtx := &REPLContext{
-		Models:       &REPLModels{},
-		LastCommand:  &REPLLastCommand{},
-		Agents:       []*AgentValue{defaultAgent},
-		CurrentAgent: defaultAgent,
-		OnAgentAdded: func(agent *AgentValue) {
-			addedAgent = agent
-		},
+		LastCommand:       &REPLLastCommand{},
+		MiddlewareManager: NewMiddlewareManager(),
+		Interpreter:       interp,
 	}
 	interp.SDKConfig().SetREPLContext(replCtx)
 
-	// Store model in interpreter for reference
-	interp.env.Set("testModel", testModel)
-
-	// Push a new agent (using quoted keys for reserved words)
-	result, err := interp.EvalString(`
-		gsh.repl.agents.push({
-			name: "reviewer",
-			"model": testModel,
-			systemPrompt: "You are a code reviewer.",
-			tools: []
-		})
-	`)
-	if err != nil {
-		t.Fatalf("unexpected error pushing agent: %v", err)
-	}
-
-	// Result should be the new length (2)
-	if numVal, ok := result.FinalResult.(*NumberValue); ok {
-		if numVal.Value != 2 {
-			t.Errorf("expected push to return 2, got %v", numVal.Value)
-		}
-	} else {
-		t.Errorf("expected number, got %s", result.FinalResult.Type())
-	}
-
-	// Verify agents.length is now 2
-	result, err = interp.EvalString(`gsh.repl.agents.length`)
+	// Define and register middleware
+	_, err := interp.EvalString(`
+tool myMiddleware(ctx, next) {
+	return { handled: true }
+}
+gsh.useCommandMiddleware(myMiddleware)
+`, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if numVal, ok := result.FinalResult.(*NumberValue); ok {
-		if numVal.Value != 2 {
-			t.Errorf("expected agents.length == 2, got %v", numVal.Value)
-		}
+
+	// Verify registered
+	if replCtx.MiddlewareManager.Len() != 1 {
+		t.Fatalf("expected 1 middleware registered, got %d", replCtx.MiddlewareManager.Len())
 	}
 
-	// Verify the new agent's properties
-	result, err = interp.EvalString(`gsh.repl.agents[1].name`)
+	// Remove middleware using gsh.removeCommandMiddleware()
+	result, err := interp.EvalString(`gsh.removeCommandMiddleware(myMiddleware)`, nil)
+	if err != nil {
+		t.Fatalf("unexpected error calling gsh.removeCommandMiddleware(): %v", err)
+	}
+
+	// Should return true
+	if boolVal, ok := result.FinalResult.(*BoolValue); !ok || !boolVal.Value {
+		t.Errorf("expected true from gsh.removeCommandMiddleware(), got %v", result.FinalResult)
+	}
+
+	// Verify middleware was removed
+	if replCtx.MiddlewareManager.Len() != 0 {
+		t.Errorf("expected 0 middleware after removal, got %d", replCtx.MiddlewareManager.Len())
+	}
+
+	// Removing again should return false
+	result, err = interp.EvalString(`gsh.removeCommandMiddleware(myMiddleware)`, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if strVal, ok := result.FinalResult.(*StringValue); ok {
-		if strVal.Value != "reviewer" {
-			t.Errorf("expected 'reviewer', got '%s'", strVal.Value)
-		}
-	}
-
-	// Verify callback was called
-	if addedAgent == nil {
-		t.Error("expected OnAgentAdded callback to be called")
-	} else if addedAgent.Name != "reviewer" {
-		t.Errorf("expected callback agent name 'reviewer', got '%s'", addedAgent.Name)
+	if boolVal, ok := result.FinalResult.(*BoolValue); !ok || boolVal.Value {
+		t.Errorf("expected false from second gsh.removeCommandMiddleware(), got %v", result.FinalResult)
 	}
 }
 
-// TestGshReplAgentsPushValidation tests validation in agents.push()
-func TestGshReplAgentsPushValidation(t *testing.T) {
+func TestGshCommandMiddlewareExecution(t *testing.T) {
 	interp := New(&Options{})
 	defer interp.Close()
 
-	testModel := &ModelValue{
-		Name:   "test-model",
-		Config: map[string]Value{},
-	}
-
-	defaultAgent := &AgentValue{
-		Name: "default",
-		Config: map[string]Value{
-			"model":        testModel,
-			"systemPrompt": &StringValue{Value: "Default prompt"},
-			"tools":        &ArrayValue{Elements: []Value{}},
-		},
-	}
-
 	replCtx := &REPLContext{
-		Models:       &REPLModels{},
-		LastCommand:  &REPLLastCommand{},
-		Agents:       []*AgentValue{defaultAgent},
-		CurrentAgent: defaultAgent,
+		LastCommand:       &REPLLastCommand{},
+		MiddlewareManager: NewMiddlewareManager(),
+		Interpreter:       interp,
 	}
 	interp.SDKConfig().SetREPLContext(replCtx)
 
-	interp.env.Set("testModel", testModel)
-
-	// Test pushing without a name (should fail)
-	_, err := interp.EvalString(`gsh.repl.agents.push({ "model": testModel })`)
-	if err == nil {
-		t.Fatal("expected error when pushing agent without name")
+	// Define middleware that handles # prefix
+	_, err := interp.EvalString(`
+tool prefixMiddleware(ctx, next) {
+	if (ctx.input.startsWith("#")) {
+		return { handled: true }
 	}
-
-	// Test pushing with "default" name (should fail)
-	_, err = interp.EvalString(`gsh.repl.agents.push({ name: "default", "model": testModel })`)
-	if err == nil {
-		t.Fatal("expected error when pushing agent with name 'default'")
-	}
-
-	// Test pushing without model (should fail)
-	_, err = interp.EvalString(`gsh.repl.agents.push({ name: "test" })`)
-	if err == nil {
-		t.Fatal("expected error when pushing agent without model")
-	}
-
-	// Test pushing duplicate name (should fail)
-	_, err = interp.EvalString(`gsh.repl.agents.push({ name: "custom", "model": testModel })`)
-	if err != nil {
-		t.Fatalf("unexpected error pushing first custom agent: %v", err)
-	}
-	_, err = interp.EvalString(`gsh.repl.agents.push({ name: "custom", "model": testModel })`)
-	if err == nil {
-		t.Fatal("expected error when pushing agent with duplicate name")
-	}
+	return next(ctx)
 }
-
-// TestGshReplCurrentAgent tests reading and writing currentAgent
-func TestGshReplCurrentAgent(t *testing.T) {
-	interp := New(&Options{})
-	defer interp.Close()
-
-	testModel := &ModelValue{
-		Name:   "test-model",
-		Config: map[string]Value{},
-	}
-
-	defaultAgent := &AgentValue{
-		Name: "default",
-		Config: map[string]Value{
-			"model":        testModel,
-			"systemPrompt": &StringValue{Value: "Default prompt"},
-			"tools":        &ArrayValue{Elements: []Value{}},
-		},
-	}
-
-	reviewerAgent := &AgentValue{
-		Name: "reviewer",
-		Config: map[string]Value{
-			"model":        testModel,
-			"systemPrompt": &StringValue{Value: "Reviewer prompt"},
-			"tools":        &ArrayValue{Elements: []Value{}},
-		},
-	}
-
-	var switchedAgent *AgentValue
-	replCtx := &REPLContext{
-		Models:       &REPLModels{},
-		LastCommand:  &REPLLastCommand{},
-		Agents:       []*AgentValue{defaultAgent, reviewerAgent},
-		CurrentAgent: defaultAgent,
-		OnAgentSwitch: func(agent *AgentValue) {
-			switchedAgent = agent
-		},
-	}
-	interp.SDKConfig().SetREPLContext(replCtx)
-
-	// Test reading currentAgent.name
-	result, err := interp.EvalString(`gsh.repl.currentAgent.name`)
+gsh.useCommandMiddleware(prefixMiddleware)
+`, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if strVal, ok := result.FinalResult.(*StringValue); ok {
-		if strVal.Value != "default" {
-			t.Errorf("expected 'default', got '%s'", strVal.Value)
-		}
-	}
 
-	// Test switching currentAgent
-	_, err = interp.EvalString(`gsh.repl.currentAgent = gsh.repl.agents[1]`)
-	if err != nil {
-		t.Fatalf("unexpected error switching agent: %v", err)
-	}
+	// Test middleware execution via the manager
+	mm := replCtx.MiddlewareManager
 
-	// Verify the switch
-	if replCtx.CurrentAgent != reviewerAgent {
-		t.Error("expected currentAgent to be switched to reviewer")
-	}
-
-	// Verify callback was called
-	if switchedAgent == nil || switchedAgent.Name != "reviewer" {
-		t.Error("expected OnAgentSwitch callback to be called with reviewer agent")
-	}
-
-	// Test reading updated currentAgent.name
-	result, err = interp.EvalString(`gsh.repl.currentAgent.name`)
+	// Input with # should be handled
+	result, err := mm.ExecuteChain("# hello", interp)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if strVal, ok := result.FinalResult.(*StringValue); ok {
-		if strVal.Value != "reviewer" {
-			t.Errorf("expected 'reviewer', got '%s'", strVal.Value)
-		}
-	}
-}
-
-// TestGshReplAgentsToolsModification tests modifying agent tools
-func TestGshReplAgentsToolsModification(t *testing.T) {
-	interp := New(&Options{})
-	defer interp.Close()
-
-	testModel := &ModelValue{
-		Name:   "test-model",
-		Config: map[string]Value{},
+	if !result.Handled {
+		t.Error("expected input '# hello' to be handled")
 	}
 
-	execTool := CreateExecNativeTool()
-	grepTool := CreateGrepNativeTool()
-
-	defaultAgent := &AgentValue{
-		Name: "default",
-		Config: map[string]Value{
-			"model":        testModel,
-			"systemPrompt": &StringValue{Value: "Default prompt"},
-			"tools":        &ArrayValue{Elements: []Value{execTool}},
-		},
-	}
-
-	replCtx := &REPLContext{
-		Models:       &REPLModels{},
-		LastCommand:  &REPLLastCommand{},
-		Agents:       []*AgentValue{defaultAgent},
-		CurrentAgent: defaultAgent,
-	}
-	interp.SDKConfig().SetREPLContext(replCtx)
-
-	// Store grepTool in interpreter
-	interp.env.Set("grepTool", grepTool)
-
-	// Test reading tools.length
-	result, err := interp.EvalString(`gsh.repl.agents[0].tools.length`)
+	// Input without # should fall through
+	result, err = mm.ExecuteChain("echo hello", interp)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if numVal, ok := result.FinalResult.(*NumberValue); ok {
-		if numVal.Value != 1 {
-			t.Errorf("expected tools.length == 1, got %v", numVal.Value)
-		}
+	if result.Handled {
+		t.Error("expected input 'echo hello' to fall through")
 	}
-
-	// Test replacing tools array
-	_, err = interp.EvalString(`gsh.repl.agents[0].tools = [grepTool]`)
-	if err != nil {
-		t.Fatalf("unexpected error replacing tools: %v", err)
-	}
-
-	// Verify the change - tools are now stored in Config map
-	toolsVal, ok := defaultAgent.Config["tools"].(*ArrayValue)
-	if !ok {
-		t.Fatal("expected tools to be an ArrayValue")
-	}
-	if len(toolsVal.Elements) != 1 {
-		t.Errorf("expected 1 tool after replacement, got %d", len(toolsVal.Elements))
-	}
-
-	if nativeTool, ok := toolsVal.Elements[0].(*NativeToolValue); ok {
-		if nativeTool.Name != "grep" {
-			t.Errorf("expected tool name 'grep', got '%s'", nativeTool.Name)
-		}
-	} else {
-		t.Error("expected NativeToolValue")
+	if result.Input != "echo hello" {
+		t.Errorf("expected input 'echo hello', got '%s'", result.Input)
 	}
 }

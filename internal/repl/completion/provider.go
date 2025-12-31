@@ -18,12 +18,6 @@ type RunnerProvider interface {
 	GetPwd() string
 }
 
-// AgentProvider is an interface for getting available agent names and commands.
-type AgentProvider interface {
-	GetAgentNames() []string
-	GetAgentCommands() []string
-}
-
 // Provider implements the CompletionProvider interface for the REPL input.
 // It parses user input and routes completion requests to the appropriate source
 // (specs, files, commands, macros, etc.)
@@ -33,7 +27,6 @@ type Provider struct {
 	macroCompleter   *completers.MacroCompleter
 	builtinCompleter *completers.BuiltinCompleter
 	commandCompleter *completers.CommandCompleter
-	agentProvider    AgentProvider
 }
 
 // NewProvider creates a new completion Provider.
@@ -64,11 +57,6 @@ func (p *Provider) UnregisterSpec(command string) {
 
 // GetCompletions returns completion suggestions for the current input line.
 func (p *Provider) GetCompletions(line string, pos int) []string {
-	// Check for agent commands (# /)
-	if completion := p.checkAgentCommands(line, pos); completion != nil {
-		return completion
-	}
-
 	// First check for special prefixes (#/ and #!)
 	if completion := p.checkSpecialPrefixes(line, pos); completion != nil {
 		return completion
@@ -320,87 +308,4 @@ func (p *Provider) GetHelpInfo(line string, pos int) string {
 	}
 
 	return ""
-}
-
-// checkAgentCommands checks for agent command patterns and returns completions.
-func (p *Provider) checkAgentCommands(line string, pos int) []string {
-	// Check if line starts with "#"
-	trimmed := strings.TrimSpace(line[:pos])
-	if !strings.HasPrefix(trimmed, "#") {
-		return nil
-	}
-
-	// Everything after "#" is agent mode (messages or commands)
-	afterHash := trimmed[1:]
-
-	// Check if we're typing a specific agent command (starts with /)
-	afterHashTrimmed := strings.TrimSpace(afterHash)
-	if !strings.HasPrefix(afterHashTrimmed, "/") {
-		return nil
-	}
-
-	cmdPart := afterHashTrimmed[1:]
-
-	// Check if this matches one of our agent commands
-	// Only if there's actual content to match (not empty string)
-	if cmdPart == "" {
-		// Empty means just "#/" - let macros handle it
-		return nil
-	}
-
-	// Get agent commands from the provider (single source of truth)
-	if p.agentProvider == nil {
-		return nil
-	}
-
-	agentCommands := p.agentProvider.GetAgentCommands()
-	isAgentCommand := false
-	for _, cmd := range agentCommands {
-		if strings.HasPrefix(cmd, cmdPart) || strings.HasPrefix(cmdPart, cmd) {
-			isAgentCommand = true
-			break
-		}
-	}
-
-	if !isAgentCommand {
-		// Not an agent command, let macros handle it
-		return nil
-	}
-
-	// Suggest agent command completions based on what's available
-	var matches []string
-	for _, cmd := range agentCommands {
-		fullCmd := "/" + cmd
-		if strings.HasPrefix(fullCmd, "/"+cmdPart) || cmdPart == "" {
-			// Add space after "agent" command for argument completion
-			if cmd == "agent" {
-				matches = append(matches, "#"+fullCmd+" ")
-			} else {
-				matches = append(matches, "#"+fullCmd)
-			}
-		}
-	}
-
-	// If typing "/agent ", suggest agent names
-	if strings.HasPrefix(cmdPart, "agent ") {
-		if p.agentProvider == nil {
-			return matches
-		}
-
-		agentPrefix := strings.TrimPrefix(cmdPart, "agent ")
-		agentNames := p.agentProvider.GetAgentNames()
-
-		for _, name := range agentNames {
-			if strings.HasPrefix(name, agentPrefix) {
-				matches = append(matches, "#/agent "+name)
-			}
-		}
-	}
-
-	return matches
-}
-
-// SetAgentProvider sets the agent provider for agent name completions.
-func (p *Provider) SetAgentProvider(agentProvider AgentProvider) {
-	p.agentProvider = agentProvider
 }

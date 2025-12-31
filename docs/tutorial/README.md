@@ -7,12 +7,12 @@ Welcome to the gsh tutorial! This comprehensive guide will teach you how to use 
 By the end of this tutorial, you'll know how to:
 
 - ✅ Use gsh as a POSIX-compatible interactive shell
-- ✅ Configure your environment with `.gshrc` and `.gshrc.gsh`
-- ✅ Create beautiful, informative prompts with Starship
+- ✅ Configure your environment with `~/.gshrc` and `~/.gsh/repl.gsh`
 - ✅ Set up generative command prediction
-- ✅ Use agents directly in your shell
-- ✅ Understand and customize agent output rendering
+- ✅ Use AI agents directly in your shell
 - ✅ Write and execute gsh scripts for automation
+
+For deeper configuration topics (custom prompts, advanced SDK features, command middleware), see the **[SDK Guide](../sdk/README.md)**.
 
 ## Prerequisites
 
@@ -24,34 +24,6 @@ Before starting, you should:
 
 If you're brand new to shells, you might want to quickly learn bash basics first, then come back to this tutorial.
 
-## Key Concepts
-
-### REPL vs. Scripting
-
-gsh has two modes:
-
-- **REPL (Read-Eval-Print Loop)** - The interactive shell you get when typing `gsh`. Behaves like bash.
-- **Scripts** - `.gsh` files with gsh language code. More powerful than bash scripts.
-
-This tutorial covers both, starting with the REPL.
-
-### Configuration Files
-
-gsh uses two configuration files:
-
-- **`.gshrc`** - Standard bash syntax, for shell aliases and functions
-- **`.gshrc.gsh`** - gsh script language, for advanced configuration
-
-Both are optional and loaded at startup.
-
-### Models and Agents
-
-- **Model** - An AI language model (local Ollama, OpenAI, Anthropic, etc.)
-- **Agent** - An AI assistant configured with a model and system prompt
-- **Prediction** - Fast command suggestions based on history and AI
-
-Later chapters explain these in depth.
-
 ## Troubleshooting
 
 ### Something isn't working
@@ -59,40 +31,17 @@ Later chapters explain these in depth.
 1. **Check the logs**
 
    ```bash
-   tail -f ~/.gsh.log
+   tail -f ~/.gsh/gsh.log
    ```
 
-2. **Enable debug mode**
+2. **Enable debug logging**
 
    ```gsh
-   # In ~/.gshrc.gsh
-   GSH_CONFIG = {
-       logLevel: "debug",
-   }
+   # In ~/.gsh/repl.gsh
+   gsh.logging.level = "debug"
    ```
 
 3. **Search the relevant chapter** - Most issues are covered in the detailed chapters
-
-### I'm stuck
-
-- Re-read the relevant chapter carefully
-- Try the example exactly as shown
-- Check for typos
-- Post an issue on [GitHub](https://github.com/atinylittleshell/gsh/issues)
-
-## What's Different from Other Shells?
-
-gsh combines the familiarity of bash with modern features:
-
-| Aspect             | bash    | zsh     | gsh           |
-| ------------------ | ------- | ------- | ------------- |
-| POSIX Compatible   | ✅      | ✅      | ✅            |
-| Scripting Language | Limited | Limited | Full-featured |
-| Type Safety        | ❌      | ❌      | ✅            |
-| Native AI Support  | ❌      | ❌      | ✅            |
-| Command Prediction | Plugins | Plugins | Built-in      |
-| Tool Integration   | Manual  | Plugins | MCP servers   |
-| Single Binary      | Yes     | Yes     | Yes           |
 
 ## Community and Support
 

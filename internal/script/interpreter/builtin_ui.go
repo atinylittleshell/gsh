@@ -3,10 +3,8 @@ package interpreter
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/charmbracelet/lipgloss"
 
@@ -15,108 +13,25 @@ import (
 
 // Global spinner manager shared across all scripts
 var (
-	spinnerManager *SpinnerManager
+	spinnerManager *render.SpinnerManager
 	spinnerMutex   sync.Mutex
 	spinnerContext context.Context
 )
 
-// SpinnerManager tracks multiple spinners by ID
-type SpinnerManager struct {
-	mu              sync.Mutex
-	spinners        map[string]*UISpinner
-	activeSpinnerID string // Most recently started spinner
-	nextID          int
-}
-
-// NewSpinnerManager creates a new spinner manager
-func NewSpinnerManager() *SpinnerManager {
-	return &SpinnerManager{
-		spinners: make(map[string]*UISpinner),
-		nextID:   0,
-	}
-}
-
-// GenerateID generates a new unique spinner ID
-func (sm *SpinnerManager) GenerateID() string {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-	id := fmt.Sprintf("spinner_%d", sm.nextID)
-	sm.nextID++
-	return id
-}
-
-// AddSpinner adds a new spinner and returns its ID
-func (sm *SpinnerManager) AddSpinner(id string, spinner *UISpinner) {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-	sm.spinners[id] = spinner
-	sm.activeSpinnerID = id // Most recent spinner becomes active
-}
-
-// RemoveSpinner removes a spinner by ID
-func (sm *SpinnerManager) RemoveSpinner(id string) {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-	delete(sm.spinners, id)
-
-	// If we removed the active spinner, find another active one
-	if sm.activeSpinnerID == id {
-		if len(sm.spinners) > 0 {
-			// Pick any remaining spinner
-			for activeID := range sm.spinners {
-				sm.activeSpinnerID = activeID
-				break
-			}
-		} else {
-			sm.activeSpinnerID = ""
-		}
-	}
-}
-
-// GetSpinner returns a spinner by ID
-func (sm *SpinnerManager) GetSpinner(id string) (*UISpinner, bool) {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-	spinner, exists := sm.spinners[id]
-	return spinner, exists
-}
-
-// GetActiveSpinner returns the most recently started spinner
-func (sm *SpinnerManager) GetActiveSpinner() (*UISpinner, string, bool) {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-	if sm.activeSpinnerID == "" {
-		return nil, "", false
-	}
-	spinner, exists := sm.spinners[sm.activeSpinnerID]
-	return spinner, sm.activeSpinnerID, exists
-}
-
-// HasActiveSpinners returns true if there are any active spinners
-func (sm *SpinnerManager) HasActiveSpinners() bool {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-	return len(sm.spinners) > 0
-}
-
 // init initializes the global spinner manager
 func init() {
-	spinnerManager = NewSpinnerManager()
+	spinnerManager = render.NewSpinnerManager(os.Stdout)
 }
 
-// UISpinner wraps the rendering spinner with methods callable from gsh script
-type UISpinner struct {
-	id         string
-	message    string
-	frameIndex int
-	stopCh     chan struct{}
-	mu         sync.Mutex
-	running    bool
-	writer     io.Writer
+// GetSpinnerManager returns the global spinner manager (for testing)
+func GetSpinnerManager() *render.SpinnerManager {
+	return spinnerManager
 }
 
-// SpinnerFrames animation frames
-var SpinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+// SetSpinnerManager sets the global spinner manager (for testing)
+func SetSpinnerManager(manager *render.SpinnerManager) {
+	spinnerManager = manager
+}
 
 // UIStylesObject provides semantic style functions
 type UIStylesObject struct{}
@@ -197,9 +112,9 @@ func (s *UISpinnerObjectValue) GetProperty(name string) Value {
 					_ = cancel // Context cancellation not currently used
 				}
 
-				// Create and start new spinner
-				spinner := NewUISpinner(spinnerID, msgVal.Value, os.Stdout)
-				spinnerManager.AddSpinner(spinnerID, spinner)
+				// Create and start new spinner with the string ID
+				spinner := spinnerManager.NewSpinnerWithID(spinnerID)
+				spinner.SetMessage(msgVal.Value)
 				spinner.Start(spinnerContext)
 
 				return &StringValue{Value: spinnerID}, nil
@@ -226,11 +141,11 @@ func (s *UISpinnerObjectValue) GetProperty(name string) Value {
 					if !ok {
 						return nil, fmt.Errorf("spinner.setMessage() second argument must be a string, got %s", args[1].Type())
 					}
-					if spinner, exists := spinnerManager.GetSpinner(idVal.Value); exists && spinner.running {
+					if spinner, exists := spinnerManager.GetSpinnerByID(idVal.Value); exists && spinner.IsRunning() {
 						spinner.SetMessage(msgVal.Value)
 					}
 				} else {
-					if spinner, _, exists := spinnerManager.GetActiveSpinner(); exists && spinner.running {
+					if spinner, _, exists := spinnerManager.GetActiveSpinnerWithID(); exists && spinner.IsRunning() {
 						spinner.SetMessage(msgVal.Value)
 					}
 				}
@@ -253,10 +168,22 @@ func (s *UISpinnerObjectValue) GetProperty(name string) Value {
 				spinnerMutex.Lock()
 				defer spinnerMutex.Unlock()
 
-				if spinner, exists := spinnerManager.GetSpinner(idVal.Value); exists && spinner.running {
-					spinner.Stop()
-					spinnerManager.RemoveSpinner(idVal.Value)
+				spinnerManager.RemoveSpinner(idVal.Value)
+				return &NullValue{}, nil
+			},
+		}
+	case "stopAll":
+		return &BuiltinValue{
+			Name: "gsh.ui.spinner.stopAll",
+			Fn: func(args []Value) (Value, error) {
+				if len(args) != 0 {
+					return nil, fmt.Errorf("spinner.stopAll() takes no arguments, got %d", len(args))
 				}
+
+				spinnerMutex.Lock()
+				defer spinnerMutex.Unlock()
+
+				spinnerManager.StopAll()
 				return &NullValue{}, nil
 			},
 		}
@@ -482,77 +409,4 @@ func (c *UICursorObjectValue) GetProperty(name string) Value {
 
 func (c *UICursorObjectValue) SetProperty(name string, value Value) error {
 	return fmt.Errorf("cannot set property '%s' on gsh.ui.cursor", name)
-}
-
-// NewUISpinner creates a new spinner
-func NewUISpinner(id, message string, writer io.Writer) *UISpinner {
-	return &UISpinner{
-		id:      id,
-		message: message,
-		writer:  writer,
-		stopCh:  make(chan struct{}),
-	}
-}
-
-// SetMessage updates the spinner message
-func (s *UISpinner) SetMessage(message string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.message = message
-}
-
-// Start begins the spinner animation
-func (s *UISpinner) Start(ctx context.Context) {
-	s.mu.Lock()
-	if s.running {
-		s.mu.Unlock()
-		return
-	}
-	s.running = true
-	s.mu.Unlock()
-
-	go s.run(ctx)
-}
-
-// Stop stops the spinner and clears the line
-func (s *UISpinner) Stop() {
-	s.mu.Lock()
-	if !s.running {
-		s.mu.Unlock()
-		return
-	}
-	s.running = false
-	s.mu.Unlock()
-
-	close(s.stopCh)
-	// Clear the line
-	fmt.Fprint(s.writer, "\r\033[K")
-}
-
-// run the spinner animation loop
-func (s *UISpinner) run(ctx context.Context) {
-	ticker := time.NewTicker(80 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-s.stopCh:
-			return
-		case <-ticker.C:
-			s.mu.Lock()
-			if !s.running {
-				s.mu.Unlock()
-				return
-			}
-			frame := SpinnerFrames[s.frameIndex%len(SpinnerFrames)]
-			s.frameIndex++
-			message := s.message
-			s.mu.Unlock()
-
-			// Render frame with carriage return to overwrite
-			fmt.Fprintf(s.writer, "\r%s %s", frame, message)
-		}
-	}
 }

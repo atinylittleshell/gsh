@@ -6,6 +6,7 @@ package repl
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,10 +15,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"go.uber.org/zap"
 	"golang.org/x/term"
+	shinterp "mvdan.cc/sh/v3/interp"
 
 	"github.com/atinylittleshell/gsh/internal/core"
 	"github.com/atinylittleshell/gsh/internal/history"
-	"github.com/atinylittleshell/gsh/internal/repl/agent"
 	"github.com/atinylittleshell/gsh/internal/repl/completion"
 	"github.com/atinylittleshell/gsh/internal/repl/config"
 	replcontext "github.com/atinylittleshell/gsh/internal/repl/context"
@@ -27,9 +28,8 @@ import (
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
-// AgentCommands is the list of valid agent commands (without the "/" prefix).
-// This is the single source of truth for what commands are available.
-var AgentCommands = []string{"clear", "agents", "agent"}
+// ErrExit is returned when the user requests to exit the REPL.
+var ErrExit = fmt.Errorf("exit requested")
 
 // timeNow is a variable that can be overridden for testing.
 var timeNow = time.Now
@@ -44,27 +44,38 @@ type REPL struct {
 	completionProvider *completion.Provider
 	logger             *zap.Logger
 
-	// Agent mode support - multiple agents
-	agentManager *agent.Manager
-
 	// Track last command exit code and duration for prompt updates
 	lastExitCode   int
 	lastDurationMs int64
+
+	// Startup tracking
+	startTime      time.Time
+	startupTracker StartupTimeTracker
 }
 
 // Options holds configuration options for creating a new REPL.
+// StartupTimeTracker is an interface for tracking startup time.
+// This allows the REPL to report when the user actually sees the welcome screen.
+type StartupTimeTracker interface {
+	TrackStartupTime(durationMs int64)
+}
+
 type Options struct {
-	// ConfigPath is the path to the .gshrc.gsh configuration file.
-	// If empty, the default path (~/.gshrc.gsh) is used.
+	// ConfigPath is the path to the repl.gsh configuration file.
+	// If empty, the default path (~/.gsh/repl.gsh) is used.
 	ConfigPath string
 
-	// DefaultConfigContent is the embedded content of .gshrc.default.gsh.
-	// This is loaded before the user's .gshrc.gsh file.
+	// DefaultConfigContent is the embedded content of defaults/init.gsh.
+	// This is loaded before the user's ~/.gsh/repl.gsh file.
 	DefaultConfigContent string
 
-	// StarshipConfigContent is the embedded content of .gshrc.starship.gsh.
-	// This is loaded after user config if starship is detected and integration is enabled.
-	StarshipConfigContent string
+	// DefaultConfigFS is the embedded filesystem containing the default config and any
+	// modules it imports. If nil, imports from the default config are disabled.
+	DefaultConfigFS fs.FS
+
+	// DefaultConfigBasePath is the base path within DefaultConfigFS where the default
+	// config resides (e.g., "defaults" if the config is at "defaults/init.gsh").
+	DefaultConfigBasePath string
 
 	// HistoryPath is the path to the history database file.
 	// If empty, the default path is used.
@@ -79,6 +90,20 @@ type Options struct {
 	// BuildVersion is the build version string (e.g., "dev" or "1.0.0").
 	// Used to show [dev] indicator in prompt for development builds.
 	BuildVersion string
+
+	// Runner is the sh runner to use for bash command execution.
+	// If nil, a new runner is created with default settings.
+	// Passing a runner allows sharing environment variables (like SHELL)
+	// that were set up during gsh initialization.
+	Runner *shinterp.Runner
+
+	// StartTime is when the application started (for accurate startup time tracking).
+	// If zero, startup time tracking is skipped.
+	StartTime time.Time
+
+	// StartupTracker is called when the REPL is ready (welcome screen shown).
+	// This allows accurate startup time measurement from app start to user-visible ready state.
+	StartupTracker StartupTimeTracker
 }
 
 // NewREPL creates a new REPL instance.
@@ -92,6 +117,7 @@ func NewREPL(opts Options) (*REPL, error) {
 	interp := interpreter.New(&interpreter.Options{
 		Logger:  logger,
 		Version: opts.BuildVersion,
+		Runner:  opts.Runner,
 	})
 
 	// Initialize executor with the shared interpreter
@@ -106,12 +132,28 @@ func NewREPL(opts Options) (*REPL, error) {
 		logger.Warn("failed to load bash configs", zap.Error(err))
 	}
 
+	// Initialize REPL context BEFORE loading config so SDK assignments like
+	// gsh.models.workhorse = myModel can work during config evaluation
+	replCtx := &interpreter.REPLContext{
+		LastCommand: &interpreter.REPLLastCommand{
+			ExitCode:   0,
+			DurationMs: 0,
+		},
+	}
+	interp.SDKConfig().SetREPLContext(replCtx)
+
 	// Load gsh-specific configuration into the shared interpreter
 	loader := config.NewLoader(logger)
 	var loadResult *config.LoadResult
 
 	if opts.ConfigPath != "" {
-		content, err := os.ReadFile(opts.ConfigPath)
+		// Get absolute path for proper import resolution
+		absConfigPath, err := filepath.Abs(opts.ConfigPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve config path: %w", err)
+		}
+
+		content, err := os.ReadFile(absConfigPath)
 		if err != nil {
 			if !os.IsNotExist(err) {
 				return nil, fmt.Errorf("failed to read config file: %w", err)
@@ -123,13 +165,28 @@ func NewREPL(opts Options) (*REPL, error) {
 				Errors:      []error{},
 			}
 		} else {
-			loadResult, err = loader.LoadFromStringInto(interp, string(content))
-			if err != nil {
-				return nil, fmt.Errorf("failed to load config: %w", err)
+			// Evaluate with filesystem origin for import resolution
+			_, evalErr := interp.EvalString(string(content), &interpreter.ScriptOrigin{
+				Type:     interpreter.OriginFilesystem,
+				BasePath: filepath.Dir(absConfigPath),
+			})
+
+			loadResult = &config.LoadResult{
+				Config:      config.DefaultConfig(),
+				Interpreter: interp,
+				Errors:      []error{},
 			}
+			if evalErr != nil {
+				loadResult.Errors = append(loadResult.Errors, evalErr)
+			}
+			loader.ExtractConfigFromInterpreter(interp, loadResult)
 		}
 	} else {
-		loadResult, err = loader.LoadDefaultConfigPathInto(interp, opts.DefaultConfigContent, opts.StarshipConfigContent)
+		loadResult, err = loader.LoadDefaultConfigPathInto(interp, config.EmbeddedDefaults{
+			Content:  opts.DefaultConfigContent,
+			FS:       opts.DefaultConfigFS,
+			BasePath: opts.DefaultConfigBasePath,
+		})
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
@@ -154,8 +211,13 @@ func NewREPL(opts Options) (*REPL, error) {
 		// Continue without history - not fatal
 	}
 
-	// Initialize prediction router from config
-	predictor := predict.NewRouterFromConfig(loadResult.Config, logger)
+	// Initialize prediction router using lazy model resolution.
+	// Use SDKModelRef so that predictions always use the current gsh.models.lite value,
+	// even if the user changes it after startup (e.g., in an event handler).
+	liteModelRef := &interpreter.SDKModelRef{Tier: "lite", Models: interp.SDKConfig().GetModels()}
+
+	// Initialize prediction router using the lite model tier with lazy resolution
+	predictor := predict.NewRouterFromConfig(liteModelRef, logger)
 
 	// Initialize context provider with retrievers for predictions
 	contextProvider := replcontext.NewProvider(logger,
@@ -172,75 +234,6 @@ func NewREPL(opts Options) (*REPL, error) {
 	// Initialize completion provider
 	completionProvider := completion.NewProvider(exec)
 
-	// Note: We'll set the agent provider after initializing agents below
-
-	// Initialize agent manager
-	agentManager := agent.NewManager()
-
-	// Always initialize the built-in default agent if a model is configured
-	defaultAgentModel := loadResult.Config.GetDefaultAgentModel()
-	if defaultAgentModel != nil && defaultAgentModel.Provider != nil {
-		// Create the built-in default agent with a simple system prompt
-		defaultAgent := &interpreter.AgentValue{
-			Name: "default",
-			Config: map[string]interpreter.Value{
-				"model": defaultAgentModel,
-				"systemPrompt": &interpreter.StringValue{
-					Value: "You are gsh (generative shell), an AI-powered shell assistant. You use tools available to you to help the user with their questions and tasks.",
-				},
-			},
-		}
-
-		defaultState := &agent.State{
-			Agent:        defaultAgent,
-			Provider:     defaultAgentModel.Provider,
-			Conversation: []interpreter.ChatMessage{},
-			Interpreter:  interp,
-		}
-		agent.SetupAgentWithDefaultTools(defaultState)
-		agentManager.AddAgent("default", defaultState)
-		_ = agentManager.SetCurrentAgent("default")
-		logger.Info("initialized built-in default agent", zap.String("model", defaultAgentModel.Name))
-	}
-
-	// Initialize all custom agents from configuration
-	if loadResult.Config != nil && len(loadResult.Config.Agents) > 0 {
-		for name, agentVal := range loadResult.Config.Agents {
-			// Get the provider from the agent's model (stored in Config)
-			var provider interpreter.ModelProvider
-			if modelVal, ok := agentVal.Config["model"]; ok {
-				if model, ok := modelVal.(*interpreter.ModelValue); ok && model.Provider != nil {
-					provider = model.Provider
-				} else {
-					logger.Warn("agent model has no provider configured", zap.String("agent", name))
-					continue
-				}
-			} else {
-				logger.Warn("agent has no model configured", zap.String("agent", name))
-				continue
-			}
-
-			customState := &agent.State{
-				Agent:        agentVal,
-				Provider:     provider,
-				Conversation: []interpreter.ChatMessage{},
-				Interpreter:  interp,
-			}
-			agent.SetupAgentWithDefaultTools(customState)
-			agentManager.AddAgent(name, customState)
-			logger.Info("initialized custom agent", zap.String("agent", name))
-		}
-	}
-
-	// If no current agent is set but we have agents, pick the first one as a fallback
-	if agentManager.CurrentAgentName() == "" && agentManager.HasAgents() {
-		for name := range agentManager.AllStates() {
-			_ = agentManager.SetCurrentAgent(name)
-			logger.Info("auto-selected agent as default", zap.String("agent", name))
-			break
-		}
-	}
-
 	repl := &REPL{
 		config:             loadResult.Config,
 		executor:           exec,
@@ -248,62 +241,10 @@ func NewREPL(opts Options) (*REPL, error) {
 		predictor:          predictor,
 		contextProvider:    contextProvider,
 		completionProvider: completionProvider,
-		agentManager:       agentManager,
 		logger:             logger,
+		startTime:          opts.StartTime,
+		startupTracker:     opts.StartupTracker,
 	}
-
-	// Set the REPL as the agent provider for completions
-	completionProvider.SetAgentProvider(repl)
-
-	// Initialize REPL context with model tiers for gsh.repl access
-	// Models are populated from config (predictModel -> lite, defaultAgentModel -> workhorse)
-	// Users can also configure them directly in .gshrc via:
-	//   gsh.repl.models.lite = myLiteModel
-	//   gsh.repl.models.workhorse = myWorkhorseModel
-	//   gsh.repl.models.premium = myPremiumModel
-	replCtx := &interpreter.REPLContext{
-		Models: &interpreter.REPLModels{
-			Lite:      loadResult.Config.GetPredictModel(),      // Use predictModel for lite tier
-			Workhorse: loadResult.Config.GetDefaultAgentModel(), // Use defaultAgentModel for workhorse tier
-			Premium:   nil,
-		},
-		LastCommand: &interpreter.REPLLastCommand{
-			ExitCode:   0,
-			DurationMs: 0,
-		},
-		Agents: []*interpreter.AgentValue{},
-	}
-
-	// Populate gsh.repl.agents from the agent manager
-	// agents[0] is always the default agent
-	defaultState := agentManager.GetAgent("default")
-	if defaultState != nil {
-		// Use the AgentValue directly - no need to create a separate REPLAgent
-		replCtx.Agents = append(replCtx.Agents, defaultState.Agent)
-		replCtx.CurrentAgent = defaultState.Agent
-	}
-
-	// Add custom agents from config to gsh.repl.agents
-	for name, state := range agentManager.AllStates() {
-		if name == "default" {
-			continue // Already added
-		}
-		// Use the AgentValue directly
-		replCtx.Agents = append(replCtx.Agents, state.Agent)
-	}
-
-	// Set up callbacks for agent management from gsh script
-	replCtx.OnAgentAdded = func(newAgent *interpreter.AgentValue) {
-		repl.handleAgentAddedFromSDK(newAgent)
-	}
-	replCtx.OnAgentSwitch = func(switchedAgent *interpreter.AgentValue) {
-		repl.handleAgentSwitchFromSDK(switchedAgent)
-	}
-	replCtx.OnAgentModified = func(modifiedAgent *interpreter.AgentValue) {
-		repl.handleAgentModifiedFromSDK(modifiedAgent)
-	}
-
-	interp.SDKConfig().SetREPLContext(replCtx)
 
 	return repl, nil
 }
@@ -312,8 +253,14 @@ func NewREPL(opts Options) (*REPL, error) {
 func (r *REPL) Run(ctx context.Context) error {
 	r.logger.Info("starting REPL")
 
-	// Emit repl.ready event (welcome screen is handled by event handler in .gshrc.default.gsh)
+	// Emit repl.ready event (welcome screen is handled by event handler in defaults/events/repl.gsh)
 	r.emitREPLEvent("repl.ready")
+
+	// Track startup time - this is when the user actually sees the welcome screen
+	if r.startupTracker != nil && !r.startTime.IsZero() {
+		startupMs := time.Since(r.startTime).Milliseconds()
+		r.startupTracker.TrackStartupTime(startupMs)
+	}
 
 	// Create prediction state if history or LLM predictor is available
 	// History-based prediction doesn't require an LLM model
@@ -440,20 +387,8 @@ func (r *REPL) processCommand(ctx context.Context, command string) error {
 		return nil
 	}
 
-	// Check if this is an agent command (starts with '#')
-	if strings.HasPrefix(command, "#") {
-		return r.handleAgentCommand(ctx, strings.TrimSpace(command[1:]))
-	}
-
-	// Handle built-in commands
-	if handled, err := r.handleBuiltinCommand(command); handled {
-		return err // Will be ErrExit if user wants to exit
-	}
-
-	// Emit repl.command.before event with the command text
-	r.emitREPLEvent("repl.command.before", &interpreter.StringValue{Value: command})
-
-	// Record command in history
+	// Record ALL user input in history (including agent commands like "#...")
+	// This is done before middleware so all user input is captured
 	var historyEntry *history.HistoryEntry
 	if r.history != nil {
 		entry, err := r.history.StartCommand(command, r.executor.GetPwd())
@@ -463,6 +398,68 @@ func (r *REPL) processCommand(ctx context.Context, command string) error {
 			historyEntry = entry
 		}
 	}
+
+	// Try middleware chain first
+	interp := r.executor.Interpreter()
+	replCtx := interp.SDKConfig().GetREPLContext()
+	if replCtx != nil && replCtx.MiddlewareManager != nil && replCtx.MiddlewareManager.Len() > 0 {
+		result, err := replCtx.MiddlewareManager.ExecuteChain(command, interp)
+		if err != nil {
+			r.logger.Debug("middleware error", zap.Error(err))
+			fmt.Fprintf(os.Stderr, "gsh: middleware error: %v\n", err)
+			// Finish history with error exit code
+			if historyEntry != nil {
+				if _, finishErr := r.history.FinishCommand(historyEntry, 1); finishErr != nil {
+					r.logger.Debug("failed to finish history entry", zap.Error(finishErr))
+				}
+			}
+			return nil
+		}
+		if result.Handled {
+			// Middleware handled the input, don't execute as shell command
+			// Finish history with success exit code
+			if historyEntry != nil {
+				if _, finishErr := r.history.FinishCommand(historyEntry, 0); finishErr != nil {
+					r.logger.Debug("failed to finish history entry", zap.Error(finishErr))
+				}
+			}
+			return nil
+		}
+		// Use potentially modified input from middleware
+		command = result.Input
+	}
+
+	// Handle built-in commands (like "exit")
+	if handled, err := r.handleBuiltinCommand(command); handled {
+		if historyEntry != nil {
+			if _, finishErr := r.history.FinishCommand(historyEntry, 0); finishErr != nil {
+				r.logger.Debug("failed to finish history entry", zap.Error(finishErr))
+			}
+		}
+		return err // Will be ErrExit if user wants to exit
+	}
+
+	// Fall through: execute as shell command
+	exitCode := r.executeShellCommand(ctx, command)
+
+	// Finish history entry with actual exit code
+	if historyEntry != nil {
+		_, finishErr := r.history.FinishCommand(historyEntry, exitCode)
+		if finishErr != nil {
+			r.logger.Debug("failed to finish history entry", zap.Error(finishErr))
+		}
+	}
+
+	return nil
+}
+
+// executeShellCommand executes a command via the shell (mvdan/sh).
+// This is the fall-through path when middleware doesn't handle input.
+// Note: History recording is done in processCommand before this is called.
+// Returns the exit code of the command.
+func (r *REPL) executeShellCommand(ctx context.Context, command string) int {
+	// Emit repl.command.before event with the command text
+	r.emitREPLEvent("repl.command.before", &interpreter.StringValue{Value: command})
 
 	// Execute the command
 	startTime := timeNow()
@@ -482,32 +479,37 @@ func (r *REPL) processCommand(ctx context.Context, command string) error {
 		&interpreter.NumberValue{Value: float64(exitCode)},
 		&interpreter.NumberValue{Value: float64(r.lastDurationMs)})
 
-	// Finish history entry
-	if historyEntry != nil {
-		_, finishErr := r.history.FinishCommand(historyEntry, exitCode)
-		if finishErr != nil {
-			r.logger.Debug("failed to finish history entry", zap.Error(finishErr))
-		}
-	}
-
 	// Display error if execution failed (not just non-zero exit)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gsh: %v\n", err)
 	}
 
-	return nil
+	return exitCode
+}
+
+// handleBuiltinCommand handles built-in REPL commands.
+// Returns true if the command was handled, and an error if the REPL should exit.
+func (r *REPL) handleBuiltinCommand(command string) (bool, error) {
+	switch command {
+	case "exit":
+		// Signal exit by returning ErrExit
+		return true, ErrExit
+
+	default:
+		return false, nil
+	}
 }
 
 // getPrompt returns the prompt string to display.
 // Emits repl.prompt event to allow dynamic prompt updates (e.g., Starship integration).
-// Event handlers can set gsh.repl.prompt to customize the prompt.
+// Event handlers can set gsh.prompt to customize the prompt.
 func (r *REPL) getPrompt() string {
 	interp := r.executor.Interpreter()
 
 	// Emit repl.prompt event to let handlers update the prompt dynamically
 	interp.EmitEvent("repl.prompt", &interpreter.NullValue{})
 
-	// Read gsh.repl.prompt property (may have been updated by event handler)
+	// Read gsh.prompt property (may have been updated by event handler)
 	replCtx := interp.SDKConfig().GetREPLContext()
 	if replCtx != nil && replCtx.PromptValue != nil {
 		if strVal, ok := replCtx.PromptValue.(*interpreter.StringValue); ok && strVal.Value != "" {
@@ -515,8 +517,8 @@ func (r *REPL) getPrompt() string {
 		}
 	}
 
-	// Fallback to config prompt if gsh.repl.prompt not set
-	return r.config.Prompt
+	// Fallback to default prompt if gsh.prompt not set
+	return "gsh> "
 }
 
 // updatePredictorContext updates the predictor with current context information.
@@ -606,7 +608,7 @@ func (r *REPL) emitREPLEvent(eventName string, args ...interpreter.Value) {
 		if _, err := interp.CallTool(handler, args); err != nil {
 			r.logger.Debug("error in event handler", zap.String("event", eventName), zap.Error(err))
 			// Print errors to stderr for critical events so users can debug
-			// This helps catch issues in .gshrc.gsh event handlers
+			// This helps catch issues in ~/.gsh/repl.gsh event handlers
 			fmt.Fprintf(os.Stderr, "gsh: error in %s handler: %v\n", eventName, err)
 		}
 	}

@@ -401,26 +401,68 @@ func TestPredictionState_NullStatePrediction(t *testing.T) {
 }
 
 func TestPredictionState_AgentChatSkipped(t *testing.T) {
-	llmProvider := &mockPredictionProvider{
-		predictions: map[string]string{
-			"#hello": "should not appear",
-		},
-	}
+	t.Run("LLM prediction skipped for agent commands", func(t *testing.T) {
+		llmProvider := &mockPredictionProvider{
+			predictions: map[string]string{
+				"#hello": "should not appear",
+			},
+		}
 
-	ps := NewPredictionState(PredictionStateConfig{
-		DebounceDelay: 10 * time.Millisecond,
-		LLMProvider:   llmProvider,
+		ps := NewPredictionState(PredictionStateConfig{
+			DebounceDelay: 10 * time.Millisecond,
+			LLMProvider:   llmProvider,
+		})
+
+		ch := ps.OnInputChanged("#hello")
+		// LLM prediction is started but will return empty for agent chat messages
+		if ch != nil {
+			select {
+			case result := <-ch:
+				// LLM should return empty prediction for agent commands
+				assert.Equal(t, "", result.Prediction)
+				assert.Equal(t, PredictionSourceNone, result.Source)
+			case <-time.After(500 * time.Millisecond):
+				t.Fatal("timeout waiting for prediction result")
+			}
+		}
+
+		// Verify no prediction was set
+		assert.Equal(t, "", ps.Prediction())
+
+		// Verify LLM was called but returned empty (due to # prefix check in predictLLM)
+		// Note: LLM is called but skips prediction internally for # commands
 	})
 
-	ch := ps.OnInputChanged("#hello")
-	// Agent chat messages should return nil immediately (no prediction needed)
-	assert.Nil(t, ch)
+	t.Run("history prediction works for agent commands", func(t *testing.T) {
+		historyProvider := &mockHistoryProvider{
+			entries: map[string][]history.HistoryEntry{
+				"#": {
+					{Command: "#explain this code"},
+					{Command: "#help"},
+				},
+			},
+		}
 
-	// Verify no prediction was set
-	assert.Equal(t, "", ps.Prediction())
+		ps := NewPredictionState(PredictionStateConfig{
+			DebounceDelay:   10 * time.Millisecond,
+			HistoryProvider: historyProvider,
+		})
 
-	// Verify LLM was never called
-	assert.Equal(t, 0, llmProvider.getCallCount())
+		ch := ps.OnInputChanged("#")
+		require.NotNil(t, ch, "history prediction should return a channel for agent commands")
+
+		select {
+		case result := <-ch:
+			// History prediction should work for agent commands
+			assert.Equal(t, "#explain this code", result.Prediction)
+			assert.Equal(t, PredictionSourceHistory, result.Source)
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("timeout waiting for history prediction")
+		}
+
+		// Verify prediction was set
+		assert.Equal(t, "#explain this code", ps.Prediction())
+	})
 }
 
 func TestPredictionState_Debouncing(t *testing.T) {

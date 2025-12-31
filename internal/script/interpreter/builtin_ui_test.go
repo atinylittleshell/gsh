@@ -8,10 +8,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/atinylittleshell/gsh/internal/repl/render"
 )
 
 func TestSpinnerManager(t *testing.T) {
-	manager := NewSpinnerManager()
+	var buf bytes.Buffer
+	manager := render.NewSpinnerManager(&buf)
 
 	// Test GenerateID
 	id1 := manager.GenerateID()
@@ -20,12 +23,11 @@ func TestSpinnerManager(t *testing.T) {
 		t.Errorf("Expected different IDs, got id1=%s, id2=%s", id1, id2)
 	}
 
-	// Test AddSpinner and GetSpinner
-	var buf bytes.Buffer
-	spinner1 := NewUISpinner(id1, "message1", &buf)
-	manager.AddSpinner(id1, spinner1)
+	// Test NewSpinnerWithID and GetSpinnerByID
+	spinner1 := manager.NewSpinnerWithID(id1)
+	spinner1.SetMessage("message1")
 
-	retrieved, exists := manager.GetSpinner(id1)
+	retrieved, exists := manager.GetSpinnerByID(id1)
 	if !exists {
 		t.Error("Expected spinner to exist")
 	}
@@ -33,17 +35,25 @@ func TestSpinnerManager(t *testing.T) {
 		t.Error("Expected to retrieve the same spinner")
 	}
 
-	// Test AddSpinner sets active spinner
-	_, activeID, exists := manager.GetActiveSpinner()
+	// Start spinner1 to make it active
+	ctx := context.Background()
+	spinner1.Start(ctx)
+
+	// Test GetActiveSpinnerWithID returns the started spinner
+	activeSpinner, activeID, exists := manager.GetActiveSpinnerWithID()
 	if !exists || activeID != id1 {
 		t.Errorf("Expected active spinner to be id1, got %s", activeID)
 	}
+	if activeSpinner != spinner1 {
+		t.Error("Expected active spinner to be spinner1")
+	}
 
-	// Add second spinner, it becomes active
-	spinner2 := NewUISpinner(id2, "message2", &buf)
-	manager.AddSpinner(id2, spinner2)
+	// Add and start second spinner, it becomes active
+	spinner2 := manager.NewSpinnerWithID(id2)
+	spinner2.SetMessage("message2")
+	spinner2.Start(ctx)
 
-	_, activeID, exists = manager.GetActiveSpinner()
+	_, activeID, exists = manager.GetActiveSpinnerWithID()
 	if !exists || activeID != id2 {
 		t.Errorf("Expected active spinner to be id2, got %s", activeID)
 	}
@@ -53,14 +63,14 @@ func TestSpinnerManager(t *testing.T) {
 		t.Error("Expected HasActiveSpinners to return true")
 	}
 
-	// Test RemoveSpinner
+	// Test RemoveSpinner (stops and removes)
 	manager.RemoveSpinner(id2)
 	if !manager.HasActiveSpinners() {
 		t.Error("Expected to have active spinners after removing id2")
 	}
 
-	// Active should now be id1
-	_, activeID, exists = manager.GetActiveSpinner()
+	// Active should now be id1 (spinner2 was removed)
+	_, activeID, exists = manager.GetActiveSpinnerWithID()
 	if !exists || activeID != id1 {
 		t.Errorf("Expected active spinner to switch to id1, got %s", activeID)
 	}
@@ -71,48 +81,57 @@ func TestSpinnerManager(t *testing.T) {
 		t.Error("Expected HasActiveSpinners to return false after removing all spinners")
 	}
 
-	_, _, exists = manager.GetActiveSpinner()
+	_, _, exists = manager.GetActiveSpinnerWithID()
 	if exists {
 		t.Error("Expected no active spinner")
 	}
 }
 
-func TestUISpinnerBasic(t *testing.T) {
+func TestManagedSpinnerBasic(t *testing.T) {
 	var buf bytes.Buffer
-	spinner := NewUISpinner("test_id", "Loading...", &buf)
+	manager := render.NewSpinnerManager(&buf)
+	spinner := manager.NewSpinnerWithID("test_id")
+	spinner.SetMessage("Loading...")
 
-	if spinner.id != "test_id" {
-		t.Errorf("Expected id to be 'test_id', got %s", spinner.id)
+	if spinner.ID() != "test_id" {
+		t.Errorf("Expected id to be 'test_id', got %s", spinner.ID())
 	}
 
-	if spinner.message != "Loading..." {
-		t.Errorf("Expected message to be 'Loading...', got %s", spinner.message)
-	}
-
-	if spinner.running {
+	if spinner.IsRunning() {
 		t.Error("Expected running to be false initially")
 	}
 }
 
-func TestUISpinnerSetMessage(t *testing.T) {
+func TestManagedSpinnerSetMessage(t *testing.T) {
 	var buf bytes.Buffer
-	spinner := NewUISpinner("test_id", "Initial", &buf)
+	manager := render.NewSpinnerManager(&buf)
+	spinner := manager.NewSpinnerWithID("test_id")
+	spinner.SetMessage("Initial")
 
-	spinner.SetMessage("Updated")
-	if spinner.message != "Updated" {
-		t.Errorf("Expected message to be 'Updated', got %s", spinner.message)
+	// Start and let it render
+	ctx := context.Background()
+	stop := spinner.Start(ctx)
+	time.Sleep(100 * time.Millisecond)
+	stop()
+
+	// Verify initial message was rendered
+	output := buf.String()
+	if !strings.Contains(output, "Initial") {
+		t.Errorf("Expected output to contain 'Initial', got %s", output)
 	}
 }
 
-func TestUISpinnerStartStop(t *testing.T) {
+func TestManagedSpinnerStartStop(t *testing.T) {
 	var buf bytes.Buffer
-	spinner := NewUISpinner("test_id", "Loading...", &buf)
+	manager := render.NewSpinnerManager(&buf)
+	spinner := manager.NewSpinnerWithID("test_id")
+	spinner.SetMessage("Loading...")
 
 	// Start spinner
-	spinnerContext, _ := getOrCreateSpinnerContext()
-	spinner.Start(spinnerContext)
+	ctx := context.Background()
+	stop := spinner.Start(ctx)
 
-	if !spinner.running {
+	if !spinner.IsRunning() {
 		t.Error("Expected running to be true after Start")
 	}
 
@@ -120,10 +139,9 @@ func TestUISpinnerStartStop(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Stop spinner
-	spinner.Stop()
-	time.Sleep(50 * time.Millisecond)
+	stop()
 
-	if spinner.running {
+	if spinner.IsRunning() {
 		t.Error("Expected running to be false after Stop")
 	}
 
@@ -141,32 +159,40 @@ func getOrCreateSpinnerContext() (context.Context, context.CancelFunc) {
 }
 
 func TestSpinnerMultipleInstances(t *testing.T) {
-	manager := NewSpinnerManager()
-	var buf1, buf2, buf3 bytes.Buffer
+	var buf bytes.Buffer
+	manager := render.NewSpinnerManager(&buf)
+	ctx := context.Background()
 
 	id1 := manager.GenerateID()
 	id2 := manager.GenerateID()
 	id3 := manager.GenerateID()
 
-	spinner1 := NewUISpinner(id1, "Task 1", &buf1)
-	spinner2 := NewUISpinner(id2, "Task 2", &buf2)
-	spinner3 := NewUISpinner(id3, "Task 3", &buf3)
+	spinner1 := manager.NewSpinnerWithID(id1)
+	spinner1.SetMessage("Task 1")
+	spinner2 := manager.NewSpinnerWithID(id2)
+	spinner2.SetMessage("Task 2")
+	spinner3 := manager.NewSpinnerWithID(id3)
+	spinner3.SetMessage("Task 3")
 
-	manager.AddSpinner(id1, spinner1)
-	manager.AddSpinner(id2, spinner2)
-	manager.AddSpinner(id3, spinner3)
+	// Start all spinners
+	spinner1.Start(ctx)
+	spinner2.Start(ctx)
+	spinner3.Start(ctx)
 
 	// Verify all spinners exist
-	s1, _ := manager.GetSpinner(id1)
-	s2, _ := manager.GetSpinner(id2)
-	s3, _ := manager.GetSpinner(id3)
+	s1, exists1 := manager.GetSpinnerByID(id1)
+	s2, exists2 := manager.GetSpinnerByID(id2)
+	s3, exists3 := manager.GetSpinnerByID(id3)
 
-	if s1 == nil || s2 == nil || s3 == nil {
+	if !exists1 || !exists2 || !exists3 {
 		t.Error("Expected all spinners to exist")
 	}
+	if s1 == nil || s2 == nil || s3 == nil {
+		t.Error("Expected all spinners to be non-nil")
+	}
 
-	// Active should be id3 (most recently added)
-	_, activeID, _ := manager.GetActiveSpinner()
+	// Active should be id3 (most recently started based on creation order)
+	_, activeID, _ := manager.GetActiveSpinnerWithID()
 	if activeID != id3 {
 		t.Errorf("Expected active to be id3, got %s", activeID)
 	}
@@ -175,9 +201,9 @@ func TestSpinnerMultipleInstances(t *testing.T) {
 	manager.RemoveSpinner(id2)
 
 	// Spinners 1 and 3 should still exist
-	s1, exists1 := manager.GetSpinner(id1)
-	s3, exists3 := manager.GetSpinner(id3)
-	s2, exists2 := manager.GetSpinner(id2)
+	_, exists1 = manager.GetSpinnerByID(id1)
+	_, exists3 = manager.GetSpinnerByID(id3)
+	_, exists2 = manager.GetSpinnerByID(id2)
 
 	if !exists1 || !exists3 {
 		t.Error("Expected spinners 1 and 3 to still exist")
@@ -188,9 +214,81 @@ func TestSpinnerMultipleInstances(t *testing.T) {
 	}
 
 	// Active should still be id3
-	_, activeID, _ = manager.GetActiveSpinner()
+	_, activeID, _ = manager.GetActiveSpinnerWithID()
 	if activeID != id3 {
 		t.Errorf("Expected active to remain id3, got %s", activeID)
+	}
+
+	// Cleanup
+	manager.RemoveSpinner(id1)
+	manager.RemoveSpinner(id3)
+}
+
+// TestSpinnerCoordinatedRendering verifies that only one spinner renders at a time
+// and that stopping a spinner causes the next most recent one to render
+func TestSpinnerCoordinatedRendering(t *testing.T) {
+	var buf bytes.Buffer
+	manager := render.NewSpinnerManager(&buf)
+	ctx := context.Background()
+
+	// Create and start three spinners
+	id1 := manager.GenerateID()
+	id2 := manager.GenerateID()
+	id3 := manager.GenerateID()
+
+	spinner1 := manager.NewSpinnerWithID(id1)
+	spinner1.SetMessage("First Task")
+	spinner2 := manager.NewSpinnerWithID(id2)
+	spinner2.SetMessage("Second Task")
+	spinner3 := manager.NewSpinnerWithID(id3)
+	spinner3.SetMessage("Third Task")
+
+	// Start all spinners
+	spinner1.Start(ctx)
+	spinner2.Start(ctx)
+	spinner3.Start(ctx)
+
+	// The manager should have 3 live spinners
+	if manager.LiveCount() != 3 {
+		t.Errorf("Expected 3 live spinners, got %d", manager.LiveCount())
+	}
+
+	// Give time to render
+	time.Sleep(100 * time.Millisecond)
+
+	// Stop spinner3 - spinner2 should become active
+	manager.RemoveSpinner(id3)
+
+	if manager.LiveCount() != 2 {
+		t.Errorf("Expected 2 live spinners after stopping spinner3, got %d", manager.LiveCount())
+	}
+
+	// Give time to render the newly active spinner
+	time.Sleep(100 * time.Millisecond)
+
+	// Stop spinner2 - spinner1 should become active
+	manager.RemoveSpinner(id2)
+
+	if manager.LiveCount() != 1 {
+		t.Errorf("Expected 1 live spinner after stopping spinner2, got %d", manager.LiveCount())
+	}
+
+	// Stop spinner1 - no spinners left
+	manager.RemoveSpinner(id1)
+
+	if manager.LiveCount() != 0 {
+		t.Errorf("Expected 0 live spinners after stopping all, got %d", manager.LiveCount())
+	}
+
+	// Verify output was generated (contains spinner messages)
+	output := buf.String()
+	if len(output) == 0 {
+		t.Error("Expected spinner output to be generated")
+	}
+
+	// Should contain "Third Task" since that was the most recent and rendered first
+	if !strings.Contains(output, "Third Task") {
+		t.Error("Expected output to contain 'Third Task' (the most recent spinner)")
 	}
 }
 

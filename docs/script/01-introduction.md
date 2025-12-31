@@ -1,6 +1,6 @@
 # Chapter 01: Introduction to gsh Scripting
 
-Welcome! If you're reading this, you're curious about gsh scripting—a way to write powerful automation scripts that blend traditional shell automation with AI capabilities. This chapter orients you to what gsh is, why it matters, and how it fits into your toolkit.
+Welcome! If you're reading this, you're curious about gsh scripting—a way to write powerful automation scripts that blend traditional shell automation with AI capabilities.
 
 ## What is gsh Scripting?
 
@@ -12,19 +12,6 @@ Think of it like this:
 - **gsh Scripts** = A distinct scripting language in `.gsh` files (type-safe, with AI integration)
 
 This separation is intentional. It keeps your interactive shell predictable while giving scripts access to advanced features.
-
-### gsh Scripts vs. Bash Scripts
-
-Here's a quick comparison:
-
-| Aspect           | Bash                       | gsh Scripts                                  |
-| ---------------- | -------------------------- | -------------------------------------------- |
-| Type safety      | No (everything is strings) | Yes (string, number, boolean, any)           |
-| Type annotations | No                         | Yes (TypeScript-like syntax)                 |
-| Error handling   | Limited (exit codes)       | Structured (try/catch blocks)                |
-| AI integration   | Not built-in               | Native support                               |
-| External tools   | Shell functions, scripts   | MCP servers                                  |
-| Dependencies     | Bash binary                | Single gsh binary (no Node.js, Python, etc.) |
 
 ## Why Use gsh Scripts?
 
@@ -38,7 +25,7 @@ print(userName)    # ✓ Works: Alice
 print(userNme)     # ✗ Error caught immediately
 ```
 
-This might seem small, but it saves enormous amounts of debugging time in real scripts.
+This might seem small, but it saves debugging time in real scripts.
 
 ### 2. Native AI Integration
 
@@ -132,93 +119,7 @@ All of this is built in **pure Go** with no external runtime. The entire pipelin
 
 **No Special Runtime** - Unlike scripts that require Node.js, Python, or Ruby installed, gsh scripts run in any environment with the gsh binary. This is crucial for deployment, CI/CD, and production systems.
 
-## How This Ebook is Organized
-
-This ebook is designed to teach you gsh scripting in the order you need each concept, not alphabetical order. It follows this progression:
-
-**Part 1: Getting Started** (2 chapters)
-
-- [Chapter 01](01-introduction.md) (you are here): Orient yourself
-- [Chapter 02: Write your first script](02-hello-world.md)
-
-**Part 2: Core Language Fundamentals** (5 chapters)
-
-- [Chapter 03: Values and Types](03-values-and-types.md)
-- [Chapter 04: Variables and Assignment](04-variables-and-assignment.md)
-- [Chapter 05: Operators and Expressions](05-operators-and-expressions.md)
-- [Chapter 06: Arrays and Objects](06-arrays-and-objects.md)
-- [Chapter 07: String Manipulation](07-string-manipulation.md)
-
-**Part 3: Control Flow** (3 chapters)
-
-- [Chapter 08: Conditionals](08-conditionals.md)
-- [Chapter 09: Loops](09-loops.md)
-- [Chapter 10: Error Handling](10-error-handling.md)
-
-**Part 4: Functions & Reusability** (2 chapters)
-
-- [Chapter 11: Tool Declarations](11-tool-declarations.md)
-- [Chapter 12: Tool Calls and Composition](12-tool-calls-and-composition.md)
-
-**Part 5: External Integration** (4 chapters)
-
-- [Chapter 13: Environment Variables](13-environment-variables.md)
-- [Chapter 14: MCP Servers](14-mcp-servers.md)
-- [Chapter 15: MCP Tool Invocation](15-mcp-tool-invocation.md)
-- [Chapter 16: Shell Commands](16-shell-commands.md)
-
-**Part 6: AI Agents** (3 chapters)
-
-- [Chapter 17: Model Declarations](17-model-declarations.md)
-- [Chapter 18: Agent Declarations](18-agent-declarations.md)
-- [Chapter 19: Conversations and Pipes](19-conversations-and-pipes.md)
-
-**Part 7: Reference** (3 chapters)
-
-- [Chapter 20: Debugging and Troubleshooting](20-debugging-and-troubleshooting.md)
-- [Chapter 21: Built-in Functions](21-builtin-functions.md)
-- [Chapter 22: Syntax Quick Reference](22-syntax-quick-reference.md)
-
-Each chapter builds on previous ones. You'll write your first script in Chapter 02, and by Chapter 19 you'll be orchestrating multi-agent workflows with MCP tools and AI models.
-
-## A Real Example
-
-Here's a complete (simple) script that showcases several concepts:
-
-```gsh
-#!/usr/bin/env gsh
-
-# Declare a tool to format a greeting
-tool makeGreeting(name: string, emoji: string): string {
-    return `${emoji} Hello, ${name}!`
-}
-
-# Use the tool
-greeting = makeGreeting("Alice", "👋")
-print(greeting)
-
-# Access environment
-home = env.HOME
-print(`Your home directory: ${home}`)
-
-# Handle errors
-try {
-    result = exec("whoami")
-    user = result.stdout
-    print(`Current user: ${user}`)
-} catch (error) {
-    print(`Error: ${error.message}`)
-}
-```
-
-When you run this script with `gsh example.gsh`, it will:
-
-1. Define a tool
-2. Call it and print the result
-3. Access an environment variable
-4. Execute a shell command and use its output
-
-All with type safety and clear error handling.
+For the complete structure and learning path for this guide, see the [README](README.md).
 
 ## What's Next?
 

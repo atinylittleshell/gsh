@@ -214,6 +214,18 @@ func (p *OpenAIProvider) ChatCompletion(request ChatRequest) (*ChatResponse, err
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 
+	// Apply custom headers from model config
+	if headersVal, ok := request.Model.Config["headers"]; ok {
+		if headersObj, ok := headersVal.(*ObjectValue); ok {
+			for headerKey := range headersObj.Properties {
+				headerVal := headersObj.GetPropertyValue(headerKey)
+				if headerStr, ok := headerVal.(*StringValue); ok {
+					httpReq.Header.Set(headerKey, headerStr.Value)
+				}
+			}
+		}
+	}
+
 	// Send request
 	resp, err := p.httpClient.Do(httpReq)
 	if err != nil {
@@ -425,6 +437,18 @@ func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callbacks 
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 	httpReq.Header.Set("Accept", "text/event-stream")
+
+	// Apply custom headers from model config
+	if headersVal, ok := request.Model.Config["headers"]; ok {
+		if headersObj, ok := headersVal.(*ObjectValue); ok {
+			for headerKey := range headersObj.Properties {
+				headerVal := headersObj.GetPropertyValue(headerKey)
+				if headerStr, ok := headerVal.(*StringValue); ok {
+					httpReq.Header.Set(headerKey, headerStr.Value)
+				}
+			}
+		}
+	}
 
 	// Send request
 	resp, err := p.httpClient.Do(httpReq)

@@ -1,6 +1,6 @@
 // Package config provides configuration management for the gsh REPL.
-// It handles loading and parsing of .gshrc.gsh configuration files,
-// mapping configuration values to the Config struct, and maintaining
+// It handles loading and parsing of ~/.gsh/repl.gsh configuration files,
+// extracting declarations (models, agents, tools, MCP servers), and maintaining
 // backward compatibility with bash-style .gshrc files.
 package config
 
@@ -9,36 +9,11 @@ import (
 	"github.com/atinylittleshell/gsh/internal/script/mcp"
 )
 
-// Config holds all REPL configuration extracted from GSH_CONFIG and declarations.
-// Configuration can come from .gshrc.gsh files (gsh format) or environment variables
-// (for backward compatibility with bash-style .gshrc files).
+// Config holds all REPL configuration extracted from declarations in ~/.gsh/repl.gsh.
+// Configuration values like logging level, prompt, model tiers, and event handlers are now
+// managed via the SDK (gsh.* properties and gsh.on() event handlers).
 type Config struct {
-	// Prompt configuration (from GSH_CONFIG.prompt)
-	Prompt string
-
-	// LogLevel controls logging verbosity (from GSH_CONFIG.logLevel)
-	LogLevel string
-
-	// StarshipIntegration controls whether gsh automatically integrates with starship
-	// when it's detected in PATH. Defaults to true. Set to false in GSH_CONFIG to disable.
-	StarshipIntegration *bool
-
-	// ShowWelcome controls whether the welcome screen is displayed on startup.
-	// Defaults to true. Set to false in GSH_CONFIG to disable.
-	ShowWelcome *bool
-
-	// PredictModel is the name of the model to use for predictions (from GSH_CONFIG.predictModel)
-	// GSH_CONFIG.predictModel must be a model value reference (e.g., predictModel: myModel), not a string.
-	// This field stores the name of the referenced model.
-	PredictModel string
-
-	// DefaultAgentModel is the name of the model to use for the built-in default agent (from GSH_CONFIG.defaultAgentModel)
-	// GSH_CONFIG.defaultAgentModel must be a model value reference (e.g., defaultAgentModel: myModel), not a string.
-	// This field stores the name of the referenced model.
-	// If empty, the default agent will not be available (no model configured).
-	DefaultAgentModel string
-
-	// All declarations from .gshrc.gsh (using gsh language syntax)
+	// All declarations from ~/.gsh/repl.gsh (using gsh language syntax)
 	// These are available for use in scripts and agent mode
 
 	// MCPServers holds MCP server configurations from `mcp` declarations
@@ -51,16 +26,12 @@ type Config struct {
 	Agents map[string]*interpreter.AgentValue
 
 	// Tools holds tool definitions from `tool` declarations
-	// Reserved tool names:
-	//   - "GSH_PROMPT" - called before each prompt, signature: (exitCode: number, durationMs: number): string
 	Tools map[string]*interpreter.ToolValue
 }
 
 // DefaultConfig returns a Config with default values.
 func DefaultConfig() *Config {
 	return &Config{
-		Prompt:     "gsh> ",
-		LogLevel:   "info",
 		MCPServers: make(map[string]*mcp.MCPServer),
 		Models:     make(map[string]*interpreter.ModelValue),
 		Agents:     make(map[string]*interpreter.AgentValue),
@@ -92,30 +63,6 @@ func (c *Config) GetTool(name string) *interpreter.ToolValue {
 	return c.Tools[name]
 }
 
-// GetUpdatePromptTool returns the GSH_PROMPT tool if configured.
-// This tool is called before each prompt to generate a dynamic prompt string.
-func (c *Config) GetUpdatePromptTool() *interpreter.ToolValue {
-	return c.GetTool("GSH_PROMPT")
-}
-
-// GetPredictModel returns the model configured for predictions.
-// Returns nil if no prediction model is configured or the model doesn't exist.
-func (c *Config) GetPredictModel() *interpreter.ModelValue {
-	if c.PredictModel == "" {
-		return nil
-	}
-	return c.GetModel(c.PredictModel)
-}
-
-// GetDefaultAgentModel returns the model configured for the built-in default agent.
-// Returns nil if no default agent model is configured or the model doesn't exist.
-func (c *Config) GetDefaultAgentModel() *interpreter.ModelValue {
-	if c.DefaultAgentModel == "" {
-		return nil
-	}
-	return c.GetModel(c.DefaultAgentModel)
-}
-
 // GetMCPServer returns an MCP server by name, or nil if not found.
 func (c *Config) GetMCPServer(name string) *mcp.MCPServer {
 	if c.MCPServers == nil {
@@ -124,37 +71,13 @@ func (c *Config) GetMCPServer(name string) *mcp.MCPServer {
 	return c.MCPServers[name]
 }
 
-// StarshipIntegrationEnabled returns whether starship integration is enabled.
-// Returns true by default (when StarshipIntegration is nil or explicitly true).
-func (c *Config) StarshipIntegrationEnabled() bool {
-	if c.StarshipIntegration == nil {
-		return true // Default to enabled
-	}
-	return *c.StarshipIntegration
-}
-
-// ShowWelcomeEnabled returns whether the welcome screen should be shown on startup.
-// Returns true by default (when ShowWelcome is nil or explicitly true).
-func (c *Config) ShowWelcomeEnabled() bool {
-	if c.ShowWelcome == nil {
-		return true // Default to enabled
-	}
-	return *c.ShowWelcome
-}
-
 // Clone creates a deep copy of the Config.
 func (c *Config) Clone() *Config {
 	clone := &Config{
-		Prompt:              c.Prompt,
-		LogLevel:            c.LogLevel,
-		StarshipIntegration: c.StarshipIntegration,
-		ShowWelcome:         c.ShowWelcome,
-		PredictModel:        c.PredictModel,
-		DefaultAgentModel:   c.DefaultAgentModel,
-		MCPServers:          make(map[string]*mcp.MCPServer, len(c.MCPServers)),
-		Models:              make(map[string]*interpreter.ModelValue, len(c.Models)),
-		Agents:              make(map[string]*interpreter.AgentValue, len(c.Agents)),
-		Tools:               make(map[string]*interpreter.ToolValue, len(c.Tools)),
+		MCPServers: make(map[string]*mcp.MCPServer, len(c.MCPServers)),
+		Models:     make(map[string]*interpreter.ModelValue, len(c.Models)),
+		Agents:     make(map[string]*interpreter.AgentValue, len(c.Agents)),
+		Tools:      make(map[string]*interpreter.ToolValue, len(c.Tools)),
 	}
 
 	// Copy maps (shallow copy of values, which are pointers)

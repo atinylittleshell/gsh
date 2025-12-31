@@ -11,7 +11,7 @@ model exampleModel {
     provider: "openai",
     apiKey: "ollama",
     baseURL: "http://localhost:11434/v1",
-    model: "devstral-small-2",
+    model: "gpt-oss:20b",
 }
 ```
 
@@ -45,7 +45,7 @@ When adding new UI elements:
 When modifying agent rendering (tool status, exec output, headers/footers), there are **two places** that need to be updated:
 
 1. **Go fallback code** in `internal/repl/render/renderer.go` - used when hooks fail or return empty
-2. **Default hook implementations** in `cmd/gsh/.gshrc.default.gsh` - the actual default behavior users see
+2. **Default hook implementations** in `cmd/gsh/defaults/` - the actual default behavior users see (modular structure with `init.gsh` as entry point)
 
 Both should produce the same output format to maintain consistency.
 
@@ -126,13 +126,13 @@ When debugging event handler issues, trace the full event flow in `agent_loop.go
 The interpreter (`internal/script/interpreter/`) should be **tool-agnostic**. It should not contain special-case logic for specific tools like "exec", "grep", or "view_file".
 
 - **Interpreter responsibility:** Emit generic events (`agent.tool.start`, `agent.tool.end`) for ALL tools
-- **REPL/rendering responsibility:** Handle tool-specific rendering in `.gshrc.default.gsh` by checking `ctx.toolCall.name`
+- **REPL/rendering responsibility:** Handle tool-specific rendering in `cmd/gsh/defaults/events/agent.gsh` by checking `ctx.toolCall.name`
 
-This keeps the interpreter clean and allows users to fully customize tool rendering in their own `.gshrc.gsh`.
+This keeps the interpreter clean and allows users to fully customize tool rendering in their own `repl.gsh`.
 
 ## Testing gsh Scripts
 
-When writing gsh scripts (especially in `.gshrc.default.gsh`), test the script logic with a standalone `.gsh` file before assuming language features work. gsh has a JavaScript-like syntax but not all JavaScript features are supported.
+When writing gsh scripts (especially in `cmd/gsh/defaults/`), test the script logic with a standalone `.gsh` file before assuming language features work. gsh has a JavaScript-like syntax but not all JavaScript features are supported.
 
 **Quick test pattern:**
 

@@ -266,11 +266,6 @@ func (ps *PredictionState) OnInputChanged(input string) <-chan PredictionResult 
 	ps.prediction = ""
 	ps.mu.Unlock()
 
-	// Don't predict for agent chat messages
-	if strings.HasPrefix(input, "#") {
-		return nil
-	}
-
 	// Try history-based prediction synchronously (instant feedback)
 	if input != "" && ps.historyProvider != nil {
 		entries, err := ps.historyProvider.GetRecentEntriesByPrefix(input, ps.historyPrefixLimit)

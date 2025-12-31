@@ -72,6 +72,10 @@ func (i *Interpreter) evalStatement(stmt parser.Statement) (Value, error) {
 		return i.evalBlockStatement(node)
 	case *parser.TryStatement:
 		return i.evalTryStatement(node)
+	case *parser.ImportStatement:
+		return i.evalImportStatement(node)
+	case *parser.ExportStatement:
+		return i.evalExportStatement(node)
 	default:
 		return nil, fmt.Errorf("unsupported statement type: %T", stmt)
 	}

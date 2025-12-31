@@ -627,9 +627,6 @@ func TestEnvironmentHelperFunctions(t *testing.T) {
 	// PWD may be empty in test environment without shell initialization
 	assert.IsType(t, "", pwd)
 
-	prompt := GetPrompt(runner, logger)
-	assert.Equal(t, "gsh> ", prompt) // DEFAULT_PROMPT value
-
 	contextWindow := GetAgentContextWindowTokens(runner, logger)
 	assert.Equal(t, 32768, contextWindow)
 
@@ -678,8 +675,6 @@ func TestEnvironmentHelperFunctionsWithCustomValues(t *testing.T) {
 	runner.Vars["GSH_PAST_COMMANDS_CONTEXT_LIMIT"] = expand.Variable{Kind: expand.String, Str: "50"}
 	runner.Vars["GSH_LOG_LEVEL"] = expand.Variable{Kind: expand.String, Str: "debug"}
 	runner.Vars["GSH_CLEAN_LOG_FILE"] = expand.Variable{Kind: expand.String, Str: "true"}
-	runner.Vars["GSH_PROMPT"] = expand.Variable{Kind: expand.String, Str: "custom> "}
-	runner.Vars["GSH_BUILD_VERSION"] = expand.Variable{Kind: expand.String, Str: "dev"}
 	runner.Vars["GSH_AGENT_CONTEXT_WINDOW_TOKENS"] = expand.Variable{Kind: expand.String, Str: "16384"}
 	runner.Vars["GSH_MINIMUM_HEIGHT"] = expand.Variable{Kind: expand.String, Str: "12"}
 	runner.Vars["GSH_AGENT_MACROS"] = expand.Variable{Kind: expand.String, Str: "{\"test\": \"echo test\"}"}
@@ -696,9 +691,6 @@ func TestEnvironmentHelperFunctionsWithCustomValues(t *testing.T) {
 
 	cleanLog := ShouldCleanLogFile(runner)
 	assert.True(t, cleanLog)
-
-	prompt := GetPrompt(runner, logger)
-	assert.Equal(t, "[dev] custom> ", prompt)
 
 	contextWindow := GetAgentContextWindowTokens(runner, logger)
 	assert.Equal(t, 16384, contextWindow)

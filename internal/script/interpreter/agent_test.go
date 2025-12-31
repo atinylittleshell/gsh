@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -416,6 +417,612 @@ func TestAgentDeclarationErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAgentDeclarationWithSDKModelRef(t *testing.T) {
+	// Test that agent declarations with gsh.models.* create SDKModelRef for dynamic resolution
+	t.Run("gsh.models.workhorse creates SDKModelRef", func(t *testing.T) {
+		input := `
+			agent TestAgent {
+				model: gsh.models.workhorse,
+				systemPrompt: "You are helpful",
+			}
+		`
+		l := lexer.New(input)
+		p := parser.New(l)
+		program := p.ParseProgram()
+
+		if len(p.Errors()) > 0 {
+			t.Fatalf("parser errors: %v", p.Errors())
+		}
+
+		interp := New(nil)
+		defer interp.Close()
+
+		// Set up models so gsh.models.* is accessible
+		workhorseModel := &ModelValue{Name: "workhorseModel"}
+		interp.sdkConfig.GetModels().Workhorse = workhorseModel
+
+		result, err := interp.Eval(program)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		agentVal, ok := result.Env.Get("TestAgent")
+		if !ok {
+			t.Fatal("agent 'TestAgent' not found")
+		}
+
+		agent := agentVal.(*AgentValue)
+		model := agent.Config["model"]
+
+		// Should be SDKModelRef, not ModelValue
+		sdkRef, ok := model.(*SDKModelRef)
+		if !ok {
+			t.Fatalf("expected *SDKModelRef, got %T", model)
+		}
+		if sdkRef.Tier != "workhorse" {
+			t.Errorf("expected tier 'workhorse', got %q", sdkRef.Tier)
+		}
+	})
+
+	t.Run("gsh.models.lite creates SDKModelRef", func(t *testing.T) {
+		input := `
+			agent TestAgent {
+				model: gsh.models.lite,
+				systemPrompt: "You are helpful",
+			}
+		`
+		l := lexer.New(input)
+		p := parser.New(l)
+		program := p.ParseProgram()
+
+		if len(p.Errors()) > 0 {
+			t.Fatalf("parser errors: %v", p.Errors())
+		}
+
+		interp := New(nil)
+		defer interp.Close()
+
+		// Set up models so gsh.models.* is accessible
+		liteModel := &ModelValue{Name: "liteModel"}
+		interp.sdkConfig.GetModels().Lite = liteModel
+
+		result, err := interp.Eval(program)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		agentVal, _ := result.Env.Get("TestAgent")
+		agent := agentVal.(*AgentValue)
+		sdkRef, ok := agent.Config["model"].(*SDKModelRef)
+		if !ok {
+			t.Fatalf("expected *SDKModelRef, got %T", agent.Config["model"])
+		}
+		if sdkRef.Tier != "lite" {
+			t.Errorf("expected tier 'lite', got %q", sdkRef.Tier)
+		}
+	})
+
+	t.Run("gsh.models.premium creates SDKModelRef", func(t *testing.T) {
+		input := `
+			agent TestAgent {
+				model: gsh.models.premium,
+				systemPrompt: "You are helpful",
+			}
+		`
+		l := lexer.New(input)
+		p := parser.New(l)
+		program := p.ParseProgram()
+
+		if len(p.Errors()) > 0 {
+			t.Fatalf("parser errors: %v", p.Errors())
+		}
+
+		interp := New(nil)
+		defer interp.Close()
+
+		// Set up models so gsh.models.* is accessible
+		premiumModel := &ModelValue{Name: "premiumModel"}
+		interp.sdkConfig.GetModels().Premium = premiumModel
+
+		result, err := interp.Eval(program)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		agentVal, _ := result.Env.Get("TestAgent")
+		agent := agentVal.(*AgentValue)
+		sdkRef, ok := agent.Config["model"].(*SDKModelRef)
+		if !ok {
+			t.Fatalf("expected *SDKModelRef, got %T", agent.Config["model"])
+		}
+		if sdkRef.Tier != "premium" {
+			t.Errorf("expected tier 'premium', got %q", sdkRef.Tier)
+		}
+	})
+
+	t.Run("direct model reference creates ModelValue (static)", func(t *testing.T) {
+		input := `
+			model myModel {
+				provider: "openai",
+				apiKey: "test-key",
+				model: "gpt-4o",
+			}
+			agent TestAgent {
+				model: myModel,
+				systemPrompt: "You are helpful",
+			}
+		`
+		l := lexer.New(input)
+		p := parser.New(l)
+		program := p.ParseProgram()
+
+		if len(p.Errors()) > 0 {
+			t.Fatalf("parser errors: %v", p.Errors())
+		}
+
+		interp := New(nil)
+		defer interp.Close()
+
+		result, err := interp.Eval(program)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		agentVal, _ := result.Env.Get("TestAgent")
+		agent := agentVal.(*AgentValue)
+
+		// Should be ModelValue, not SDKModelRef
+		modelVal, ok := agent.Config["model"].(*ModelValue)
+		if !ok {
+			t.Fatalf("expected *ModelValue for direct model reference, got %T", agent.Config["model"])
+		}
+		if modelVal.Name != "myModel" {
+			t.Errorf("expected model name 'myModel', got %q", modelVal.Name)
+		}
+	})
+
+	t.Run("SDKModelRef resolves dynamically via ModelResolver interface", func(t *testing.T) {
+		input := `
+			agent TestAgent {
+				model: gsh.models.workhorse,
+				systemPrompt: "You are helpful",
+			}
+		`
+		l := lexer.New(input)
+		p := parser.New(l)
+		program := p.ParseProgram()
+
+		if len(p.Errors()) > 0 {
+			t.Fatalf("parser errors: %v", p.Errors())
+		}
+
+		interp := New(nil)
+		defer interp.Close()
+
+		// Set up initial model in SDK context
+		initialModel := &ModelValue{Name: "initialModel"}
+		models := interp.sdkConfig.GetModels()
+		models.Workhorse = initialModel
+
+		result, err := interp.Eval(program)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		agentVal, _ := result.Env.Get("TestAgent")
+		agent := agentVal.(*AgentValue)
+
+		// Get the model resolver
+		resolver, ok := agent.Config["model"].(ModelResolver)
+		if !ok {
+			t.Fatalf("expected model to implement ModelResolver, got %T", agent.Config["model"])
+		}
+
+		// First resolution should return the initial model
+		resolved1 := resolver.GetModel()
+		if resolved1 != initialModel {
+			t.Errorf("first resolution: expected %v, got %v", initialModel, resolved1)
+		}
+
+		// Change the model in the tier
+		newModel := &ModelValue{Name: "newModel"}
+		models.Workhorse = newModel
+
+		// Second resolution should return the new model (dynamic!)
+		resolved2 := resolver.GetModel()
+		if resolved2 != newModel {
+			t.Errorf("second resolution: expected %v, got %v", newModel, resolved2)
+		}
+
+		// Verify we got different models
+		if resolved1 == resolved2 {
+			t.Error("expected different models after tier change - dynamic resolution failed")
+		}
+	})
+
+	t.Run("direct ModelValue does not change when gsh.models changes", func(t *testing.T) {
+		input := `
+			model myModel {
+				provider: "openai",
+				apiKey: "test-key",
+				model: "gpt-4o",
+			}
+			agent TestAgent {
+				model: myModel,
+				systemPrompt: "You are helpful",
+			}
+		`
+		l := lexer.New(input)
+		p := parser.New(l)
+		program := p.ParseProgram()
+
+		if len(p.Errors()) > 0 {
+			t.Fatalf("parser errors: %v", p.Errors())
+		}
+
+		interp := New(nil)
+		defer interp.Close()
+
+		// Models are already initialized in SDKConfig
+		models := interp.sdkConfig.GetModels()
+
+		result, err := interp.Eval(program)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		agentVal, _ := result.Env.Get("TestAgent")
+		agent := agentVal.(*AgentValue)
+
+		// Get the model resolver (ModelValue also implements ModelResolver)
+		resolver, ok := agent.Config["model"].(ModelResolver)
+		if !ok {
+			t.Fatalf("expected model to implement ModelResolver, got %T", agent.Config["model"])
+		}
+
+		// First resolution
+		resolved1 := resolver.GetModel()
+
+		// Change gsh.models.workhorse (should NOT affect this agent)
+		models.Workhorse = &ModelValue{Name: "differentModel"}
+
+		// Second resolution should return the SAME model (static)
+		resolved2 := resolver.GetModel()
+
+		if resolved1 != resolved2 {
+			t.Error("expected same model for direct ModelValue assignment - should be static")
+		}
+		if resolved1.Name != "myModel" {
+			t.Errorf("expected model name 'myModel', got %q", resolved1.Name)
+		}
+	})
+}
+
+// mockModelProvider records calls to verify which model was used
+type mockModelProvider struct {
+	name            string
+	calledWithModel string
+}
+
+func (m *mockModelProvider) Name() string { return m.name }
+
+func (m *mockModelProvider) ChatCompletion(request ChatRequest) (*ChatResponse, error) {
+	// Record which model was used
+	m.calledWithModel = request.Model.Name
+	return &ChatResponse{
+		Content:      "mock response",
+		FinishReason: "stop",
+	}, nil
+}
+
+func (m *mockModelProvider) StreamingChatCompletion(request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error) {
+	// Record which model was used
+	m.calledWithModel = request.Model.Name
+	return &ChatResponse{
+		Content:      "mock response",
+		FinishReason: "stop",
+	}, nil
+}
+
+func TestAgentModelResolution_RuntimeChange(t *testing.T) {
+	// Integration test: verify that changing gsh.models.workhorse at runtime
+	// affects agents declared with model: gsh.models.workhorse
+	t.Run("agent sees model change made via gsh script", func(t *testing.T) {
+		// This script:
+		// 1. Sets up initial model in gsh.models.workhorse
+		// 2. Declares an agent using gsh.models.workhorse
+		// 3. Changes gsh.models.workhorse to a different model
+		// 4. The agent should resolve to the NEW model
+		input := `
+			model initialModel {
+				provider: "openai",
+				apiKey: "test-key",
+				model: "gpt-4o-mini",
+			}
+			model newModel {
+				provider: "openai",
+				apiKey: "test-key",
+				model: "gpt-4-turbo",
+			}
+			
+			# Set initial model
+			gsh.models.workhorse = initialModel
+			
+			# Declare agent - captures SDKModelRef, not the current ModelValue
+			agent MyAgent {
+				model: gsh.models.workhorse,
+				systemPrompt: "You are helpful",
+			}
+			
+			# Change the model AFTER agent declaration
+			gsh.models.workhorse = newModel
+		`
+		l := lexer.New(input)
+		p := parser.New(l)
+		program := p.ParseProgram()
+
+		if len(p.Errors()) > 0 {
+			t.Fatalf("parser errors: %v", p.Errors())
+		}
+
+		interp := New(nil)
+		defer interp.Close()
+
+		// Models are already initialized in SDKConfig (will be filled by script)
+		models := interp.sdkConfig.GetModels()
+
+		result, err := interp.Eval(program)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Get the agent
+		agentVal, ok := result.Env.Get("MyAgent")
+		if !ok {
+			t.Fatal("agent 'MyAgent' not found")
+		}
+		agent := agentVal.(*AgentValue)
+
+		// Get the model resolver from the agent
+		resolver, ok := agent.Config["model"].(ModelResolver)
+		if !ok {
+			t.Fatalf("expected model to implement ModelResolver, got %T", agent.Config["model"])
+		}
+
+		// Resolve the model - should get the NEW model (newModel), not initialModel
+		resolvedModel := resolver.GetModel()
+		if resolvedModel == nil {
+			t.Fatal("resolved model is nil")
+		}
+
+		// Verify it's the new model, not the initial model
+		if resolvedModel.Name != "newModel" {
+			t.Errorf("expected agent to resolve to 'newModel' after runtime change, got %q", resolvedModel.Name)
+		}
+
+		// Verify gsh.models.workhorse is indeed newModel
+		if models.Workhorse == nil {
+			t.Fatal("gsh.models.workhorse is nil")
+		}
+		if models.Workhorse.Name != "newModel" {
+			t.Errorf("expected gsh.models.workhorse to be 'newModel', got %q", models.Workhorse.Name)
+		}
+
+		// Double-check: resolvedModel should be the same instance as gsh.models.workhorse
+		if resolvedModel != models.Workhorse {
+			t.Error("resolved model should be the same instance as gsh.models.workhorse")
+		}
+	})
+
+	t.Run("direct model assignment is not affected by gsh.models changes", func(t *testing.T) {
+		// This script:
+		// 1. Declares a model and assigns it directly to an agent
+		// 2. Changes gsh.models.workhorse
+		// 3. The agent should still use the original direct model
+		input := `
+			model directModel {
+				provider: "openai",
+				apiKey: "test-key",
+				model: "gpt-4o",
+			}
+			model otherModel {
+				provider: "openai",
+				apiKey: "test-key",
+				model: "gpt-4-turbo",
+			}
+			
+			# Declare agent with DIRECT model assignment
+			agent MyAgent {
+				model: directModel,
+				systemPrompt: "You are helpful",
+			}
+			
+			# Change gsh.models.workhorse - should NOT affect the agent
+			gsh.models.workhorse = otherModel
+		`
+		l := lexer.New(input)
+		p := parser.New(l)
+		program := p.ParseProgram()
+
+		if len(p.Errors()) > 0 {
+			t.Fatalf("parser errors: %v", p.Errors())
+		}
+
+		interp := New(nil)
+		defer interp.Close()
+
+		// Models are already initialized in SDKConfig
+		models := interp.sdkConfig.GetModels()
+
+		result, err := interp.Eval(program)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		agentVal, _ := result.Env.Get("MyAgent")
+		agent := agentVal.(*AgentValue)
+
+		resolver, ok := agent.Config["model"].(ModelResolver)
+		if !ok {
+			t.Fatalf("expected model to implement ModelResolver, got %T", agent.Config["model"])
+		}
+
+		resolvedModel := resolver.GetModel()
+
+		// Should still be directModel, NOT otherModel
+		if resolvedModel.Name != "directModel" {
+			t.Errorf("expected agent to still use 'directModel', got %q", resolvedModel.Name)
+		}
+
+		// Verify gsh.models.workhorse is otherModel (changed by script)
+		if models.Workhorse.Name != "otherModel" {
+			t.Errorf("expected gsh.models.workhorse to be 'otherModel', got %q", models.Workhorse.Name)
+		}
+	})
+
+	t.Run("multiple agents with same SDK model ref all see the change", func(t *testing.T) {
+		input := `
+			model model1 {
+				provider: "openai",
+				apiKey: "test-key",
+				model: "model-1",
+			}
+			model model2 {
+				provider: "openai",
+				apiKey: "test-key",
+				model: "model-2",
+			}
+			
+			gsh.models.workhorse = model1
+			
+			# Both agents use gsh.models.workhorse
+			agent Agent1 {
+				model: gsh.models.workhorse,
+				systemPrompt: "Agent 1",
+			}
+			agent Agent2 {
+				model: gsh.models.workhorse,
+				systemPrompt: "Agent 2",
+			}
+			
+			# Change the model
+			gsh.models.workhorse = model2
+		`
+		l := lexer.New(input)
+		p := parser.New(l)
+		program := p.ParseProgram()
+
+		if len(p.Errors()) > 0 {
+			t.Fatalf("parser errors: %v", p.Errors())
+		}
+
+		interp := New(nil)
+		defer interp.Close()
+
+		// Models are already initialized in SDKConfig
+
+		result, err := interp.Eval(program)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Both agents should resolve to model2
+		agent1Val, _ := result.Env.Get("Agent1")
+		agent1 := agent1Val.(*AgentValue)
+		resolver1 := agent1.Config["model"].(ModelResolver)
+
+		agent2Val, _ := result.Env.Get("Agent2")
+		agent2 := agent2Val.(*AgentValue)
+		resolver2 := agent2.Config["model"].(ModelResolver)
+
+		resolved1 := resolver1.GetModel()
+		resolved2 := resolver2.GetModel()
+
+		if resolved1.Name != "model2" {
+			t.Errorf("Agent1 expected to resolve to 'model2', got %q", resolved1.Name)
+		}
+		if resolved2.Name != "model2" {
+			t.Errorf("Agent2 expected to resolve to 'model2', got %q", resolved2.Name)
+		}
+
+		// Both should resolve to the exact same instance
+		if resolved1 != resolved2 {
+			t.Error("both agents should resolve to the same model instance")
+		}
+	})
+
+	t.Run("agent LLM call uses dynamically resolved model", func(t *testing.T) {
+		// This is the true E2E test: verify that when the agent actually makes
+		// an LLM call, it uses the model that was set AFTER agent declaration
+
+		// Create mock provider that records which model was used
+		mockProvider := &mockModelProvider{name: "mock"}
+
+		// Create two models with the same mock provider
+		model1 := &ModelValue{
+			Name:     "model1",
+			Provider: mockProvider,
+			Config:   map[string]Value{},
+		}
+		model2 := &ModelValue{
+			Name:     "model2",
+			Provider: mockProvider,
+			Config:   map[string]Value{},
+		}
+
+		interp := New(nil)
+		defer interp.Close()
+
+		// Set up models (available in both REPL and script mode now)
+		models := interp.sdkConfig.GetModels()
+		models.Workhorse = model1 // Start with model1
+
+		// Declare agent that uses gsh.models.workhorse
+		input := `
+			agent TestAgent {
+				model: gsh.models.workhorse,
+				systemPrompt: "You are helpful",
+			}
+		`
+		l := lexer.New(input)
+		p := parser.New(l)
+		program := p.ParseProgram()
+
+		if len(p.Errors()) > 0 {
+			t.Fatalf("parser errors: %v", p.Errors())
+		}
+
+		result, err := interp.Eval(program)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		agentVal, _ := result.Env.Get("TestAgent")
+		agent := agentVal.(*AgentValue)
+
+		// NOW change the model AFTER agent declaration
+		models.Workhorse = model2
+
+		// Execute the agent - this should use model2, not model1
+		conv := &ConversationValue{
+			Messages: []ChatMessage{
+				{Role: "user", Content: "hello"},
+			},
+		}
+
+		ctx := context.Background()
+		_, err = interp.ExecuteAgent(ctx, conv, agent, false)
+		if err != nil {
+			t.Fatalf("agent execution failed: %v", err)
+		}
+
+		// Verify the mock provider was called with model2
+		if mockProvider.calledWithModel != "model2" {
+			t.Errorf("expected LLM call to use 'model2', but was called with %q", mockProvider.calledWithModel)
+		}
+	})
 }
 
 func TestAgentValueMethods(t *testing.T) {

@@ -30,6 +30,10 @@ func (p *Parser) parseStatement() Statement {
 		return p.parseReturnStatement()
 	case lexer.KW_TRY:
 		return p.parseTryStatement()
+	case lexer.KW_IMPORT:
+		return p.parseImportStatement()
+	case lexer.KW_EXPORT:
+		return p.parseExportStatement()
 	}
 
 	// Check if this is an assignment (identifier followed by '=' or ':')
@@ -312,9 +316,13 @@ func (p *Parser) parseContinueStatement() Statement {
 // parseReturnStatement parses a return statement
 func (p *Parser) parseReturnStatement() Statement {
 	stmt := &ReturnStatement{Token: p.curToken}
+	returnLine := p.curToken.Line
 
-	// Check if there's a return value
-	if !p.peekTokenIs(lexer.SEMICOLON) && !p.peekTokenIs(lexer.RBRACE) && !p.peekTokenIs(lexer.EOF) {
+	// Check if there's a return value on the same line
+	// A bare "return" on its own line has no return value
+	// Since gsh uses newlines as statement separators (not semicolons),
+	// we check if the next token is on the same line
+	if !p.peekTokenIs(lexer.RBRACE) && !p.peekTokenIs(lexer.EOF) && p.peekToken.Line == returnLine {
 		p.nextToken() // move to return value expression
 		stmt.ReturnValue = p.parseExpression(LOWEST)
 	}
@@ -416,4 +424,129 @@ func (p *Parser) parseFinallyClause() *FinallyClause {
 	}
 
 	return clause
+}
+
+// parseImportStatement parses an import statement
+// Syntax: import "./path.gsh" or import { a, b } from "./path.gsh"
+func (p *Parser) parseImportStatement() Statement {
+	stmt := &ImportStatement{Token: p.curToken}
+
+	// Check for selective import: import { ... } from "..."
+	if p.peekTokenIs(lexer.LBRACE) {
+		p.nextToken() // consume 'import', now on '{'
+		p.nextToken() // consume '{', now on first symbol or '}'
+
+		// Parse symbol list
+		for !p.curTokenIs(lexer.RBRACE) && !p.curTokenIs(lexer.EOF) {
+			if !p.curTokenIs(lexer.IDENT) {
+				tokenDesc := formatTokenType(p.curToken.Type)
+				p.addError("expected identifier in import list, got %s (line %d, column %d)",
+					tokenDesc, p.curToken.Line, p.curToken.Column)
+				return nil
+			}
+			stmt.Symbols = append(stmt.Symbols, p.curToken.Literal)
+			p.nextToken() // consume identifier
+
+			// Check for comma or closing brace
+			if p.curTokenIs(lexer.COMMA) {
+				p.nextToken() // consume ','
+			} else if !p.curTokenIs(lexer.RBRACE) {
+				tokenDesc := formatTokenType(p.curToken.Type)
+				p.addError("expected ',' or '}' in import list, got %s (line %d, column %d)",
+					tokenDesc, p.curToken.Line, p.curToken.Column)
+				return nil
+			}
+		}
+
+		if !p.curTokenIs(lexer.RBRACE) {
+			p.addError("expected '}' to close import list (line %d, column %d)",
+				p.curToken.Line, p.curToken.Column)
+			return nil
+		}
+
+		// Expect 'from' keyword
+		if !p.expectPeek(lexer.KW_FROM) {
+			return nil
+		}
+	}
+
+	// Expect string literal for path
+	if !p.expectPeek(lexer.STRING) {
+		return nil
+	}
+
+	stmt.Path = &StringLiteral{Token: p.curToken, Value: p.curToken.Literal}
+
+	return stmt
+}
+
+// parseExportStatement parses an export statement
+// Syntax: export <declaration> where declaration is tool, variable assignment, etc.
+func (p *Parser) parseExportStatement() Statement {
+	stmt := &ExportStatement{Token: p.curToken}
+
+	p.nextToken() // consume 'export', now on the declaration
+
+	// Parse the declaration being exported
+	switch p.curToken.Type {
+	case lexer.KW_TOOL:
+		decl := p.parseToolDeclaration()
+		if decl == nil {
+			return nil
+		}
+		stmt.Declaration = decl
+		if toolDecl, ok := decl.(*ToolDeclaration); ok {
+			stmt.Name = toolDecl.Name.Value
+		}
+	case lexer.KW_MODEL:
+		decl := p.parseModelDeclaration()
+		if decl == nil {
+			return nil
+		}
+		stmt.Declaration = decl
+		if modelDecl, ok := decl.(*ModelDeclaration); ok {
+			stmt.Name = modelDecl.Name.Value
+		}
+	case lexer.KW_AGENT:
+		decl := p.parseAgentDeclaration()
+		if decl == nil {
+			return nil
+		}
+		stmt.Declaration = decl
+		if agentDecl, ok := decl.(*AgentDeclaration); ok {
+			stmt.Name = agentDecl.Name.Value
+		}
+	case lexer.KW_MCP:
+		decl := p.parseMcpDeclaration()
+		if decl == nil {
+			return nil
+		}
+		stmt.Declaration = decl
+		if mcpDecl, ok := decl.(*McpDeclaration); ok {
+			stmt.Name = mcpDecl.Name.Value
+		}
+	case lexer.IDENT:
+		// Variable assignment: export myVar = value
+		if p.peekTokenIs(lexer.OP_ASSIGN) || p.peekTokenIs(lexer.COLON) {
+			decl := p.parseAssignmentStatement()
+			if decl == nil {
+				return nil
+			}
+			stmt.Declaration = decl
+			if assignStmt, ok := decl.(*AssignmentStatement); ok && assignStmt.Name != nil {
+				stmt.Name = assignStmt.Name.Value
+			}
+		} else {
+			p.addError("expected '=' after identifier in export statement (line %d, column %d)",
+				p.curToken.Line, p.curToken.Column)
+			return nil
+		}
+	default:
+		tokenDesc := formatTokenType(p.curToken.Type)
+		p.addError("unexpected token after 'export': %s (line %d, column %d). Expected 'tool', 'model', 'agent', 'mcp', or identifier",
+			tokenDesc, p.curToken.Line, p.curToken.Column)
+		return nil
+	}
+
+	return stmt
 }

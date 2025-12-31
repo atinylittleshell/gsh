@@ -46,19 +46,18 @@ func TestNewPrefixPredictor(t *testing.T) {
 		assert.NotNil(t, predictor)
 		assert.NotNil(t, predictor.logger)
 		assert.NotNil(t, predictor.formatter)
-		assert.Nil(t, predictor.model)
+		assert.Nil(t, predictor.modelResolver)
 	})
 
-	t.Run("with model", func(t *testing.T) {
+	t.Run("with model resolver", func(t *testing.T) {
 		provider := &mockModelProvider{}
 		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model: model,
+			ModelResolver: model,
 		})
 
-		assert.Equal(t, model, predictor.model)
-		assert.Equal(t, provider, predictor.model.Provider)
+		assert.Equal(t, model, predictor.modelResolver)
 	})
 
 	t.Run("with custom formatter", func(t *testing.T) {
@@ -93,7 +92,7 @@ func TestPrefixPredictor_Predict(t *testing.T) {
 		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model: model,
+			ModelResolver: model,
 		})
 
 		result, err := predictor.Predict(context.Background(), "")
@@ -107,7 +106,7 @@ func TestPrefixPredictor_Predict(t *testing.T) {
 		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model: model,
+			ModelResolver: model,
 		})
 
 		result, err := predictor.Predict(context.Background(), "#hello")
@@ -133,7 +132,7 @@ func TestPrefixPredictor_Predict(t *testing.T) {
 		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model: model,
+			ModelResolver: model,
 		})
 
 		result, err := predictor.Predict(context.Background(), "git")
@@ -152,7 +151,7 @@ func TestPrefixPredictor_Predict(t *testing.T) {
 		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model: model,
+			ModelResolver: model,
 		})
 
 		predictor.UpdateContext(map[string]string{
@@ -173,7 +172,7 @@ func TestPrefixPredictor_Predict(t *testing.T) {
 		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model: model,
+			ModelResolver: model,
 		})
 
 		_, err := predictor.Predict(context.Background(), "git")
@@ -190,7 +189,7 @@ func TestPrefixPredictor_Predict(t *testing.T) {
 		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model: model,
+			ModelResolver: model,
 		})
 
 		result, err := predictor.Predict(context.Background(), "git")
@@ -207,7 +206,7 @@ func TestPrefixPredictor_Predict(t *testing.T) {
 		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model: model,
+			ModelResolver: model,
 		})
 
 		result, err := predictor.Predict(context.Background(), "git")
@@ -224,7 +223,7 @@ func TestPrefixPredictor_Predict(t *testing.T) {
 		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model: model,
+			ModelResolver: model,
 		})
 
 		result, err := predictor.Predict(context.Background(), "git")
@@ -241,7 +240,7 @@ func TestPrefixPredictor_Predict(t *testing.T) {
 		model := &interpreter.ModelValue{Name: "test-model", Provider: provider}
 
 		predictor := NewPrefixPredictor(PrefixPredictorConfig{
-			Model: model,
+			ModelResolver: model,
 		})
 
 		result, err := predictor.Predict(context.Background(), "git push")

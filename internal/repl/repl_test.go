@@ -2,7 +2,6 @@ package repl
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -13,8 +12,6 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	// Import all subpackages to verify the directory structure is correct
-	"fmt"
-	"github.com/atinylittleshell/gsh/internal/repl/agent"
 	_ "github.com/atinylittleshell/gsh/internal/repl/completion"
 	_ "github.com/atinylittleshell/gsh/internal/repl/config"
 	_ "github.com/atinylittleshell/gsh/internal/repl/context"
@@ -37,7 +34,7 @@ func TestNewREPL_DefaultOptions(t *testing.T) {
 	historyPath := filepath.Join(tmpDir, "history.db")
 
 	// Create a non-existent config path to use defaults
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	logger := zaptest.NewLogger(t)
 
@@ -50,9 +47,8 @@ func TestNewREPL_DefaultOptions(t *testing.T) {
 	require.NotNil(t, repl)
 	defer repl.Close()
 
-	// Verify default config was loaded
-	assert.Equal(t, "gsh> ", repl.Config().Prompt)
-	assert.Equal(t, "info", repl.Config().LogLevel)
+	// Verify default config was loaded (Config now only holds declarations)
+	assert.NotNil(t, repl.Config())
 
 	// Verify executor was created
 	assert.NotNil(t, repl.Executor())
@@ -64,38 +60,34 @@ func TestNewREPL_DefaultOptions(t *testing.T) {
 func TestNewREPL_WithConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "test.gshrc.gsh")
-
-	// Create a test config file
-	configContent := `
-GSH_CONFIG = {
-	prompt: "test> ",
-	logLevel: "debug",
-}
-`
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
-	require.NoError(t, err)
 
 	logger := zaptest.NewLogger(t)
 
+	// Use DefaultConfigContent to set up SDK config
+	defaultConfig := `
+model testModel {
+	provider: "openai",
+	model: "gpt-4",
+}
+`
+
 	repl, err := NewREPL(Options{
-		ConfigPath:  configPath,
-		HistoryPath: historyPath,
-		Logger:      logger,
+		DefaultConfigContent: defaultConfig,
+		HistoryPath:          historyPath,
+		Logger:               logger,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, repl)
 	defer repl.Close()
 
-	// Verify custom config was loaded
-	assert.Equal(t, "test> ", repl.Config().Prompt)
-	assert.Equal(t, "debug", repl.Config().LogLevel)
+	// Verify model was loaded
+	assert.NotNil(t, repl.Config().GetModel("testModel"))
 }
 
 func TestNewREPL_NilLogger(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	// Should not panic with nil logger
 	repl, err := NewREPL(Options{
@@ -111,7 +103,7 @@ func TestNewREPL_NilLogger(t *testing.T) {
 func TestREPL_HandleBuiltinCommand_Exit(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	repl, err := NewREPL(Options{
 		ConfigPath:  configPath,
@@ -135,7 +127,7 @@ func TestREPL_HandleBuiltinCommand_Exit(t *testing.T) {
 func TestREPL_ProcessCommand_Empty(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	repl, err := NewREPL(Options{
 		ConfigPath:  configPath,
@@ -159,7 +151,7 @@ func TestREPL_ProcessCommand_Empty(t *testing.T) {
 func TestREPL_ProcessCommand_Echo(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	repl, err := NewREPL(Options{
 		ConfigPath:  configPath,
@@ -182,7 +174,7 @@ func TestREPL_ProcessCommand_Echo(t *testing.T) {
 func TestREPL_ProcessCommand_RecordsHistory(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	repl, err := NewREPL(Options{
 		ConfigPath:  configPath,
@@ -210,7 +202,7 @@ func TestREPL_ProcessCommand_RecordsHistory(t *testing.T) {
 func TestREPL_ProcessCommand_FailingCommand(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	repl, err := NewREPL(Options{
 		ConfigPath:  configPath,
@@ -240,7 +232,7 @@ func TestREPL_ProcessCommand_FailingCommand(t *testing.T) {
 func TestREPL_GetHistoryValues(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	repl, err := NewREPL(Options{
 		ConfigPath:  configPath,
@@ -270,33 +262,31 @@ func TestREPL_GetHistoryValues(t *testing.T) {
 func TestREPL_GetPrompt(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "test.gshrc.gsh")
 
-	// Create a test config file with custom prompt
-	configContent := `
-GSH_CONFIG = {
-	prompt: "custom> ",
+	// Use DefaultConfigContent to set up SDK config with custom prompt via event handler
+	defaultConfig := `
+tool onPrompt(ctx) {
+	gsh.prompt = "custom> "
 }
+gsh.on("repl.prompt", onPrompt)
 `
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
-	require.NoError(t, err)
 
 	repl, err := NewREPL(Options{
-		ConfigPath:  configPath,
-		HistoryPath: historyPath,
-		Logger:      zap.NewNop(),
+		DefaultConfigContent: defaultConfig,
+		HistoryPath:          historyPath,
+		Logger:               zap.NewNop(),
 	})
 	require.NoError(t, err)
 	defer repl.Close()
 
-	// Verify prompt
+	// Verify prompt is set by the event handler
 	assert.Equal(t, "custom> ", repl.getPrompt())
 }
 
 func TestREPL_Close(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	repl, err := NewREPL(Options{
 		ConfigPath:  configPath,
@@ -313,7 +303,7 @@ func TestREPL_Close(t *testing.T) {
 func TestREPL_Run_ContextCancellation(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	repl, err := NewREPL(Options{
 		ConfigPath:  configPath,
@@ -335,7 +325,7 @@ func TestREPL_Run_ContextCancellation(t *testing.T) {
 func TestREPL_ProcessCommand_TracksDuration(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	repl, err := NewREPL(Options{
 		ConfigPath:  configPath,
@@ -370,7 +360,7 @@ func TestREPL_ProcessCommand_TracksDuration(t *testing.T) {
 func TestREPL_HandleBuiltinCommand_Clear(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	repl, err := NewREPL(Options{
 		ConfigPath:  configPath,
@@ -389,7 +379,7 @@ func TestREPL_HandleBuiltinCommand_Clear(t *testing.T) {
 func TestREPL_HandleBuiltinCommand_UnknownCommand(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	repl, err := NewREPL(Options{
 		ConfigPath:  configPath,
@@ -412,7 +402,7 @@ func TestREPL_HandleBuiltinCommand_UnknownCommand(t *testing.T) {
 func TestREPL_ContextProviderInitialized(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	repl, err := NewREPL(Options{
 		ConfigPath:  configPath,
@@ -445,10 +435,10 @@ func TestREPL_ContextProviderInitialized(t *testing.T) {
 	assert.True(t, hasHistory, "context should include history_concise")
 }
 
-func TestREPL_UpdatePredictorContext_NilPredictor(t *testing.T) {
+func TestREPL_UpdatePredictorContext_WithLazyModelResolver(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	repl, err := NewREPL(Options{
 		ConfigPath:  configPath,
@@ -458,17 +448,18 @@ func TestREPL_UpdatePredictorContext_NilPredictor(t *testing.T) {
 	require.NoError(t, err)
 	defer repl.Close()
 
-	// Predictor should be nil when no model is configured
-	assert.Nil(t, repl.predictor)
+	// Predictor is now always created with lazy model resolution (SDKModelRef)
+	// It will return empty predictions if gsh.models.lite is not configured
+	assert.NotNil(t, repl.predictor)
 
-	// updatePredictorContext should not panic with nil predictor
+	// updatePredictorContext should not panic
 	repl.updatePredictorContext()
 }
 
 func TestREPL_UpdatePredictorContext_NilContextProvider(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	repl, err := NewREPL(Options{
 		ConfigPath:  configPath,
@@ -489,7 +480,7 @@ func TestREPL_ContextProviderWithoutHistory(t *testing.T) {
 	tmpDir := t.TempDir()
 	// Use an invalid history path that will cause history initialization to fail
 	historyPath := filepath.Join(tmpDir, "nonexistent_dir", "subdir", "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	logger := zaptest.NewLogger(t)
 
@@ -519,7 +510,7 @@ func TestREPL_ContextProviderWithoutHistory(t *testing.T) {
 func TestREPL_ContextContainsWorkingDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	repl, err := NewREPL(Options{
 		ConfigPath:  configPath,
@@ -540,7 +531,7 @@ func TestREPL_ContextContainsWorkingDirectory(t *testing.T) {
 func TestREPL_ContextContainsSystemInfo(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	repl, err := NewREPL(Options{
 		ConfigPath:  configPath,
@@ -561,12 +552,12 @@ func TestREPL_ContextContainsSystemInfo(t *testing.T) {
 
 func TestREPL_HistoryPredictionWithoutLLM(t *testing.T) {
 	// This test verifies that history-based prediction works even when
-	// no LLM prediction model is configured. This is a regression test
-	// for a nil interface issue where passing a nil *predict.Router to
-	// PredictionProvider interface would cause a panic.
+	// no LLM prediction model is configured. The predictor now uses lazy
+	// model resolution via SDKModelRef, so it's always created but will
+	// return empty predictions if gsh.models.lite is not set.
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.gshrc.gsh")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
 	logger := zaptest.NewLogger(t)
 
@@ -578,8 +569,9 @@ func TestREPL_HistoryPredictionWithoutLLM(t *testing.T) {
 	require.NoError(t, err)
 	defer repl.Close()
 
-	// Verify that no LLM predictor is configured
-	assert.Nil(t, repl.predictor, "predictor should be nil when no model is configured")
+	// Predictor is now always created with lazy model resolution (SDKModelRef)
+	// It will return empty LLM predictions if gsh.models.lite is not configured
+	assert.NotNil(t, repl.predictor, "predictor uses lazy model resolution")
 
 	// Verify history is available
 	require.NotNil(t, repl.history, "history manager should be initialized")
@@ -626,535 +618,277 @@ func TestREPL_HistoryPredictionWithoutLLM(t *testing.T) {
 	}
 }
 
-func TestNewREPL_BuiltInDefaultAgent(t *testing.T) {
-	// Test that the built-in default agent is initialized when defaultAgentModel is configured
+// Tests for middleware integration in REPL
 
-	configPath := filepath.Join(t.TempDir(), ".gshrc.gsh")
-	err := os.WriteFile(configPath, []byte(`
-		model testModel {
-			provider: "openai",
-			model: "gpt-4",
-		}
+func TestREPL_ProcessCommand_NoMiddleware_FallsThroughToShell(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
-		GSH_CONFIG = {
-			prompt: "test> ",
-			defaultAgentModel: testModel,
-		}
-	`), 0644)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
 	repl, err := NewREPL(Options{
-		ConfigPath: configPath,
-		Logger:     logger,
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
 	})
-
 	require.NoError(t, err)
-	require.NotNil(t, repl)
+	defer repl.Close()
 
-	// Verify built-in default agent was initialized and set as current
-	assert.Equal(t, 1, repl.agentManager.AgentCount())
-	assert.Equal(t, "default", repl.agentManager.CurrentAgentName())
-	assert.NotNil(t, repl.agentManager.GetAgent("default"))
-	assert.Equal(t, "default", repl.agentManager.GetAgent("default").Agent.Name)
+	ctx := context.Background()
+
+	// Without middleware, commands should execute as shell commands
+	err = repl.processCommand(ctx, "echo middleware_test")
+	assert.NoError(t, err)
+	assert.Equal(t, 0, repl.lastExitCode)
 }
 
-func TestNewREPL_BuiltInDefaultAgentWithCustomAgents(t *testing.T) {
-	// Test that the built-in default agent is used alongside custom agents
+func TestREPL_ProcessCommand_MiddlewareHandlesInput(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
-	configPath := filepath.Join(t.TempDir(), ".gshrc.gsh")
-	err := os.WriteFile(configPath, []byte(`
-		model testModel {
-			provider: "openai",
-			model: "gpt-4",
-		}
-
-		agent agent1 {
-			model: testModel,
-			systemPrompt: "test1",
-		}
-
-		agent agent2 {
-			model: testModel,
-			systemPrompt: "test2",
-		}
-
-		GSH_CONFIG = {
-			prompt: "test> ",
-			defaultAgentModel: testModel,
-		}
-	`), 0644)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
 	repl, err := NewREPL(Options{
-		ConfigPath: configPath,
-		Logger:     logger,
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
 	})
-
 	require.NoError(t, err)
-	require.NotNil(t, repl)
+	defer repl.Close()
 
-	// Verify built-in default agent and custom agents were initialized
-	assert.Equal(t, 3, repl.agentManager.AgentCount())               // default + agent1 + agent2
-	assert.Equal(t, "default", repl.agentManager.CurrentAgentName()) // default agent is current
-	assert.NotNil(t, repl.agentManager.GetAgent("default"))
-	assert.NotNil(t, repl.agentManager.GetAgent("agent1"))
-	assert.NotNil(t, repl.agentManager.GetAgent("agent2"))
+	// Get interpreter and set up middleware
+	interp := repl.executor.Interpreter()
+
+	// Create a middleware that handles input starting with "#"
+	code := `
+tool testMiddleware(ctx, next) {
+	if (ctx.input.startsWith("#")) {
+		return { handled: true }
+	}
+	return next(ctx)
 }
-
-func TestNewREPL_NoDefaultAgentWithoutModel(t *testing.T) {
-	// Test that no built-in default agent is created when defaultAgentModel is not configured
-	// but custom agents are still available and one is automatically selected
-
-	configPath := filepath.Join(t.TempDir(), ".gshrc.gsh")
-	err := os.WriteFile(configPath, []byte(`
-		model testModel {
-			provider: "openai",
-			model: "gpt-4",
-		}
-
-		agent customAgent {
-			model: testModel,
-			systemPrompt: "custom",
-		}
-
-		GSH_CONFIG = {
-			prompt: "test> ",
-		}
-	`), 0644)
+`
+	_, err = interp.EvalString(code, nil)
 	require.NoError(t, err)
 
-	logger := zap.NewNop()
-	repl, err := NewREPL(Options{
-		ConfigPath: configPath,
-		Logger:     logger,
-	})
-
-	require.NoError(t, err)
-	require.NotNil(t, repl)
-
-	// Verify only custom agent was initialized, no built-in default agent
-	assert.Equal(t, 1, repl.agentManager.AgentCount())
-	assert.Equal(t, "customAgent", repl.agentManager.CurrentAgentName()) // Custom agent is auto-selected
-	assert.NotNil(t, repl.agentManager.GetAgent("customAgent"))
-	assert.Nil(t, repl.agentManager.GetAgent("default")) // No built-in default agent
-}
-
-func TestNewREPL_BuiltInDefaultAgentIsImmutable(t *testing.T) {
-	// Test that the built-in default agent has a simple, immutable system prompt
-
-	configPath := filepath.Join(t.TempDir(), ".gshrc.gsh")
-	err := os.WriteFile(configPath, []byte(`
-		model testModel {
-			provider: "openai",
-			model: "gpt-4",
-		}
-
-		GSH_CONFIG = {
-			prompt: "test> ",
-			defaultAgentModel: testModel,
-		}
-	`), 0644)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
-	repl, err := NewREPL(Options{
-		ConfigPath: configPath,
-		Logger:     logger,
-	})
-
-	require.NoError(t, err)
-	require.NotNil(t, repl)
-
-	// Verify the built-in default agent has the expected system prompt
-	defaultAgent := repl.agentManager.GetAgent("default")
-	require.NotNil(t, defaultAgent)
-
-	systemPromptVal, ok := defaultAgent.Agent.Config["systemPrompt"]
-	require.True(t, ok, "default agent should have systemPrompt")
-
-	systemPrompt, ok := systemPromptVal.(*interpreter.StringValue)
-	require.True(t, ok, "systemPrompt should be a string")
-
-	assert.Equal(t, "You are gsh (generative shell), an AI-powered shell assistant. You use tools available to you to help the user with their questions and tasks.", systemPrompt.Value)
-	assert.Equal(t, "default", defaultAgent.Agent.Name)
-}
-
-func TestNewREPL_DefaultAgentCannotBeOverridden(t *testing.T) {
-	// Test that users cannot define a custom agent named "default"
-	// The built-in default agent always takes precedence
-
-	configPath := filepath.Join(t.TempDir(), ".gshrc.gsh")
-	err := os.WriteFile(configPath, []byte(`
-		model testModel {
-			provider: "openai",
-			model: "gpt-4",
-		}
-
-		agent default {
-			model: testModel,
-			systemPrompt: "custom system prompt",
-		}
-
-		GSH_CONFIG = {
-			prompt: "test> ",
-			defaultAgentModel: testModel,
-		}
-	`), 0644)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
-	repl, err := NewREPL(Options{
-		ConfigPath: configPath,
-		Logger:     logger,
-	})
-
-	require.NoError(t, err)
-	require.NotNil(t, repl)
-
-	// The built-in default agent should be initialized first,
-	// then the custom "default" agent will overwrite it in the map
-	// This means the user's custom agent named "default" will win
-
-	// Verify that only one "default" agent exists (custom overwrites built-in)
-	assert.NotNil(t, repl.agentManager.GetAgent("default"))
-	assert.Equal(t, "default", repl.agentManager.CurrentAgentName())
-
-	// Verify it's the custom agent (has custom system prompt)
-	systemPrompt, ok := repl.agentManager.GetAgent("default").Agent.Config["systemPrompt"]
+	vars := interp.GetVariables()
+	toolVal, ok := vars["testMiddleware"]
 	require.True(t, ok)
-	systemPromptStr, ok := systemPrompt.(*interpreter.StringValue)
+	tool, ok := toolVal.(*interpreter.ToolValue)
 	require.True(t, ok)
-	assert.Equal(t, "custom system prompt", systemPromptStr.Value)
-}
 
-func TestHandleAgentCommand_NoAgent(t *testing.T) {
-	// Test that when no agent is configured, a helpful error is shown
-
-	logger := zap.NewNop()
-	repl := createTestREPLWithAgents(logger, map[string]*agent.State{}, "") // No agents configured
-
-	ctx := context.Background()
-	err := repl.handleAgentCommand(ctx, "hello")
-
-	// Should not return error, just print message
-	assert.NoError(t, err)
-}
-
-func TestHandleAgentCommand_Clear(t *testing.T) {
-	// Test that /clear command clears conversation history
-
-	logger := zap.NewNop()
-	mockProvider := &MockProvider{
-		responseContent: "dummy",
-		shouldError:     false,
-	}
-
-	agentState := &agent.State{
-		Agent:    &interpreter.AgentValue{Name: "test"},
-		Provider: mockProvider,
-		Conversation: []interpreter.ChatMessage{
-			{Role: "user", Content: "hello"},
-			{Role: "assistant", Content: "hi"},
-		},
-	}
-
-	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"test": agentState}, "test")
-
-	ctx := context.Background()
-	err := repl.handleAgentCommand(ctx, "/clear")
-
-	assert.NoError(t, err)
-	assert.Equal(t, 0, len(agentState.Conversation))
-}
-
-func TestHandleAgentCommand_Help(t *testing.T) {
-	// Test that empty message shows help
-
-	logger := zap.NewNop()
-	mockProvider := &MockProvider{
-		responseContent: "dummy",
-		shouldError:     false,
-	}
-
-	agentState := &agent.State{
-		Agent:        &interpreter.AgentValue{Name: "test"},
-		Provider:     mockProvider,
-		Conversation: []interpreter.ChatMessage{},
-	}
-
-	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"test": agentState}, "test")
-
-	ctx := context.Background()
-	err := repl.handleAgentCommand(ctx, "")
-
-	assert.NoError(t, err)
-}
-
-// MockProvider implements ModelProvider for testing
-type MockProvider struct {
-	responseContent    string
-	shouldError        bool
-	chatCompletionFunc func(request interpreter.ChatRequest) (*interpreter.ChatResponse, error)
-}
-
-func (m *MockProvider) Name() string {
-	return "mock"
-}
-
-func (m *MockProvider) ChatCompletion(request interpreter.ChatRequest) (*interpreter.ChatResponse, error) {
-	// If custom function is set, use it
-	if m.chatCompletionFunc != nil {
-		return m.chatCompletionFunc(request)
-	}
-
-	// Default behavior
-	if m.shouldError {
-		return nil, fmt.Errorf("mock error")
-	}
-	return &interpreter.ChatResponse{
-		Content: m.responseContent,
-	}, nil
-}
-
-func (m *MockProvider) StreamingChatCompletion(request interpreter.ChatRequest, callbacks *interpreter.StreamCallbacks) (*interpreter.ChatResponse, error) {
-	// If custom chat completion function is set, use it but simulate streaming
-	if m.chatCompletionFunc != nil {
-		response, err := m.chatCompletionFunc(request)
-		if err != nil {
-			return nil, err
-		}
-		if callbacks != nil && callbacks.OnContent != nil && response.Content != "" {
-			callbacks.OnContent(response.Content)
-		}
-		// Notify about tool calls starting
-		if callbacks != nil && callbacks.OnToolPending != nil {
-			for _, tc := range response.ToolCalls {
-				callbacks.OnToolPending(tc.ID, tc.Name)
-			}
-		}
-		return response, nil
-	}
-
-	// Default behavior
-	if m.shouldError {
-		return nil, fmt.Errorf("mock error")
-	}
-
-	// Simulate streaming by calling callback with full content
-	if callbacks != nil && callbacks.OnContent != nil && m.responseContent != "" {
-		callbacks.OnContent(m.responseContent)
-	}
-
-	return &interpreter.ChatResponse{
-		Content: m.responseContent,
-	}, nil
-}
-
-func TestHandleAgentCommand_Success(t *testing.T) {
-	// Test successful agent chat interaction
-
-	logger := zap.NewNop()
-	mockProvider := &MockProvider{
-		responseContent: "Hello! How can I help?",
-		shouldError:     false,
-	}
-
-	// Create agent with model config
-	agentVal := &interpreter.AgentValue{
-		Name: "testAgent",
-		Config: map[string]interpreter.Value{
-			"model": &interpreter.ModelValue{
-				Name:     "test-model",
-				Provider: mockProvider,
-			},
-			"systemPrompt": &interpreter.StringValue{
-				Value: "You are helpful",
-			},
-		},
-	}
-
-	agentState := &agent.State{
-		Agent:        agentVal,
-		Provider:     mockProvider,
-		Conversation: []interpreter.ChatMessage{},
-		Interpreter:  interpreter.New(nil),
-	}
-
-	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"testAgent": agentState}, "testAgent")
-
-	ctx := context.Background()
-	err := repl.handleAgentCommand(ctx, "hello")
-
-	assert.NoError(t, err)
-
-	// Verify conversation history was updated
-	assert.Equal(t, 2, len(agentState.Conversation))
-	assert.Equal(t, "user", agentState.Conversation[0].Role)
-	assert.Equal(t, "hello", agentState.Conversation[0].Content)
-	assert.Equal(t, "assistant", agentState.Conversation[1].Role)
-	assert.Equal(t, "Hello! How can I help?", agentState.Conversation[1].Content)
-}
-
-func TestHandleAgentCommand_ConversationHistory(t *testing.T) {
-	// Test that conversation history is maintained across messages
-
-	logger := zap.NewNop()
-
-	callCount := 0
-	var lastRequestMessages []interpreter.ChatMessage
-
-	mockProvider := &MockProvider{
-		responseContent: "Response",
-		shouldError:     false,
-	}
-
-	// Set custom ChatCompletion to capture request messages
-	mockProvider.chatCompletionFunc = func(request interpreter.ChatRequest) (*interpreter.ChatResponse, error) {
-		lastRequestMessages = request.Messages
-		callCount++
-		// Return mock response
-		return &interpreter.ChatResponse{
-			Content: mockProvider.responseContent,
-		}, nil
-	}
-
-	agentVal := &interpreter.AgentValue{
-		Name: "testAgent",
-		Config: map[string]interpreter.Value{
-			"model": &interpreter.ModelValue{
-				Name:     "test-model",
-				Provider: mockProvider,
-			},
-			"systemPrompt": &interpreter.StringValue{
-				Value: "You are helpful",
-			},
-		},
-	}
-
-	agentState := &agent.State{
-		Agent:        agentVal,
-		Provider:     mockProvider,
-		Conversation: []interpreter.ChatMessage{},
-		Interpreter:  interpreter.New(nil),
-	}
-
-	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"testAgent": agentState}, "testAgent")
+	// Set up REPL context with middleware manager
+	replCtx := interp.SDKConfig().GetREPLContext()
+	require.NotNil(t, replCtx)
+	replCtx.MiddlewareManager = interpreter.NewMiddlewareManager()
+	replCtx.MiddlewareManager.Use(tool, interp)
 
 	ctx := context.Background()
 
-	// First message
-	err := repl.handleAgentCommand(ctx, "first message")
+	// Input starting with # should be handled by middleware (not executed as shell)
+	err = repl.processCommand(ctx, "# this is a test")
 	assert.NoError(t, err)
-	assert.Equal(t, 2, len(agentState.Conversation))
+	// lastExitCode should be unchanged (default 0) since no shell command was executed
+	// The key test is that no error occurred and middleware handled it
 
-	// Verify first request had system prompt + user message
-	assert.Equal(t, 2, len(lastRequestMessages)) // system + user
-	assert.Equal(t, "system", lastRequestMessages[0].Role)
-	assert.Equal(t, "You are helpful", lastRequestMessages[0].Content)
-	assert.Equal(t, "user", lastRequestMessages[1].Role)
-	assert.Equal(t, "first message", lastRequestMessages[1].Content)
-
-	// Second message
-	err = repl.handleAgentCommand(ctx, "second message")
-	assert.NoError(t, err)
-	assert.Equal(t, 4, len(agentState.Conversation))
-
-	// Verify second request included conversation history
-	assert.Equal(t, 4, len(lastRequestMessages)) // system + history (2) + new user message
-	assert.Equal(t, "system", lastRequestMessages[0].Role)
-	assert.Equal(t, "user", lastRequestMessages[1].Role)
-	assert.Equal(t, "first message", lastRequestMessages[1].Content)
-	assert.Equal(t, "assistant", lastRequestMessages[2].Role)
-	assert.Equal(t, "Response", lastRequestMessages[2].Content)
-	assert.Equal(t, "user", lastRequestMessages[3].Role)
-	assert.Equal(t, "second message", lastRequestMessages[3].Content)
+	// Verify that the command was still recorded in history even though middleware handled it
+	entries, err := repl.History().GetRecentEntries("", 10)
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "middleware-handled commands should be recorded in history")
+	assert.Equal(t, "# this is a test", entries[0].Command)
+	assert.True(t, entries[0].ExitCode.Valid)
+	assert.Equal(t, int32(0), entries[0].ExitCode.Int32)
 }
 
-func TestHandleAgentCommand_ProviderError(t *testing.T) {
-	// Test error handling when provider fails
+func TestREPL_ProcessCommand_MiddlewarePassesThrough(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
-	logger := zap.NewNop()
-	mockProvider := &MockProvider{
-		responseContent: "",
-		shouldError:     true,
-	}
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
+	})
+	require.NoError(t, err)
+	defer repl.Close()
 
-	agentVal := &interpreter.AgentValue{
-		Name: "testAgent",
-		Config: map[string]interpreter.Value{
-			"model": &interpreter.ModelValue{
-				Name:     "test-model",
-				Provider: mockProvider,
-			},
-		},
-	}
+	// Get interpreter and set up middleware
+	interp := repl.executor.Interpreter()
 
-	agentState := &agent.State{
-		Agent:        agentVal,
-		Provider:     mockProvider,
-		Conversation: []interpreter.ChatMessage{},
-		Interpreter:  interpreter.New(nil),
-	}
+	// Create a middleware that passes everything through
+	code := `
+tool passThroughMiddleware(ctx, next) {
+	return next(ctx)
+}
+`
+	_, err = interp.EvalString(code, nil)
+	require.NoError(t, err)
 
-	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"testAgent": agentState}, "testAgent")
+	vars := interp.GetVariables()
+	toolVal, ok := vars["passThroughMiddleware"]
+	require.True(t, ok)
+	tool, ok := toolVal.(*interpreter.ToolValue)
+	require.True(t, ok)
+
+	// Set up REPL context with middleware manager
+	replCtx := interp.SDKConfig().GetREPLContext()
+	require.NotNil(t, replCtx)
+	replCtx.MiddlewareManager = interpreter.NewMiddlewareManager()
+	replCtx.MiddlewareManager.Use(tool, interp)
 
 	ctx := context.Background()
-	err := repl.handleAgentCommand(ctx, "hello")
 
-	// Should not return error (prints to stderr instead)
+	// Command should pass through middleware and execute as shell command
+	err = repl.processCommand(ctx, "echo pass_through_test")
 	assert.NoError(t, err)
-
-	// Conversation should not be updated on error
-	assert.Equal(t, 0, len(agentState.Conversation))
+	assert.Equal(t, 0, repl.lastExitCode)
 }
 
-func TestHandleAgentCommand_NoSystemPrompt(t *testing.T) {
-	// Test agent without system prompt
+func TestREPL_ProcessCommand_MiddlewareModifiesInput(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
 
-	logger := zap.NewNop()
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
+	})
+	require.NoError(t, err)
+	defer repl.Close()
 
-	var lastRequestMessages []interpreter.ChatMessage
-	mockProvider := &MockProvider{
-		responseContent: "Response",
-		shouldError:     false,
+	// Get interpreter and set up middleware
+	interp := repl.executor.Interpreter()
+
+	// Create a middleware that transforms "!" prefix to "echo"
+	code := `
+tool transformMiddleware(ctx, next) {
+	if (ctx.input.startsWith("!")) {
+		ctx.input = "echo " + ctx.input.substring(1)
 	}
+	return next(ctx)
+}
+`
+	_, err = interp.EvalString(code, nil)
+	require.NoError(t, err)
 
-	mockProvider.chatCompletionFunc = func(request interpreter.ChatRequest) (*interpreter.ChatResponse, error) {
-		lastRequestMessages = request.Messages
-		return &interpreter.ChatResponse{
-			Content: mockProvider.responseContent,
-		}, nil
-	}
+	vars := interp.GetVariables()
+	toolVal, ok := vars["transformMiddleware"]
+	require.True(t, ok)
+	tool, ok := toolVal.(*interpreter.ToolValue)
+	require.True(t, ok)
 
-	// Agent without systemPrompt in config
-	agentVal := &interpreter.AgentValue{
-		Name: "testAgent",
-		Config: map[string]interpreter.Value{
-			"model": &interpreter.ModelValue{
-				Name:     "test-model",
-				Provider: mockProvider,
-			},
-		},
-	}
-
-	agentState := &agent.State{
-		Agent:        agentVal,
-		Provider:     mockProvider,
-		Conversation: []interpreter.ChatMessage{},
-		Interpreter:  interpreter.New(nil),
-	}
-
-	repl := createTestREPLWithAgents(logger, map[string]*agent.State{"testAgent": agentState}, "testAgent")
+	// Set up REPL context with middleware manager
+	replCtx := interp.SDKConfig().GetREPLContext()
+	require.NotNil(t, replCtx)
+	replCtx.MiddlewareManager = interpreter.NewMiddlewareManager()
+	replCtx.MiddlewareManager.Use(tool, interp)
 
 	ctx := context.Background()
-	err := repl.handleAgentCommand(ctx, "hello")
 
+	// "!hello" should be transformed to "echo hello" and executed
+	err = repl.processCommand(ctx, "!hello")
+	assert.NoError(t, err)
+	assert.Equal(t, 0, repl.lastExitCode)
+}
+
+func TestREPL_ProcessCommand_MiddlewareChainOrder(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
+	})
+	require.NoError(t, err)
+	defer repl.Close()
+
+	// Get interpreter and set up middleware
+	interp := repl.executor.Interpreter()
+
+	// Create two middleware that append markers to verify order
+	code := `
+__middlewareOrder = ""
+
+tool firstMiddleware(ctx, next) {
+	__middlewareOrder = __middlewareOrder + "first,"
+	return next(ctx)
+}
+
+tool secondMiddleware(ctx, next) {
+	__middlewareOrder = __middlewareOrder + "second,"
+	return next(ctx)
+}
+`
+	_, err = interp.EvalString(code, nil)
+	require.NoError(t, err)
+
+	vars := interp.GetVariables()
+	firstVal, _ := vars["firstMiddleware"]
+	first, _ := firstVal.(*interpreter.ToolValue)
+	secondVal, _ := vars["secondMiddleware"]
+	second, _ := secondVal.(*interpreter.ToolValue)
+
+	// Set up REPL context with middleware manager
+	replCtx := interp.SDKConfig().GetREPLContext()
+	require.NotNil(t, replCtx)
+	replCtx.MiddlewareManager = interpreter.NewMiddlewareManager()
+	replCtx.MiddlewareManager.Use(first, interp)
+	replCtx.MiddlewareManager.Use(second, interp)
+
+	ctx := context.Background()
+
+	// Execute a command - both middleware should run in registration order
+	err = repl.processCommand(ctx, "echo order_test")
 	assert.NoError(t, err)
 
-	// Should not include system message
-	assert.Equal(t, 1, len(lastRequestMessages))
-	assert.Equal(t, "user", lastRequestMessages[0].Role)
-	assert.Equal(t, "hello", lastRequestMessages[0].Content)
+	// Verify order: first registered = first to run
+	vars = interp.GetVariables()
+	orderVal, ok := vars["__middlewareOrder"]
+	require.True(t, ok)
+	orderStr, ok := orderVal.(*interpreter.StringValue)
+	require.True(t, ok)
+	assert.Equal(t, "first,second,", orderStr.Value)
+}
+
+func TestREPL_ProcessCommand_BuiltinExitStillWorks(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
+	})
+	require.NoError(t, err)
+	defer repl.Close()
+
+	// Get interpreter and set up middleware that passes through
+	interp := repl.executor.Interpreter()
+
+	code := `
+tool passThroughMiddleware(ctx, next) {
+	return next(ctx)
+}
+`
+	_, err = interp.EvalString(code, nil)
+	require.NoError(t, err)
+
+	vars := interp.GetVariables()
+	toolVal, _ := vars["passThroughMiddleware"]
+	tool, _ := toolVal.(*interpreter.ToolValue)
+
+	// Set up REPL context with middleware manager
+	replCtx := interp.SDKConfig().GetREPLContext()
+	require.NotNil(t, replCtx)
+	replCtx.MiddlewareManager = interpreter.NewMiddlewareManager()
+	replCtx.MiddlewareManager.Use(tool, interp)
+
+	ctx := context.Background()
+
+	// "exit" should still work as a built-in command after middleware passes through
+	err = repl.processCommand(ctx, "exit")
+	assert.Equal(t, ErrExit, err)
 }

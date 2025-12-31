@@ -20,38 +20,34 @@ func (i *Interpreter) registerGshSDK() {
 	// Create gsh.logging object (read/write)
 	loggingObj := &LoggingObjectValue{interp: i}
 
-	// Create gsh.integrations object
-	integrationsObj := &ObjectValue{
-		Properties: map[string]*PropertyDescriptor{
-			"starship": {Value: &DynamicValue{
-				Get: func() Value { return &BoolValue{Value: i.sdkConfig.GetStarshipEnabled()} },
-				Set: func(v Value) error {
-					if b, ok := v.(*BoolValue); ok {
-						i.sdkConfig.SetStarshipEnabled(b.Value)
-						return nil
-					}
-					return fmt.Errorf("gsh.integrations.starship must be a boolean")
-				},
-			}},
-		},
-	}
-
 	// Create gsh.lastAgentRequest object (read-only, but properties updated by system)
 	lastAgentRequestObj := &DynamicValue{
 		Get: func() Value { return i.sdkConfig.GetLastAgentRequest() },
 	}
 
-	// Create gsh.repl object (null in script mode, set when running in REPL)
-	replObj := &DynamicValue{
+	// Create gsh.models object (available in both REPL and script mode)
+	// We cache the ModelsObjectValue to ensure consistent SDKModelRef instances
+	modelsObj := NewModelsObjectValue(i.sdkConfig.GetModels())
+
+	// Create gsh.lastCommand object (dynamic, reads from REPL context)
+	lastCommandObj := &DynamicValue{
 		Get: func() Value {
 			replCtx := i.sdkConfig.GetREPLContext()
 			if replCtx == nil {
 				return &NullValue{}
 			}
-			// Return the gsh.repl object with models and lastCommand
-			return &REPLObjectValue{
-				context: replCtx,
+			return &LastCommandObjectValue{lastCommand: replCtx.LastCommand}
+		},
+	}
+
+	// Create gsh.prompt (dynamic, reads from REPL context)
+	promptObj := &DynamicValue{
+		Get: func() Value {
+			replCtx := i.sdkConfig.GetREPLContext()
+			if replCtx == nil || replCtx.PromptValue == nil {
+				return &StringValue{Value: ""}
 			}
+			return replCtx.PromptValue
 		},
 	}
 
@@ -135,17 +131,19 @@ func (i *Interpreter) registerGshSDK() {
 		},
 	}
 
-	// Create gsh object
-	gshObj := &ObjectValue{
-		Properties: map[string]*PropertyDescriptor{
+	// Create gsh object with SDK object value for custom property handling
+	gshObj := &GshObjectValue{
+		interp: i,
+		baseProps: map[string]*PropertyDescriptor{
 			"version":          {Value: &StringValue{Value: i.version}, ReadOnly: true},
 			"terminal":         {Value: terminalObj, ReadOnly: true},
 			"logging":          {Value: loggingObj},
-			"integrations":     {Value: integrationsObj},
 			"lastAgentRequest": {Value: lastAgentRequestObj, ReadOnly: true},
-			"repl":             {Value: replObj, ReadOnly: true},
 			"tools":            {Value: toolsObj, ReadOnly: true},
 			"ui":               {Value: uiObj, ReadOnly: true},
+			"models":           {Value: modelsObj, ReadOnly: true},
+			"lastCommand":      {Value: lastCommandObj, ReadOnly: true},
+			"prompt":           {Value: promptObj},
 			"on": {Value: &BuiltinValue{
 				Name: "gsh.on",
 				Fn:   i.builtinGshOn,
@@ -154,11 +152,23 @@ func (i *Interpreter) registerGshSDK() {
 				Name: "gsh.off",
 				Fn:   i.builtinGshOff,
 			}, ReadOnly: true},
+			"useCommandMiddleware": {Value: &BuiltinValue{
+				Name: "gsh.useCommandMiddleware",
+				Fn:   i.builtinGshUseCommandMiddleware,
+			}, ReadOnly: true},
+			"removeCommandMiddleware": {Value: &BuiltinValue{
+				Name: "gsh.removeCommandMiddleware",
+				Fn:   i.builtinGshRemoveCommandMiddleware,
+			}, ReadOnly: true},
 		},
 	}
 
 	// Register Math as a global object (not under gsh)
 	i.env.Set("Math", mathObj)
+
+	// Register DateTime as a global object (not under gsh)
+	dateTimeObj := createDateTimeObject()
+	i.env.Set("DateTime", dateTimeObj)
 
 	i.env.Set("gsh", gshObj)
 }
@@ -558,152 +568,214 @@ func (d *DynamicValue) SetProperty(name string, value Value) error {
 	return fmt.Errorf("cannot set property on dynamic value")
 }
 
-// REPLObjectValue represents the gsh.repl object with models and lastCommand properties
-type REPLObjectValue struct {
-	context *REPLContext
+// GshObjectValue represents the gsh SDK object with custom property handling
+type GshObjectValue struct {
+	interp    *Interpreter
+	baseProps map[string]*PropertyDescriptor
 }
 
-func (r *REPLObjectValue) Type() ValueType { return ValueTypeObject }
-func (r *REPLObjectValue) String() string  { return "<gsh.repl>" }
-func (r *REPLObjectValue) IsTruthy() bool  { return true }
-func (r *REPLObjectValue) Equals(other Value) bool {
-	_, ok := other.(*REPLObjectValue)
-	return ok
+func (g *GshObjectValue) Type() ValueType { return ValueTypeObject }
+func (g *GshObjectValue) String() string  { return "<gsh>" }
+func (g *GshObjectValue) IsTruthy() bool  { return true }
+func (g *GshObjectValue) Equals(other Value) bool {
+	otherGsh, ok := other.(*GshObjectValue)
+	return ok && g.interp == otherGsh.interp
 }
 
-func (r *REPLObjectValue) GetProperty(name string) Value {
-	if r.context == nil {
-		return &NullValue{}
+func (g *GshObjectValue) GetProperty(name string) Value {
+	if prop, ok := g.baseProps[name]; ok {
+		// If the property is a DynamicValue, get its current value
+		if dv, ok := prop.Value.(*DynamicValue); ok {
+			return dv.GetDynamicValue()
+		}
+		return prop.Value
 	}
-	switch name {
-	case "models":
-		return &REPLModelsObjectValue{models: r.context.Models}
-	case "lastCommand":
-		return &REPLLastCommandObjectValue{lastCommand: r.context.LastCommand}
-	case "agents":
-		return &REPLAgentsArrayValue{context: r.context}
-	case "currentAgent":
-		if r.context.CurrentAgent == nil {
-			return &NullValue{}
-		}
-		return &REPLAgentObjectValue{agent: r.context.CurrentAgent, context: r.context, isDefault: r.context.CurrentAgent.Name == "default"}
-	case "prompt":
-		if r.context.PromptValue == nil {
-			return &StringValue{Value: ""}
-		}
-		return r.context.PromptValue
-	default:
-		return &NullValue{}
-	}
+	return &NullValue{}
 }
 
-func (r *REPLObjectValue) SetProperty(name string, value Value) error {
+func (g *GshObjectValue) SetProperty(name string, value Value) error {
+	prop, ok := g.baseProps[name]
+	if !ok {
+		return fmt.Errorf("cannot set unknown property '%s' on gsh", name)
+	}
+	if prop.ReadOnly {
+		return fmt.Errorf("cannot set read-only property '%s' on gsh", name)
+	}
+
+	// Handle special cases
 	switch name {
-	case "currentAgent":
-		// Allow setting currentAgent to switch agents
-		agentObj, ok := value.(*REPLAgentObjectValue)
-		if !ok {
-			return fmt.Errorf("gsh.repl.currentAgent must be set to an agent from gsh.repl.agents")
-		}
-		r.context.CurrentAgent = agentObj.agent
-		// Notify REPL of agent switch
-		if r.context.OnAgentSwitch != nil {
-			r.context.OnAgentSwitch(agentObj.agent)
-		}
-		return nil
 	case "prompt":
-		// Allow setting the prompt string
 		promptStr, ok := value.(*StringValue)
 		if !ok {
-			return fmt.Errorf("gsh.repl.prompt must be a string, got %s", value.Type())
+			return fmt.Errorf("gsh.prompt must be a string, got %s", value.Type())
 		}
-		if r.context != nil {
-			r.context.PromptValue = promptStr
+		replCtx := g.interp.sdkConfig.GetREPLContext()
+		if replCtx != nil {
+			replCtx.PromptValue = promptStr
 		}
 		return nil
 	default:
-		return fmt.Errorf("cannot set property '%s' on gsh.repl", name)
+		// For other properties, delegate to the underlying value's SetProperty if it has one
+		if dv, ok := prop.Value.(*DynamicValue); ok {
+			actualVal := dv.GetDynamicValue()
+			if setter, ok := actualVal.(interface{ SetProperty(string, Value) error }); ok {
+				// This shouldn't happen for top-level gsh properties
+				return setter.SetProperty(name, value)
+			}
+		}
+		return fmt.Errorf("cannot set property '%s' on gsh", name)
 	}
 }
 
-// REPLModelsObjectValue represents the gsh.repl.models object
-type REPLModelsObjectValue struct {
-	models *REPLModels
+// builtinGshUseCommandMiddleware implements gsh.useCommandMiddleware(middleware)
+// Registers a command middleware function. Returns a unique ID that can be used to remove it.
+// Command middleware runs when the user submits input (presses Enter).
+func (i *Interpreter) builtinGshUseCommandMiddleware(args []Value) (Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("gsh.useCommandMiddleware() takes 1 argument (middleware: tool), got %d", len(args))
+	}
+
+	tool, ok := args[0].(*ToolValue)
+	if !ok {
+		return nil, fmt.Errorf("gsh.useCommandMiddleware() argument must be a tool, got %s", args[0].Type())
+	}
+
+	// Validate tool has correct signature (ctx, next)
+	if len(tool.Parameters) != 2 {
+		return nil, fmt.Errorf("middleware tool must take 2 parameters (ctx, next), got %d", len(tool.Parameters))
+	}
+
+	replCtx := i.sdkConfig.GetREPLContext()
+	if replCtx == nil {
+		return nil, fmt.Errorf("gsh.useCommandMiddleware() is only available in the REPL")
+	}
+
+	// Initialize middleware manager if needed
+	if replCtx.MiddlewareManager == nil {
+		replCtx.MiddlewareManager = NewMiddlewareManager()
+	}
+
+	// Register the middleware
+	id := replCtx.MiddlewareManager.Use(tool, replCtx.Interpreter)
+	return &StringValue{Value: id}, nil
 }
 
-func (m *REPLModelsObjectValue) Type() ValueType { return ValueTypeObject }
-func (m *REPLModelsObjectValue) String() string  { return "<gsh.repl.models>" }
-func (m *REPLModelsObjectValue) IsTruthy() bool  { return true }
-func (m *REPLModelsObjectValue) Equals(other Value) bool {
-	_, ok := other.(*REPLModelsObjectValue)
+// builtinGshRemoveCommandMiddleware implements gsh.removeCommandMiddleware(middleware)
+// Removes a previously registered command middleware by tool reference.
+func (i *Interpreter) builtinGshRemoveCommandMiddleware(args []Value) (Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("gsh.removeCommandMiddleware() takes 1 argument (middleware: tool), got %d", len(args))
+	}
+
+	tool, ok := args[0].(*ToolValue)
+	if !ok {
+		return nil, fmt.Errorf("gsh.removeCommandMiddleware() argument must be a tool, got %s", args[0].Type())
+	}
+
+	replCtx := i.sdkConfig.GetREPLContext()
+	if replCtx == nil || replCtx.MiddlewareManager == nil {
+		return &BoolValue{Value: false}, nil
+	}
+
+	// Remove by tool reference
+	removed := replCtx.MiddlewareManager.RemoveByTool(tool)
+	return &BoolValue{Value: removed}, nil
+}
+
+// ModelsObjectValue represents the gsh.models object.
+// It holds pre-created SDKModelRef instances for each tier to avoid allocations
+// on repeated access and to maintain pointer identity.
+type ModelsObjectValue struct {
+	liteRef      *SDKModelRef
+	workhorseRef *SDKModelRef
+	premiumRef   *SDKModelRef
+}
+
+// NewModelsObjectValue creates a new ModelsObjectValue with pre-allocated SDKModelRef instances.
+func NewModelsObjectValue(models *Models) *ModelsObjectValue {
+	return &ModelsObjectValue{
+		liteRef:      &SDKModelRef{Tier: "lite", Models: models},
+		workhorseRef: &SDKModelRef{Tier: "workhorse", Models: models},
+		premiumRef:   &SDKModelRef{Tier: "premium", Models: models},
+	}
+}
+
+func (m *ModelsObjectValue) Type() ValueType { return ValueTypeObject }
+func (m *ModelsObjectValue) String() string  { return "<gsh.models>" }
+func (m *ModelsObjectValue) IsTruthy() bool  { return true }
+func (m *ModelsObjectValue) Equals(other Value) bool {
+	_, ok := other.(*ModelsObjectValue)
 	return ok
 }
 
-func (m *REPLModelsObjectValue) GetProperty(name string) Value {
-	if m.models == nil {
-		return &NullValue{}
-	}
+func (m *ModelsObjectValue) GetProperty(name string) Value {
 	switch name {
 	case "lite":
-		if m.models.Lite == nil {
+		// Check if the model is set via the SDKModelRef's Models reference
+		if m.liteRef.Models == nil || m.liteRef.Models.Lite == nil {
 			return &NullValue{}
 		}
-		return m.models.Lite
+		// Return pre-allocated SDKModelRef for lazy resolution.
+		// This allows dynamic model changes - if gsh.models.lite is reassigned later,
+		// code holding this SDKModelRef will see the new model.
+		return m.liteRef
 	case "workhorse":
-		if m.models.Workhorse == nil {
+		if m.workhorseRef.Models == nil || m.workhorseRef.Models.Workhorse == nil {
 			return &NullValue{}
 		}
-		return m.models.Workhorse
+		return m.workhorseRef
 	case "premium":
-		if m.models.Premium == nil {
+		if m.premiumRef.Models == nil || m.premiumRef.Models.Premium == nil {
 			return &NullValue{}
 		}
-		return m.models.Premium
+		return m.premiumRef
 	default:
 		return &NullValue{}
 	}
 }
 
-func (m *REPLModelsObjectValue) SetProperty(name string, value Value) error {
-	if m.models == nil {
-		return fmt.Errorf("gsh.repl.models is not initialized")
+func (m *ModelsObjectValue) SetProperty(name string, value Value) error {
+	// Access the models through one of the refs (they all share the same Models pointer)
+	models := m.liteRef.Models
+	if models == nil {
+		return fmt.Errorf("gsh.models is not initialized")
 	}
 
 	// Validate that the value is a ModelValue
 	modelVal, ok := value.(*ModelValue)
 	if !ok {
-		return fmt.Errorf("gsh.repl.models.%s must be a model, got %s", name, value.Type())
+		return fmt.Errorf("gsh.models.%s must be a model, got %s", name, value.Type())
 	}
 
 	switch name {
 	case "lite":
-		m.models.Lite = modelVal
+		models.Lite = modelVal
 		return nil
 	case "workhorse":
-		m.models.Workhorse = modelVal
+		models.Workhorse = modelVal
 		return nil
 	case "premium":
-		m.models.Premium = modelVal
+		models.Premium = modelVal
 		return nil
 	default:
-		return fmt.Errorf("unknown property '%s' on gsh.repl.models", name)
+		return fmt.Errorf("unknown property '%s' on gsh.models", name)
 	}
 }
 
-// REPLLastCommandObjectValue represents the gsh.repl.lastCommand object
-type REPLLastCommandObjectValue struct {
+// LastCommandObjectValue represents the gsh.lastCommand object
+type LastCommandObjectValue struct {
 	lastCommand *REPLLastCommand
 }
 
-func (c *REPLLastCommandObjectValue) Type() ValueType { return ValueTypeObject }
-func (c *REPLLastCommandObjectValue) String() string  { return "<gsh.repl.lastCommand>" }
-func (c *REPLLastCommandObjectValue) IsTruthy() bool  { return true }
-func (c *REPLLastCommandObjectValue) Equals(other Value) bool {
-	_, ok := other.(*REPLLastCommandObjectValue)
+func (c *LastCommandObjectValue) Type() ValueType { return ValueTypeObject }
+func (c *LastCommandObjectValue) String() string  { return "<gsh.lastCommand>" }
+func (c *LastCommandObjectValue) IsTruthy() bool  { return true }
+func (c *LastCommandObjectValue) Equals(other Value) bool {
+	_, ok := other.(*LastCommandObjectValue)
 	return ok
 }
 
-func (c *REPLLastCommandObjectValue) GetProperty(name string) Value {
+func (c *LastCommandObjectValue) GetProperty(name string) Value {
 	if c.lastCommand == nil {
 		return &NullValue{}
 	}
@@ -717,8 +789,8 @@ func (c *REPLLastCommandObjectValue) GetProperty(name string) Value {
 	}
 }
 
-func (c *REPLLastCommandObjectValue) SetProperty(name string, value Value) error {
-	return fmt.Errorf("cannot set property '%s' on gsh.repl.lastCommand", name)
+func (c *LastCommandObjectValue) SetProperty(name string, value Value) error {
+	return fmt.Errorf("cannot set property '%s' on gsh.lastCommand", name)
 }
 
 // createNativeToolsObject creates the gsh.tools object with all native tool implementations.
@@ -732,284 +804,5 @@ func (i *Interpreter) createNativeToolsObject() *ObjectValue {
 			"view_file": {Value: CreateViewFileNativeTool(), ReadOnly: true},
 			"edit_file": {Value: CreateEditFileNativeTool(), ReadOnly: true},
 		},
-	}
-}
-
-// REPLAgentsArrayValue represents the gsh.repl.agents array
-type REPLAgentsArrayValue struct {
-	context *REPLContext
-}
-
-func (a *REPLAgentsArrayValue) Type() ValueType { return ValueTypeArray }
-func (a *REPLAgentsArrayValue) String() string  { return "<gsh.repl.agents>" }
-func (a *REPLAgentsArrayValue) IsTruthy() bool  { return a.context != nil && len(a.context.Agents) > 0 }
-func (a *REPLAgentsArrayValue) Equals(other Value) bool {
-	_, ok := other.(*REPLAgentsArrayValue)
-	return ok
-}
-
-func (a *REPLAgentsArrayValue) GetProperty(name string) Value {
-	if a.context == nil {
-		return &NullValue{}
-	}
-
-	switch name {
-	case "length":
-		return &NumberValue{Value: float64(len(a.context.Agents))}
-	case "push":
-		// Return a builtin function for push
-		return &BuiltinValue{
-			Name: "gsh.repl.agents.push",
-			Fn:   a.pushMethod,
-		}
-	default:
-		return &NullValue{}
-	}
-}
-
-func (a *REPLAgentsArrayValue) SetProperty(name string, value Value) error {
-	return fmt.Errorf("cannot set property '%s' on gsh.repl.agents", name)
-}
-
-// GetIndex implements array indexing for gsh.repl.agents[i]
-func (a *REPLAgentsArrayValue) GetIndex(index int) Value {
-	if a.context == nil || index < 0 || index >= len(a.context.Agents) {
-		return &NullValue{}
-	}
-	agent := a.context.Agents[index]
-	return &REPLAgentObjectValue{
-		agent:     agent,
-		context:   a.context,
-		isDefault: index == 0,
-	}
-}
-
-// SetIndex implements array index assignment for gsh.repl.agents[i] = value
-func (a *REPLAgentsArrayValue) SetIndex(index int, value Value) error {
-	if index == 0 {
-		return fmt.Errorf("cannot replace agents[0] (the default agent)")
-	}
-	return fmt.Errorf("cannot set agent at index %d; use agents.push() to add new agents", index)
-}
-
-// Len returns the length of the agents array
-func (a *REPLAgentsArrayValue) Len() int {
-	if a.context == nil {
-		return 0
-	}
-	return len(a.context.Agents)
-}
-
-// pushMethod implements gsh.repl.agents.push(agentConfig)
-func (a *REPLAgentsArrayValue) pushMethod(args []Value) (Value, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("agents.push() takes exactly 1 argument (agent config object), got %d", len(args))
-	}
-
-	// Accept either an AgentValue directly or an object with name, model, systemPrompt, tools
-	if agentVal, ok := args[0].(*AgentValue); ok {
-		// Direct AgentValue - validate and add
-		if agentVal.Name == "" {
-			return nil, fmt.Errorf("agent must have a non-empty name")
-		}
-		if agentVal.Name == "default" {
-			return nil, fmt.Errorf("agent name 'default' is reserved for the built-in agent")
-		}
-		// Check for duplicate names
-		for _, existing := range a.context.Agents {
-			if existing.Name == agentVal.Name {
-				return nil, fmt.Errorf("agent with name '%s' already exists", agentVal.Name)
-			}
-		}
-		// Validate model is present
-		if _, hasModel := agentVal.Config["model"]; !hasModel {
-			return nil, fmt.Errorf("agent '%s' must have a 'model' in config", agentVal.Name)
-		}
-
-		// Add to agents array
-		a.context.Agents = append(a.context.Agents, agentVal)
-
-		// Notify REPL of new agent
-		if a.context.OnAgentAdded != nil {
-			a.context.OnAgentAdded(agentVal)
-		}
-
-		// Return the new length (like JavaScript Array.push)
-		return &NumberValue{Value: float64(len(a.context.Agents))}, nil
-	}
-
-	// Expect an object with name, model, systemPrompt, tools
-	obj, ok := args[0].(*ObjectValue)
-	if !ok {
-		return nil, fmt.Errorf("agents.push() argument must be an agent or an object with name, model, systemPrompt, and tools")
-	}
-
-	// Extract name (required)
-	nameVal := obj.GetPropertyValue("name")
-	nameStr, ok := nameVal.(*StringValue)
-	if !ok || nameStr.Value == "" {
-		return nil, fmt.Errorf("agent config must have a non-empty 'name' property")
-	}
-	if nameStr.Value == "default" {
-		return nil, fmt.Errorf("agent name 'default' is reserved for the built-in agent")
-	}
-
-	// Check for duplicate names
-	for _, existing := range a.context.Agents {
-		if existing.Name == nameStr.Value {
-			return nil, fmt.Errorf("agent with name '%s' already exists", nameStr.Value)
-		}
-	}
-
-	// Extract model (required)
-	modelVal := obj.GetPropertyValue("model")
-	model, ok := modelVal.(*ModelValue)
-	if !ok {
-		return nil, fmt.Errorf("agent config must have a 'model' property referencing a model declaration")
-	}
-
-	// Build the config map for AgentValue
-	config := make(map[string]Value)
-	config["model"] = model
-
-	// Extract systemPrompt (optional)
-	if promptVal := obj.GetPropertyValue("systemPrompt"); promptVal.Type() != ValueTypeNull {
-		config["systemPrompt"] = promptVal
-	}
-
-	// Extract tools (optional)
-	if toolsVal := obj.GetPropertyValue("tools"); toolsVal.Type() != ValueTypeNull {
-		config["tools"] = toolsVal
-	}
-
-	// Create the new agent using AgentValue
-	newAgent := &AgentValue{
-		Name:   nameStr.Value,
-		Config: config,
-	}
-
-	// Add to agents array
-	a.context.Agents = append(a.context.Agents, newAgent)
-
-	// Notify REPL of new agent
-	if a.context.OnAgentAdded != nil {
-		a.context.OnAgentAdded(newAgent)
-	}
-
-	// Return the new length (like JavaScript Array.push)
-	return &NumberValue{Value: float64(len(a.context.Agents))}, nil
-}
-
-// REPLAgentObjectValue represents an individual agent in gsh.repl.agents
-// It wraps an AgentValue and provides property access consistent with the SDK.
-// When properties are modified, the OnAgentModified callback is invoked to sync
-// changes to the REPL's agent manager.
-type REPLAgentObjectValue struct {
-	agent     *AgentValue
-	context   *REPLContext
-	isDefault bool // True if this is agents[0]
-}
-
-func (o *REPLAgentObjectValue) Type() ValueType { return ValueTypeObject }
-func (o *REPLAgentObjectValue) String() string {
-	if o.agent == nil {
-		return "<agent null>"
-	}
-	return fmt.Sprintf("<agent %s>", o.agent.Name)
-}
-func (o *REPLAgentObjectValue) IsTruthy() bool { return o.agent != nil }
-func (o *REPLAgentObjectValue) Equals(other Value) bool {
-	if otherAgent, ok := other.(*REPLAgentObjectValue); ok {
-		return o.agent == otherAgent.agent
-	}
-	return false
-}
-
-func (o *REPLAgentObjectValue) GetProperty(name string) Value {
-	if o.agent == nil {
-		return &NullValue{}
-	}
-
-	switch name {
-	case "name":
-		return &StringValue{Value: o.agent.Name}
-	case "model":
-		if model, ok := o.agent.Config["model"]; ok {
-			return model
-		}
-		return &NullValue{}
-	case "systemPrompt":
-		if prompt, ok := o.agent.Config["systemPrompt"]; ok {
-			return prompt
-		}
-		return &StringValue{Value: ""}
-	case "tools":
-		if tools, ok := o.agent.Config["tools"]; ok {
-			return tools
-		}
-		return &ArrayValue{Elements: []Value{}}
-	default:
-		// Allow access to any other config properties
-		if val, ok := o.agent.Config[name]; ok {
-			return val
-		}
-		return &NullValue{}
-	}
-}
-
-func (o *REPLAgentObjectValue) SetProperty(name string, value Value) error {
-	if o.agent == nil {
-		return fmt.Errorf("cannot set property on null agent")
-	}
-
-	switch name {
-	case "name":
-		// Agent names are immutable - they are used as keys in the agent manager
-		return fmt.Errorf("cannot change agent name; create a new agent instead")
-
-	case "model":
-		model, ok := value.(*ModelValue)
-		if !ok {
-			return fmt.Errorf("agent model must be a model reference")
-		}
-		o.agent.Config["model"] = model
-		o.notifyModified()
-		return nil
-
-	case "systemPrompt":
-		promptStr, ok := value.(*StringValue)
-		if !ok {
-			return fmt.Errorf("agent systemPrompt must be a string")
-		}
-		o.agent.Config["systemPrompt"] = promptStr
-		o.notifyModified()
-		return nil
-
-	case "tools":
-		toolsArr, ok := value.(*ArrayValue)
-		if !ok {
-			return fmt.Errorf("agent tools must be an array")
-		}
-		// Validate that all elements are tools
-		for i, elem := range toolsArr.Elements {
-			if _, isScript := elem.(*ToolValue); !isScript {
-				if _, isNative := elem.(*NativeToolValue); !isNative {
-					return fmt.Errorf("agent tools[%d] must be a tool, got %s", i, elem.Type())
-				}
-			}
-		}
-		o.agent.Config["tools"] = toolsArr
-		o.notifyModified()
-		return nil
-
-	default:
-		return fmt.Errorf("cannot set property '%s' on agent", name)
-	}
-}
-
-// notifyModified calls the OnAgentModified callback if set
-func (o *REPLAgentObjectValue) notifyModified() {
-	if o.context != nil && o.context.OnAgentModified != nil {
-		o.context.OnAgentModified(o.agent)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"go.uber.org/zap"
 	"mvdan.cc/sh/v3/expand"
@@ -35,36 +36,29 @@ func TestHelpText(t *testing.T) {
 		desc     string
 	}{
 		// Header and usage
-		{"has title", "gsh - An AI-powered shell", "Should have descriptive title"},
+		{"has title", "gsh -", "Should have descriptive title"},
 		{"has usage section", "USAGE:", "Should have usage section"},
-		{"has modes section", "MODES:", "Should have modes section"},
+		{"has commands section", "COMMANDS:", "Should have commands section"},
 
-		// Modes
-		{"has interactive mode", "interactive POSIX-compatible shell", "Should document interactive mode"},
-		{"has gsh script example", "gsh script.gsh", "Should show .gsh script execution"},
-		{"has bash script example", "gsh script.sh", "Should show bash script execution"},
-		{"has command mode", "-c \"command\"", "Should document -c flag"},
-		{"has login shell", "-l", "Should document login shell flag"},
+		// Commands
+		{"has run command", "run <script>", "Should document run command"},
+		{"has telemetry command", "telemetry", "Should document telemetry command"},
+		{"has login shell", "--login", "Should document login shell flag"},
 
-		// Scripting section
-		{"has scripting section", "SCRIPTING:", "Should have scripting section"},
-		{"has gsh extension info", ".gsh extension", "Should mention .gsh extension"},
-		{"has agentic workflows", "agentic", "Should mention agentic workflows"},
-		{"has MCP mention", "MCP", "Should mention MCP servers"},
-		{"has AI models mention", "AI models", "Should mention AI models"},
-		{"has agents mention", "agents", "Should mention agents"},
-
-		// Documentation link
-		{"has docs link", "https://github.com/atinylittleshell/gsh", "Should have documentation link"},
+		// Examples
+		{"has examples section", "EXAMPLES:", "Should have examples section"},
+		{"has gsh script example", "gsh run script.gsh", "Should show .gsh script execution"},
+		{"has bash script example", "gsh run deploy.sh", "Should show bash script execution"},
 
 		// Options section
 		{"has options section", "OPTIONS:", "Should have options section header"},
+		{"has repl-config option", "--repl-config", "Should document --repl-config flag"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if !strings.Contains(helpText, tt.contains) {
-				t.Errorf("%s: helpText should contain %q", tt.desc, tt.contains)
+			if !strings.Contains(mainHelpText, tt.contains) {
+				t.Errorf("%s: mainHelpText should contain %q", tt.desc, tt.contains)
 			}
 		})
 	}
@@ -73,41 +67,40 @@ func TestHelpText(t *testing.T) {
 // TestHelpTextStructure tests the overall structure and formatting of help text
 func TestHelpTextStructure(t *testing.T) {
 	t.Run("sections are in logical order", func(t *testing.T) {
-		usageIdx := strings.Index(helpText, "USAGE:")
-		modesIdx := strings.Index(helpText, "MODES:")
-		scriptingIdx := strings.Index(helpText, "SCRIPTING:")
-		optionsIdx := strings.Index(helpText, "OPTIONS:")
+		usageIdx := strings.Index(mainHelpText, "USAGE:")
+		commandsIdx := strings.Index(mainHelpText, "COMMANDS:")
+		optionsIdx := strings.Index(mainHelpText, "OPTIONS:")
+		examplesIdx := strings.Index(mainHelpText, "EXAMPLES:")
 
-		if usageIdx == -1 || modesIdx == -1 || scriptingIdx == -1 || optionsIdx == -1 {
+		if usageIdx == -1 || commandsIdx == -1 || optionsIdx == -1 || examplesIdx == -1 {
 			t.Fatal("Missing required sections")
 		}
 
-		if usageIdx > modesIdx {
-			t.Error("USAGE should come before MODES")
+		if usageIdx > commandsIdx {
+			t.Error("USAGE should come before COMMANDS")
 		}
-		if modesIdx > scriptingIdx {
-			t.Error("MODES should come before SCRIPTING")
+		if commandsIdx > optionsIdx {
+			t.Error("COMMANDS should come before OPTIONS")
 		}
-		if scriptingIdx > optionsIdx {
-			t.Error("SCRIPTING should come before OPTIONS")
+		if optionsIdx > examplesIdx {
+			t.Error("OPTIONS should come before EXAMPLES")
 		}
 	})
 
 	t.Run("help text is not empty", func(t *testing.T) {
-		if len(helpText) < 100 {
+		if len(mainHelpText) < 100 {
 			t.Error("Help text seems too short")
 		}
 	})
 
-	t.Run("help text ends properly", func(t *testing.T) {
-		// Should end with OPTIONS: followed by newline (flag.PrintDefaults adds the options)
-		if !strings.HasSuffix(helpText, "OPTIONS:\n") {
-			t.Error("Help text should end with OPTIONS: section header")
+	t.Run("help text ends with newline", func(t *testing.T) {
+		if !strings.HasSuffix(mainHelpText, "\n") {
+			t.Error("Help text should end with newline")
 		}
 	})
 
 	t.Run("no trailing whitespace issues", func(t *testing.T) {
-		lines := strings.Split(helpText, "\n")
+		lines := strings.Split(mainHelpText, "\n")
 		for i, line := range lines {
 			if strings.HasSuffix(line, " ") || strings.HasSuffix(line, "\t") {
 				t.Errorf("Line %d has trailing whitespace: %q", i+1, line)
@@ -117,11 +110,58 @@ func TestHelpTextStructure(t *testing.T) {
 
 	t.Run("help text is concise", func(t *testing.T) {
 		// Help text should be reasonably short - under 50 lines
-		lines := strings.Split(helpText, "\n")
+		lines := strings.Split(mainHelpText, "\n")
 		if len(lines) > 50 {
 			t.Errorf("Help text should be concise, got %d lines", len(lines))
 		}
 	})
+}
+
+// TestRunHelpText tests the run subcommand help text
+func TestRunHelpText(t *testing.T) {
+	tests := []struct {
+		name     string
+		contains string
+	}{
+		{"has usage", "USAGE:"},
+		{"has gsh run", "gsh run"},
+		{"has script arg", "<script>"},
+		{"has options", "OPTIONS:"},
+		{"has help flag", "--help"},
+		{"has examples", "EXAMPLES:"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !strings.Contains(runHelpText, tt.contains) {
+				t.Errorf("runHelpText should contain %q", tt.contains)
+			}
+		})
+	}
+}
+
+// TestTelemetryHelpText tests the telemetry subcommand help text
+func TestTelemetryHelpText(t *testing.T) {
+	tests := []struct {
+		name     string
+		contains string
+	}{
+		{"has usage", "USAGE:"},
+		{"has status command", "status"},
+		{"has on command", "on"},
+		{"has off command", "off"},
+		{"has env vars", "ENVIRONMENT VARIABLES:"},
+		{"has what we collect", "WHAT WE COLLECT:"},
+		{"has what we never collect", "WHAT WE NEVER COLLECT:"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !strings.Contains(telemetryHelpText, tt.contains) {
+				t.Errorf("telemetryHelpText should contain %q", tt.contains)
+			}
+		})
+	}
 }
 
 // captureStdout captures stdout during the execution of fn and returns the captured output
@@ -782,12 +822,16 @@ func TestRunInteractiveShell(t *testing.T) {
 			t.Fatalf("Failed to create logger: %v", err)
 		}
 
+		// Create a test runner
+		runner := newTestRunner(t)
+
 		// Create a context that's already cancelled
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
 		// Should return immediately with context error
-		err = runInteractiveShell(ctx, logger)
+		// Pass zero time, nil tracker, and empty config path since we don't need telemetry for this test
+		err = runInteractiveShell(ctx, logger, runner, time.Time{}, nil, "")
 		if err == nil {
 			t.Error("Expected context cancellation error, got nil")
 		}

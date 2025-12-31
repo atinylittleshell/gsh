@@ -736,21 +736,220 @@ Unique users: 10
 
 ---
 
+## Date and Time: `DateTime`
+
+Work with dates and times using the `DateTime` object. Similar to dayjs, but with a static methods API.
+
+### Getting Current Time: `DateTime.now()`
+
+Get the current timestamp in milliseconds since Unix epoch:
+
+```gsh
+timestamp = DateTime.now()
+print("Current timestamp:", timestamp)
+```
+
+**Output:**
+
+```
+Current timestamp: 1704067200000
+```
+
+### Parsing Dates: `DateTime.parse()`
+
+Parse a date string into a timestamp (milliseconds):
+
+```gsh
+# Parse ISO 8601 format (auto-detected)
+ts = DateTime.parse("2024-01-15T10:30:00Z")
+print(ts)
+
+# Parse date-only format (auto-detected)
+ts = DateTime.parse("2024-01-15")
+print(ts)
+
+# Parse with custom format
+ts = DateTime.parse("15/01/2024", "DD/MM/YYYY")
+print(ts)
+```
+
+**Supported auto-detected formats:**
+
+- ISO 8601: `2024-01-15T10:30:00Z`, `2024-01-15T10:30:00.000Z`
+- Date only: `2024-01-15`, `2024/01/15`
+- US format: `01/15/2024`
+- EU format: `15/01/2024`
+- Named: `Jan 15, 2024`, `January 15, 2024`
+
+### Formatting Dates: `DateTime.format()`
+
+Format a timestamp into a human-readable string:
+
+```gsh
+ts = DateTime.now()
+
+# Default ISO 8601 format
+print(DateTime.format(ts))
+
+# Custom formats
+print(DateTime.format(ts, "YYYY-MM-DD"))
+print(DateTime.format(ts, "DD/MM/YYYY"))
+print(DateTime.format(ts, "MMM DD, YYYY"))
+print(DateTime.format(ts, "HH:mm:ss"))
+```
+
+**Output (example):**
+
+```
+2024-01-15T10:30:00.000-05:00
+2024-01-15
+15/01/2024
+Jan 15, 2024
+10:30:00
+```
+
+**Format tokens (dayjs-compatible):**
+
+| Token  | Output             | Example |
+| ------ | ------------------ | ------- |
+| `YYYY` | 4-digit year       | 2024    |
+| `YY`   | 2-digit year       | 24      |
+| `MMMM` | Full month name    | January |
+| `MMM`  | Short month name   | Jan     |
+| `MM`   | Month (2-digit)    | 01      |
+| `M`    | Month              | 1       |
+| `DD`   | Day (2-digit)      | 05      |
+| `D`    | Day                | 5       |
+| `dddd` | Full weekday       | Monday  |
+| `ddd`  | Short weekday      | Mon     |
+| `HH`   | Hour 24h (2-digit) | 09      |
+| `hh`   | Hour 12h (2-digit) | 09      |
+| `mm`   | Minutes (2-digit)  | 05      |
+| `ss`   | Seconds (2-digit)  | 05      |
+| `SSS`  | Milliseconds       | 123     |
+| `A`    | AM/PM              | PM      |
+| `a`    | am/pm              | pm      |
+| `Z`    | Timezone offset    | -07:00  |
+| `ZZ`   | Timezone offset    | -0700   |
+
+### Calculating Differences: `DateTime.diff()`
+
+Calculate the difference between two timestamps:
+
+```gsh
+start = DateTime.parse("2024-01-01")
+end = DateTime.parse("2024-01-15")
+
+# Default unit is milliseconds
+diffMs = DateTime.diff(end, start)
+print("Milliseconds:", diffMs)
+
+# Specify unit
+diffDays = DateTime.diff(end, start, "days")
+print("Days:", diffDays)
+
+diffHours = DateTime.diff(end, start, "hours")
+print("Hours:", diffHours)
+```
+
+**Output:**
+
+```
+Milliseconds: 1209600000
+Days: 14
+Hours: 336
+```
+
+**Supported units:**
+
+- `milliseconds` or `ms`
+- `seconds` or `s`
+- `minutes` or `m`
+- `hours` or `h`
+- `days` or `d`
+
+### Practical Example: Timing Operations
+
+```gsh
+tool timeExecution(name: string, fn: tool) {
+    start = DateTime.now()
+    result = fn()
+    end = DateTime.now()
+
+    duration = DateTime.diff(end, start, "seconds")
+    log.info(name, "completed in", duration, "seconds")
+
+    return result
+}
+
+tool slowOperation() {
+    exec("sleep 2")
+    return "done"
+}
+
+result = timeExecution("Slow operation", slowOperation)
+print("Result:", result)
+```
+
+**Output:**
+
+```
+[INFO] Slow operation completed in 2 seconds
+Result: done
+```
+
+### Practical Example: Date Formatting in Logs
+
+```gsh
+tool logWithTimestamp(message: string) {
+    ts = DateTime.now()
+    formatted = DateTime.format(ts, "YYYY-MM-DD HH:mm:ss")
+    print("[" + formatted + "]", message)
+}
+
+logWithTimestamp("Application started")
+logWithTimestamp("Processing data...")
+logWithTimestamp("Done!")
+```
+
+**Output:**
+
+```
+[2024-01-15 10:30:00] Application started
+[2024-01-15 10:30:01] Processing data...
+[2024-01-15 10:30:02] Done!
+```
+
+### Function Signatures
+
+```gsh
+DateTime.now(): number
+DateTime.parse(dateString: string, format?: string): number
+DateTime.format(timestamp: number, format?: string): string
+DateTime.diff(timestamp1: number, timestamp2: number, unit?: string): number
+```
+
+---
+
 ## Summary: When to Use Each Built-in
 
-| Function           | Purpose                            | Example                             |
-| ------------------ | ---------------------------------- | ----------------------------------- |
-| `print()`          | Output to stdout                   | `print("Result:", value)`           |
-| `log.info()`       | Structured logging (info level)    | `log.info("Processing started")`    |
-| `log.warn()`       | Structured logging (warning level) | `log.warn("Deprecated API")`        |
-| `log.error()`      | Structured logging (error level)   | `log.error("Failed:", err.message)` |
-| `input()`          | Read user input                    | `name = input("Enter name: ")`      |
-| `JSON.parse()`     | Parse JSON strings                 | `data = JSON.parse(jsonStr)`        |
-| `JSON.stringify()` | Convert to JSON                    | `jsonStr = JSON.stringify(data)`    |
-| `exec()`           | Run shell commands                 | `result = exec("git status")`       |
-| `env`              | Access environment variables       | `token = env.API_KEY`               |
-| `Map()`            | Key-value collections              | `config = Map([["key", "value"]])`  |
-| `Set()`            | Unique value collections           | `unique = Set([1, 2, 2, 3])`        |
+| Function            | Purpose                            | Example                             |
+| ------------------- | ---------------------------------- | ----------------------------------- |
+| `print()`           | Output to stdout                   | `print("Result:", value)`           |
+| `log.info()`        | Structured logging (info level)    | `log.info("Processing started")`    |
+| `log.warn()`        | Structured logging (warning level) | `log.warn("Deprecated API")`        |
+| `log.error()`       | Structured logging (error level)   | `log.error("Failed:", err.message)` |
+| `input()`           | Read user input                    | `name = input("Enter name: ")`      |
+| `JSON.parse()`      | Parse JSON strings                 | `data = JSON.parse(jsonStr)`        |
+| `JSON.stringify()`  | Convert to JSON                    | `jsonStr = JSON.stringify(data)`    |
+| `exec()`            | Run shell commands                 | `result = exec("git status")`       |
+| `env`               | Access environment variables       | `token = env.API_KEY`               |
+| `Map()`             | Key-value collections              | `config = Map([["key", "value"]])`  |
+| `Set()`             | Unique value collections           | `unique = Set([1, 2, 2, 3])`        |
+| `DateTime.now()`    | Current timestamp (ms)             | `ts = DateTime.now()`               |
+| `DateTime.parse()`  | Parse date strings                 | `ts = DateTime.parse("2024-01-15")` |
+| `DateTime.format()` | Format timestamps                  | `DateTime.format(ts, "YYYY-MM-DD")` |
+| `DateTime.diff()`   | Calculate time differences         | `DateTime.diff(end, start, "days")` |
 
 ---
 
@@ -763,6 +962,7 @@ Unique users: 10
 5. **`exec()` runs shell commands** and captures output—your gateway to Unix tools
 6. **`env` accesses environment variables**—bridge between gsh and the system
 7. **`Map()` and `Set()` provide specialized collections**—maps for lookups, sets for uniqueness
+8. **`DateTime` provides date/time utilities**—parsing, formatting, and calculating differences
 
 ---
 
@@ -780,4 +980,4 @@ You've now completed the full language reference! You understand:
 
 ---
 
-**Previous Chapter:** [Chapter 20: Debugging and Troubleshooting](20-debugging-and-troubleshooting.md)
+**Previous Chapter:** [Chapter 20: Debugging and Troubleshooting](20-debugging-and-troubleshooting.md) | **Next Chapter:** [Chapter 22: Imports and Modules](22-imports-and-modules.md)

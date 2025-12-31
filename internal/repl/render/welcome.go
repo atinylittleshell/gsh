@@ -38,9 +38,9 @@ var tips = []string{
 	"press Ctrl+E to jump to end of line",
 
 	// Configuration
-	"you can customize your shell prompt in ~/.gshrc.gsh",
+	"you can customize your shell prompt in ~/.gsh/repl.gsh",
 	"starship integration is automatic if starship is in PATH",
-	"set logLevel: \"debug\" in GSH_CONFIG for troubleshooting",
+	"use gsh.logging.level for troubleshooting (\"debug\", \"info\", \"warn\", \"error\")",
 	"you can define bash aliases in ~/.gshrc",
 
 	// Predictions
@@ -54,7 +54,7 @@ var tips = []string{
 
 	// MCP and tools
 	"connect to MCP servers to give agents more capabilities",
-	"define custom agents, tools, and MCP servers in ~/.gshrc.gsh",
+	"define custom agents, tools, and MCP servers in ~/.gsh/repl.gsh",
 
 	// Scripts
 	"run gsh scripts with: gsh script.gsh",

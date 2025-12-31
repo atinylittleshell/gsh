@@ -12,6 +12,7 @@ type Paths struct {
 	HistoryFile       string
 	AnalyticsFile     string
 	LatestVersionFile string
+	VersionMarkerFile string
 }
 
 var defaultPaths *Paths
@@ -25,11 +26,12 @@ func ensureDefaultPaths() {
 
 		defaultPaths = &Paths{
 			HomeDir:           homeDir,
-			DataDir:           filepath.Join(homeDir, ".local", "share", "gsh"),
-			LogFile:           filepath.Join(homeDir, ".local", "share", "gsh", "gsh.log"),
-			HistoryFile:       filepath.Join(homeDir, ".local", "share", "gsh", "history.db"),
-			AnalyticsFile:     filepath.Join(homeDir, ".local", "share", "gsh", "analytics.db"),
-			LatestVersionFile: filepath.Join(homeDir, ".local", "share", "gsh", "latest_version.txt"),
+			DataDir:           filepath.Join(homeDir, ".gsh"),
+			LogFile:           filepath.Join(homeDir, ".gsh", "gsh.log"),
+			HistoryFile:       filepath.Join(homeDir, ".gsh", "history.db"),
+			AnalyticsFile:     filepath.Join(homeDir, ".gsh", "analytics.db"),
+			LatestVersionFile: filepath.Join(homeDir, ".gsh", "latest_version.txt"),
+			VersionMarkerFile: filepath.Join(homeDir, ".gsh", "version_marker"),
 		}
 
 		err = os.MkdirAll(defaultPaths.DataDir, 0755)
@@ -67,4 +69,15 @@ func AnalyticsFile() string {
 func LatestVersionFile() string {
 	ensureDefaultPaths()
 	return defaultPaths.LatestVersionFile
+}
+
+func VersionMarkerFile() string {
+	ensureDefaultPaths()
+	return defaultPaths.VersionMarkerFile
+}
+
+// ResetPaths clears the cached paths, forcing them to be reinitialized.
+// This is primarily used for testing purposes.
+func ResetPaths() {
+	defaultPaths = nil
 }

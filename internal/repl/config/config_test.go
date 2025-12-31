@@ -13,8 +13,6 @@ func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
 	require.NotNil(t, cfg)
-	assert.Equal(t, "gsh> ", cfg.Prompt)
-	assert.Equal(t, "info", cfg.LogLevel)
 	assert.NotNil(t, cfg.MCPServers)
 	assert.Empty(t, cfg.MCPServers)
 	assert.NotNil(t, cfg.Models)
@@ -97,33 +95,6 @@ func TestConfig_GetTool(t *testing.T) {
 	})
 }
 
-func TestConfig_GetUpdatePromptTool(t *testing.T) {
-	t.Run("returns nil when GSH_PROMPT not configured", func(t *testing.T) {
-		cfg := DefaultConfig()
-		assert.Nil(t, cfg.GetUpdatePromptTool())
-	})
-
-	t.Run("returns tool when GSH_PROMPT is configured", func(t *testing.T) {
-		tool := &interpreter.ToolValue{
-			Name:       "GSH_PROMPT",
-			Parameters: []string{"exitCode", "durationMs"},
-			ParamTypes: map[string]string{
-				"exitCode":   "number",
-				"durationMs": "number",
-			},
-			ReturnType: "string",
-		}
-		cfg := DefaultConfig()
-		cfg.Tools["GSH_PROMPT"] = tool
-
-		result := cfg.GetUpdatePromptTool()
-		require.NotNil(t, result)
-		assert.Equal(t, "GSH_PROMPT", result.Name)
-		assert.Equal(t, []string{"exitCode", "durationMs"}, result.Parameters)
-		assert.Equal(t, "string", result.ReturnType)
-	})
-}
-
 func TestConfig_GetMCPServer(t *testing.T) {
 	t.Run("returns nil for nil MCPServers map", func(t *testing.T) {
 		cfg := &Config{MCPServers: nil}
@@ -155,10 +126,6 @@ func TestConfig_FullConfiguration(t *testing.T) {
 	// Test a fully configured Config object
 	cfg := DefaultConfig()
 
-	// Set prompt and log level
-	cfg.Prompt = "custom> "
-	cfg.LogLevel = "debug"
-
 	// Add models
 	cfg.Models["myModel"] = &interpreter.ModelValue{
 		Name: "myModel",
@@ -178,9 +145,9 @@ func TestConfig_FullConfiguration(t *testing.T) {
 	}
 
 	// Add tool
-	cfg.Tools["GSH_PROMPT"] = &interpreter.ToolValue{
-		Name:       "GSH_PROMPT",
-		Parameters: []string{"exitCode", "durationMs"},
+	cfg.Tools["myTool"] = &interpreter.ToolValue{
+		Name:       "myTool",
+		Parameters: []string{"arg1"},
 		ReturnType: "string",
 	}
 
@@ -194,11 +161,9 @@ func TestConfig_FullConfiguration(t *testing.T) {
 	}
 
 	// Verify all values
-	assert.Equal(t, "custom> ", cfg.Prompt)
-	assert.Equal(t, "debug", cfg.LogLevel)
 	assert.NotNil(t, cfg.GetModel("myModel"))
 	assert.NotNil(t, cfg.GetAgent("coder"))
-	assert.NotNil(t, cfg.GetUpdatePromptTool())
+	assert.NotNil(t, cfg.GetTool("myTool"))
 	assert.NotNil(t, cfg.GetMCPServer("filesystem"))
 }
 
@@ -209,84 +174,5 @@ func TestConfig_ZeroValueBehavior(t *testing.T) {
 	assert.Nil(t, cfg.GetModel("test"))
 	assert.Nil(t, cfg.GetAgent("test"))
 	assert.Nil(t, cfg.GetTool("test"))
-	assert.Nil(t, cfg.GetUpdatePromptTool())
 	assert.Nil(t, cfg.GetMCPServer("test"))
-	assert.Nil(t, cfg.GetPredictModel())
-}
-
-func TestConfig_GetPredictModel(t *testing.T) {
-	t.Run("returns nil when PredictModel is empty", func(t *testing.T) {
-		cfg := DefaultConfig()
-		assert.Nil(t, cfg.GetPredictModel())
-	})
-
-	t.Run("returns nil when PredictModel references non-existent model", func(t *testing.T) {
-		cfg := DefaultConfig()
-		cfg.PredictModel = "non-existent"
-		assert.Nil(t, cfg.GetPredictModel())
-	})
-
-	t.Run("returns model when PredictModel references existing model", func(t *testing.T) {
-		model := &interpreter.ModelValue{
-			Name: "predict-model",
-			Config: map[string]interpreter.Value{
-				"provider": &interpreter.StringValue{Value: "openai"},
-				"model":    &interpreter.StringValue{Value: "gpt-4o-mini"},
-			},
-		}
-		cfg := DefaultConfig()
-		cfg.Models["predict-model"] = model
-		cfg.PredictModel = "predict-model"
-
-		result := cfg.GetPredictModel()
-		require.NotNil(t, result)
-		assert.Equal(t, "predict-model", result.Name)
-	})
-}
-
-func TestConfig_GetDefaultAgentModel(t *testing.T) {
-	t.Run("returns nil when DefaultAgentModel is empty", func(t *testing.T) {
-		cfg := DefaultConfig()
-		assert.Nil(t, cfg.GetDefaultAgentModel())
-	})
-
-	t.Run("returns nil when DefaultAgentModel references non-existent model", func(t *testing.T) {
-		cfg := DefaultConfig()
-		cfg.DefaultAgentModel = "non-existent"
-		assert.Nil(t, cfg.GetDefaultAgentModel())
-	})
-
-	t.Run("returns model when DefaultAgentModel references existing model", func(t *testing.T) {
-		model := &interpreter.ModelValue{
-			Name: "my-model",
-		}
-		cfg := DefaultConfig()
-		cfg.Models["my-model"] = model
-		cfg.DefaultAgentModel = "my-model"
-
-		result := cfg.GetDefaultAgentModel()
-		require.NotNil(t, result)
-		assert.Equal(t, "my-model", result.Name)
-	})
-}
-
-func TestConfig_ShowWelcomeEnabled(t *testing.T) {
-	t.Run("returns true when ShowWelcome is nil (default)", func(t *testing.T) {
-		cfg := DefaultConfig()
-		assert.True(t, cfg.ShowWelcomeEnabled())
-	})
-
-	t.Run("returns true when ShowWelcome is explicitly true", func(t *testing.T) {
-		cfg := DefaultConfig()
-		showWelcome := true
-		cfg.ShowWelcome = &showWelcome
-		assert.True(t, cfg.ShowWelcomeEnabled())
-	})
-
-	t.Run("returns false when ShowWelcome is explicitly false", func(t *testing.T) {
-		cfg := DefaultConfig()
-		showWelcome := false
-		cfg.ShowWelcome = &showWelcome
-		assert.False(t, cfg.ShowWelcomeEnabled())
-	})
 }

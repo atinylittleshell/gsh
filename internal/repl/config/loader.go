@@ -5,16 +5,17 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 
+	"github.com/atinylittleshell/gsh/internal/core"
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 	"github.com/atinylittleshell/gsh/internal/script/mcp"
 	"go.uber.org/zap"
 )
 
-// Loader handles loading and parsing of .gshrc.gsh configuration files.
+// Loader handles loading and parsing of ~/.gsh/repl.gsh configuration files.
 type Loader struct {
 	logger *zap.Logger
 }
@@ -33,7 +34,7 @@ type LoadResult struct {
 	Errors      []error
 }
 
-// LoadFromFile loads configuration from a .gshrc.gsh file.
+// LoadFromFile loads configuration from a repl.gsh file.
 // Returns the configuration and any non-fatal errors encountered.
 // If the file doesn't exist, returns default configuration with no error.
 func (l *Loader) LoadFromFile(path string) (*LoadResult, error) {
@@ -42,8 +43,14 @@ func (l *Loader) LoadFromFile(path string) (*LoadResult, error) {
 		Errors: []error{},
 	}
 
+	// Get absolute path for proper import resolution
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve config path: %w", err)
+	}
+
 	// Check if file exists
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// File doesn't exist, return defaults
@@ -52,7 +59,34 @@ func (l *Loader) LoadFromFile(path string) (*LoadResult, error) {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	return l.LoadFromString(string(content))
+	return l.LoadFromFileContent(absPath, string(content))
+}
+
+// LoadFromFileContent loads configuration from a gsh script string with a known file path.
+// This sets up proper import resolution relative to the file's directory.
+func (l *Loader) LoadFromFileContent(filePath string, source string) (*LoadResult, error) {
+	interp := interpreter.New(&interpreter.Options{Logger: l.logger})
+
+	result := &LoadResult{
+		Config:      DefaultConfig(),
+		Interpreter: interp,
+		Errors:      []error{},
+	}
+
+	// Evaluate with filesystem origin for import resolution
+	_, err := interp.EvalString(source, &interpreter.ScriptOrigin{
+		Type:     interpreter.OriginFilesystem,
+		BasePath: filepath.Dir(filePath),
+	})
+	if err != nil {
+		result.Errors = append(result.Errors, err)
+		return result, nil
+	}
+
+	// Extract configuration from the interpreter
+	l.ExtractConfigFromInterpreter(interp, result)
+
+	return result, nil
 }
 
 // LoadFromString loads configuration from a gsh script string.
@@ -71,54 +105,38 @@ func (l *Loader) LoadFromStringInto(interp *interpreter.Interpreter, source stri
 		Errors:      []error{},
 	}
 
-	_, err := interp.EvalString(source)
+	_, err := interp.EvalString(source, nil)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
 		return result, nil
 	}
 
 	// Extract configuration from the interpreter
-	l.extractConfigFromInterpreter(interp, result)
+	l.ExtractConfigFromInterpreter(interp, result)
 
 	return result, nil
 }
 
-// LoadDefaultConfigPath loads configuration from the default path (~/.gshrc.gsh).
-// Creates a new interpreter internally. For loading into an existing interpreter,
-// use LoadDefaultConfigPathInto.
-//
-// Loading order:
-//  1. .gshrc.default.gsh (system defaults)
-//  2. ~/.gshrc.gsh (user config) - GSH_CONFIG is merged with defaults
-//  3. .gshrc.starship.gsh (if starship is detected and user hasn't disabled it)
-//
-// When the user defines GSH_CONFIG in their config file, it is merged with the default
-// GSH_CONFIG rather than replacing it entirely. This allows users to override only the
-// settings they care about while inheriting all other defaults.
-//
-// Starship integration is loaded last so that user config can set starshipIntegration = false
-// to disable it. Users who want a custom prompt should disable starship integration and
-// define their own GSH_PROMPT tool.
-//
-// defaultContent is the embedded content of .gshrc.default.gsh (can be empty).
-// starshipContent is the embedded content of .gshrc.starship.gsh (can be empty).
-func (l *Loader) LoadDefaultConfigPath(defaultContent string, starshipContent string) (*LoadResult, error) {
-	interp := interpreter.New(&interpreter.Options{Logger: l.logger})
-	return l.LoadDefaultConfigPathInto(interp, defaultContent, starshipContent)
+// EmbeddedDefaults contains the embedded default configuration.
+// If EmbedFS is provided, imports from the default config will resolve against it.
+type EmbeddedDefaults struct {
+	Content  string // The content of the main default config file
+	FS       fs.FS  // The embedded filesystem (optional, enables imports)
+	BasePath string // The base path within the embedded FS (e.g., "defaults")
 }
 
-// LoadDefaultConfigPathInto loads configuration from the default path into an existing interpreter.
-// See LoadDefaultConfigPath for details on the loading order.
-func (l *Loader) LoadDefaultConfigPathInto(interp *interpreter.Interpreter, defaultContent string, starshipContent string) (*LoadResult, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return &LoadResult{
-			Config:      DefaultConfig(),
-			Interpreter: interp,
-			Errors:      []error{fmt.Errorf("failed to get home directory: %w", err)},
-		}, nil
-	}
-
+// LoadDefaultConfigPathInto loads configuration from the default path (~/.gsh/repl.gsh)
+// into an existing interpreter.
+//
+// Loading order:
+//  1. defaults/init.gsh (system defaults) - sets up SDK properties and event handlers
+//  2. ~/.gsh/repl.gsh (user config) - can override SDK properties and add custom handlers
+//
+// Configuration is now managed via the SDK (gsh.* properties and gsh.on() event handlers)
+// rather than the legacy GSH_CONFIG object.
+//
+// defaults contains the embedded default configuration (can have empty Content to skip).
+func (l *Loader) LoadDefaultConfigPathInto(interp *interpreter.Interpreter, defaults EmbeddedDefaults) (*LoadResult, error) {
 	// Start with default configuration
 	result := &LoadResult{
 		Config:      DefaultConfig(),
@@ -126,9 +144,18 @@ func (l *Loader) LoadDefaultConfigPathInto(interp *interpreter.Interpreter, defa
 		Errors:      []error{},
 	}
 
-	// 1. Load default config first
-	if defaultContent != "" {
-		_, err := interp.EvalString(defaultContent)
+	// 1. Load default config first (sets up SDK properties and event handlers)
+	if defaults.Content != "" {
+		var origin *interpreter.ScriptOrigin
+		if defaults.FS != nil {
+			origin = &interpreter.ScriptOrigin{
+				Type:     interpreter.OriginEmbed,
+				BasePath: defaults.BasePath,
+				EmbedFS:  defaults.FS,
+			}
+		}
+
+		_, err := interp.EvalString(defaults.Content, origin)
 		if err != nil {
 			result.Errors = append(result.Errors, err)
 			// Log but continue - user config might still work
@@ -140,17 +167,9 @@ func (l *Loader) LoadDefaultConfigPathInto(interp *interpreter.Interpreter, defa
 		}
 	}
 
-	// Save the default GSH_CONFIG for later merging
-	vars := interp.GetVariables()
-	var defaultGSHConfig *interpreter.ObjectValue
-	if gshConfig, ok := vars["GSH_CONFIG"]; ok {
-		if objVal, ok := gshConfig.(*interpreter.ObjectValue); ok {
-			defaultGSHConfig = objVal
-		}
-	}
-
-	// 2. Load user config into SAME interpreter (shadows defaults)
-	userConfigPath := filepath.Join(homeDir, ".gshrc.gsh")
+	// 2. Load user config into SAME interpreter (can override SDK properties)
+	gshDir := core.DataDir()
+	userConfigPath := filepath.Join(gshDir, "repl.gsh")
 	userContent, err := os.ReadFile(userConfigPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -161,7 +180,12 @@ func (l *Loader) LoadDefaultConfigPathInto(interp *interpreter.Interpreter, defa
 			l.logger.Debug("no user configuration file found", zap.String("path", userConfigPath))
 		}
 	} else {
-		_, err := interp.EvalString(string(userContent))
+		// Evaluate with filesystem origin for import resolution
+		// Imports in ~/.gsh/repl.gsh will resolve relative to the .gsh directory
+		_, err := interp.EvalString(string(userContent), &interpreter.ScriptOrigin{
+			Type:     interpreter.OriginFilesystem,
+			BasePath: gshDir,
+		})
 		if err != nil {
 			result.Errors = append(result.Errors, err)
 			if l.logger != nil {
@@ -170,47 +194,12 @@ func (l *Loader) LoadDefaultConfigPathInto(interp *interpreter.Interpreter, defa
 		} else if l.logger != nil {
 			l.logger.Debug("loaded user configuration", zap.String("path", userConfigPath))
 		}
-
-		// Deep merge user's GSH_CONFIG with defaults (user values take precedence)
-		if defaultGSHConfig != nil {
-			vars = interp.GetVariables()
-			if userGSHConfig, ok := vars["GSH_CONFIG"]; ok {
-				if userObjVal, ok := userGSHConfig.(*interpreter.ObjectValue); ok {
-					mergedConfig := defaultGSHConfig.DeepMerge(userObjVal)
-					interp.SetVariable("GSH_CONFIG", mergedConfig)
-					if l.logger != nil {
-						l.logger.Debug("deep merged user GSH_CONFIG with defaults")
-					}
-				}
-			}
-		}
 	}
 
-	// 3. Extract config to check starshipIntegration setting
-	l.extractConfigFromInterpreter(interp, result)
-
-	// 4. Load starship integration if enabled and starship is available
-	if starshipContent != "" && result.Config.StarshipIntegrationEnabled() && isStarshipAvailable() {
-		_, err := interp.EvalString(starshipContent)
-		if err != nil {
-			result.Errors = append(result.Errors, err)
-			if l.logger != nil {
-				l.logger.Warn("errors loading starship integration", zap.Error(err))
-			}
-		} else if l.logger != nil {
-			l.logger.Debug("loaded starship integration (starship detected in PATH)")
-		}
-		// Re-extract config after loading starship integration
-		l.extractConfigFromInterpreter(interp, result)
-	}
+	// 3. Extract declarations (models, agents, tools, MCP servers)
+	l.ExtractConfigFromInterpreter(interp, result)
 
 	return result, nil
-}
-
-// isStarshipAvailable checks if starship is available in the system PATH.
-func isStarshipAvailable() bool {
-	_, err := exec.LookPath("starship")
-	return err == nil
 }
 
 // LoadBashRC loads a bash configuration file (.gshrc) by executing it through
@@ -252,16 +241,11 @@ type BashExecutor interface {
 	RunBashScriptFromReader(ctx context.Context, reader io.Reader, name string) error
 }
 
-// extractConfigFromInterpreter extracts configuration values from the interpreter's environment.
-// This is used when we want to extract config from an interpreter that has already evaluated code.
-func (l *Loader) extractConfigFromInterpreter(interp *interpreter.Interpreter, result *LoadResult) {
+// ExtractConfigFromInterpreter extracts declarations from the interpreter's environment.
+// This extracts models, agents, tools, and MCP servers defined in the config files.
+func (l *Loader) ExtractConfigFromInterpreter(interp *interpreter.Interpreter, result *LoadResult) {
 	// Get all variables from the interpreter's environment
 	vars := interp.GetVariables()
-
-	// Extract GSH_CONFIG if present
-	if gshConfig, ok := vars["GSH_CONFIG"]; ok {
-		l.extractGSHConfig(gshConfig, result)
-	}
 
 	// Extract all declarations (models, agents, tools, MCP servers)
 	for name, value := range vars {
@@ -279,118 +263,6 @@ func (l *Loader) extractConfigFromInterpreter(interp *interpreter.Interpreter, r
 			result.Config.MCPServers[name] = &mcp.MCPServer{
 				Name: v.ServerName,
 			}
-		}
-	}
-}
-
-// mergeResults merges two LoadResult objects, with the second result taking precedence.
-// This is used to merge default config with user config.
-func (l *Loader) mergeResults(base, override *LoadResult) *LoadResult {
-	result := &LoadResult{
-		Config:      base.Config.Clone(),
-		Interpreter: override.Interpreter, // Use the most recent interpreter
-		Errors:      append([]error{}, base.Errors...),
-	}
-	result.Errors = append(result.Errors, override.Errors...)
-
-	// Merge configuration fields (override takes precedence for non-empty values)
-	if override.Config.Prompt != "" && override.Config.Prompt != "gsh> " {
-		result.Config.Prompt = override.Config.Prompt
-	}
-	if override.Config.LogLevel != "" && override.Config.LogLevel != "info" {
-		result.Config.LogLevel = override.Config.LogLevel
-	}
-	if override.Config.PredictModel != "" {
-		result.Config.PredictModel = override.Config.PredictModel
-	}
-	if override.Config.DefaultAgentModel != "" {
-		result.Config.DefaultAgentModel = override.Config.DefaultAgentModel
-	}
-
-	// Merge maps (override takes precedence)
-	for name, model := range override.Config.Models {
-		result.Config.Models[name] = model
-	}
-	for name, agent := range override.Config.Agents {
-		result.Config.Agents[name] = agent
-	}
-	for name, tool := range override.Config.Tools {
-		result.Config.Tools[name] = tool
-	}
-	for name, server := range override.Config.MCPServers {
-		result.Config.MCPServers[name] = server
-	}
-
-	return result
-}
-
-// extractGSHConfig extracts values from the GSH_CONFIG object.
-func (l *Loader) extractGSHConfig(value interpreter.Value, result *LoadResult) {
-	obj, ok := value.(*interpreter.ObjectValue)
-	if !ok {
-		result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG must be an object, got %s", value.Type()))
-		return
-	}
-
-	// Extract prompt
-	prompt := obj.GetPropertyValue("prompt")
-	if prompt.Type() != interpreter.ValueTypeNull {
-		if strVal, ok := prompt.(*interpreter.StringValue); ok {
-			result.Config.Prompt = strVal.Value
-		} else {
-			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.prompt must be a string"))
-		}
-	}
-
-	// Extract logLevel
-	logLevel := obj.GetPropertyValue("logLevel")
-	if logLevel.Type() != interpreter.ValueTypeNull {
-		if strVal, ok := logLevel.(*interpreter.StringValue); ok {
-			result.Config.LogLevel = strVal.Value
-		} else {
-			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.logLevel must be a string"))
-		}
-	}
-
-	// Extract predictModel
-	predictModel := obj.GetPropertyValue("predictModel")
-	if predictModel.Type() != interpreter.ValueTypeNull {
-		if modelVal, ok := predictModel.(*interpreter.ModelValue); ok {
-			// Only accept model reference, use its name
-			result.Config.PredictModel = modelVal.Name
-		} else {
-			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.predictModel must be a model reference, got %s", predictModel.Type()))
-		}
-	}
-
-	// Extract defaultAgentModel
-	defaultAgentModel := obj.GetPropertyValue("defaultAgentModel")
-	if defaultAgentModel.Type() != interpreter.ValueTypeNull {
-		if modelVal, ok := defaultAgentModel.(*interpreter.ModelValue); ok {
-			// Only accept model reference, use its name
-			result.Config.DefaultAgentModel = modelVal.Name
-		} else {
-			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.defaultAgentModel must be a model reference, got %s", defaultAgentModel.Type()))
-		}
-	}
-
-	// Extract starshipIntegration
-	starshipIntegration := obj.GetPropertyValue("starshipIntegration")
-	if starshipIntegration.Type() != interpreter.ValueTypeNull {
-		if boolVal, ok := starshipIntegration.(*interpreter.BoolValue); ok {
-			result.Config.StarshipIntegration = &boolVal.Value
-		} else {
-			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.starshipIntegration must be a boolean"))
-		}
-	}
-
-	// Extract showWelcome
-	showWelcome := obj.GetPropertyValue("showWelcome")
-	if showWelcome.Type() != interpreter.ValueTypeNull {
-		if boolVal, ok := showWelcome.(*interpreter.BoolValue); ok {
-			result.Config.ShowWelcome = &boolVal.Value
-		} else {
-			result.Errors = append(result.Errors, fmt.Errorf("GSH_CONFIG.showWelcome must be a boolean"))
 		}
 	}
 }

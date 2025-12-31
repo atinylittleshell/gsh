@@ -33,6 +33,10 @@ const (
 	KW_CATCH
 	KW_FINALLY
 	KW_RETURN
+	KW_IMPORT
+	KW_EXPORT
+	KW_FROM
+	KW_GO // Reserved for future concurrency support (fire-and-forget)
 
 	// Operators
 	OP_ASSIGN   // =
@@ -92,6 +96,10 @@ var keywords = map[string]TokenType{
 	"catch":    KW_CATCH,
 	"finally":  KW_FINALLY,
 	"return":   KW_RETURN,
+	"import":   KW_IMPORT,
+	"export":   KW_EXPORT,
+	"from":     KW_FROM,
+	"go":       KW_GO, // Reserved for future concurrency support (fire-and-forget)
 }
 
 // LookupIdent checks if an identifier is a keyword and returns the appropriate token type

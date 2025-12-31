@@ -15,13 +15,13 @@ func TestNativeToolsRegistered(t *testing.T) {
 		t.Fatal("gsh object not found")
 	}
 
-	gshObj, ok := gshVal.(*ObjectValue)
+	gshObj, ok := gshVal.(*GshObjectValue)
 	if !ok {
-		t.Fatal("gsh is not an ObjectValue")
+		t.Fatalf("gsh is not a GshObjectValue, got %T", gshVal)
 	}
 
 	// Get the tools object
-	toolsVal := gshObj.GetPropertyValue("tools")
+	toolsVal := gshObj.GetProperty("tools")
 	if toolsVal == nil || toolsVal.Type() == ValueTypeNull {
 		t.Fatal("gsh.tools not found")
 	}
@@ -110,7 +110,7 @@ func TestNativeToolCallFromScript(t *testing.T) {
 	result, err := interp.EvalString(`
 		result = gsh.tools.grep({pattern: "TestNativeToolCallFromScript"})
 		result
-	`)
+	`, nil)
 
 	if err != nil {
 		t.Fatalf("Failed to call gsh.tools.grep: %v", err)
@@ -148,7 +148,7 @@ func TestNativeToolInAgentConfig(t *testing.T) {
 			systemPrompt: "You are a test agent",
 			tools: [gsh.tools.exec, gsh.tools.grep, gsh.tools.view_file, gsh.tools.edit_file],
 		}
-	`)
+	`, nil)
 
 	if err != nil {
 		t.Fatalf("Failed to create agent with native tools: %v", err)

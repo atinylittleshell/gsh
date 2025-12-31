@@ -1,5 +1,5 @@
 {
-  description = "A modern, POSIX-compatible, generative shell";
+  description = "A battery-included, POSIX-compatible, generative shell";
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";

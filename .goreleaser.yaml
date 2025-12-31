@@ -43,7 +43,7 @@ changelog:
 brews:
   - name: gsh
     homepage: https://github.com/atinylittleshell/gsh
-    description: A modern, POSIX-compatible, generative shell
+    description: A battery-included, POSIX-compatible, generative shell
     license: GPL-3.0-or-later
     directory: Formula
     commit_author:
@@ -57,7 +57,7 @@ brews:
 aurs:
   - name: gsh-bin
     homepage: https://github.com/atinylittleshell/gsh
-    description: A modern, POSIX-compatible, generative shell
+    description: A battery-included, POSIX-compatible, generative shell
     license: GPL-3.0-or-later
     maintainers:
       - "atinylittleshell <shell@atinylittleshell.me>"
@@ -76,7 +76,7 @@ aurs:
 aur_sources:
   - name: gsh
     homepage: https://github.com/atinylittleshell/gsh
-    description: A modern, POSIX-compatible, generative shell
+    description: A battery-included, POSIX-compatible, generative shell
     license: GPL-3.0-or-later
     maintainers:
       - "atinylittleshell <shell@atinylittleshell.me>"

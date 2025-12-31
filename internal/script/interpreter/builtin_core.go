@@ -7,17 +7,18 @@ import (
 
 // builtinNames contains all the names of built-in functions and objects
 var builtinNames = map[string]bool{
-	"print":  true,
-	"input":  true,
-	"JSON":   true,
-	"log":    true,
-	"env":    true,
-	"Map":    true,
-	"Set":    true,
-	"exec":   true,
-	"gsh":    true,
-	"Math":   true,
-	"typeof": true,
+	"print":    true,
+	"input":    true,
+	"JSON":     true,
+	"log":      true,
+	"env":      true,
+	"Map":      true,
+	"Set":      true,
+	"exec":     true,
+	"gsh":      true,
+	"Math":     true,
+	"DateTime": true,
+	"typeof":   true,
 }
 
 // isBuiltin checks if a name is a built-in function or object

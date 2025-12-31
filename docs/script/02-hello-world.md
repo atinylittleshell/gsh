@@ -17,7 +17,7 @@ That's a complete, valid gsh script.
 Run it with:
 
 ```bash
-gsh hello.gsh
+gsh run hello.gsh
 ```
 
 Output:

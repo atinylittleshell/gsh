@@ -3,7 +3,7 @@ package predict
 import (
 	"context"
 
-	"github.com/atinylittleshell/gsh/internal/repl/config"
+	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 	"go.uber.org/zap"
 )
 
@@ -79,43 +79,32 @@ func (r *Router) NullStatePredictor() Predictor {
 	return r.nullStatePredictor
 }
 
-// NewRouterFromConfig creates a Router configured from the REPL config.
-// It sets up the prefix and null-state predictors using the model specified
-// in GSH_CONFIG.predictModel.
-// Returns nil if no prediction model is configured.
-func NewRouterFromConfig(cfg *config.Config, logger *zap.Logger) *Router {
+// NewRouterFromConfig creates a Router configured from a model resolver.
+// It sets up the prefix and null-state predictors using the provided model resolver.
+// Returns nil if no model resolver is provided.
+func NewRouterFromConfig(modelResolver interpreter.ModelResolver, logger *zap.Logger) *Router {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
 
-	// Get the prediction model from config
-	model := cfg.GetPredictModel()
-	if model == nil {
+	if modelResolver == nil {
 		logger.Debug("no prediction model configured, LLM predictions disabled (history-based predictions may still work)")
 		return nil
 	}
 
-	// Verify the model has a provider
-	if model.Provider == nil {
-		logger.Warn("prediction model has no provider",
-			zap.String("model", cfg.PredictModel))
-		return nil
-	}
-
-	logger.Debug("creating prediction router",
-		zap.String("model", cfg.PredictModel),
-		zap.String("provider", model.Provider.Name()))
+	logger.Debug("creating prediction router with model resolver",
+		zap.String("resolver", modelResolver.String()))
 
 	// Create prefix predictor
 	prefixPredictor := NewPrefixPredictor(PrefixPredictorConfig{
-		Model:  model,
-		Logger: logger,
+		ModelResolver: modelResolver,
+		Logger:        logger,
 	})
 
 	// Create null-state predictor
 	nullStatePredictor := NewNullStatePredictor(NullStatePredictorConfig{
-		Model:  model,
-		Logger: logger,
+		ModelResolver: modelResolver,
+		Logger:        logger,
 	})
 
 	return NewRouter(RouterConfig{

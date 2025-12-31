@@ -44,6 +44,19 @@ func (i *Interpreter) evalModelDeclaration(node *parser.ModelDeclaration) (Value
 			if _, ok := value.(*NumberValue); !ok {
 				return nil, fmt.Errorf("model config 'maxTokens' must be a number, got %s", value.Type())
 			}
+		case "headers":
+			// headers must be an object with string values
+			obj, ok := value.(*ObjectValue)
+			if !ok {
+				return nil, fmt.Errorf("model config 'headers' must be an object, got %s", value.Type())
+			}
+			// Validate that all header values are strings
+			for headerKey := range obj.Properties {
+				headerVal := obj.GetPropertyValue(headerKey)
+				if _, ok := headerVal.(*StringValue); !ok {
+					return nil, fmt.Errorf("model config 'headers.%s' must be a string, got %s", headerKey, headerVal.Type())
+				}
+			}
 			// Allow other fields without validation for extensibility
 		}
 

@@ -1,7 +1,6 @@
 package environment
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -71,29 +70,6 @@ func ShouldCleanLogFile(runner *interp.Runner) bool {
 
 func GetPwd(runner *interp.Runner) string {
 	return runner.Vars["PWD"].String()
-}
-
-func GetPrompt(runner *interp.Runner, logger *zap.Logger) string {
-	promptUpdater := runner.Funcs["GSH_PROMPT"]
-	if promptUpdater != nil {
-		err := runner.Run(context.Background(), promptUpdater)
-		if err != nil {
-			logger.Warn("error updating prompt", zap.Error(err))
-		}
-	}
-
-	buildVersion := runner.Vars["GSH_BUILD_VERSION"].String()
-	if buildVersion == "dev" {
-		buildVersion = "[dev] "
-	} else {
-		buildVersion = ""
-	}
-
-	prompt := buildVersion + runner.Vars["GSH_PROMPT"].String()
-	if prompt != "" {
-		return prompt
-	}
-	return DEFAULT_PROMPT
 }
 
 func GetAgentContextWindowTokens(runner *interp.Runner, logger *zap.Logger) int {
