@@ -305,6 +305,23 @@ func (i *Interpreter) applyBinaryOperator(op string, left, right Value) (Value, 
 		return &StringValue{Value: left.String() + right.String()}, nil
 	}
 
+	// Handle string comparison (lexicographic, like JavaScript)
+	if left.Type() == ValueTypeString && right.Type() == ValueTypeString {
+		leftStr := left.(*StringValue).Value
+		rightStr := right.(*StringValue).Value
+
+		switch op {
+		case "<":
+			return &BoolValue{Value: leftStr < rightStr}, nil
+		case "<=":
+			return &BoolValue{Value: leftStr <= rightStr}, nil
+		case ">":
+			return &BoolValue{Value: leftStr > rightStr}, nil
+		case ">=":
+			return &BoolValue{Value: leftStr >= rightStr}, nil
+		}
+	}
+
 	// Handle equality comparisons for all types
 	if op == "==" {
 		return &BoolValue{Value: left.Equals(right)}, nil

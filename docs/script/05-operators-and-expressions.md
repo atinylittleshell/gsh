@@ -198,6 +198,50 @@ false
 
 Notice that `5 == "5"` is `false`—in gsh, a number and a string are different types, even if they have similar representations.
 
+### Comparing Strings
+
+Strings can be compared using all comparison operators (`<`, `<=`, `>`, `>=`). Comparison is lexicographic (dictionary order), character by character:
+
+```gsh
+print("apple" < "banana")    # true (a comes before b)
+print("abc" < "abd")         # true (c comes before d)
+print("ab" < "abc")          # true (prefix is smaller)
+print("a" >= "a")            # true (equal strings)
+```
+
+Output:
+
+```
+true
+true
+true
+true
+```
+
+This is especially useful for checking character ranges:
+
+```gsh
+c = "5"
+
+# Check if c is a digit
+if (c >= "0" && c <= "9") {
+    print("'" + c + "' is a digit")
+}
+
+# Check if c is a lowercase letter
+c = "m"
+if (c >= "a" && c <= "z") {
+    print("'" + c + "' is a lowercase letter")
+}
+```
+
+Output:
+
+```
+'5' is a digit
+'m' is a lowercase letter
+```
+
 ## Logical Operators
 
 Logical operators work with boolean values and combine conditions:

@@ -57,7 +57,7 @@ The interpreter package (`internal/script/interpreter/`) contains canonical util
 
 - `ValueToInterface(val Value) interface{}` - converts gsh Value to Go interface{}
 - `InterfaceToValue(val interface{}) Value` - converts Go interface{} to gsh Value
-- `CreateExecStartContext()` / `CreateExecEndContext()` - create event context objects
+- `CreateToolStartContext()` / `CreateToolEndContext()` - create tool event context objects
 
 When implementing features that span multiple packages (e.g., interpreter and REPL), prefer:
 
@@ -114,8 +114,36 @@ When adding new SDK events (in `internal/script/interpreter/agent_events.go`), c
 - Prefer ACP-aligned naming (e.g., `agent.tool.pending` not `agent.tool.streaming`)
 
 **Tool call event lifecycle:**
+
 - `agent.tool.pending` - Tool call starts streaming from LLM (args not yet complete)
 - `agent.tool.start` - Tool execution begins (args available)
 - `agent.tool.end` - Tool execution completes
 
 When debugging event handler issues, trace the full event flow in `agent_loop.go` to understand when each event fires relative to streaming vs execution phases.
+
+## Interpreter vs REPL Separation
+
+The interpreter (`internal/script/interpreter/`) should be **tool-agnostic**. It should not contain special-case logic for specific tools like "exec", "grep", or "view_file".
+
+- **Interpreter responsibility:** Emit generic events (`agent.tool.start`, `agent.tool.end`) for ALL tools
+- **REPL/rendering responsibility:** Handle tool-specific rendering in `.gshrc.default.gsh` by checking `ctx.toolCall.name`
+
+This keeps the interpreter clean and allows users to fully customize tool rendering in their own `.gshrc.gsh`.
+
+## Testing gsh Scripts
+
+When writing gsh scripts (especially in `.gshrc.default.gsh`), test the script logic with a standalone `.gsh` file before assuming language features work. gsh has a JavaScript-like syntax but not all JavaScript features are supported.
+
+**Quick test pattern:**
+
+```bash
+cat > /tmp/tmp_rovodev_test.gsh << 'EOF'
+# Test code here
+result = "test"
+print(result)
+EOF
+go build -o bin/gsh ./cmd/gsh && ./bin/gsh /tmp/tmp_rovodev_test.gsh
+rm /tmp/tmp_rovodev_test.gsh
+```
+
+Use `JSON.parse()` for parsing JSON strings in gsh scripts - it's more reliable than manual string parsing.

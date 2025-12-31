@@ -816,3 +816,130 @@ func TestStringUnicodeSupport(t *testing.T) {
 		})
 	}
 }
+
+func TestStringComparison(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		// Less than
+		{
+			name:     "less than - a < b",
+			input:    "result = \"a\" < \"b\"",
+			expected: "true",
+		},
+		{
+			name:     "less than - b < a",
+			input:    "result = \"b\" < \"a\"",
+			expected: "false",
+		},
+		{
+			name:     "less than - equal strings",
+			input:    "result = \"a\" < \"a\"",
+			expected: "false",
+		},
+		// Less than or equal
+		{
+			name:     "less than or equal - a <= b",
+			input:    "result = \"a\" <= \"b\"",
+			expected: "true",
+		},
+		{
+			name:     "less than or equal - b <= a",
+			input:    "result = \"b\" <= \"a\"",
+			expected: "false",
+		},
+		{
+			name:     "less than or equal - equal strings",
+			input:    "result = \"a\" <= \"a\"",
+			expected: "true",
+		},
+		// Greater than
+		{
+			name:     "greater than - b > a",
+			input:    "result = \"b\" > \"a\"",
+			expected: "true",
+		},
+		{
+			name:     "greater than - a > b",
+			input:    "result = \"a\" > \"b\"",
+			expected: "false",
+		},
+		{
+			name:     "greater than - equal strings",
+			input:    "result = \"a\" > \"a\"",
+			expected: "false",
+		},
+		// Greater than or equal
+		{
+			name:     "greater than or equal - b >= a",
+			input:    "result = \"b\" >= \"a\"",
+			expected: "true",
+		},
+		{
+			name:     "greater than or equal - a >= b",
+			input:    "result = \"a\" >= \"b\"",
+			expected: "false",
+		},
+		{
+			name:     "greater than or equal - equal strings",
+			input:    "result = \"a\" >= \"a\"",
+			expected: "true",
+		},
+		// Digit range check (common use case)
+		{
+			name:     "digit check - 5 is digit",
+			input:    "c = \"5\"\nresult = c >= \"0\" && c <= \"9\"",
+			expected: "true",
+		},
+		{
+			name:     "digit check - a is not digit",
+			input:    "c = \"a\"\nresult = c >= \"0\" && c <= \"9\"",
+			expected: "false",
+		},
+		// Lexicographic ordering for multi-character strings
+		{
+			name:     "lexicographic - apple < banana",
+			input:    "result = \"apple\" < \"banana\"",
+			expected: "true",
+		},
+		{
+			name:     "lexicographic - abc < abd",
+			input:    "result = \"abc\" < \"abd\"",
+			expected: "true",
+		},
+		{
+			name:     "lexicographic - prefix - ab < abc",
+			input:    "result = \"ab\" < \"abc\"",
+			expected: "true",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := parser.New(l)
+			program := p.ParseProgram()
+
+			if len(p.Errors()) != 0 {
+				t.Fatalf("parser errors: %v", p.Errors())
+			}
+
+			interp := New(nil)
+			_, err := interp.Eval(program)
+			if err != nil {
+				t.Fatalf("interpreter error: %v", err)
+			}
+
+			result, ok := interp.env.Get("result")
+			if !ok {
+				t.Fatalf("failed to get result")
+			}
+
+			if result.String() != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, result.String())
+			}
+		})
+	}
+}
