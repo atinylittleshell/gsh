@@ -18,8 +18,8 @@ Phase 6 is the final cleanup phase that removes the legacy `GSH_CONFIG` object a
   - `gsh.logging.level = "info"`
 - Replace `tool GSH_AGENT_HEADER(ctx)` → `tool onAgentStart(ctx)` + `gsh.on("agent.start", onAgentStart)`
 - Replace `tool GSH_AGENT_FOOTER(ctx)` → `tool onAgentEnd(ctx)` + `gsh.on("agent.end", onAgentEnd)`
-- Replace `tool GSH_EXEC_START(ctx)` → `tool onExecStart(ctx)` + `gsh.on("agent.exec.start", onExecStart)`
-- Replace `tool GSH_EXEC_END(ctx)` → `tool onExecEnd(ctx)` + `gsh.on("agent.exec.end", onExecEnd)`
+- Replace `tool GSH_EXEC_START(ctx)` → Handle in `agent.tool.start` handler by checking `ctx.toolCall.name == "exec"`
+- Replace `tool GSH_EXEC_END(ctx)` → Handle in `agent.tool.end` handler by checking `ctx.toolCall.name == "exec"`
 - Replace `tool GSH_TOOL_STATUS(ctx)` → Split into `onToolStart` + `onToolEnd` handlers registered via `gsh.on("agent.tool.start/end", ...)`
 - Replace `tool GSH_TOOL_OUTPUT(ctx)` → Handle in `agent.tool.end` handler
 - Set up model tiers: `gsh.repl.models.lite`, `gsh.repl.models.workhorse`, `gsh.repl.models.premium`
@@ -110,8 +110,8 @@ type Config struct {
 
 - Replace `callHookWithContext("GSH_AGENT_HEADER", ctx)` → Emit `agent.start` event and use return value
 - Replace `callHookWithContext("GSH_AGENT_FOOTER", ctx)` → Emit `agent.end` event
-- Replace `callHookWithContext("GSH_EXEC_START", ctx)` → Emit `agent.exec.start` event
-- Replace `callHookWithContext("GSH_EXEC_END", ctx)` → Emit `agent.exec.end` event
+- Replace `callHookWithContext("GSH_EXEC_START", ctx)` → Emit `agent.tool.start` event (exec tool is handled in .gshrc.default.gsh)
+- Replace `callHookWithContext("GSH_EXEC_END", ctx)` → Emit `agent.tool.end` event (exec tool is handled in .gshrc.default.gsh)
 - Replace `callHookWithContext("GSH_TOOL_STATUS", ctx)` → Emit `agent.tool.start` or `agent.tool.end` events
 - Replace `callHookWithContext("GSH_TOOL_OUTPUT", ctx)` → Handle in `agent.tool.end`
 - Replace `callHookWithContext("GSH_PROMPT", ctx)` → Emit `repl.prompt` event
@@ -296,8 +296,8 @@ This table shows the mapping from old patterns to new SDK patterns:
 | `tool GSH_PROMPT(ctx)`           | `tool myPrompt() {...}` then `gsh.on("repl.prompt", myPrompt)`               |
 | `tool GSH_AGENT_HEADER(ctx)`     | `tool myHeader(ctx) {...}` then `gsh.on("agent.start", myHeader)`            |
 | `tool GSH_AGENT_FOOTER(ctx)`     | `tool myFooter(ctx) {...}` then `gsh.on("agent.end", myFooter)`              |
-| `tool GSH_EXEC_START(ctx)`       | `tool myExecStart(ctx) {...}` then `gsh.on("agent.exec.start", myExecStart)` |
-| `tool GSH_EXEC_END(ctx)`         | `tool myExecEnd(ctx) {...}` then `gsh.on("agent.exec.end", myExecEnd)`       |
+| `tool GSH_EXEC_START(ctx)`       | Handle in `agent.tool.start` handler by checking `ctx.toolCall.name == "exec"` |
+| `tool GSH_EXEC_END(ctx)`         | Handle in `agent.tool.end` handler by checking `ctx.toolCall.name == "exec"`   |
 | `tool GSH_TOOL_STATUS(ctx)`      | `tool myTool(ctx) {...}` then `gsh.on("agent.tool.start/end", myTool)`       |
 | `tool GSH_TOOL_OUTPUT(ctx)`      | Handle in `agent.tool.end` handler                                           |
 
@@ -346,30 +346,6 @@ tool onAgentEnd(ctx) {
 gsh.on("agent.end", onAgentEnd)
 ```
 
-### `agent.exec.start`
-
-```gsh
-# ctx: { exec: { command, commandFirstWord } }
-tool onExecStart(ctx) {
-    return "▶ " + ctx.exec.command
-}
-gsh.on("agent.exec.start", onExecStart)
-```
-
-### `agent.exec.end`
-
-```gsh
-# ctx: { exec: { command, commandFirstWord, durationMs, exitCode } }
-tool onExecEnd(ctx) {
-    duration = (ctx.exec.durationMs / 1000).toFixed(1)
-    if (ctx.exec.exitCode == 0) {
-        return "● " + ctx.exec.commandFirstWord + " ✓ (" + duration + "s)"
-    }
-    return "● " + ctx.exec.commandFirstWord + " ✗ (" + duration + "s) exit " + ctx.exec.exitCode
-}
-gsh.on("agent.exec.end", onExecEnd)
-```
-
 ### `agent.tool.pending`
 
 ```gsh
@@ -388,7 +364,12 @@ gsh.on("agent.tool.pending", onToolPending)
 ```gsh
 # ctx: { toolCall: { id, name, args } }
 # Fires when tool execution begins (after streaming is complete)
+# This fires for ALL tools including exec - use ctx.toolCall.name to differentiate
 tool onToolStart(ctx) {
+    # Special handling for exec tool
+    if (ctx.toolCall.name == "exec") {
+        return "▶ " + ctx.toolCall.args.command
+    }
     return "○ " + ctx.toolCall.name
 }
 gsh.on("agent.tool.start", onToolStart)
@@ -398,6 +379,8 @@ gsh.on("agent.tool.start", onToolStart)
 
 ```gsh
 # ctx: { toolCall: { id, name, args, durationMs, output, error } }
+# This fires for ALL tools including exec - use ctx.toolCall.name to differentiate
+# For exec tool, output is JSON with exitCode field
 tool onToolEnd(ctx) {
     duration = (ctx.toolCall.durationMs / 1000).toFixed(2)
     if (ctx.toolCall.error != null) {

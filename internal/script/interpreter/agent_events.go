@@ -10,8 +10,6 @@ const (
 	EventAgentToolPending    = "agent.tool.pending"
 	EventAgentToolStart      = "agent.tool.start"
 	EventAgentToolEnd        = "agent.tool.end"
-	EventAgentExecStart      = "agent.exec.start"
-	EventAgentExecEnd        = "agent.exec.end"
 )
 
 // Helper functions to create event context objects
@@ -148,48 +146,6 @@ func createToolCallContext(id, name string, args map[string]interface{}, duratio
 	}
 }
 
-// CreateExecStartContext creates the context object for agent.exec.start event
-// ctx: { exec: { command, commandFirstWord } }
-func CreateExecStartContext(command string) Value {
-	firstWord := command
-	if idx := findFirstSpace(command); idx > 0 {
-		firstWord = command[:idx]
-	}
-
-	return &ObjectValue{
-		Properties: map[string]*PropertyDescriptor{
-			"exec": {Value: &ObjectValue{
-				Properties: map[string]*PropertyDescriptor{
-					"command":          {Value: &StringValue{Value: command}},
-					"commandFirstWord": {Value: &StringValue{Value: firstWord}},
-				},
-			}},
-		},
-	}
-}
-
-// CreateExecEndContext creates the context object for agent.exec.end event
-// ctx: { exec: { command, commandFirstWord, durationMs, exitCode } }
-func CreateExecEndContext(command string, durationMs int64, exitCode int) Value {
-	firstWord := command
-	if idx := findFirstSpace(command); idx > 0 {
-		firstWord = command[:idx]
-	}
-
-	return &ObjectValue{
-		Properties: map[string]*PropertyDescriptor{
-			"exec": {Value: &ObjectValue{
-				Properties: map[string]*PropertyDescriptor{
-					"command":          {Value: &StringValue{Value: command}},
-					"commandFirstWord": {Value: &StringValue{Value: firstWord}},
-					"durationMs":       {Value: &NumberValue{Value: float64(durationMs)}},
-					"exitCode":         {Value: &NumberValue{Value: float64(exitCode)}},
-				},
-			}},
-		},
-	}
-}
-
 // CreateToolStartContext creates the context object for agent.tool.start event (public version)
 func CreateToolStartContext(name string, args map[string]interface{}) Value {
 	// Convert args to ObjectValue
@@ -242,14 +198,4 @@ func CreateToolEndContext(name string, args map[string]interface{}, durationMs i
 			}},
 		},
 	}
-}
-
-// findFirstSpace returns the index of the first space in a string, or -1 if not found
-func findFirstSpace(s string) int {
-	for i, c := range s {
-		if c == ' ' || c == '\t' {
-			return i
-		}
-	}
-	return -1
 }

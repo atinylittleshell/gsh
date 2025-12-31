@@ -487,11 +487,15 @@ gsh.on("agent.tool.pending", onToolPending)
 
 #### `agent.tool.start`
 
-Called when a non-exec tool call begins execution (after streaming is complete and args are available). Handler can return a string to render.
+Called when a tool call begins execution (after streaming is complete and args are available). This fires for all tools including the exec tool. Handler can return a string to render.
 
 ```gsh
 tool onToolStart(ctx) {
     # ctx.toolCall: { id, name, args }
+    # For exec tool, args.command contains the shell command
+    if (ctx.toolCall.name == "exec") {
+        return "▶ " + ctx.toolCall.args.command
+    }
     return "○ " + ctx.toolCall.name
 }
 gsh.on("agent.tool.start", onToolStart)
@@ -499,11 +503,12 @@ gsh.on("agent.tool.start", onToolStart)
 
 #### `agent.tool.end`
 
-Called when a non-exec tool call completes. Handler can return a string to render.
+Called when a tool call completes. This fires for all tools including the exec tool. Handler can return a string to render.
 
 ```gsh
 tool onToolEnd(ctx) {
     # ctx.toolCall: { id, name, args, durationMs, output, error }
+    # For exec tool, output is JSON with exitCode field
     duration = (ctx.toolCall.durationMs / 1000).toFixed(2)
     if (ctx.toolCall.error != null) {
         return "● " + ctx.toolCall.name + " ✗ (" + duration + "s)"
@@ -511,34 +516,6 @@ tool onToolEnd(ctx) {
     return "● " + ctx.toolCall.name + " ✓ (" + duration + "s)"
 }
 gsh.on("agent.tool.end", onToolEnd)
-```
-
-#### `agent.exec.start`
-
-Called when an exec (shell command) tool starts. Handler can return a string to render.
-
-```gsh
-tool onExecStart(ctx) {
-    # ctx.exec: { command, commandFirstWord }
-    return "▶ " + ctx.exec.command
-}
-gsh.on("agent.exec.start", onExecStart)
-```
-
-#### `agent.exec.end`
-
-Called when an exec tool completes. Handler can return a string to render.
-
-```gsh
-tool onExecEnd(ctx) {
-    # ctx.exec: { command, commandFirstWord, durationMs, exitCode }
-    duration = (ctx.exec.durationMs / 1000).toFixed(1)
-    if (ctx.exec.exitCode == 0) {
-        return "● " + ctx.exec.commandFirstWord + " ✓ (" + duration + "s)"
-    }
-    return "● " + ctx.exec.commandFirstWord + " ✗ (" + duration + "s) exit " + ctx.exec.exitCode
-}
-gsh.on("agent.exec.end", onExecEnd)
 ```
 
 #### `agent.iteration.end`
@@ -618,8 +595,8 @@ func (i *Interpreter) registerGshTools() {
 | `tool GSH_PROMPT(ctx)`           | `tool myPrompt() {...}` then `gsh.on("repl.prompt", myPrompt)`                              |
 | `tool GSH_AGENT_HEADER(ctx)`     | `tool myHeader(ctx) {...}` then `gsh.on("agent.start", myHeader)` (ctx has message)         |
 | `tool GSH_AGENT_FOOTER(ctx)`     | `tool myFooter(ctx) {...}` then `gsh.on("agent.end", myFooter)` (ctx has result)            |
-| `tool GSH_EXEC_START(ctx)`       | `tool myExecStart(ctx) {...}` then `gsh.on("agent.exec.start", myExecStart)` (ctx has exec) |
-| `tool GSH_EXEC_END(ctx)`         | `tool myExecEnd(ctx) {...}` then `gsh.on("agent.exec.end", myExecEnd)` (ctx has exec)       |
+| `tool GSH_EXEC_START(ctx)`       | Handle in `agent.tool.start` handler by checking `ctx.toolCall.name == "exec"`              |
+| `tool GSH_EXEC_END(ctx)`         | Handle in `agent.tool.end` handler by checking `ctx.toolCall.name == "exec"`                |
 | `tool GSH_TOOL_STATUS(ctx)`      | `tool myTool(ctx) {...}` then `gsh.on("agent.tool.start/end", myTool)` (ctx has toolCall)   |
 | `tool GSH_TOOL_OUTPUT(ctx)`      | Handle in `agent.tool.end` handler                                                          |
 
@@ -707,8 +684,7 @@ Since gsh is not yet released, we can implement everything without backward comp
 - `agent.start`, `agent.end`
 - `agent.iteration.start`, `agent.iteration.end`
 - `agent.chunk`
-- `agent.tool.start`, `agent.tool.end`
-- `agent.exec.start`, `agent.exec.end`
+- `agent.tool.pending`, `agent.tool.start`, `agent.tool.end`
 
 ### Phase 6: Remove Legacy Code & Update Defaults
 

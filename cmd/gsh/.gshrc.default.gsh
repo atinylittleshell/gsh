@@ -128,37 +128,6 @@ tool onAgentEnd(ctx) {
 }
 gsh.on("agent.end", onAgentEnd)
 
-# Renders the start line for exec (shell command) tool calls
-# Example output: "▶ ls -la"
-tool onExecStart(ctx) {
-    # Stop any spinner if still running (exec may start without any text chunks)
-    if (__currentSpinnerId != null) {
-        gsh.ui.spinner.stop(__currentSpinnerId)
-        __currentSpinnerId = null
-    }
-    
-    print("")
-    print(gsh.ui.styles.primary("▶") + " " + ctx.exec.command)
-}
-gsh.on("agent.exec.start", onExecStart)
-
-
-# Renders the completion line for exec (shell command) tool calls
-# Example output (success): "● ls ✓ (0.1s)"
-# Example output (failure): "● cat ✗ (0.1s) exit code 1"
-tool onExecEnd(ctx) {
-    durationSec = (ctx.exec.durationMs / 1000).toFixed(1)
-    if (ctx.exec.exitCode == 0) {
-        line = "● " + ctx.exec.commandFirstWord + " ✓ " + gsh.ui.styles.dim("(" + durationSec + "s)")
-        print(gsh.ui.styles.success(line))
-    } else {
-        line = "● " + ctx.exec.commandFirstWord + " ✗ " + gsh.ui.styles.dim("(" + durationSec + "s) exit code " + ctx.exec.exitCode)
-        print(gsh.ui.styles.error(line))
-    }
-}
-gsh.on("agent.exec.end", onExecEnd)
-
-
 # Track the current spinner ID (shared between thinking and tool streaming)
 __currentSpinnerId = null
 
@@ -228,15 +197,29 @@ tool onToolPending(ctx) {
 }
 gsh.on("agent.tool.pending", onToolPending)
 
-# Renders the status line for non-exec tool calls (execution start)
+# Renders the status line for tool calls (execution start)
 # This fires when tool execution actually begins (after streaming is complete)
+# For exec tool: shows the command being executed (e.g., "▶ ls -la")
+# For other tools: shows a spinner with tool name and args
 tool onToolStart(ctx) {
-    # Stop any existing spinner and start a new one with tool name + args
+    # Stop any existing spinner
     if (__currentSpinnerId != null) {
         gsh.ui.spinner.stop(__currentSpinnerId)
+        __currentSpinnerId = null
     }
     
-    # Build message with tool name and args
+    # Special handling for exec tool - show the command
+    if (ctx.toolCall.name == "exec") {
+        command = ctx.toolCall.args.command
+        if (command != null) {
+            print("")
+            print(gsh.ui.styles.primary("▶") + " " + command)
+        }
+        __currentToolName = "exec"
+        return ""
+    }
+    
+    # Build message with tool name and args for non-exec tools
     message = ctx.toolCall.name
     args = ctx.toolCall.args
     if (args != null) {
@@ -261,9 +244,13 @@ tool onToolStart(ctx) {
 }
 gsh.on("agent.tool.start", onToolStart)
 
-# Renders the status line for non-exec tool calls (end)
-# Example output (success): "● read_file ✓ (0.02s)"
-# Example output (error):   "● read_file ✗ (0.01s)"
+# Renders the status line for tool calls (end)
+# For exec tool:
+#   Example output (success): "● ls ✓ (0.1s)"
+#   Example output (failure): "● cat ✗ (0.1s) exit code 1"
+# For other tools:
+#   Example output (success): "● read_file ✓ (0.02s)"
+#   Example output (error):   "● read_file ✗ (0.01s)"
 tool onToolEnd(ctx) {
     # Stop the current spinner
     if (__currentSpinnerId != null) {
@@ -273,7 +260,46 @@ tool onToolEnd(ctx) {
     
     durationSec = (ctx.toolCall.durationMs / 1000).toFixed(2)
     
-    # Build completion line with args
+    # Special handling for exec tool - parse exit code from output
+    if (ctx.toolCall.name == "exec") {
+        # Extract first word of command for display
+        command = ctx.toolCall.args.command
+        commandFirstWord = command
+        if (command != null) {
+            spaceIdx = command.indexOf(" ")
+            if (spaceIdx > 0) {
+                commandFirstWord = command.substring(0, spaceIdx)
+            }
+        }
+        
+        # Parse exit code from tool output (JSON format: {"output": "...", "exitCode": 0})
+        # The exec tool returns JSON, so we parse it to get the exitCode
+        exitCode = 0
+        output = ctx.toolCall.output
+        if (output != null) {
+            try {
+                parsed = JSON.parse(output)
+                if (parsed.exitCode != null) {
+                    exitCode = parsed.exitCode
+                }
+            } catch (e) {
+                # If parsing fails, assume exit code 0
+                exitCode = 0
+            }
+        }
+        
+        durationSec = (ctx.toolCall.durationMs / 1000).toFixed(1)
+        if (exitCode == 0) {
+            line = "● " + commandFirstWord + " " + gsh.ui.styles.success("✓") + " " + gsh.ui.styles.dim("(" + durationSec + "s)")
+            print(line)
+        } else {
+            line = "● " + commandFirstWord + " " + gsh.ui.styles.error("✗") + " " + gsh.ui.styles.dim("(" + durationSec + "s) exit code " + exitCode)
+            print(line)
+        }
+        return ""
+    }
+    
+    # Build completion line with args for non-exec tools
     args = ctx.toolCall.args
     argLines = ""
     if (args != null) {
