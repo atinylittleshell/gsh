@@ -21,17 +21,17 @@ jobs:
         with:
           go-version: "1.x"
 
+      - name: Install tools
+        run: make install-tools
+
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
           version: latest
           install-only: true
 
-      - name: Build
-        run: make build
-
-      - name: Test
-        run: make test
+      - name: Run CI checks
+        run: make ci
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5

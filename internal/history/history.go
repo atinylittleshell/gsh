@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"slices"
 	"time"
 
-	"github.com/atinylittleshell/gsh/pkg/reverse"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
@@ -78,7 +78,7 @@ func (historyManager *HistoryManager) GetRecentEntries(directory string, limit i
 		return nil, result.Error
 	}
 
-	reverse.Reverse(entries)
+	slices.Reverse(entries)
 	return entries, nil
 }
 
@@ -106,6 +106,21 @@ func (historyManager *HistoryManager) ResetHistory() error {
 func (historyManager *HistoryManager) GetRecentEntriesByPrefix(prefix string, limit int) ([]HistoryEntry, error) {
 	var entries []HistoryEntry
 	result := historyManager.db.Where("command LIKE ?", prefix+"%").
+		Order("created_at desc").
+		Limit(limit).
+		Find(&entries)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return entries, nil
+}
+
+// SearchHistory searches for history entries containing the given substring.
+// Returns entries in reverse chronological order (most recent first).
+func (historyManager *HistoryManager) SearchHistory(query string, limit int) ([]HistoryEntry, error) {
+	var entries []HistoryEntry
+	result := historyManager.db.Where("command LIKE ?", "%"+query+"%").
 		Order("created_at desc").
 		Limit(limit).
 		Find(&entries)

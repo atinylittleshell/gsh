@@ -1,9 +1,0 @@
-function GSH_UPDATE_PROMPT() {
-  GSH_PROMPT="$(starship prompt --status=$GSH_LAST_COMMAND_EXIT_CODE --cmd-duration=$GSH_LAST_COMMAND_DURATION_MS)"
-}
-
-STARSHIP_SHELL="gsh"
-STARSHIP_SESSION_KEY="$(starship session)"
-STARSHIP_START_TIME="$(starship time)"
-
-GSH_PROMPT="$(starship prompt --status=$GSH_LAST_COMMAND_EXIT_CODE --cmd-duration=$GSH_LAST_COMMAND_DURATION_MS)"

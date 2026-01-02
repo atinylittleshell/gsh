@@ -86,6 +86,25 @@ userAges = Map([["alice", 25], ["bob", 30]])
 config = Map([["host", "localhost"], ["port", 8080]])
 ```
 
+### Statement Separation
+
+Statements must be separated by **newlines only**. Semicolons are **not** used as statement terminators in gsh.
+
+```gsh
+# ✓ Valid: statements on separate lines
+x = 5
+y = 10
+z = x + y
+
+# ✗ Invalid: multiple statements on same line
+x = 5 y = 10  # Error!
+
+# ✗ Invalid: semicolons are not statement separators
+x = 5; y = 10  # Error!
+```
+
+This design choice makes gsh scripts more readable and closer to Python's philosophy of "one statement per line."
+
 ### Variable Declarations
 
 Variables are declared using assignment syntax and are always mutable:
@@ -146,7 +165,44 @@ tool processData(input) {
 tool calculateScore(points: number, multiplier: number): number {
     return points * multiplier
 }
+
+# Early exit with return (no value needed)
+tool validateInput(data) {
+    if (data == null) {
+        print("Error: data is required")
+        return  # Returns null, exits early
+    }
+    # ... process data
+}
 ```
+
+### Return Statement
+
+The `return` statement exits a tool and optionally returns a value:
+
+```gsh
+# Return with a value
+tool add(a, b) {
+    return a + b
+}
+
+# Return without a value (returns null)
+tool logAndExit(message) {
+    print(message)
+    return  # Equivalent to: return null
+}
+
+# Implicit return - last expression value is returned if no explicit return
+tool double(x) {
+    x * 2  # This value is returned
+}
+```
+
+**Key behaviors:**
+
+- `return value` - Returns the specified value
+- `return` - Returns `null` (useful for early exit)
+- No return statement - Returns the value of the last expression in the tool body
 
 ### String Literals
 
@@ -230,6 +286,14 @@ Environment variables are accessed through the `env` object:
 token = env.GITHUB_TOKEN
 port = env.PORT ?? 3000  # Default if not set
 
+# Set environment variables
+env.MY_VAR = "some value"
+env.PORT = 8080
+env.DEBUG = true
+
+# Unset environment variables
+env.MY_VAR = null
+
 # In string interpolation
 message = `Token is: ${env.GITHUB_TOKEN}`
 path = `/home/${env.USER}_backup`
@@ -260,11 +324,24 @@ model gpt4 {
     temperature: 0.5,
 }
 
-# Local model via Ollama
+# Local model via Ollama (uses OpenAI-compatible API)
 model llama {
-    provider: "ollama",
-    url: "http://localhost:11434",
+    provider: "openai",
+    apiKey: "ollama",
+    baseURL: "http://localhost:11434/v1",
     model: "llama3.2:3b",
+}
+
+# Model with custom headers (useful for proxies, auth, etc.)
+model customModel {
+    provider: "openai",
+    apiKey: env.OPENAI_API_KEY,
+    model: "gpt-4",
+    baseURL: "https://my-proxy.example.com/v1",
+    headers: {
+        "X-Custom-Header": "custom-value",
+        "X-Auth-Token": env.CUSTOM_AUTH_TOKEN,
+    },
 }
 ```
 
@@ -334,7 +411,7 @@ conv = "Analyze this: ${data}" | DataAnalyst
 
 ## 5. Error Handling
 
-### Try-Catch Blocks
+### Try-Catch-Finally Blocks
 
 ```gsh
 try {
@@ -345,6 +422,36 @@ try {
     print(`Error: ${error.message}`)
     # Fallback logic
     data = getDefaultData()
+} finally {
+    # Always executed, regardless of success or error
+    log.info("File processing completed")
+}
+```
+
+The `catch` and `finally` blocks are both optional, but at least one must be present:
+
+```gsh
+# Valid: try with only catch
+try {
+    doSomething()
+} catch (error) {
+    handleError(error)
+}
+
+# Valid: try with only finally
+try {
+    doSomething()
+} finally {
+    cleanup()
+}
+
+# Valid: try with both catch and finally
+try {
+    doSomething()
+} catch (error) {
+    handleError(error)
+} finally {
+    cleanup()
 }
 ```
 
@@ -389,6 +496,38 @@ print("Hello, world!")
 print(`Value: ${count}`)
 ```
 
+### Input
+
+Read user input from stdin:
+
+```gsh
+# With prompt
+name = input("What is your name? ")
+print(`Hello, ${name}!`)
+
+# Without prompt
+print("Enter a value:")
+value = input()
+```
+
+**Function signature:**
+
+```gsh
+input(prompt?: string): string
+```
+
+**Parameters:**
+
+- `prompt` (optional) - A string to display before waiting for input
+
+**Returns:** The user's input as a string (without trailing newline)
+
+**Notes:**
+
+- The prompt is printed to stdout without a trailing newline
+- Input is read until a newline character
+- Both `\n` and `\r\n` line endings are trimmed from the result
+
 ### JSON Utilities
 
 ```gsh
@@ -399,9 +538,290 @@ data = JSON.parse('{"key": "value"}')
 json = JSON.stringify({name: "Alice", age: 30})
 ```
 
+### Shell Command Execution
+
+Execute shell commands and capture their output:
+
+```gsh
+# Basic usage - execute a command and get result
+result = exec("echo hello")
+print(result.stdout)      # "hello\n"
+print(result.stderr)      # ""
+print(result.exitCode)    # 0
+
+# With timeout (in milliseconds)
+result = exec("sleep 10", {timeout: 5000})  # Times out after 5 seconds
+
+# Check exit code for errors
+result = exec("ls /nonexistent")
+if (result.exitCode != 0) {
+    log.error(`Command failed: ${result.stderr}`)
+}
+
+# Practical examples
+branch = exec("git branch --show-current").stdout
+files = exec("ls -la").stdout
+hostname = exec("hostname").stdout
+```
+
+**Function signature:**
+
+```gsh
+exec(command: string, options?: {timeout?: number}): {stdout: string, stderr: string, exitCode: number}
+```
+
+**Options:**
+
+- `timeout` - Maximum execution time in milliseconds (default: 60000ms / 60 seconds)
+
+**Returns:** An object containing:
+
+- `stdout` - Standard output as a string
+- `stderr` - Standard error as a string
+- `exitCode` - Exit code of the command (0 for success)
+
+**Notes:**
+
+- Commands are executed in a subshell (isolated from the main shell environment)
+- Non-zero exit codes do not throw errors; check `exitCode` in the result
+- Timeouts throw an error
+- Use string interpolation for dynamic commands: `exec("echo ${variable}")`
+
 ---
 
-## 7. Execution Model
+## 7. Import and Export
+
+### Module System Overview
+
+gsh supports a module system for organizing code into reusable components. This allows you to:
+
+- Break large scripts into focused modules
+- Share tools and utilities across scripts
+- Organize default handlers and configuration
+- Create libraries of reusable helpers
+
+### Import Syntax
+
+gsh provides two import patterns:
+
+#### Side-Effect Import
+
+Execute a file for its side effects (like registering event handlers). No symbols are imported:
+
+```gsh
+import "./events/agent.gsh"
+```
+
+This is useful for modules that self-register:
+
+```gsh
+# file: events/agent.gsh
+tool onAgentStart(ctx) {
+    print("Agent started")
+}
+gsh.on("agent.start", onAgentStart)  # Self-registers
+```
+
+```gsh
+# file: main.gsh
+import "./events/agent.gsh"  # File runs, handler is registered
+```
+
+#### Selective Import
+
+Import only specific exported symbols:
+
+```gsh
+import { helper, config } from "./helpers.gsh"
+```
+
+This is useful for importing tools and utilities:
+
+```gsh
+# file: helpers.gsh
+export tool processData(input) {
+    return JSON.parse(input)
+}
+
+export config = {
+    timeout: 5000,
+    retries: 3,
+}
+```
+
+```gsh
+# file: main.gsh
+import { processData, config } from "./helpers.gsh"
+
+data = processData('{"key": "value"}')
+print(config.timeout)
+```
+
+### Export Declaration
+
+Mark symbols as available for import using the `export` keyword:
+
+```gsh
+# Export a variable
+export myVariable = 42
+
+# Export a tool
+export tool myHelper(x) {
+    return x * 2
+}
+
+# Export a model
+export model myModel {
+    provider: "openai",
+    model: "gpt-4",
+}
+
+# Export an agent
+export agent myAgent {
+    model: myModel,
+    tools: [myHelper],
+}
+
+# Export an MCP server declaration
+export mcp filesystem {
+    command: "npx",
+    args: ["-y", "@modelcontextprotocol/server-filesystem"],
+}
+```
+
+Only symbols marked with `export` are visible to importers. Non-exported symbols remain private to the module.
+
+### Path Resolution
+
+Import paths are resolved relative to the **current script's directory**:
+
+#### Path Prefixes
+
+- `./` - Relative to current script's directory
+- `../` - Parent directory (can stack: `../../`)
+- Absolute paths (e.g., `/home/user/scripts/foo.gsh`) - Filesystem only
+
+#### Origin Types
+
+gsh distinguishes between two script origins:
+
+**Embedded** - Scripts bundled into the gsh binary (e.g., default configuration):
+
+```gsh
+# From: cmd/gsh/defaults/init.gsh
+import "./models.gsh"        # Resolves to: cmd/gsh/defaults/models.gsh
+import "./events/agent.gsh"  # Resolves to: cmd/gsh/defaults/events/agent.gsh
+```
+
+**Filesystem** - Scripts on the user's filesystem (e.g., `~/.gsh/repl.gsh`):
+
+```gsh
+# From: ~/.gsh/repl.gsh
+import "./my-tools.gsh"     # Resolves to: ~/.gsh/my-tools.gsh
+import "../shared/lib.gsh"  # Resolves to: ~/shared/lib.gsh
+```
+
+Each import is resolved relative to its origin type. Embedded imports stay within embedded defaults; filesystem imports stay on the filesystem.
+
+### Module Scope
+
+Each imported file has its own **module scope**:
+
+```gsh
+# file: helpers.gsh
+privateVar = "not visible outside"      # Private to this module
+export publicVar = "visible to importers"  # Exported
+
+export tool publicTool() {
+    return privateVar  # Can access private vars internally
+}
+```
+
+```gsh
+# file: main.gsh
+import { publicVar, publicTool } from "./helpers.gsh"
+
+print(publicVar)      # Works: "visible to importers"
+print(publicTool())   # Works, returns "not visible outside"
+print(privateVar)     # Error: undefined variable
+```
+
+### Circular Import Prevention
+
+Circular imports are detected and result in an error:
+
+```gsh
+# file: a.gsh
+import "./b.gsh"  # OK
+
+# file: b.gsh
+import "./a.gsh"  # Error: circular import detected
+```
+
+Each unique file path can only be imported once per interpreter session. Subsequent imports of the same file return cached exports without re-executing the module.
+
+### Module Caching
+
+The interpreter caches imported modules to:
+
+- Prevent re-execution of the same file
+- Enable circular import detection
+- Improve performance for repeated imports
+
+Each unique file path is only executed once per interpreter session. If you import the same module in multiple places, it runs once and subsequent imports use the cached exports:
+
+```gsh
+# file: config.gsh
+export defaultTimeout = 5000
+
+# file: module-a.gsh
+import { defaultTimeout } from "./config.gsh"
+# config.gsh executes here
+
+# file: module-b.gsh
+import { defaultTimeout } from "./config.gsh"
+# config.gsh NOT re-executed, uses cache
+
+# file: main.gsh
+import "./module-a.gsh"
+import "./module-b.gsh"
+# config.gsh runs only once, during module-a import
+```
+
+### Example: Organizing Code into Modules
+
+You can break scripts into focused modules:
+
+```gsh
+# file: helpers.gsh
+export tool analyzeData(input) {
+    return JSON.parse(input)
+}
+
+export tool formatOutput(text: string): string {
+    return text.toUpperCase()
+}
+
+export config = {
+    timeout: 10000,
+    retries: 3,
+}
+```
+
+```gsh
+# file: main.gsh
+import { analyzeData, formatOutput, config } from "./helpers.gsh"
+
+data = analyzeData('{"values": [1, 2, 3]}')
+result = formatOutput(JSON.stringify(data))
+print(result)
+```
+
+This approach helps organize larger scripts into reusable, focused modules.
+
+---
+
+## 8. Execution Model
 
 ### Native Go Interpreter
 

@@ -297,3 +297,70 @@ func TestGetRecentEntriesByPrefix(t *testing.T) {
 		assert.Len(t, entries, 5)
 	})
 }
+
+func TestHistoryManager_SearchHistory(t *testing.T) {
+	// Setup
+	historyManager, err := NewHistoryManager(":memory:")
+	assert.NoError(t, err)
+
+	// Add some test commands
+	commands := []string{
+		"git status",
+		"git commit -m 'test'",
+		"ls -la",
+		"cd ~/projects",
+		"git push origin main",
+		"echo hello",
+	}
+
+	for _, cmd := range commands {
+		_, err := historyManager.StartCommand(cmd, "/test")
+		assert.NoError(t, err)
+	}
+
+	t.Run("Search finds substring matches", func(t *testing.T) {
+		entries, err := historyManager.SearchHistory("git", 10)
+		assert.NoError(t, err)
+		assert.Len(t, entries, 3) // git status, git commit, git push
+	})
+
+	t.Run("Search is case-insensitive in SQL LIKE", func(t *testing.T) {
+		// Note: SQLite LIKE is case-insensitive for ASCII by default
+		entries, err := historyManager.SearchHistory("GIT", 10)
+		assert.NoError(t, err)
+		assert.Len(t, entries, 3)
+	})
+
+	t.Run("Search finds middle of string", func(t *testing.T) {
+		entries, err := historyManager.SearchHistory("commit", 10)
+		assert.NoError(t, err)
+		assert.Len(t, entries, 1)
+		assert.Equal(t, "git commit -m 'test'", entries[0].Command)
+	})
+
+	t.Run("Search respects limit", func(t *testing.T) {
+		entries, err := historyManager.SearchHistory("git", 2)
+		assert.NoError(t, err)
+		assert.Len(t, entries, 2)
+	})
+
+	t.Run("Search returns most recent first", func(t *testing.T) {
+		entries, err := historyManager.SearchHistory("git", 10)
+		assert.NoError(t, err)
+		assert.Len(t, entries, 3)
+		// Most recent should be first (git push was added last)
+		assert.Equal(t, "git push origin main", entries[0].Command)
+	})
+
+	t.Run("Search with no matches returns empty", func(t *testing.T) {
+		entries, err := historyManager.SearchHistory("nonexistent", 10)
+		assert.NoError(t, err)
+		assert.Len(t, entries, 0)
+	})
+
+	t.Run("Search with empty query returns all", func(t *testing.T) {
+		entries, err := historyManager.SearchHistory("", 10)
+		assert.NoError(t, err)
+		assert.Len(t, entries, 6)
+	})
+}

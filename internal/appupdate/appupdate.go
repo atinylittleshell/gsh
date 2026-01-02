@@ -1,16 +1,17 @@
 package appupdate
 
 import (
+	"bufio"
 	"bytes"
 	"context"
-	"github.com/atinylittleshell/gsh/internal/filesystem"
+	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/atinylittleshell/gsh/internal/core"
-	"github.com/atinylittleshell/gsh/internal/styles"
-	"github.com/atinylittleshell/gsh/pkg/gline"
+	"github.com/atinylittleshell/gsh/internal/filesystem"
 	"github.com/creativeprojects/go-selfupdate"
 	"go.uber.org/zap"
 )
@@ -19,7 +20,6 @@ func HandleSelfUpdate(
 	currentVersion string,
 	logger *zap.Logger,
 	fs filesystem.FileSystem,
-	prompter core.UserPrompter,
 	updater Updater,
 ) chan string {
 	resultChannel := make(chan string)
@@ -32,7 +32,7 @@ func HandleSelfUpdate(
 	}
 
 	// Check if we have previously detected a newer version
-	updateToLatestVersion(currentSemVer, logger, fs, prompter, updater)
+	updateToLatestVersion(currentSemVer, logger, fs, updater)
 
 	// Check for newer versions from remote repository
 	go fetchAndSaveLatestVersion(resultChannel, logger, fs, updater)
@@ -56,7 +56,7 @@ func readLatestVersion(fs filesystem.FileSystem) string {
 	return strings.TrimSpace(buf.String())
 }
 
-func updateToLatestVersion(currentSemVer *semver.Version, logger *zap.Logger, fs filesystem.FileSystem, prompter core.UserPrompter, updater Updater) {
+func updateToLatestVersion(currentSemVer *semver.Version, logger *zap.Logger, fs filesystem.FileSystem, updater Updater) {
 	latestVersion := readLatestVersion(fs)
 	if latestVersion == "" {
 		return
@@ -80,18 +80,19 @@ func updateToLatestVersion(currentSemVer *semver.Version, logger *zap.Logger, fs
 		return
 	}
 
-	confirm, _ := prompter.Prompt(
-		styles.AGENT_QUESTION("New version of gsh available. Update now? (Y/n) "),
-		[]string{},
-		latestVersion,
-		nil,
-		nil,
-		nil,
-		logger,
-		gline.NewOptions(),
-	)
+	// Prompt user for confirmation
+	fmt.Printf("\nNew version of gsh available: %s (current: %s)\n", latestVersion, currentSemVer.String())
+	fmt.Print("Update now? (Y/n): ")
 
-	if strings.ToLower(confirm) == "n" {
+	reader := bufio.NewReader(os.Stdin)
+	confirm, err := reader.ReadString('\n')
+	if err != nil {
+		logger.Warn("failed to read user input", zap.Error(err))
+		return
+	}
+
+	confirm = strings.TrimSpace(strings.ToLower(confirm))
+	if confirm == "n" || confirm == "no" {
 		return
 	}
 

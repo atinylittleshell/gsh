@@ -6,26 +6,28 @@
 [![Test Coverage](https://codecov.io/gh/atinylittleshell/gsh/branch/main/graph/badge.svg?token=U7HWPOEPTF)](https://codecov.io/gh/atinylittleshell/gsh)
 
 <p align="center">
-A Modern, POSIX-compatible, <ins>G</ins>enerative <ins>Sh</ins>ell.
+A battery-included, POSIX-compatible, <ins>G</ins>enerative <ins>Sh</ins>ell.
 </p>
 
 ## Status
 
-This project is in early development stage. Use at your own risk!
-Please expect bugs, incomplete features and breaking changes.
+This project is in early development stage. Use at your own risk! Please expect bugs, incomplete features, and breaking changes. The v1.0 version number reflects our first major breaking change, not stability—we follow [Semantic Versioning](https://semver.org/).
 
-That said, if you can try it out and provide feedback,
-that would help make gsh more useful!
+That said, if you try it out and provide feedback, that would help make gsh more useful!
 
-## Goals
+If you're upgrading from v0.x, note that configuration has changed since v1.0:
 
-- **POSIX-compatibility**: you shouldn't need to learn a new shell language to adopt gsh
-- **Embrace AI**: gsh is designed from the ground up for the generative AI era to provide you with intelligent assistance at the right place, right time
-- **Privacy**: gsh should allow you to use local LLMs for guaranteed privacy
-- **Customizability**: gsh is _your_ shell. You should be able to configure it to your liking
-- **Extensibility**: gsh should allow the community to build and share extensions to make it more useful
+- **New:** `~/.gsh/repl.gsh` for gsh-specific features (models, agents, prompts, middleware)
+- **Updated:** `~/.gshrc` still works as a POSIX-compatible config file, but it no longer includes gsh-specific features
 
-## But what does being "generative" mean?
+## Key features
+
+- **POSIX-compatible REPL**: you don't need to completely change how you use your shell
+- **Battery included**: basic stuff like command history, auto suggestion, and syntax highlighting work out of the box
+- **Built-in agents**: agents are first-class citizens in gsh, allowing you to interact with your shell using natural language
+- **Model agnostic**: you can use any LLM provider or model you like, including local LLMs
+- **Full customizability**: Inspired by the Neovim ecosystem, gsh allows you to customize and extend every aspect of your shell experience using gsh scripts
+- **Agentic scripting language**: gsh scripts allow you to easily compose intelligent agents and deterministic workflows
 
 ### Generative suggestion of shell commands
 
@@ -33,17 +35,24 @@ gsh will automatically suggest the next command you are likely want to run.
 
 ![Generative Suggestion](assets/prediction.gif)
 
-### Command explanation
+### Agent chat
 
-gsh will provide an explanation of the command you are about to run.
+Chat with AI agents directly in your shell using the `#` prefix:
 
-![Command Explanation](assets/explanation.gif)
+```bash
+gsh> # look at my unstaged changes and write test cases for them
+```
 
-### Agent
+Agents can:
 
-See the complete guide: [docs/AGENT.md](docs/AGENT.md)
+- Run shell commands and analyze output
+- Read and modify files
+- Search through codebases
+- Maintain conversation context across multiple turns
 
-### Supports both local and remote LLMs
+See the complete guide: [Agents in the REPL](docs/tutorial/06-agents-in-the-repl.md)
+
+### Supports local and remote LLMs
 
 gsh can run with either
 
@@ -52,161 +61,56 @@ gsh can run with either
 
 ## Installation
 
-To install gsh:
+See the [Getting Started Guide](docs/tutorial/01-getting-started-with-gsh.md#installation).
+
+## Documentation
+
+- **[Tutorial](docs/tutorial/README.md)** - Complete guide to getting started with gsh
+- **[Language Reference](docs/script/01-introduction.md)** - gsh scripting language documentation
+- **[SDK Reference](docs/sdk/README.md)** - gsh SDK object and API documentation
+
+## Telemetry
+
+gsh collects anonymous usage statistics to help improve the product.
+
+### What We Collect
+
+- gsh version, OS, CPU architecture
+- Session start/end and duration
+- Script execution counts
+- Error categories (e.g., "parse_error", not error messages)
+- Startup time
+
+### What We NEVER Collect
+
+- Commands, prompts, or any user input
+- File paths or filenames
+- API keys or environment variables
+- MCP server names, URLs, or configurations
+- Error messages or stack traces
+- Any personally identifiable information
+
+### Opting Out
+
+You can opt out of telemetry at any time:
 
 ```bash
-# Linux and macOS through Homebrew
-brew tap atinylittleshell/gsh https://github.com/atinylittleshell/gsh
-brew install atinylittleshell/gsh/gsh
+# Check current status
+gsh telemetry status
 
-# You can use gsh on arch, btw
-yay -S gsh-bin
-```
+# Disable telemetry
+gsh telemetry off
 
-Windows is not supported (yet).
+# Re-enable telemetry
+gsh telemetry on
 
-### Upgrading
-
-gsh can automatically detect newer versions and self update.
-
-## Building from Source
-
-To build gsh from source, ensure you have Go installed and run the following command:
-
-```bash
-make build
-```
-
-This will compile the project and place the binary in the `./bin` directory.
-
-## Configuration
-
-gsh can be configured through a configuration file located at `~/.gshrc`.
-Configuration options and default values can be found in [.gshrc.default](./cmd/gsh/.gshrc.default).
-
-gsh also loads a `~/.gshenv` file, right after loading `~/.gshrc`.
-This file can be used to set environment variables that the gsh session will use.
-
-When launched as a login shell (`gsh -l`),
-gsh will also load `/etc/profile` and `~/.gsh_profile` at start (before `~/.gshrc`).
-
-### Custom command prompt
-
-You can use [Starship.rs](https://starship.rs/) to render a custom command line prompt.
-See [.gshrc.starship](./cmd/gsh/.gshrc.starship) for an example configuration.
-
-## Usage
-
-### Manually
-
-You can manually start gsh from an existing shell:
-
-```bash
-gsh
-```
-
-### Automatically, through an existing shell
-
-You can also automatically launch gsh from another shell's configuration file:
-
-```bash
-# For bash
-echo "gsh" | tee -a ~/.bashrc
-```
-
-```bash
-# For zsh
-echo "gsh" | tee -a ~/.zshrc
-
-# Your zsh config may have set "gsh" as an alias for `git show`.
-# In that case, you would need to use the full path to gsh.
-echo "/full/path/to/gsh" | tee -a ~/.zshrc
-```
-
-### Automatically, as your default shell
-
-Or, you can set gsh as your default shell.
-This is not recommended at the moment as gsh is still in early development.
-But if you know what you are doing, you can do so by:
-
-```bash
-# Get the absolute path to gsh by running `which gsh`
-which gsh
-
-# Add gsh to the list of approved shells
-echo "/path/to/gsh" | sudo tee -a /etc/shells
-
-# Change your default shell to gsh
-chsh -s "/path/to/gsh"
-```
-
-## Default Key Bindings
-
-gsh provides a set of default key bindings for navigating and editing text input.
-These key bindings are designed to be familiar to users of traditional shells and text editors.
-It's on the roadmap to allow users to customize these key bindings.
-
-- **Character Forward**: `Right Arrow`, `Ctrl+F`
-- **Character Backward**: `Left Arrow`, `Ctrl+B`
-- **Word Forward**: `Alt+Right Arrow`, `Ctrl+Right Arrow`, `Alt+F`
-- **Word Backward**: `Alt+Left Arrow`, `Ctrl+Left Arrow`, `Alt+B`
-- **Delete Word Backward**: `Alt+Backspace`, `Ctrl+W`
-- **Delete Word Forward**: `Alt+Delete`, `Alt+D`
-- **Delete After Cursor**: `Ctrl+K`
-- **Delete Before Cursor**: `Ctrl+U`
-- **Delete Character Backward**: `Backspace`, `Ctrl+H`
-- **Delete Character Forward**: `Delete`, `Ctrl+D`
-- **Line Start**: `Home`, `Ctrl+A`
-- **Line End**: `End`, `Ctrl+E`
-- **Paste**: `Ctrl+V`
-
-## Model Evaluation
-
-gsh provides a built-in command to use your recent command history to evaluate how well different LLM models work for predicting your commands.
-You can run the evaluation command with various options:
-
-```bash
-# Evaluate using the configured fast model
-gsh> gsh_evaluate
-
-# Evaluate using the configured fast model but change model id to mistral:7b
-gsh> gsh_evaluate -m mistral:7b
-
-# Control the number of recent commands to use for evaluation
-gsh> gsh_evaluate -l 50  # evaluate with the most recent 50 commands you ran
-
-# Run multiple iterations for more accurate results
-gsh> gsh_evaluate -i 5  # run 5 iterations
-```
-
-Available options:
-
-- `-h, --help`: Display help message
-- `-l, --limit <number>`: Limit the number of entries to evaluate (default: 100)
-- `-m, --model <model-id>`: Specify the model to use (default: use the default fast model)
-- `-i, --iterations <number>`: Number of times to repeat the evaluation (default: 3)
-
-You will get a report like below on how well the model performed in predicting the commands you recently ran.
-
-```
-┌────────────────────────┬──────────┬──────────┐
-│Metric                  │Value     │Percentage│
-├────────────────────────┼──────────┼──────────┤
-│Model ID                │qwen2.5:3b│          │
-│Current Iteration       │3/3       │          │
-│Evaluated Entries       │300       │          │
-│Prediction Errors       │0         │0.0%      │
-│Perfect Predictions     │77        │25.7%     │
-│Average Similarity      │0.38      │38.4%     │
-│Average Latency         │0.9s      │          │
-│Input Tokens Per Request│723.1     │          │
-│Output Tokens Per Second│17.7      │          │
-└────────────────────────┴──────────┴──────────┘
+# Or use environment variable
+export GSH_NO_TELEMETRY=1
 ```
 
 ## Roadmap
 
-See [ROADMAP.md](./ROADMAP.md) for what's already planned.
+See [ROADMAP.md](./ROADMAP.md) for what's planned.
 Feel free to suggest new features by opening an issue!
 
 ## Acknowledgements
@@ -216,9 +120,7 @@ gsh is built on top of many great open source projects. Most notably:
 - [mvdan/sh](https://github.com/mvdan/sh) - A shell parser, formatter, and interpreter
 - [bubbletea](https://github.com/charmbracelet/bubbletea) - A powerful little TUI framework
 - [zap](https://github.com/uber-go/zap) - Blazing fast, structured, leveled logging in Go
-- [gorm](https://github.com/go-gorm/gorm) - The fantastic ORM library for Golang
-- [go-openai](https://github.com/sashabaranov/go-openai) - A Go client for the OpenAI API
 
-## Support This Project
+## Like This Project?
 
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/onelittleshell)
