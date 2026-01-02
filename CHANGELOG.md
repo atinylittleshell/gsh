@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/atinylittleshell/gsh/compare/v0.23.0...v1.0.0) (2026-01-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* gsh agentic scripting language and a fully customizable REPL ([#117](https://github.com/atinylittleshell/gsh/issues/117))
+
+### Features
+
+* gsh agentic scripting language and a fully customizable REPL ([#117](https://github.com/atinylittleshell/gsh/issues/117)) ([056cfe9](https://github.com/atinylittleshell/gsh/commit/056cfe91c024747b12c421a5d5da21d0c6e469bd))
+
 ## [0.23.0](https://github.com/atinylittleshell/gsh/compare/v0.22.2...v0.23.0) (2025-12-23)
 
 
