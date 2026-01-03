@@ -408,10 +408,9 @@ func (r *REPL) processCommand(ctx context.Context, command string) error {
 		select {
 		case <-sigChan:
 			// Ctrl+C received - cancel the context
+			// Note: The terminal echoes ^C automatically, so we don't print it here
 			interrupted = true
 			cancel()
-			// Print ^C to show the interrupt was received
-			fmt.Fprintln(os.Stderr, "^C")
 		case <-cmdCtx.Done():
 			// Context was cancelled for another reason, exit goroutine
 		}

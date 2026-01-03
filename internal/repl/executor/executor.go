@@ -11,6 +11,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/atinylittleshell/gsh/internal/bash"
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
@@ -46,7 +47,19 @@ func NewREPLExecutor(interp *interpreter.Interpreter, logger *zap.Logger, execHa
 	runner := interp.Runner()
 	shinterp.Interactive(true)(runner)                     //nolint:errcheck
 	shinterp.StdIO(os.Stdin, os.Stdout, os.Stderr)(runner) //nolint:errcheck
-	shinterp.ExecHandlers(execHandlers...)(runner)         //nolint:errcheck
+
+	// Create a custom exec handler that puts child processes in their own process group.
+	// This prevents SIGINT from propagating to child processes when the user presses Ctrl+C,
+	// which is important for nested shell scenarios (e.g., running gsh inside gsh).
+	// The middleware chain ends with our custom handler instead of DefaultExecHandler.
+	processGroupHandler := func(next shinterp.ExecHandlerFunc) shinterp.ExecHandlerFunc {
+		// We ignore 'next' and use our own handler that sets Setpgid
+		return bash.NewProcessGroupExecHandler(2 * time.Second)
+	}
+
+	// Append our process group handler as the last middleware
+	allHandlers := append(execHandlers, processGroupHandler)
+	shinterp.ExecHandlers(allHandlers...)(runner) //nolint:errcheck
 
 	return &REPLExecutor{
 		interpreter: interp,

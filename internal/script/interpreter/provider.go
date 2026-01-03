@@ -27,6 +27,11 @@ type StreamCallbacks struct {
 	// OnToolPending is called when a tool call enters pending state (starts streaming).
 	// At this point, the tool ID and name are known but arguments may still be streaming.
 	OnToolPending func(toolCallID string, toolName string)
+
+	// ShouldCancel is called periodically during streaming to check if the operation
+	// should be cancelled (e.g., due to Ctrl+C). Returns true to cancel.
+	// If nil, cancellation checking is skipped.
+	ShouldCancel func() bool
 }
 
 // ChatRequest represents a chat completion request
