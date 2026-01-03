@@ -403,6 +403,89 @@ conv2 = "How would you solve this problem?" | Expert2
 
 ---
 
+## Accessing Conversation Data
+
+Conversations expose properties that let you access message history and content:
+
+### Basic Properties
+
+```gsh
+#!/usr/bin/env gsh
+
+model exampleModel {
+    provider: "openai",
+    apiKey: "ollama",
+    baseURL: "http://localhost:11434/v1",
+    model: "devstral-small-2",
+}
+
+agent Helper {
+    model: exampleModel,
+    systemPrompt: "You are a helpful assistant.",
+}
+
+conv = "What is 2 + 2?" | Helper
+
+# Get the last message (the assistant's response)
+print(conv.lastMessage.content)
+
+# Get the message count via array length
+print(conv.messages.length)  # 2 (user message + assistant response)
+
+# Iterate over all messages
+for (msg of conv.messages) {
+    print(`${msg.role}: ${msg.content}`)
+}
+```
+
+**Output:**
+
+```
+4
+2
+user: What is 2 + 2?
+assistant: 4
+```
+
+### Message Object Properties
+
+Each message in `messages` or `lastMessage` has these properties:
+
+| Property     | Type   | Description                                      |
+| ------------ | ------ | ------------------------------------------------ |
+| `role`       | string | `"user"`, `"assistant"`, `"system"`, or `"tool"` |
+| `content`    | string | The message text                                 |
+| `name`       | string | (Optional) Tool name for tool messages           |
+| `toolCallId` | string | (Optional) ID linking tool result to tool call   |
+| `toolCalls`  | array  | (Optional) Tool calls requested by assistant     |
+
+### Practical Example: Extracting the Final Answer
+
+```gsh
+#!/usr/bin/env gsh
+
+model exampleModel {
+    provider: "openai",
+    apiKey: "ollama",
+    baseURL: "http://localhost:11434/v1",
+    model: "devstral-small-2",
+}
+
+agent Summarizer {
+    model: exampleModel,
+    systemPrompt: "Summarize text concisely in one sentence.",
+}
+
+text = "The quick brown fox jumps over the lazy dog. This sentence contains every letter of the alphabet."
+result = `Summarize: ${text}` | Summarizer
+
+# Extract just the assistant's response
+summary = result.lastMessage.content
+print(summary)
+```
+
+---
+
 ## Key Takeaways
 
 - **Pipe operator creates natural conversation flow**: `String | Agent` starts, `Conversation | String` adds context, `Conversation | Agent` continues
@@ -411,6 +494,7 @@ conv2 = "How would you solve this problem?" | Expert2
 - **Agent handoffs are elegant**: Seamlessly switch between agents while preserving context
 - **Tools integrate naturally**: Agents call tools during conversations, and results stay in history
 - **Chaining is readable**: Multi-turn conversations can be written as single, flowing expressions
+- **Access conversation data easily**: Use `lastMessage.content` to get the response, `messages` for full history
 
 ---
 
