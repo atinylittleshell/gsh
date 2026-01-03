@@ -555,6 +555,57 @@ func (c *ConversationValue) Equals(other Value) bool {
 	return false
 }
 
+// GetProperty returns a property of the conversation
+func (c *ConversationValue) GetProperty(name string) Value {
+	switch name {
+	case "messages":
+		// Convert []ChatMessage to ArrayValue of ObjectValues
+		elements := make([]Value, len(c.Messages))
+		for i, msg := range c.Messages {
+			elements[i] = chatMessageToObjectValue(msg)
+		}
+		return &ArrayValue{Elements: elements}
+	case "lastMessage":
+		if len(c.Messages) == 0 {
+			return &NullValue{}
+		}
+		return chatMessageToObjectValue(c.Messages[len(c.Messages)-1])
+	default:
+		return &NullValue{}
+	}
+}
+
+// chatMessageToObjectValue converts a ChatMessage to an ObjectValue for script access
+func chatMessageToObjectValue(msg ChatMessage) *ObjectValue {
+	props := map[string]*PropertyDescriptor{
+		"role":    {Value: &StringValue{Value: msg.Role}},
+		"content": {Value: &StringValue{Value: msg.Content}},
+	}
+
+	// Include optional fields if present
+	if msg.Name != "" {
+		props["name"] = &PropertyDescriptor{Value: &StringValue{Value: msg.Name}}
+	}
+	if msg.ToolCallID != "" {
+		props["toolCallId"] = &PropertyDescriptor{Value: &StringValue{Value: msg.ToolCallID}}
+	}
+	if len(msg.ToolCalls) > 0 {
+		toolCalls := make([]Value, len(msg.ToolCalls))
+		for i, tc := range msg.ToolCalls {
+			toolCalls[i] = &ObjectValue{
+				Properties: map[string]*PropertyDescriptor{
+					"id":        {Value: &StringValue{Value: tc.ID}},
+					"name":      {Value: &StringValue{Value: tc.Name}},
+					"arguments": {Value: InterfaceToValue(tc.Arguments)},
+				},
+			}
+		}
+		props["toolCalls"] = &PropertyDescriptor{Value: &ArrayValue{Elements: toolCalls}}
+	}
+
+	return &ObjectValue{Properties: props}
+}
+
 // MapValue represents a map value (key-value pairs)
 type MapValue struct {
 	Entries map[string]Value

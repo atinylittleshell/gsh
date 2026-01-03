@@ -375,6 +375,122 @@ func TestConversationValueType(t *testing.T) {
 	}
 }
 
+func TestConversationGetProperty(t *testing.T) {
+	conv := &ConversationValue{
+		Messages: []ChatMessage{
+			{Role: "user", Content: "Hello"},
+			{Role: "assistant", Content: "Hi there!"},
+			{Role: "user", Content: "How are you?"},
+		},
+	}
+
+	t.Run("lastMessage", func(t *testing.T) {
+		last := conv.GetProperty("lastMessage")
+		objVal, ok := last.(*ObjectValue)
+		if !ok {
+			t.Fatalf("Expected ObjectValue, got %T", last)
+		}
+
+		role := objVal.GetPropertyValue("role")
+		if role.String() != "user" {
+			t.Errorf("Expected role 'user', got '%s'", role.String())
+		}
+
+		content := objVal.GetPropertyValue("content")
+		if content.String() != "How are you?" {
+			t.Errorf("Expected content 'How are you?', got '%s'", content.String())
+		}
+	})
+
+	t.Run("messages", func(t *testing.T) {
+		msgs := conv.GetProperty("messages")
+		arrVal, ok := msgs.(*ArrayValue)
+		if !ok {
+			t.Fatalf("Expected ArrayValue, got %T", msgs)
+		}
+		if len(arrVal.Elements) != 3 {
+			t.Errorf("Expected 3 messages, got %d", len(arrVal.Elements))
+		}
+
+		// Check first message
+		firstMsg, ok := arrVal.Elements[0].(*ObjectValue)
+		if !ok {
+			t.Fatalf("Expected ObjectValue for first message, got %T", arrVal.Elements[0])
+		}
+		if firstMsg.GetPropertyValue("role").String() != "user" {
+			t.Errorf("Expected first message role 'user', got '%s'", firstMsg.GetPropertyValue("role").String())
+		}
+		if firstMsg.GetPropertyValue("content").String() != "Hello" {
+			t.Errorf("Expected first message content 'Hello', got '%s'", firstMsg.GetPropertyValue("content").String())
+		}
+	})
+
+	t.Run("lastMessage on empty conversation", func(t *testing.T) {
+		emptyConv := &ConversationValue{Messages: []ChatMessage{}}
+		last := emptyConv.GetProperty("lastMessage")
+		if _, ok := last.(*NullValue); !ok {
+			t.Errorf("Expected NullValue for lastMessage on empty conversation, got %T", last)
+		}
+	})
+
+	t.Run("unknown property", func(t *testing.T) {
+		unknown := conv.GetProperty("unknownProperty")
+		if _, ok := unknown.(*NullValue); !ok {
+			t.Errorf("Expected NullValue for unknown property, got %T", unknown)
+		}
+	})
+}
+
+func TestConversationWithToolCalls(t *testing.T) {
+	conv := &ConversationValue{
+		Messages: []ChatMessage{
+			{Role: "user", Content: "What's the weather?"},
+			{
+				Role:    "assistant",
+				Content: "",
+				ToolCalls: []ChatToolCall{
+					{ID: "call_123", Name: "get_weather", Arguments: map[string]interface{}{"city": "NYC"}},
+				},
+			},
+			{Role: "tool", Content: "Sunny, 72°F", ToolCallID: "call_123", Name: "get_weather"},
+		},
+	}
+
+	last := conv.GetProperty("lastMessage")
+	objVal, ok := last.(*ObjectValue)
+	if !ok {
+		t.Fatalf("Expected ObjectValue, got %T", last)
+	}
+
+	// Check tool message has toolCallId
+	toolCallId := objVal.GetPropertyValue("toolCallId")
+	if toolCallId.String() != "call_123" {
+		t.Errorf("Expected toolCallId 'call_123', got '%s'", toolCallId.String())
+	}
+
+	// Check assistant message with tool calls
+	msgs := conv.GetProperty("messages")
+	arrVal := msgs.(*ArrayValue)
+	assistantMsg := arrVal.Elements[1].(*ObjectValue)
+
+	toolCalls := assistantMsg.GetPropertyValue("toolCalls")
+	toolCallsArr, ok := toolCalls.(*ArrayValue)
+	if !ok {
+		t.Fatalf("Expected ArrayValue for toolCalls, got %T", toolCalls)
+	}
+	if len(toolCallsArr.Elements) != 1 {
+		t.Errorf("Expected 1 tool call, got %d", len(toolCallsArr.Elements))
+	}
+
+	toolCall := toolCallsArr.Elements[0].(*ObjectValue)
+	if toolCall.GetPropertyValue("id").String() != "call_123" {
+		t.Errorf("Expected tool call id 'call_123', got '%s'", toolCall.GetPropertyValue("id").String())
+	}
+	if toolCall.GetPropertyValue("name").String() != "get_weather" {
+		t.Errorf("Expected tool call name 'get_weather', got '%s'", toolCall.GetPropertyValue("name").String())
+	}
+}
+
 // TestAgentHandoff tests passing conversation between different agents
 func TestAgentHandoff(t *testing.T) {
 	input := `
