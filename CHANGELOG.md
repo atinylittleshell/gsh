@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.1](https://github.com/atinylittleshell/gsh/compare/v1.1.0...v1.1.1) (2026-01-03)
+
+
+### Bug Fixes
+
+* ACP agent rendering ([#126](https://github.com/atinylittleshell/gsh/issues/126)) ([a0ab584](https://github.com/atinylittleshell/gsh/commit/a0ab584ce13662b4b811feaa3b0556d6fcb3515f))
+* proper handling of SIGINT ([#129](https://github.com/atinylittleshell/gsh/issues/129)) ([6fae339](https://github.com/atinylittleshell/gsh/commit/6fae33938e501f2c6b1555403bf947cb6298538c))
+* remove buggy cache for syntax highlight ([#128](https://github.com/atinylittleshell/gsh/issues/128)) ([7eb6c99](https://github.com/atinylittleshell/gsh/commit/7eb6c999365ba68f9934ec1afe54cc535c6c5cb2))
+
 ## [1.1.0](https://github.com/atinylittleshell/gsh/compare/v1.0.1...v1.1.0) (2026-01-03)
 
 
