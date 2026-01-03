@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/atinylittleshell/gsh/compare/v1.1.1...v1.1.2) (2026-01-03)
+
+
+### Bug Fixes
+
+* SIGINT goes to foreground ([#130](https://github.com/atinylittleshell/gsh/issues/130)) ([123361f](https://github.com/atinylittleshell/gsh/commit/123361f8369d74c3379f68f0e31ab9bbaf77189e))
+
 ## [1.1.1](https://github.com/atinylittleshell/gsh/compare/v1.1.0...v1.1.1) (2026-01-03)
 
 
