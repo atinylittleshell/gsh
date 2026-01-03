@@ -51,21 +51,50 @@ gsh --version
 
 You should see a version number like `v1.0.0` or similar.
 
-## Starting Your First gsh Session
+## Usage
 
-Launch an interactive gsh session:
+### Manually
+
+You can manually start gsh from an existing shell:
 
 ```bash
 gsh
 ```
 
-You should see a prompt like:
+### Automatically, through an existing shell
 
-```
-gsh>
+You can also automatically launch gsh from another shell's configuration file:
+
+```bash
+# For bash
+echo "gsh" | tee -a ~/.bashrc
 ```
 
-Congratulations! You're now inside the gsh REPL.
+```bash
+# For zsh
+echo "gsh" | tee -a ~/.zshrc
+
+# Your zsh config may have set "gsh" as an alias for `git show`.
+# In that case, you would need to use the full path to gsh.
+echo "/full/path/to/gsh" | tee -a ~/.zshrc
+```
+
+### Automatically, as your default shell
+
+Or, you can set gsh as your default shell.
+This is not recommended at the moment as gsh is still in early development.
+But if you know what you are doing, you can do so by:
+
+```bash
+# Get the absolute path to gsh by running `which gsh`
+which gsh
+
+# Add gsh to the list of approved shells
+echo "/path/to/gsh" | sudo tee -a /etc/shells
+
+# Change your default shell to gsh
+chsh -s "/path/to/gsh"
+```
 
 ## Default Key Bindings
 

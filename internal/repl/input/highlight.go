@@ -3,7 +3,6 @@ package input
 
 import (
 	"os"
-	"os/exec"
 	"strings"
 	"sync"
 
@@ -47,12 +46,19 @@ type Highlighter struct {
 	parser *syntax.Parser
 
 	// aliasExists, if set, is consulted before checking PATH.
-	// This is used to treat shell aliases (e.g. from ~/.gshrc) as valid commands.
+	// This is used to treat shell aliases and functions (e.g. from ~/.gshrc) as valid commands.
 	aliasExists func(name string) bool
 
+	// getEnv, if set, is used to get environment variables from the shell.
+	// This allows the highlighter to use the shell's PATH (which may have been
+	// modified in .gshenv or .gsh_profile) instead of the OS process's PATH.
+	getEnv func(name string) string
+
 	// Command existence cache (for PATH lookups)
+	// The cache key includes the PATH value to handle PATH changes.
 	cmdCacheMu sync.RWMutex
 	cmdCache   map[string]bool
+	cachedPath string // The PATH value when the cache was populated
 
 	// Styles for different token types
 	styles map[TokenType]lipgloss.Style
@@ -62,10 +68,14 @@ type Highlighter struct {
 //
 // If aliasExists is non-nil, any name for which it returns true is treated as an
 // existing command (useful for shell aliases loaded at runtime).
-func NewHighlighter(aliasExists func(name string) bool) *Highlighter {
+//
+// If getEnv is non-nil, it is used to get environment variables from the shell,
+// allowing the highlighter to use the shell's PATH and variable values.
+func NewHighlighter(aliasExists func(name string) bool, getEnv func(name string) string) *Highlighter {
 	h := &Highlighter{
 		parser:      syntax.NewParser(),
 		aliasExists: aliasExists,
+		getEnv:      getEnv,
 		cmdCache:    make(map[string]bool),
 		styles:      make(map[TokenType]lipgloss.Style),
 	}
@@ -99,28 +109,77 @@ func (h *Highlighter) commandExists(cmd string) bool {
 		return true
 	}
 
+	// Get the current PATH from the shell (or fall back to OS PATH)
+	currentPath := os.Getenv("PATH")
+	if h.getEnv != nil {
+		if shellPath := h.getEnv("PATH"); shellPath != "" {
+			currentPath = shellPath
+		}
+	}
+
 	// Check cache for external commands
+	// Invalidate cache if PATH has changed
 	h.cmdCacheMu.RLock()
 	exists, cached := h.cmdCache[cmd]
+	pathChanged := h.cachedPath != currentPath
 	h.cmdCacheMu.RUnlock()
 
-	if cached {
+	if cached && !pathChanged {
 		return exists
 	}
 
-	// Check if command exists in PATH
-	_, err := exec.LookPath(cmd)
-	exists = err == nil
+	// If PATH changed, clear the entire cache
+	if pathChanged {
+		h.cmdCacheMu.Lock()
+		h.cmdCache = make(map[string]bool)
+		h.cachedPath = currentPath
+		h.cmdCacheMu.Unlock()
+	}
+
+	// Check if command exists in the shell's PATH
+	exists = h.lookupCommandInPath(cmd, currentPath)
 
 	// Cache the result
 	h.cmdCacheMu.Lock()
 	h.cmdCache[cmd] = exists
+	h.cachedPath = currentPath
 	h.cmdCacheMu.Unlock()
 
 	return exists
 }
 
+// lookupCommandInPath checks if a command exists in the given PATH.
+func (h *Highlighter) lookupCommandInPath(cmd string, pathEnv string) bool {
+	// If the command contains a path separator, check it directly
+	if strings.Contains(cmd, "/") {
+		info, err := os.Stat(cmd)
+		if err != nil {
+			return false
+		}
+		// Check if it's executable (not a directory)
+		return !info.IsDir() && info.Mode()&0111 != 0
+	}
+
+	// Search each directory in PATH
+	for _, dir := range strings.Split(pathEnv, string(os.PathListSeparator)) {
+		if dir == "" {
+			dir = "."
+		}
+		path := dir + string(os.PathSeparator) + cmd
+		info, err := os.Stat(path)
+		if err != nil {
+			continue
+		}
+		// Check if it's executable (not a directory)
+		if !info.IsDir() && info.Mode()&0111 != 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // variableHasValue checks if an environment variable has a non-empty value.
+// It uses the shell's environment if available, falling back to the OS environment.
 func (h *Highlighter) variableHasValue(name string) bool {
 	// Handle special variables that are always set
 	switch name {
@@ -128,6 +187,15 @@ func (h *Highlighter) variableHasValue(name string) bool {
 		return true
 	}
 
+	// Try the shell's environment first
+	if h.getEnv != nil {
+		value := h.getEnv(name)
+		if value != "" {
+			return true
+		}
+	}
+
+	// Fall back to OS environment
 	value, exists := os.LookupEnv(name)
 	return exists && value != ""
 }

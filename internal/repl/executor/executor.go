@@ -164,6 +164,34 @@ func (e *REPLExecutor) AliasExists(name string) bool {
 	return aliasField.MapIndex(key).IsValid()
 }
 
+// FunctionExists returns true if the given name is currently defined as a shell function
+// in the underlying mvdan/sh runner.
+//
+// Note: mvdan/sh's Funcs field is exported, but we still use reflection for consistency.
+func (e *REPLExecutor) FunctionExists(name string) bool {
+	runner := e.interpreter.Runner()
+	if runner == nil {
+		return false
+	}
+
+	runnerValue := reflect.ValueOf(runner).Elem()
+	funcsField := runnerValue.FieldByName("Funcs")
+	if !funcsField.IsValid() || funcsField.IsNil() {
+		return false
+	}
+
+	// funcsField is a map[string]*syntax.Stmt; we only care about keys.
+	key := reflect.ValueOf(name)
+	return funcsField.MapIndex(key).IsValid()
+}
+
+// AliasOrFunctionExists returns true if the given name is defined as either
+// a shell alias or a shell function. This is useful for syntax highlighting
+// to recognize user-defined commands from config files like .gshenv and .gsh_profile.
+func (e *REPLExecutor) AliasOrFunctionExists(name string) bool {
+	return e.AliasExists(name) || e.FunctionExists(name)
+}
+
 // Interpreter returns the underlying gsh interpreter.
 // This is useful for advanced use cases that need direct access.
 func (e *REPLExecutor) Interpreter() *interpreter.Interpreter {
