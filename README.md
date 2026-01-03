@@ -52,6 +52,28 @@ Agents can:
 
 See the complete guide: [Agents in the REPL](docs/tutorial/06-agents-in-the-repl.md)
 
+### Agentic scripting language
+
+Compose intelligent agents and deterministic workflows using the gsh scripting language.
+
+```gsh
+#!/usr/bin/env gsh
+
+# Generate a commit message from staged changes
+agent CommitWriter {
+    model: gsh.models.workhorse,
+    systemPrompt: "Write concise, conventional commit messages. Output only the message.",
+}
+
+diff = exec("git diff --cached")
+if (diff.stdout == "") {
+    print("No staged changes")
+} else {
+    result = diff.stdout | CommitWriter
+    print(result.lastMessage.content)
+}
+```
+
 ### Supports local and remote LLMs
 
 gsh can run with either
