@@ -7,7 +7,6 @@
 
 ## Ergonomics
 
-- [ ] ESC to interrupt agent
 - [ ] Keybind configuration (inputrc)
 - [ ] Markdown rendering for agent text responses in REPL
 

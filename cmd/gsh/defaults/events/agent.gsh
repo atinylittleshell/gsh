@@ -18,7 +18,7 @@ tool onAgentStart(ctx, next) {
         width = 80
     }
     name = ctx.agent.name
-    if (name == null || name == "") {
+    if (name == null || name == "" || name == "__defaultAgent") {
         name = "gsh"
     }
     padding = width - 4 - name.length  # "── " prefix (3) + " " before padding (1)

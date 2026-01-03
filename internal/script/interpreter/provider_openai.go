@@ -474,6 +474,11 @@ func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callbacks 
 
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
+		// Check for cancellation before processing each chunk
+		if callbacks != nil && callbacks.ShouldCancel != nil && callbacks.ShouldCancel() {
+			return nil, fmt.Errorf("streaming cancelled")
+		}
+
 		line := scanner.Text()
 
 		// Skip empty lines

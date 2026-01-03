@@ -232,6 +232,10 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 						callbacks.OnChunk(content)
 					}
 				},
+				// Check for context cancellation (e.g., Ctrl+C)
+				ShouldCancel: func() bool {
+					return ctx.Err() != nil
+				},
 			}
 			// Always emit SDK event when tool call enters pending state (streaming from LLM)
 			streamCallbacks.OnToolPending = func(toolCallID string, toolName string) {
