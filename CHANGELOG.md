@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/atinylittleshell/gsh/compare/v1.0.0...v1.0.1) (2026-01-03)
+
+
+### Bug Fixes
+
+* syntax highlighting takes latest env into account ([#119](https://github.com/atinylittleshell/gsh/issues/119)) ([992b39c](https://github.com/atinylittleshell/gsh/commit/992b39c31e5c9001b8f218dfb0a0a75bd637246a))
+
 ## [1.0.0](https://github.com/atinylittleshell/gsh/compare/v0.23.0...v1.0.0) (2026-01-02)
 
 
