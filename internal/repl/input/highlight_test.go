@@ -16,9 +16,6 @@ func TestNewHighlighter(t *testing.T) {
 	if h.parser == nil {
 		t.Error("parser should not be nil")
 	}
-	if h.cmdCache == nil {
-		t.Error("cmdCache should not be nil")
-	}
 	if h.styles == nil {
 		t.Error("styles should not be nil")
 	}
@@ -285,26 +282,15 @@ func TestHighlightBasicFallback(t *testing.T) {
 	}
 }
 
-func TestCommandExistsCache(t *testing.T) {
+func TestCommandExistsConsistentResults(t *testing.T) {
 	h := NewHighlighter(nil, nil)
 
-	// First call - should check PATH
+	// Multiple calls should return consistent results
 	exists1 := h.commandExists("ls")
-
-	// Second call - should use cache
 	exists2 := h.commandExists("ls")
 
 	if exists1 != exists2 {
-		t.Error("cache should return same result")
-	}
-
-	// Clear cache
-	h.ClearCache()
-
-	// Should still work after clearing
-	exists3 := h.commandExists("ls")
-	if exists1 != exists3 {
-		t.Error("should return same result after cache clear")
+		t.Error("should return consistent results for the same command")
 	}
 }
 
@@ -430,7 +416,7 @@ func TestHighlightUsesShellEnvForVariables(t *testing.T) {
 	}
 }
 
-func TestHighlightCacheInvalidationOnPathChange(t *testing.T) {
+func TestHighlightRespectsPathChanges(t *testing.T) {
 	// Create two temp directories with different commands
 	tempDir1 := t.TempDir()
 	tempDir2 := t.TempDir()
@@ -468,11 +454,65 @@ func TestHighlightCacheInvalidationOnPathChange(t *testing.T) {
 	currentPath = tempDir2
 
 	// After PATH change, cmd2 should exist and cmd1 should not
-	// (cache should be invalidated)
 	if h.commandExists("cmd1") {
 		t.Fatal("expected cmd1 to NOT exist after PATH change to tempDir2")
 	}
 	if !h.commandExists("cmd2") {
 		t.Fatal("expected cmd2 to exist after PATH change to tempDir2")
+	}
+}
+
+func TestHighlightRespectsWorkingDirectoryForRelativePaths(t *testing.T) {
+	// Create two temp directories with relative path executables
+	tempDir1 := t.TempDir()
+
+	// Create ./bin/cmd in tempDir1
+	binDir1 := tempDir1 + "/bin"
+	if err := os.MkdirAll(binDir1, 0755); err != nil {
+		t.Fatalf("failed to create bin dir in tempDir1: %v", err)
+	}
+	cmd1Path := binDir1 + "/cmd"
+	if err := os.WriteFile(cmd1Path, []byte("#!/bin/sh\necho 1"), 0755); err != nil {
+		t.Fatalf("failed to create cmd in tempDir1: %v", err)
+	}
+
+	// Save original working directory
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get original working directory: %v", err)
+	}
+	defer os.Chdir(origDir)
+
+	h := NewHighlighter(nil, nil)
+
+	// Change to tempDir1 where ./bin/cmd exists
+	if err := os.Chdir(tempDir1); err != nil {
+		t.Fatalf("failed to chdir to tempDir1: %v", err)
+	}
+
+	// ./bin/cmd should exist
+	if !h.commandExists("./bin/cmd") {
+		t.Fatal("expected ./bin/cmd to exist in tempDir1")
+	}
+
+	// Create a directory without ./bin/cmd
+	emptyDir := t.TempDir()
+	if err := os.Chdir(emptyDir); err != nil {
+		t.Fatalf("failed to chdir to emptyDir: %v", err)
+	}
+
+	// After CWD change, ./bin/cmd should NOT exist
+	if h.commandExists("./bin/cmd") {
+		t.Fatal("expected ./bin/cmd to NOT exist after chdir to emptyDir")
+	}
+
+	// Change back to tempDir1
+	if err := os.Chdir(tempDir1); err != nil {
+		t.Fatalf("failed to chdir back to tempDir1: %v", err)
+	}
+
+	// ./bin/cmd should exist again
+	if !h.commandExists("./bin/cmd") {
+		t.Fatal("expected ./bin/cmd to exist after chdir back to tempDir1")
 	}
 }
