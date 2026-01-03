@@ -203,5 +203,6 @@ func (i *Interpreter) executeAgentWithConversation(conv *ConversationValue, agen
 	// and the response is displayed to the user
 	streaming := i.sdkConfig.GetREPLContext() != nil
 
-	return i.ExecuteAgent(context.Background(), execConv, agent, streaming)
+	// Use interpreter's context for cancellation support (e.g., Ctrl+C)
+	return i.ExecuteAgent(i.Context(), execConv, agent, streaming)
 }
