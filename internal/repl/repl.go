@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -388,6 +390,38 @@ func (r *REPL) processCommand(ctx context.Context, command string) error {
 		return nil
 	}
 
+	// Set up SIGINT handling for command execution
+	// Create a cancellable context that will be cancelled on Ctrl+C
+	cmdCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Set up signal handling for SIGINT (Ctrl+C)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT)
+	defer signal.Stop(sigChan)
+
+	// Track if we were interrupted
+	interrupted := false
+
+	// Start a goroutine to handle SIGINT
+	go func() {
+		select {
+		case <-sigChan:
+			// Ctrl+C received - cancel the context
+			interrupted = true
+			cancel()
+			// Print ^C to show the interrupt was received
+			fmt.Fprintln(os.Stderr, "^C")
+		case <-cmdCtx.Done():
+			// Context was cancelled for another reason, exit goroutine
+		}
+	}()
+
+	// Set the cancellable context on the interpreter so agent execution can use it
+	interp := r.executor.Interpreter()
+	interp.SetContext(cmdCtx)
+	defer interp.SetContext(context.Background()) // Clear context after command completes
+
 	// Record ALL user input in history (including agent commands like "#...")
 	// This is done before middleware so all user input is captured
 	var historyEntry *history.HistoryEntry
@@ -401,13 +435,23 @@ func (r *REPL) processCommand(ctx context.Context, command string) error {
 	}
 
 	// Emit command.input event to middleware chain
-	interp := r.executor.Interpreter()
 	inputCtx := &interpreter.ObjectValue{
 		Properties: map[string]*interpreter.PropertyDescriptor{
 			"input": {Value: &interpreter.StringValue{Value: command}},
 		},
 	}
 	result := interp.EmitEvent("command.input", inputCtx)
+
+	// Check if we were interrupted during middleware execution
+	if interrupted {
+		if historyEntry != nil {
+			// Record as interrupted (exit code 130 is standard for SIGINT)
+			if _, finishErr := r.history.FinishCommand(historyEntry, 130); finishErr != nil {
+				r.logger.Debug("failed to finish history entry", zap.Error(finishErr))
+			}
+		}
+		return nil
+	}
 
 	// Check if middleware handled the command
 	if result != nil {
@@ -451,7 +495,7 @@ func (r *REPL) processCommand(ctx context.Context, command string) error {
 	}
 
 	// Fall through: execute as shell command
-	exitCode := r.executeShellCommand(ctx, command)
+	exitCode := r.executeShellCommand(cmdCtx, command)
 
 	// Finish history entry with actual exit code
 	if historyEntry != nil {

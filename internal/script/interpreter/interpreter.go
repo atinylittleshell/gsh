@@ -39,6 +39,10 @@ type Interpreter struct {
 	runner           *interp.Runner // Shared sh runner for env vars, working dir, and exec()
 	runnerMu         sync.RWMutex   // Protects runner access
 
+	// Context for cancellation (e.g., Ctrl+C handling)
+	ctx   context.Context // Current execution context
+	ctxMu sync.RWMutex    // Protects ctx access
+
 	// SDK infrastructure
 	eventManager *EventManager
 	sdkConfig    *SDKConfig
@@ -204,6 +208,28 @@ func (i *Interpreter) InjectACPSession(agentName, sessionID string, session acp.
 // This is useful for testing or for providing custom input sources
 func (i *Interpreter) SetStdin(r io.Reader) {
 	i.stdin = r
+}
+
+// SetContext sets the execution context for the interpreter.
+// This context is used for cancellation (e.g., when Ctrl+C is pressed).
+// The REPL sets this before executing commands so that long-running operations
+// (like agent execution or shell commands) can be cancelled.
+func (i *Interpreter) SetContext(ctx context.Context) {
+	i.ctxMu.Lock()
+	defer i.ctxMu.Unlock()
+	i.ctx = ctx
+}
+
+// Context returns the current execution context.
+// If no context has been set, returns context.Background().
+// This should be used by operations that support cancellation.
+func (i *Interpreter) Context() context.Context {
+	i.ctxMu.RLock()
+	defer i.ctxMu.RUnlock()
+	if i.ctx == nil {
+		return context.Background()
+	}
+	return i.ctx
 }
 
 // Runner returns the underlying sh runner

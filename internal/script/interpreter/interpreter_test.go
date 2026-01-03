@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"context"
 	"testing"
 
 	"github.com/atinylittleshell/gsh/internal/script/lexer"
@@ -645,4 +646,126 @@ func TestEvalResult_VariablesImmutability(t *testing.T) {
 	if vars2["x"].String() != "5" {
 		t.Errorf("expected x to still be 5, got %s", vars2["x"].String())
 	}
+}
+
+func TestInterpreter_Context_DefaultIsBackground(t *testing.T) {
+	interp := New(nil)
+	ctx := interp.Context()
+
+	if ctx == nil {
+		t.Fatal("Context() returned nil, expected non-nil context")
+	}
+
+	// Verify the context is not cancelled
+	select {
+	case <-ctx.Done():
+		t.Error("default context should not be cancelled")
+	default:
+		// Expected - context is not cancelled
+	}
+}
+
+func TestInterpreter_SetContext_And_Context(t *testing.T) {
+	interp := New(nil)
+
+	// Create a cancellable context
+	cancelCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Set the context
+	interp.SetContext(cancelCtx)
+
+	// Verify we get the same context back
+	if interp.Context() != cancelCtx {
+		t.Error("Context() did not return the context set via SetContext()")
+	}
+}
+
+func TestInterpreter_Context_CancellationIsDetectable(t *testing.T) {
+	interp := New(nil)
+
+	// Create and set a cancellable context
+	cancelCtx, cancel := context.WithCancel(context.Background())
+	interp.SetContext(cancelCtx)
+
+	// Cancel the context
+	cancel()
+
+	// Verify the cancellation is detectable
+	select {
+	case <-interp.Context().Done():
+		// Expected - context is cancelled
+	default:
+		t.Error("cancelled context should be done")
+	}
+
+	// Verify the error is context.Canceled
+	if interp.Context().Err() != context.Canceled {
+		t.Errorf("expected context.Canceled error, got %v", interp.Context().Err())
+	}
+}
+
+func TestInterpreter_SetContext_NilReturnsBackground(t *testing.T) {
+	interp := New(nil)
+
+	// First set a cancelled context
+	cancelCtx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel it
+	interp.SetContext(cancelCtx)
+
+	// Verify it's cancelled
+	if interp.Context().Err() == nil {
+		t.Error("context should be cancelled")
+	}
+
+	// Now set nil
+	interp.SetContext(nil)
+
+	// Verify we get a non-cancelled context back
+	ctx := interp.Context()
+	if ctx == nil {
+		t.Fatal("Context() returned nil after SetContext(nil)")
+	}
+
+	select {
+	case <-ctx.Done():
+		t.Error("context after SetContext(nil) should not be cancelled")
+	default:
+		// Expected - context is not cancelled
+	}
+}
+
+func TestInterpreter_Context_ThreadSafety(t *testing.T) {
+	interp := New(nil)
+
+	// Create multiple contexts
+	ctx1, cancel1 := context.WithCancel(context.Background())
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel1()
+	defer cancel2()
+
+	// Concurrently set and get contexts
+	done := make(chan bool)
+
+	go func() {
+		for i := 0; i < 100; i++ {
+			interp.SetContext(ctx1)
+			interp.Context()
+		}
+		done <- true
+	}()
+
+	go func() {
+		for i := 0; i < 100; i++ {
+			interp.SetContext(ctx2)
+			interp.Context()
+		}
+		done <- true
+	}()
+
+	// Wait for both goroutines
+	<-done
+	<-done
+
+	// If we get here without a race condition, the test passes
 }
