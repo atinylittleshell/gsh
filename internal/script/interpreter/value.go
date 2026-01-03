@@ -36,6 +36,10 @@ const (
 	ValueTypeMap
 	// ValueTypeSet represents a set value
 	ValueTypeSet
+	// ValueTypeACP represents an ACP (Agent Client Protocol) agent configuration
+	ValueTypeACP
+	// ValueTypeACPSession represents an active ACP session
+	ValueTypeACPSession
 )
 
 // String returns the string representation of the value type
@@ -67,6 +71,10 @@ func (vt ValueType) String() string {
 		return "map"
 	case ValueTypeSet:
 		return "set"
+	case ValueTypeACP:
+		return "acp"
+	case ValueTypeACPSession:
+		return "acpsession"
 	default:
 		return "unknown"
 	}
@@ -784,6 +792,106 @@ func (r *SDKModelRef) SetProperty(name string, value Value) error {
 		return fmt.Errorf("cannot set property on unresolved model reference")
 	}
 	return model.SetProperty(name, value)
+}
+
+// ACPValue represents an ACP (Agent Client Protocol) agent configuration.
+// Unlike AgentValue which has a local model and tools, ACPValue connects
+// to an external agent process via the ACP protocol.
+type ACPValue struct {
+	Name   string           // Agent name from declaration
+	Config map[string]Value // Configuration (command, args, env, cwd, etc.)
+}
+
+func (a *ACPValue) Type() ValueType { return ValueTypeACP }
+func (a *ACPValue) String() string {
+	return fmt.Sprintf("<acp %s>", a.Name)
+}
+func (a *ACPValue) IsTruthy() bool { return true }
+func (a *ACPValue) Equals(other Value) bool {
+	if otherACP, ok := other.(*ACPValue); ok {
+		return a.Name == otherACP.Name
+	}
+	return false
+}
+
+// GetProperty returns a property of the ACP agent configuration
+func (a *ACPValue) GetProperty(name string) Value {
+	switch name {
+	case "name":
+		return &StringValue{Value: a.Name}
+	default:
+		// Check if the property exists in the Config map
+		if val, ok := a.Config[name]; ok {
+			return val
+		}
+		return &NullValue{}
+	}
+}
+
+// ACPSessionValue represents an active session with an ACP agent.
+// It tracks the conversation messages locally for property access,
+// though the authoritative state is maintained by the external agent.
+type ACPSessionValue struct {
+	// Agent is the ACP agent this session is bound to
+	Agent *ACPValue
+
+	// Messages tracks conversation history locally for property access.
+	// This is a local copy - the external agent owns the authoritative state.
+	Messages []ChatMessage
+
+	// SessionID is the external agent's session identifier (set after initialization)
+	SessionID string
+
+	// Closed indicates if the session has been terminated
+	Closed bool
+}
+
+func (s *ACPSessionValue) Type() ValueType { return ValueTypeACPSession }
+func (s *ACPSessionValue) String() string {
+	if s.Closed {
+		return fmt.Sprintf("<acpsession %s (closed) with %d messages>", s.Agent.Name, len(s.Messages))
+	}
+	return fmt.Sprintf("<acpsession %s with %d messages>", s.Agent.Name, len(s.Messages))
+}
+func (s *ACPSessionValue) IsTruthy() bool { return !s.Closed && len(s.Messages) > 0 }
+func (s *ACPSessionValue) Equals(other Value) bool {
+	if otherSession, ok := other.(*ACPSessionValue); ok {
+		return s.SessionID == otherSession.SessionID && s.Agent.Name == otherSession.Agent.Name
+	}
+	return false
+}
+
+// GetProperty returns a property of the ACP session.
+// Mirrors ConversationValue's property interface for consistency.
+func (s *ACPSessionValue) GetProperty(name string) Value {
+	switch name {
+	case "messages":
+		// Convert []ChatMessage to ArrayValue of ObjectValues
+		elements := make([]Value, len(s.Messages))
+		for i, msg := range s.Messages {
+			elements[i] = chatMessageToObjectValue(msg)
+		}
+		return &ArrayValue{Elements: elements}
+	case "lastMessage":
+		if len(s.Messages) == 0 {
+			return &NullValue{}
+		}
+		return chatMessageToObjectValue(s.Messages[len(s.Messages)-1])
+	case "agent":
+		return s.Agent
+	case "sessionId":
+		return &StringValue{Value: s.SessionID}
+	case "closed":
+		return &BoolValue{Value: s.Closed}
+	default:
+		return &NullValue{}
+	}
+}
+
+// Close marks the session as closed.
+// This is called when session.close() is invoked from gsh script.
+func (s *ACPSessionValue) Close() {
+	s.Closed = true
 }
 
 // UnwrapValue unwraps a DynamicValue to its underlying value.

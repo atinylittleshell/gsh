@@ -56,3 +56,8 @@
 - [ ] Apt
 - [ ] Nix
 - [ ] Starship
+
+## Bugs
+
+- [ ] Syntax highlighting not working for relative path executable
+- [ ] Ctrl+C in a child program would kill gsh

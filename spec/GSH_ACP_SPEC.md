@@ -11,7 +11,7 @@ This document specifies how gsh integrates with external agents via the [Agent C
 
 ### Motivation
 
-gsh currently supports local agents that combine a model, system prompt, and tools:
+gsh currently supports native agents that combine a model, system prompt, and tools:
 
 ```gsh
 agent Assistant {
@@ -229,7 +229,7 @@ session.close()
 | `lastMessage.role`    | ✅              | ✅                      |
 | `lastMessage.content` | ✅              | ✅                      |
 
-This consistency means code that works with local agents also works with ACP agents:
+This consistency means code that works with gsh agents also works with ACP agents:
 
 ```gsh
 # Works with both Conversation and ACPSession
@@ -323,7 +323,7 @@ tool onChunk(ctx) {
 }
 gsh.on("agent.chunk", onChunk)
 
-# Works for both local agents AND ACP agents
+# Works for both gsh agents AND ACP agents
 result = "Hello" | LocalAgent
 session = "Hello" | RovoDev
 ```
@@ -633,4 +633,4 @@ Should gsh send a shutdown signal to ACP processes when the script exits?
 - [Agent Client Protocol Specification](https://agentclientprotocol.com/)
 - [ACP GitHub Repository](https://github.com/zed-industries/agent-client-protocol)
 - [gsh MCP Implementation](../internal/script/mcp/) - Similar pattern for process management
-- [gsh Agent Implementation](../internal/script/interpreter/agent.go) - Local agent execution
+- [gsh Agent Implementation](../internal/script/interpreter/agent.go) - gsh agent execution

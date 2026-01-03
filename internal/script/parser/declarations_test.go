@@ -1002,6 +1002,252 @@ func TestParseAgentDeclarationErrors(t *testing.T) {
 	}
 }
 
+func TestParseACPDeclaration(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected func(t *testing.T, stmt Statement)
+	}{
+		{
+			name: "Basic ACP declaration with command and args",
+			input: `acp RovoDev {
+	command: "acli",
+	args: ["rovodev", "acp"],
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				acpDecl, ok := stmt.(*ACPDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ACPDeclaration. got=%T", stmt)
+				}
+
+				if acpDecl.Name.Value != "RovoDev" {
+					t.Errorf("acpDecl.Name.Value not 'RovoDev'. got=%q", acpDecl.Name.Value)
+				}
+
+				if len(acpDecl.Config) != 2 {
+					t.Errorf("acpDecl.Config should have 2 keys. got=%d", len(acpDecl.Config))
+				}
+
+				// Check command
+				cmdVal, ok := acpDecl.Config["command"]
+				if !ok {
+					t.Fatalf("acpDecl.Config missing 'command' key")
+				}
+				cmdStr, ok := cmdVal.(*StringLiteral)
+				if !ok {
+					t.Fatalf("command value is not *StringLiteral. got=%T", cmdVal)
+				}
+				if cmdStr.Value != "acli" {
+					t.Errorf("command not 'acli'. got=%q", cmdStr.Value)
+				}
+
+				// Check args
+				argsVal, ok := acpDecl.Config["args"]
+				if !ok {
+					t.Fatalf("acpDecl.Config missing 'args' key")
+				}
+				argsArray, ok := argsVal.(*ArrayLiteral)
+				if !ok {
+					t.Fatalf("args value is not *ArrayLiteral. got=%T", argsVal)
+				}
+				if len(argsArray.Elements) != 2 {
+					t.Fatalf("args array should have 2 elements. got=%d", len(argsArray.Elements))
+				}
+			},
+		},
+		{
+			name: "ACP declaration with environment variables",
+			input: `acp RovoDev {
+	command: "acli",
+	args: ["rovodev", "acp"],
+	env: {
+		ATLASSIAN_TOKEN: env.ATLASSIAN_TOKEN,
+	},
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				acpDecl, ok := stmt.(*ACPDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ACPDeclaration. got=%T", stmt)
+				}
+
+				if acpDecl.Name.Value != "RovoDev" {
+					t.Errorf("acpDecl.Name.Value not 'RovoDev'. got=%q", acpDecl.Name.Value)
+				}
+
+				if len(acpDecl.Config) != 3 {
+					t.Errorf("acpDecl.Config should have 3 keys. got=%d", len(acpDecl.Config))
+				}
+
+				// Check env
+				envVal, ok := acpDecl.Config["env"]
+				if !ok {
+					t.Fatalf("acpDecl.Config missing 'env' key")
+				}
+				envObj, ok := envVal.(*ObjectLiteral)
+				if !ok {
+					t.Fatalf("env value is not *ObjectLiteral. got=%T", envVal)
+				}
+				if len(envObj.Pairs) != 1 {
+					t.Errorf("env object should have 1 key. got=%d", len(envObj.Pairs))
+				}
+			},
+		},
+		{
+			name: "ACP declaration with working directory",
+			input: `acp RovoDev {
+	command: "acli",
+	args: ["rovodev", "acp"],
+	cwd: "/path/to/project",
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				acpDecl, ok := stmt.(*ACPDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ACPDeclaration. got=%T", stmt)
+				}
+
+				if acpDecl.Name.Value != "RovoDev" {
+					t.Errorf("acpDecl.Name.Value not 'RovoDev'. got=%q", acpDecl.Name.Value)
+				}
+
+				// Check cwd
+				cwdVal, ok := acpDecl.Config["cwd"]
+				if !ok {
+					t.Fatalf("acpDecl.Config missing 'cwd' key")
+				}
+				cwdStr, ok := cwdVal.(*StringLiteral)
+				if !ok {
+					t.Fatalf("cwd value is not *StringLiteral. got=%T", cwdVal)
+				}
+				if cwdStr.Value != "/path/to/project" {
+					t.Errorf("cwd not '/path/to/project'. got=%q", cwdStr.Value)
+				}
+			},
+		},
+		{
+			name: "ACP declaration without trailing comma",
+			input: `acp RovoDev {
+	command: "acli"
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				acpDecl, ok := stmt.(*ACPDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ACPDeclaration. got=%T", stmt)
+				}
+
+				if acpDecl.Name.Value != "RovoDev" {
+					t.Errorf("acpDecl.Name.Value not 'RovoDev'. got=%q", acpDecl.Name.Value)
+				}
+
+				if len(acpDecl.Config) != 1 {
+					t.Errorf("acpDecl.Config should have 1 key. got=%d", len(acpDecl.Config))
+				}
+			},
+		},
+		{
+			name: "ACP declaration with MCP servers",
+			input: `acp RovoDev {
+	command: "acli",
+	args: ["rovodev", "acp"],
+	mcpServers: [filesystem],
+}`,
+			expected: func(t *testing.T, stmt Statement) {
+				acpDecl, ok := stmt.(*ACPDeclaration)
+				if !ok {
+					t.Fatalf("stmt is not *ACPDeclaration. got=%T", stmt)
+				}
+
+				// Check mcpServers
+				mcpVal, ok := acpDecl.Config["mcpServers"]
+				if !ok {
+					t.Fatalf("acpDecl.Config missing 'mcpServers' key")
+				}
+				mcpArray, ok := mcpVal.(*ArrayLiteral)
+				if !ok {
+					t.Fatalf("mcpServers value is not *ArrayLiteral. got=%T", mcpVal)
+				}
+				if len(mcpArray.Elements) != 1 {
+					t.Fatalf("mcpServers array should have 1 element. got=%d", len(mcpArray.Elements))
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l)
+			program := p.ParseProgram()
+
+			checkParserErrors(t, p)
+
+			if len(program.Statements) != 1 {
+				t.Fatalf("program.Statements does not contain 1 statement. got=%d", len(program.Statements))
+			}
+
+			tt.expected(t, program.Statements[0])
+		})
+	}
+}
+
+func TestParseACPDeclarationErrors(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		expectedError string
+	}{
+		{
+			name:          "ACP declaration without name",
+			input:         "acp { command: \"acli\" }",
+			expectedError: "expected next token to be",
+		},
+		{
+			name:          "ACP declaration without opening brace",
+			input:         "acp RovoDev command: \"acli\" }",
+			expectedError: "expected next token to be",
+		},
+		{
+			name:          "ACP declaration without closing brace",
+			input:         "acp RovoDev { command: \"acli\"",
+			expectedError: "expected '}'",
+		},
+		{
+			name:          "ACP declaration with invalid config key",
+			input:         "acp RovoDev { 123: \"acli\" }",
+			expectedError: "expected identifier for config key",
+		},
+		{
+			name:          "ACP declaration without colon after key",
+			input:         "acp RovoDev { command \"acli\" }",
+			expectedError: "expected next token to be",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l)
+			_ = p.ParseProgram()
+
+			errors := p.Errors()
+			if len(errors) == 0 {
+				t.Fatalf("expected parser errors, but got none")
+			}
+
+			found := false
+			for _, err := range errors {
+				if contains(err, tt.expectedError) {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				t.Errorf("expected error containing %q, got errors: %v", tt.expectedError, errors)
+			}
+		})
+	}
+}
+
 func TestParseToolDeclaration(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -68,6 +68,8 @@ func (i *Interpreter) evalStatement(stmt parser.Statement) (Value, error) {
 		return i.evalModelDeclaration(node)
 	case *parser.AgentDeclaration:
 		return i.evalAgentDeclaration(node)
+	case *parser.ACPDeclaration:
+		return i.evalACPDeclaration(node)
 	case *parser.BlockStatement:
 		return i.evalBlockStatement(node)
 	case *parser.TryStatement:

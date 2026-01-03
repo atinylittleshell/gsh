@@ -513,6 +513,20 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 		return i.callNativeTool(nativeTool, node.Arguments)
 	}
 
+	// Check if it's an ACP session method
+	if acpMethod, ok := function.(*ACPSessionMethodValue); ok {
+		// Evaluate arguments
+		args := make([]Value, len(node.Arguments))
+		for idx, argExpr := range node.Arguments {
+			val, err := i.evalExpression(argExpr)
+			if err != nil {
+				return nil, err
+			}
+			args[idx] = val
+		}
+		return i.callACPSessionMethod(acpMethod, args)
+	}
+
 	// Check if it's a user-defined tool
 	tool, ok := function.(*ToolValue)
 	if !ok {
@@ -688,6 +702,11 @@ func (i *Interpreter) evalMemberExpression(node *parser.MemberExpression) (Value
 	// Handle set properties/methods
 	if setVal, ok := object.(*SetValue); ok {
 		return i.getSetProperty(setVal, propertyName, node)
+	}
+
+	// Handle ACP session properties/methods
+	if acpSession, ok := object.(*ACPSessionValue); ok {
+		return i.getACPSessionProperty(acpSession, propertyName)
 	}
 
 	// Handle regular objects
