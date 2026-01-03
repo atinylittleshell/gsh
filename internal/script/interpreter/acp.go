@@ -3,6 +3,8 @@ package interpreter
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/atinylittleshell/gsh/internal/acp"
@@ -76,6 +78,10 @@ func (i *Interpreter) executeACPWithString(message string, acpVal *ACPValue) (Va
 	// Emit agent.start event
 	i.EmitEvent(EventAgentStart, createACPAgentStartContext(acpVal.Name, message))
 
+	// Emit agent.iteration.start event immediately to show the "Thinking..." spinner
+	// This needs to happen before getOrCreateACPClient which may take time to spawn the ACP server
+	i.EmitEvent(EventAgentIterationStart, createIterationStartContext(1))
+
 	// Get or create ACP client
 	client, err := i.getOrCreateACPClient(acpVal)
 	if err != nil {
@@ -130,6 +136,9 @@ func (i *Interpreter) sendPromptToACPSession(session *ACPSessionValue, message s
 
 	// Emit agent.start event
 	i.EmitEvent(EventAgentStart, createACPAgentStartContext(session.Agent.Name, message))
+
+	// Emit agent.iteration.start event immediately to show the "Thinking..." spinner
+	i.EmitEvent(EventAgentIterationStart, createIterationStartContext(1))
 
 	// Get the ACP session from our cache
 	i.acpClientsMu.RLock()
@@ -277,6 +286,20 @@ func (i *Interpreter) getOrCreateACPClient(acpVal *ACPValue) (*acp.Client, error
 		}
 	}
 
+	// Resolve command to absolute path using shell's PATH resolution
+	// This ensures we find executables even if PATH was modified after gsh started
+	if command != "" && !strings.Contains(command, string(os.PathSeparator)) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		stdout, _, exitCode, err := i.executeBashInSubshell(ctx, fmt.Sprintf("command -v %s", command))
+		if err == nil && exitCode == 0 {
+			resolved := strings.TrimSpace(stdout)
+			if resolved != "" {
+				command = resolved
+			}
+		}
+	}
+
 	var args []string
 	if argsVal, ok := acpVal.Config["args"]; ok {
 		if argsArr, ok := argsVal.(*ArrayValue); ok {
@@ -418,6 +441,7 @@ func createACPAgentStartContext(agentName, message string) Value {
 }
 
 // createACPAgentEndContext creates the context object for agent.end event for ACP agents
+// Note: ACP agents don't provide token counts, so we set them to 0
 func createACPAgentEndContext(agentName string, stopReason string, durationMs int64, err error) Value {
 	var errorVal Value = &NullValue{}
 	if err != nil {
@@ -432,8 +456,15 @@ func createACPAgentEndContext(agentName string, stopReason string, durationMs in
 					"type": {Value: &StringValue{Value: "acp"}},
 				},
 			}},
+			"query": {Value: &ObjectValue{
+				Properties: map[string]*PropertyDescriptor{
+					"inputTokens":  {Value: &NumberValue{Value: 0}},
+					"outputTokens": {Value: &NumberValue{Value: 0}},
+					"cachedTokens": {Value: &NumberValue{Value: 0}},
+					"durationMs":   {Value: &NumberValue{Value: float64(durationMs)}},
+				},
+			}},
 			"stopReason": {Value: &StringValue{Value: stopReason}},
-			"durationMs": {Value: &NumberValue{Value: float64(durationMs)}},
 			"error":      {Value: errorVal},
 		},
 	}

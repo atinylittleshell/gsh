@@ -46,8 +46,8 @@ gsh> # look at my unstaged changes and write test cases for them
 Agents can:
 
 - Run shell commands and analyze output
-- Read and modify files
-- Search through codebases
+- Search, read and modify files
+- Use custom MCP servers
 - Maintain conversation context across multiple turns
 
 See the complete guide: [Agents in the REPL](docs/tutorial/06-agents-in-the-repl.md)
@@ -72,6 +72,41 @@ if (diff.stdout == "") {
     result = diff.stdout | CommitWriter
     print(result.lastMessage.content)
 }
+```
+
+### External agents
+
+gsh can delegate to powerful external agents via the Agent Client Protocol (ACP).
+
+```gsh
+acp ClaudeCode {
+  command: "npx",
+  args: ["-y", "@zed-industries/claude-code-acp"],
+}
+
+__claudeCodeSession = null
+
+tool mentionClaude(ctx, next) {
+  if (ctx.input.includes("@claude")) {
+    if (__claudeCodeSession == null) {
+      __claudeCodeSession = ctx.input | ClaudeCode
+    } else {
+      __claudeCodeSession = __claudeCodeSession | ctx.input
+    }
+
+    return { handled: true }
+  }
+
+  return next(ctx)
+}
+
+gsh.use("command.input", mentionClaude)
+```
+
+You will then be able to invoke Claude Code directly in gsh using the `@claude` keyword:
+
+```bash
+gsh> @claude Please analyze the current directory and suggest improvements.
 ```
 
 ### Supports local and remote LLMs
