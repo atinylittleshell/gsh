@@ -411,3 +411,141 @@ func TestREPLExecutor_RunBashScriptFromReader(t *testing.T) {
 		}
 	})
 }
+
+func TestREPLExecutor_AliasExists(t *testing.T) {
+	t.Run("returns false for undefined alias", func(t *testing.T) {
+		exec := newTestExecutor(t, nil)
+		defer exec.Close()
+
+		if exec.AliasExists("nonexistent") {
+			t.Error("AliasExists() should return false for undefined alias")
+		}
+	})
+
+	t.Run("returns true for defined alias", func(t *testing.T) {
+		exec := newTestExecutor(t, nil)
+		defer exec.Close()
+
+		// Define an alias
+		ctx := context.Background()
+		_, err := exec.ExecuteBash(ctx, "alias ll='ls -la'")
+		if err != nil {
+			t.Fatalf("failed to define alias: %v", err)
+		}
+
+		if !exec.AliasExists("ll") {
+			t.Error("AliasExists() should return true for defined alias 'll'")
+		}
+	})
+}
+
+func TestREPLExecutor_FunctionExists(t *testing.T) {
+	t.Run("returns false for undefined function", func(t *testing.T) {
+		exec := newTestExecutor(t, nil)
+		defer exec.Close()
+
+		if exec.FunctionExists("nonexistent") {
+			t.Error("FunctionExists() should return false for undefined function")
+		}
+	})
+
+	t.Run("returns true for defined function", func(t *testing.T) {
+		exec := newTestExecutor(t, nil)
+		defer exec.Close()
+
+		// Define a function
+		ctx := context.Background()
+		_, err := exec.ExecuteBash(ctx, "myfunc() { echo hello; }")
+		if err != nil {
+			t.Fatalf("failed to define function: %v", err)
+		}
+
+		if !exec.FunctionExists("myfunc") {
+			t.Error("FunctionExists() should return true for defined function 'myfunc'")
+		}
+	})
+}
+
+func TestREPLExecutor_AliasOrFunctionExists(t *testing.T) {
+	t.Run("returns false when neither alias nor function exists", func(t *testing.T) {
+		exec := newTestExecutor(t, nil)
+		defer exec.Close()
+
+		if exec.AliasOrFunctionExists("nonexistent") {
+			t.Error("AliasOrFunctionExists() should return false for undefined name")
+		}
+	})
+
+	t.Run("returns true for alias", func(t *testing.T) {
+		exec := newTestExecutor(t, nil)
+		defer exec.Close()
+
+		ctx := context.Background()
+		_, err := exec.ExecuteBash(ctx, "alias myalias='echo test'")
+		if err != nil {
+			t.Fatalf("failed to define alias: %v", err)
+		}
+
+		if !exec.AliasOrFunctionExists("myalias") {
+			t.Error("AliasOrFunctionExists() should return true for defined alias")
+		}
+	})
+
+	t.Run("returns true for function", func(t *testing.T) {
+		exec := newTestExecutor(t, nil)
+		defer exec.Close()
+
+		ctx := context.Background()
+		_, err := exec.ExecuteBash(ctx, "myfunc() { echo hello; }")
+		if err != nil {
+			t.Fatalf("failed to define function: %v", err)
+		}
+
+		if !exec.AliasOrFunctionExists("myfunc") {
+			t.Error("AliasOrFunctionExists() should return true for defined function")
+		}
+	})
+
+	t.Run("works with functions from config files", func(t *testing.T) {
+		exec := newTestExecutor(t, nil)
+		defer exec.Close()
+
+		// Simulate loading a config file with multiple functions
+		ctx := context.Background()
+		configContent := `
+# Simulated .gshenv content
+greet() {
+    echo "Hello, $1!"
+}
+
+serve() {
+    python3 -m http.server "$@"
+}
+
+alias gs='git status'
+`
+		reader := strings.NewReader(configContent)
+		err := exec.RunBashScriptFromReader(ctx, reader, ".gshenv")
+		if err != nil {
+			t.Fatalf("failed to load config: %v", err)
+		}
+
+		// Check functions
+		if !exec.AliasOrFunctionExists("greet") {
+			t.Error("AliasOrFunctionExists() should return true for 'greet' function")
+		}
+		if !exec.AliasOrFunctionExists("serve") {
+			t.Error("AliasOrFunctionExists() should return true for 'serve' function")
+		}
+
+		// Check alias
+		if !exec.AliasOrFunctionExists("gs") {
+			t.Error("AliasOrFunctionExists() should return true for 'gs' alias")
+		}
+
+		// Check non-existent
+		if exec.AliasOrFunctionExists("notdefined") {
+			t.Error("AliasOrFunctionExists() should return false for undefined name")
+		}
+	})
+}

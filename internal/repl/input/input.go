@@ -84,9 +84,16 @@ type Config struct {
 	// Prompt is the prompt string to display.
 	Prompt string
 
-	// AliasExistsFunc returns true if the given name is currently defined as a shell alias.
-	// If set, the input syntax highlighter will treat aliases as valid commands.
+	// AliasExistsFunc returns true if the given name is currently defined as a shell alias
+	// or shell function. If set, the input syntax highlighter will treat aliases and
+	// functions (e.g., from .gshenv or .gsh_profile) as valid commands.
 	AliasExistsFunc func(name string) bool
+
+	// GetEnvFunc returns the value of an environment variable from the shell.
+	// If set, the syntax highlighter will use the shell's PATH (which may have been
+	// modified in .gshenv or .gsh_profile) for command lookups, and the shell's
+	// environment for variable highlighting.
+	GetEnvFunc func(name string) string
 
 	// HistoryValues is the list of previous commands for history navigation.
 	// Index 0 is the most recent.
@@ -141,7 +148,7 @@ func New(cfg Config) Model {
 		width = 80
 	}
 
-	renderer := NewRenderer(*renderConfig, NewHighlighter(cfg.AliasExistsFunc))
+	renderer := NewRenderer(*renderConfig, NewHighlighter(cfg.AliasExistsFunc, cfg.GetEnvFunc))
 	renderer.SetWidth(width)
 
 	return Model{
