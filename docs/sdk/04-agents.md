@@ -181,6 +181,36 @@ print(session.lastMessage.content)
 session.close()
 ```
 
+### Using ACP Agents in REPL
+
+You can set up ACP agents to respond to specific keywords in the REPL.
+For example, to use Claude Code when mentioning `@claude`:
+
+```gsh
+acp ClaudeCode {
+  command: "npx",
+  args: ["-y", "@zed-industries/claude-code-acp"],
+}
+
+__claudeCodeSession = null
+
+tool mentionClaude(ctx, next) {
+  if (ctx.input.includes("@claude")) {
+    if (__claudeCodeSession == null) {
+      __claudeCodeSession = ctx.input | ClaudeCode
+    } else {
+      __claudeCodeSession = __claudeCodeSession | ctx.input
+    }
+
+    return { handled: true }
+  }
+
+  return next(ctx)
+}
+
+gsh.use("command.input", mentionClaude)
+```
+
 ### Key Differences from gsh Agents
 
 | Aspect            | gsh Agent           | ACP Agent                |

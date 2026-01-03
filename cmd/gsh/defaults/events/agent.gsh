@@ -11,12 +11,16 @@ __THINKING_SPINNER_ID = "__thinking__"
 
 # Renders the header line when an agent starts responding
 # Example output: "── gsh ─────────────────────────────"
+# For non-default agents: "── MyAgent ─────────────────────────"
 tool onAgentStart(ctx, next) {
     width = gsh.terminal.width
     if (width > 80) {
         width = 80
     }
-    name = "gsh"
+    name = ctx.agent.name
+    if (name == null || name == "") {
+        name = "gsh"
+    }
     padding = width - 4 - name.length  # "── " prefix (3) + " " before padding (1)
     if (padding < 3) {
         padding = 3
@@ -90,13 +94,19 @@ tool onAgentEnd(ctx, next) {
     }
 
     # Build the text, including cache ratio next to input tokens if there are cached tokens
-    inputStr = formatTokens(ctx.query.inputTokens)
-    cacheStr = ""
-    if (ctx.query.cachedTokens > 0) {
-        cacheRatio = (ctx.query.cachedTokens / ctx.query.inputTokens * 100).toFixed(0)
-        cacheStr = ` (${cacheRatio}% cached)`
+    # For ACP agents (where token counts are 0), only show duration
+    text = ""
+    if (ctx.query.inputTokens > 0 || ctx.query.outputTokens > 0) {
+        inputStr = formatTokens(ctx.query.inputTokens)
+        cacheStr = ""
+        if (ctx.query.cachedTokens > 0) {
+            cacheRatio = (ctx.query.cachedTokens / ctx.query.inputTokens * 100).toFixed(0)
+            cacheStr = ` (${cacheRatio}% cached)`
+        }
+        text = `${inputStr} in${cacheStr} · ${formatTokens(ctx.query.outputTokens)} out · ${formatDuration(ctx.query.durationMs)}`
+    } else {
+        text = formatDuration(ctx.query.durationMs)
     }
-    text = `${inputStr} in${cacheStr} · ${formatTokens(ctx.query.outputTokens)} out · ${formatDuration(ctx.query.durationMs)}`
 
     padding = width - 4 - text.length
     if (padding < 3) {
