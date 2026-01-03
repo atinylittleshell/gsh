@@ -4,7 +4,6 @@ package input
 import (
 	"os"
 	"strings"
-	"sync"
 
 	"github.com/atinylittleshell/gsh/internal/repl/render"
 	"github.com/charmbracelet/lipgloss"
@@ -54,12 +53,6 @@ type Highlighter struct {
 	// modified in .gshenv or .gsh_profile) instead of the OS process's PATH.
 	getEnv func(name string) string
 
-	// Command existence cache (for PATH lookups)
-	// The cache key includes the PATH value to handle PATH changes.
-	cmdCacheMu sync.RWMutex
-	cmdCache   map[string]bool
-	cachedPath string // The PATH value when the cache was populated
-
 	// Styles for different token types
 	styles map[TokenType]lipgloss.Style
 }
@@ -76,7 +69,6 @@ func NewHighlighter(aliasExists func(name string) bool, getEnv func(name string)
 		parser:      syntax.NewParser(),
 		aliasExists: aliasExists,
 		getEnv:      getEnv,
-		cmdCache:    make(map[string]bool),
 		styles:      make(map[TokenType]lipgloss.Style),
 	}
 
@@ -97,14 +89,13 @@ func NewHighlighter(aliasExists func(name string) bool, getEnv func(name string)
 }
 
 // commandExists checks if a command exists in PATH, is an alias, or is a built-in.
-// PATH lookups are cached; alias lookups are not.
 func (h *Highlighter) commandExists(cmd string) bool {
-	// Check built-ins first (no caching needed, it's a map lookup)
+	// Check built-ins first
 	if builtinCommands[cmd] {
 		return true
 	}
 
-	// Treat aliases as valid commands (aliases can change at runtime).
+	// Treat aliases as valid commands
 	if h.aliasExists != nil && h.aliasExists(cmd) {
 		return true
 	}
@@ -117,35 +108,8 @@ func (h *Highlighter) commandExists(cmd string) bool {
 		}
 	}
 
-	// Check cache for external commands
-	// Invalidate cache if PATH has changed
-	h.cmdCacheMu.RLock()
-	exists, cached := h.cmdCache[cmd]
-	pathChanged := h.cachedPath != currentPath
-	h.cmdCacheMu.RUnlock()
-
-	if cached && !pathChanged {
-		return exists
-	}
-
-	// If PATH changed, clear the entire cache
-	if pathChanged {
-		h.cmdCacheMu.Lock()
-		h.cmdCache = make(map[string]bool)
-		h.cachedPath = currentPath
-		h.cmdCacheMu.Unlock()
-	}
-
 	// Check if command exists in the shell's PATH
-	exists = h.lookupCommandInPath(cmd, currentPath)
-
-	// Cache the result
-	h.cmdCacheMu.Lock()
-	h.cmdCache[cmd] = exists
-	h.cachedPath = currentPath
-	h.cmdCacheMu.Unlock()
-
-	return exists
+	return h.lookupCommandInPath(cmd, currentPath)
 }
 
 // lookupCommandInPath checks if a command exists in the given PATH.
@@ -237,13 +201,6 @@ func (h *Highlighter) extractVariableName(varText string) string {
 		}
 	}
 	return name.String()
-}
-
-// ClearCache clears the command existence cache.
-func (h *Highlighter) ClearCache() {
-	h.cmdCacheMu.Lock()
-	h.cmdCache = make(map[string]bool)
-	h.cmdCacheMu.Unlock()
 }
 
 // Highlight returns the input text with syntax highlighting applied.
