@@ -11,7 +11,7 @@ __THINKING_SPINNER_ID = "__thinking__"
 
 # Renders the header line when an agent starts responding
 # Example output: "── gsh ─────────────────────────────"
-tool onAgentStart(ctx) {
+tool onAgentStart(ctx, next) {
     width = gsh.terminal.width
     if (width > 80) {
         width = 80
@@ -23,8 +23,9 @@ tool onAgentStart(ctx) {
     }
     header = `── ${name} ${"─".repeat(padding)}`
     print(gsh.ui.styles.primary(header))
+    return next(ctx)
 }
-gsh.on("agent.start", onAgentStart)
+gsh.use("agent.start", onAgentStart)
 
 # Renders the footer line when an agent finishes responding
 # Example output: "── 523 in · 324 out · 1.2s ────────────────────"
@@ -32,7 +33,7 @@ gsh.on("agent.start", onAgentStart)
 # Example with error: "── error ──────────────────────────────────────"
 # Tokens are formatted with K/M suffix for large numbers
 # Duration uses appropriate units (ms, s, m, h, d)
-tool onAgentEnd(ctx) {
+tool onAgentEnd(ctx, next) {
     # Always stop the thinking spinner (in case error occurred before any content)
     gsh.ui.spinner.stop(__THINKING_SPINNER_ID)
 
@@ -54,7 +55,7 @@ tool onAgentEnd(ctx) {
         }
         footer = `── ${text} ${"─".repeat(padding)}`
         print(gsh.ui.styles.error(footer))
-        return
+        return next(ctx)
     }
 
     # Format tokens with K/M suffix
@@ -105,18 +106,20 @@ tool onAgentEnd(ctx) {
     print("")
     print(gsh.ui.styles.primary(footer))
     print("")
+    return next(ctx)
 }
-gsh.on("agent.end", onAgentEnd)
+gsh.use("agent.end", onAgentEnd)
 
 # Renders the thinking spinner when agent iteration starts
-tool onIterationStart(ctx) {
+tool onIterationStart(ctx, next) {
     gsh.ui.spinner.start("Thinking...", __THINKING_SPINNER_ID)
     __printedRealText = false
+    return next(ctx)
 }
-gsh.on("agent.iteration.start", onIterationStart)
+gsh.use("agent.iteration.start", onIterationStart)
 
 # Handles each chunk of agent output - stops thinking spinner and prints content
-tool onChunk(ctx) {
+tool onChunk(ctx, next) {
     content = ctx.content
 
     # Check if this is real content (not just whitespace)
@@ -133,31 +136,33 @@ tool onChunk(ctx) {
     # Skip rendering whitespace-only chunks if we haven't printed real text yet.
     # This prevents empty lines from appearing before tool calls.
     if (!isRealContent && !__printedRealText) {
-        return
+        return next(ctx)
     }
 
     # Print the content (without trailing newline - content already includes formatting)
     gsh.ui.write(content)
+    return next(ctx)
 }
-gsh.on("agent.chunk", onChunk)
+gsh.use("agent.chunk", onChunk)
 
 # Handles when a tool call enters pending state (streaming from LLM)
 # This fires before args are complete - we show the tool name spinner
 # The spinner manager ensures only the most recent spinner renders
-tool onToolPending(ctx) {
+tool onToolPending(ctx, next) {
     # Stop thinking spinner
     gsh.ui.spinner.stop(__THINKING_SPINNER_ID)
     
     # Start a spinner for this tool using the tool call ID as the spinner ID
     gsh.ui.spinner.start(ctx.toolCall.name, ctx.toolCall.id)
+    return next(ctx)
 }
-gsh.on("agent.tool.pending", onToolPending)
+gsh.use("agent.tool.pending", onToolPending)
 
 # Renders the status line for tool calls (execution start)
 # This fires when tool execution actually begins (after streaming is complete)
 # For exec tool: shows the command being executed (e.g., "▶ ls -la")
 # For other tools: shows the tool name with dimmed args on separate lines
-tool onToolStart(ctx) {
+tool onToolStart(ctx, next) {
     # Stop the pending spinner for this tool (uses same ID)
     gsh.ui.spinner.stop(ctx.toolCall.id)
     
@@ -167,7 +172,7 @@ tool onToolStart(ctx) {
         if (command != null) {
             print(`${gsh.ui.styles.primary("▶")} ${command}`)
         }
-        return
+        return next(ctx)
     }
     
     # Build args lines for non-exec tools (dimmed, one per line, no indent)
@@ -192,8 +197,9 @@ tool onToolStart(ctx) {
     
     # Print the tool start line (similar to exec)
     print(`${gsh.ui.styles.primary("▶")} ${ctx.toolCall.name}${argsLines}`)
+    return next(ctx)
 }
-gsh.on("agent.tool.start", onToolStart)
+gsh.use("agent.tool.start", onToolStart)
 
 # Renders the status line for tool calls (end)
 # For exec tool:
@@ -202,7 +208,7 @@ gsh.on("agent.tool.start", onToolStart)
 # For other tools:
 #   Example output (success): "● grep ✓ (0.02s)"
 #   Example output (error):   "● grep ✗ (0.01s)"
-tool onToolEnd(ctx) {
+tool onToolEnd(ctx, next) {
     durationSec = (ctx.toolCall.durationMs / 1000).toFixed(2)
     
     # Special handling for exec tool - parse exit code from output
@@ -244,7 +250,7 @@ tool onToolEnd(ctx) {
             print(line)
         }
         print("")
-        return
+        return next(ctx)
     }
     
     # Simple completion line for non-exec tools (args already shown at start)
@@ -257,5 +263,6 @@ tool onToolEnd(ctx) {
         print(line)
     }
     print("")
+    return next(ctx)
 }
-gsh.on("agent.tool.end", onToolEnd)
+gsh.use("agent.tool.end", onToolEnd)

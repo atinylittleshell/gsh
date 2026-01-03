@@ -265,10 +265,11 @@ func TestREPL_GetPrompt(t *testing.T) {
 
 	// Use DefaultConfigContent to set up SDK config with custom prompt via event handler
 	defaultConfig := `
-tool onPrompt(ctx) {
+tool onPrompt(ctx, next) {
 	gsh.prompt = "custom> "
+	return next(ctx)
 }
-gsh.on("repl.prompt", onPrompt)
+gsh.use("repl.prompt", onPrompt)
 `
 
 	repl, err := NewREPL(Options{
@@ -672,14 +673,11 @@ tool testMiddleware(ctx, next) {
 	vars := interp.GetVariables()
 	toolVal, ok := vars["testMiddleware"]
 	require.True(t, ok)
-	tool, ok := toolVal.(*interpreter.ToolValue)
+	_, ok = toolVal.(*interpreter.ToolValue)
 	require.True(t, ok)
 
-	// Set up REPL context with middleware manager
-	replCtx := interp.SDKConfig().GetREPLContext()
-	require.NotNil(t, replCtx)
-	replCtx.MiddlewareManager = interpreter.NewMiddlewareManager()
-	replCtx.MiddlewareManager.Use(tool, interp)
+	// Register middleware using gsh.use("command.input", ...)
+	interp.EvalString(`gsh.use("command.input", testMiddleware)`, nil)
 
 	ctx := context.Background()
 
@@ -726,14 +724,11 @@ tool passThroughMiddleware(ctx, next) {
 	vars := interp.GetVariables()
 	toolVal, ok := vars["passThroughMiddleware"]
 	require.True(t, ok)
-	tool, ok := toolVal.(*interpreter.ToolValue)
+	_, ok = toolVal.(*interpreter.ToolValue)
 	require.True(t, ok)
 
-	// Set up REPL context with middleware manager
-	replCtx := interp.SDKConfig().GetREPLContext()
-	require.NotNil(t, replCtx)
-	replCtx.MiddlewareManager = interpreter.NewMiddlewareManager()
-	replCtx.MiddlewareManager.Use(tool, interp)
+	// Register middleware using gsh.use("command.input", ...)
+	interp.EvalString(`gsh.use("command.input", passThroughMiddleware)`, nil)
 
 	ctx := context.Background()
 
@@ -774,14 +769,11 @@ tool transformMiddleware(ctx, next) {
 	vars := interp.GetVariables()
 	toolVal, ok := vars["transformMiddleware"]
 	require.True(t, ok)
-	tool, ok := toolVal.(*interpreter.ToolValue)
+	_, ok = toolVal.(*interpreter.ToolValue)
 	require.True(t, ok)
 
-	// Set up REPL context with middleware manager
-	replCtx := interp.SDKConfig().GetREPLContext()
-	require.NotNil(t, replCtx)
-	replCtx.MiddlewareManager = interpreter.NewMiddlewareManager()
-	replCtx.MiddlewareManager.Use(tool, interp)
+	// Register middleware using gsh.use("command.input", ...)
+	interp.EvalString(`gsh.use("command.input", transformMiddleware)`, nil)
 
 	ctx := context.Background()
 
@@ -824,18 +816,9 @@ tool secondMiddleware(ctx, next) {
 	_, err = interp.EvalString(code, nil)
 	require.NoError(t, err)
 
-	vars := interp.GetVariables()
-	firstVal, _ := vars["firstMiddleware"]
-	first, _ := firstVal.(*interpreter.ToolValue)
-	secondVal, _ := vars["secondMiddleware"]
-	second, _ := secondVal.(*interpreter.ToolValue)
-
-	// Set up REPL context with middleware manager
-	replCtx := interp.SDKConfig().GetREPLContext()
-	require.NotNil(t, replCtx)
-	replCtx.MiddlewareManager = interpreter.NewMiddlewareManager()
-	replCtx.MiddlewareManager.Use(first, interp)
-	replCtx.MiddlewareManager.Use(second, interp)
+	// Register middleware using gsh.use("command.input", ...)
+	interp.EvalString(`gsh.use("command.input", firstMiddleware)`, nil)
+	interp.EvalString(`gsh.use("command.input", secondMiddleware)`, nil)
 
 	ctx := context.Background()
 
@@ -844,7 +827,7 @@ tool secondMiddleware(ctx, next) {
 	assert.NoError(t, err)
 
 	// Verify order: first registered = first to run
-	vars = interp.GetVariables()
+	vars := interp.GetVariables()
 	orderVal, ok := vars["__middlewareOrder"]
 	require.True(t, ok)
 	orderStr, ok := orderVal.(*interpreter.StringValue)
@@ -876,15 +859,8 @@ tool passThroughMiddleware(ctx, next) {
 	_, err = interp.EvalString(code, nil)
 	require.NoError(t, err)
 
-	vars := interp.GetVariables()
-	toolVal, _ := vars["passThroughMiddleware"]
-	tool, _ := toolVal.(*interpreter.ToolValue)
-
-	// Set up REPL context with middleware manager
-	replCtx := interp.SDKConfig().GetREPLContext()
-	require.NotNil(t, replCtx)
-	replCtx.MiddlewareManager = interpreter.NewMiddlewareManager()
-	replCtx.MiddlewareManager.Use(tool, interp)
+	// Register middleware using gsh.use("command.input", ...)
+	interp.EvalString(`gsh.use("command.input", passThroughMiddleware)`, nil)
 
 	ctx := context.Background()
 

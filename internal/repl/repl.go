@@ -400,34 +400,44 @@ func (r *REPL) processCommand(ctx context.Context, command string) error {
 		}
 	}
 
-	// Try middleware chain first
+	// Emit command.input event to middleware chain
 	interp := r.executor.Interpreter()
-	replCtx := interp.SDKConfig().GetREPLContext()
-	if replCtx != nil && replCtx.MiddlewareManager != nil && replCtx.MiddlewareManager.Len() > 0 {
-		result, err := replCtx.MiddlewareManager.ExecuteChain(command, interp)
-		if err != nil {
-			r.logger.Debug("middleware error", zap.Error(err))
-			fmt.Fprintf(os.Stderr, "gsh: middleware error: %v\n", err)
-			// Finish history with error exit code
-			if historyEntry != nil {
-				if _, finishErr := r.history.FinishCommand(historyEntry, 1); finishErr != nil {
-					r.logger.Debug("failed to finish history entry", zap.Error(finishErr))
+	inputCtx := &interpreter.ObjectValue{
+		Properties: map[string]*interpreter.PropertyDescriptor{
+			"input": {Value: &interpreter.StringValue{Value: command}},
+		},
+	}
+	result := interp.EmitEvent("command.input", inputCtx)
+
+	// Check if middleware handled the command
+	if result != nil {
+		if obj, ok := result.(*interpreter.ObjectValue); ok {
+			// Check for { handled: true }
+			if handledVal := obj.GetPropertyValue("handled"); handledVal != nil {
+				if bv, ok := handledVal.(*interpreter.BoolValue); ok && bv.Value {
+					// Middleware handled the input, don't execute as shell command
+					if historyEntry != nil {
+						if _, finishErr := r.history.FinishCommand(historyEntry, 0); finishErr != nil {
+							r.logger.Debug("failed to finish history entry", zap.Error(finishErr))
+						}
+					}
+					return nil
 				}
 			}
-			return nil
-		}
-		if result.Handled {
-			// Middleware handled the input, don't execute as shell command
-			// Finish history with success exit code
-			if historyEntry != nil {
-				if _, finishErr := r.history.FinishCommand(historyEntry, 0); finishErr != nil {
-					r.logger.Debug("failed to finish history entry", zap.Error(finishErr))
+			// Check for modified input
+			if inputVal := obj.GetPropertyValue("input"); inputVal != nil {
+				if sv, ok := inputVal.(*interpreter.StringValue); ok {
+					command = sv.Value
 				}
 			}
-			return nil
 		}
-		// Use potentially modified input from middleware
-		command = result.Input
+	}
+
+	// Get potentially modified input from context (middleware may have modified it)
+	if inputVal := inputCtx.GetPropertyValue("input"); inputVal != nil {
+		if sv, ok := inputVal.(*interpreter.StringValue); ok {
+			command = sv.Value
+		}
 	}
 
 	// Handle built-in commands (like "exit")
@@ -602,17 +612,24 @@ func (r *REPL) History() *history.HistoryManager {
 // emitREPLEvent emits a REPL event by calling all registered handlers for that event
 func (r *REPL) emitREPLEvent(eventName string, args ...interpreter.Value) {
 	interp := r.executor.Interpreter()
-	handlers := interp.GetEventHandlers(eventName)
-	for _, handler := range handlers {
-		// Call each handler with the provided arguments
-		// Errors are logged but don't stop other handlers
-		if _, err := interp.CallTool(handler, args); err != nil {
-			r.logger.Debug("error in event handler", zap.String("event", eventName), zap.Error(err))
-			// Print errors to stderr for critical events so users can debug
-			// This helps catch issues in ~/.gsh/repl.gsh event handlers
-			fmt.Fprintf(os.Stderr, "gsh: error in %s handler: %v\n", eventName, err)
+
+	// Create context object from args
+	var ctx interpreter.Value
+	if len(args) == 0 {
+		ctx = &interpreter.NullValue{}
+	} else if len(args) == 1 {
+		ctx = args[0]
+	} else {
+		// Multiple args - wrap in an object
+		props := make(map[string]*interpreter.PropertyDescriptor)
+		for i, arg := range args {
+			props[fmt.Sprintf("arg%d", i)] = &interpreter.PropertyDescriptor{Value: arg}
 		}
+		ctx = &interpreter.ObjectValue{Properties: props}
 	}
+
+	// Use the interpreter's EmitEvent which handles the middleware chain
+	interp.EmitEvent(eventName, ctx)
 }
 
 // loadBashConfigs loads bash configuration files in the correct order.

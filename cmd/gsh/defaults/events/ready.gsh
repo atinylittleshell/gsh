@@ -3,7 +3,7 @@
 # Override any of these in your ~/.gsh/repl.gsh to customize.
 
 # Show welcome message when REPL starts
-tool onReplReady() {
+tool onReplReady(ctx, next) {
     # ASCII art logo
     logo = [
         "  ░██████    ░██████   ░██     ░██ ",
@@ -149,5 +149,6 @@ tool onReplReady() {
         print(styles.dim(styles.italic("tip: ") + styles.dim(tip)))
     }
     print("")
+    return next(ctx)
 }
-gsh.on("repl.ready", onReplReady)
+gsh.use("repl.ready", onReplReady)

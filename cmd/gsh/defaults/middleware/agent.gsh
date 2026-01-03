@@ -52,5 +52,5 @@ tool __defaultAgentMiddleware(ctx, next) {
     return next(ctx)
 }
 
-# Register the default middleware
-gsh.useCommandMiddleware(__defaultAgentMiddleware)
+# Register the default middleware for command.input event
+gsh.use("command.input", __defaultAgentMiddleware)

@@ -10,77 +10,140 @@ import (
 	"os"
 )
 
-// EventManager manages event handlers for the SDK event system
+// EventManager manages middleware chains for events.
+// Each event has an ordered list of middleware handlers that form a chain.
+// Middleware handlers have the signature: tool(ctx, next) where:
+//   - ctx: event-specific context object
+//   - next: function to call the next middleware in chain
+//
+// Middleware can:
+//   - Pass through: return next(ctx)
+//   - Stop chain and override: return { result: ... } (don't call next)
+//   - Transform context: modify ctx, then return next(ctx)
 type EventManager struct {
 	mu       sync.RWMutex
-	handlers map[string]map[string]*ToolValue // event -> handlerID -> handler
+	handlers map[string][]*middlewareEntry // event -> ordered list of handlers
 	nextID   int
+}
+
+// middlewareEntry holds a middleware handler and its metadata
+type middlewareEntry struct {
+	id      string
+	handler *ToolValue
 }
 
 // NewEventManager creates a new event manager
 func NewEventManager() *EventManager {
 	return &EventManager{
-		handlers: make(map[string]map[string]*ToolValue),
+		handlers: make(map[string][]*middlewareEntry),
 		nextID:   0,
 	}
 }
 
-// On registers an event handler and returns a unique handler ID
-func (em *EventManager) On(eventName string, handler *ToolValue) string {
+// Use registers a middleware handler for an event and returns a unique handler ID.
+// Middleware runs in registration order (first registered = first to run).
+func (em *EventManager) Use(eventName string, handler *ToolValue) string {
 	em.mu.Lock()
 	defer em.mu.Unlock()
-
-	// Create event map if it doesn't exist
-	if em.handlers[eventName] == nil {
-		em.handlers[eventName] = make(map[string]*ToolValue)
-	}
 
 	// Generate unique handler ID
 	em.nextID++
 	handlerID := fmt.Sprintf("handler_%d", em.nextID)
 
-	// Register the handler
-	em.handlers[eventName][handlerID] = handler
+	entry := &middlewareEntry{
+		id:      handlerID,
+		handler: handler,
+	}
+
+	// Append to the ordered list
+	em.handlers[eventName] = append(em.handlers[eventName], entry)
 
 	return handlerID
 }
 
-// Off removes an event handler. If handlerID is empty, removes all handlers for the event.
-func (em *EventManager) Off(eventName string, handlerID string) {
+// Remove removes a middleware handler by tool reference.
+// Returns true if removed, false if not found.
+func (em *EventManager) Remove(eventName string, handler *ToolValue) bool {
 	em.mu.Lock()
 	defer em.mu.Unlock()
 
-	if handlerID == "" {
-		// Remove all handlers for this event
-		delete(em.handlers, eventName)
-	} else {
-		// Remove specific handler
-		if handlers, exists := em.handlers[eventName]; exists {
-			delete(handlers, handlerID)
-			// Clean up empty event maps
-			if len(handlers) == 0 {
+	entries := em.handlers[eventName]
+	if entries == nil {
+		return false
+	}
+
+	for i, entry := range entries {
+		if entry.handler == handler {
+			em.handlers[eventName] = append(entries[:i], entries[i+1:]...)
+			// Clean up empty event lists
+			if len(em.handlers[eventName]) == 0 {
 				delete(em.handlers, eventName)
 			}
+			return true
 		}
 	}
+	return false
 }
 
-// GetHandlers returns all handlers for a given event
+// RemoveByID removes a middleware handler by its ID.
+// Returns true if removed, false if not found.
+func (em *EventManager) RemoveByID(eventName string, handlerID string) bool {
+	em.mu.Lock()
+	defer em.mu.Unlock()
+
+	entries := em.handlers[eventName]
+	if entries == nil {
+		return false
+	}
+
+	for i, entry := range entries {
+		if entry.id == handlerID {
+			em.handlers[eventName] = append(entries[:i], entries[i+1:]...)
+			// Clean up empty event lists
+			if len(em.handlers[eventName]) == 0 {
+				delete(em.handlers, eventName)
+			}
+			return true
+		}
+	}
+	return false
+}
+
+// GetHandlers returns all handlers for a given event in registration order
 func (em *EventManager) GetHandlers(eventName string) []*ToolValue {
 	em.mu.RLock()
 	defer em.mu.RUnlock()
 
-	handlers := em.handlers[eventName]
-	if handlers == nil {
+	entries := em.handlers[eventName]
+	if entries == nil {
 		return nil
 	}
 
-	// Return a copy of the handlers slice
-	result := make([]*ToolValue, 0, len(handlers))
-	for _, handler := range handlers {
-		result = append(result, handler)
+	// Return handlers in order
+	result := make([]*ToolValue, len(entries))
+	for i, entry := range entries {
+		result[i] = entry.handler
 	}
 	return result
+}
+
+// HasHandlers returns true if there are any handlers for the given event
+func (em *EventManager) HasHandlers(eventName string) bool {
+	em.mu.RLock()
+	defer em.mu.RUnlock()
+	return len(em.handlers[eventName]) > 0
+}
+
+// RemoveAll removes all handlers for an event.
+// Returns the number of handlers removed.
+func (em *EventManager) RemoveAll(eventName string) int {
+	em.mu.Lock()
+	defer em.mu.Unlock()
+
+	entries := em.handlers[eventName]
+	count := len(entries)
+	delete(em.handlers, eventName)
+	return count
 }
 
 // SDKConfig manages runtime configuration for the SDK
@@ -98,10 +161,9 @@ type SDKConfig struct {
 
 // REPLContext holds REPL-specific state that's available in the SDK
 type REPLContext struct {
-	LastCommand       *REPLLastCommand
-	PromptValue       Value              // Prompt string set by event handlers (read/write via gsh.prompt)
-	MiddlewareManager *MiddlewareManager // Middleware manager for input processing
-	Interpreter       *Interpreter       // Reference to interpreter for middleware execution
+	LastCommand *REPLLastCommand
+	PromptValue Value        // Prompt string set by event handlers (read/write via gsh.prompt)
+	Interpreter *Interpreter // Reference to interpreter for event execution
 }
 
 // Models holds the model tier definitions (available in both REPL and script mode)
