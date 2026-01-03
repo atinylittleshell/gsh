@@ -816,9 +816,9 @@ func TestACPWithMockSession(t *testing.T) {
 		// Initialize eventCount and create event handlers using proper tool definitions
 		interp.env.Set("eventCount", &NumberValue{Value: 0})
 
-		// Helper to create a tool that increments eventCount
+		// Helper to create a tool that increments eventCount (middleware signature)
 		createHandler := func(name string) *ToolValue {
-			toolScript := fmt.Sprintf(`tool %s(ctx) { eventCount = eventCount + 1 }`, name)
+			toolScript := fmt.Sprintf(`tool %s(ctx, next) { eventCount = eventCount + 1; return next(ctx) }`, name)
 			l := lexer.New(toolScript)
 			p := parser.New(l)
 			prog := p.ParseProgram()
@@ -827,12 +827,12 @@ func TestACPWithMockSession(t *testing.T) {
 			return val.(*ToolValue)
 		}
 
-		interp.eventManager.On(EventAgentStart, createHandler("onStart"))
-		interp.eventManager.On(EventAgentChunk, createHandler("onChunk"))
-		interp.eventManager.On(EventAgentToolPending, createHandler("onToolPending"))
-		interp.eventManager.On(EventAgentToolStart, createHandler("onToolStart"))
-		interp.eventManager.On(EventAgentToolEnd, createHandler("onToolEnd"))
-		interp.eventManager.On(EventAgentEnd, createHandler("onEnd"))
+		interp.eventManager.Use(EventAgentStart, createHandler("onStart"))
+		interp.eventManager.Use(EventAgentChunk, createHandler("onChunk"))
+		interp.eventManager.Use(EventAgentToolPending, createHandler("onToolPending"))
+		interp.eventManager.Use(EventAgentToolStart, createHandler("onToolStart"))
+		interp.eventManager.Use(EventAgentToolEnd, createHandler("onToolEnd"))
+		interp.eventManager.Use(EventAgentEnd, createHandler("onEnd"))
 
 		// Create session value and inject mock
 		sessionVal := &ACPSessionValue{
@@ -884,19 +884,20 @@ func TestACPWithMockSession(t *testing.T) {
 		interp.env.Set("endEventEmitted", &BoolValue{Value: false})
 		interp.env.Set("endEventHasError", &BoolValue{Value: false})
 
-		// Create handler that checks for error
-		toolScript := `tool onAgentEnd(ctx) {
+		// Create handler that checks for error (middleware signature)
+		toolScript := `tool onAgentEnd(ctx, next) {
 			endEventEmitted = true
 			if (ctx.error != null) {
 				endEventHasError = true
 			}
+			return next(ctx)
 		}`
 		l := lexer.New(toolScript)
 		p := parser.New(l)
 		program := p.ParseProgram()
 		interp.Eval(program)
 		handler, _ := interp.env.Get("onAgentEnd")
-		interp.eventManager.On(EventAgentEnd, handler.(*ToolValue))
+		interp.eventManager.Use(EventAgentEnd, handler.(*ToolValue))
 
 		sessionVal := &ACPSessionValue{
 			Agent:     acpVal,

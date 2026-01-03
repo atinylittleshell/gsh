@@ -369,49 +369,89 @@ func (i *Interpreter) GetEventHandlers(eventName string) []*ToolValue {
 	return i.eventManager.GetHandlers(eventName)
 }
 
-// EmitEvent emits an event by calling all registered handlers.
-// It passes a context object (ctx) to each handler as the first argument.
-// Handlers that want to produce output should print directly to stdout.
-// Errors in event handlers are logged at Warn level and printed to stderr
-// to ensure they are visible to users for debugging.
+// EmitEvent emits an event by executing the middleware chain.
+// Each middleware handler receives (ctx, next) where:
+//   - ctx: event-specific context object
+//   - next: function to call the next middleware in chain
 //
-// Event handlers can optionally return a value to override default behavior.
-// The first non-null return value from a handler is returned to the caller.
-// If no handler returns a value (or all return null), nil is returned.
-// The interpretation of the return value is event-specific - see documentation
-// for each event type.
+// Middleware can:
+//   - Pass through: return next(ctx) - continues to next middleware
+//   - Stop chain and override: return { ... } without calling next
+//   - Transform context: modify ctx, then return next(ctx)
+//
+// The return value from the chain (if any non-null value) can be used
+// to override default behavior. The interpretation is event-specific.
 func (i *Interpreter) EmitEvent(eventName string, ctx Value) Value {
 	handlers := i.eventManager.GetHandlers(eventName)
 	if len(handlers) == 0 {
 		return nil
 	}
 
-	args := []Value{ctx}
-
-	for _, handler := range handlers {
-		result, err := i.CallTool(handler, args)
-		if err != nil {
-			// Log errors at Warn level so they're visible by default, and continue with other handlers
-			if i.logger != nil {
-				i.logger.Warn("error in event handler",
-					zap.String("event", eventName),
-					zap.String("handler", handler.Name),
-					zap.Error(err))
-			} else {
-				// Fallback to stderr if no logger configured
-				fmt.Fprintf(os.Stderr, "gsh: error in event handler '%s' for event '%s': %v\n", handler.Name, eventName, err)
-			}
-			continue
+	// Execute the middleware chain starting from the first handler
+	result, err := i.executeMiddlewareChain(eventName, handlers, 0, ctx)
+	if err != nil {
+		// Log the error but don't fail - middleware errors shouldn't crash the system
+		if i.logger != nil {
+			i.logger.Warn("error in middleware chain",
+				zap.String("event", eventName),
+				zap.Error(err))
+		} else {
+			fmt.Fprintf(os.Stderr, "gsh: error in middleware chain for event '%s': %v\n", eventName, err)
 		}
-
-		// If handler returned a non-null value, return it (first-wins)
-		// This allows handlers to override default behavior
-		if result != nil && result.Type() != ValueTypeNull {
-			return result
-		}
+		return nil
 	}
 
-	return nil
+	return result
+}
+
+// executeMiddlewareChain executes middleware handlers recursively
+func (i *Interpreter) executeMiddlewareChain(eventName string, handlers []*ToolValue, index int, ctx Value) (Value, error) {
+	// If we've exhausted all middleware, return nil (no override)
+	if index >= len(handlers) {
+		return nil, nil
+	}
+
+	handler := handlers[index]
+
+	// Create the next() function that continues the chain
+	nextFn := &BuiltinValue{
+		Name: "next",
+		Fn: func(args []Value) (Value, error) {
+			// Get ctx from args (middleware may have modified it)
+			nextCtx := ctx
+			if len(args) > 0 && args[0] != nil {
+				nextCtx = args[0]
+			}
+
+			// Execute next middleware in chain
+			return i.executeMiddlewareChain(eventName, handlers, index+1, nextCtx)
+		},
+	}
+
+	// Call the middleware with (ctx, next)
+	result, err := i.CallTool(handler, []Value{ctx, nextFn})
+	if err != nil {
+		// Log errors at Warn level so they're visible by default
+		if i.logger != nil {
+			i.logger.Warn("error in middleware handler",
+				zap.String("event", eventName),
+				zap.String("handler", handler.Name),
+				zap.Error(err))
+		} else {
+			fmt.Fprintf(os.Stderr, "gsh: error in middleware handler '%s' for event '%s': %v\n", handler.Name, eventName, err)
+		}
+		// Continue with the rest of the chain despite the error
+		return i.executeMiddlewareChain(eventName, handlers, index+1, ctx)
+	}
+
+	// Return the result (could be nil, null, or an override value)
+	// If middleware didn't call next() and returned something, that's the final result
+	// If middleware called next(), its return value propagates back through the chain
+	if result != nil && result.Type() != ValueTypeNull {
+		return result, nil
+	}
+
+	return nil, nil
 }
 
 // SDKConfig returns the SDK configuration

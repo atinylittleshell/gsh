@@ -529,10 +529,11 @@ export model workhorse {
 		"defaults/events/agent.gsh": &fstest.MapFile{
 			Data: []byte(`
 # Side-effect import - registers event handler
-tool onAgentStart(ctx) {
+tool onAgentStart(ctx, next) {
     # Handler registered
+    return next(ctx)
 }
-gsh.on("agent.start", onAgentStart)
+gsh.use("agent.start", onAgentStart)
 `),
 		},
 	}

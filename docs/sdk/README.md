@@ -14,8 +14,7 @@ The `gsh` object is the primary API for configuring and extending gsh, available
 | `gsh.tools`                  | Built-in tools for agents                    | REPL + Script |
 | `gsh.prompt`                 | Set the shell prompt                         | REPL only     |
 | `gsh.lastCommand`            | Exit code and duration of last command       | REPL only     |
-| `gsh.on()` / `gsh.off()`     | Event handler registration                   | REPL only     |
-| `gsh.useCommandMiddleware()` | Command middleware registration              | REPL only     |
+| `gsh.use()` / `gsh.remove()` / `gsh.removeAll()` | Event/middleware handler registration        | REPL + Script |
 | `gsh.ui.styles`              | Text styling helpers                         | REPL + Script |
 | `gsh.ui.spinner`             | Loading spinner API                          | REPL + Script |
 
@@ -46,9 +45,8 @@ You can study the default configuration in `cmd/gsh/defaults/` as a reference.
 2. **[Models](02-models.md)** - Model tiers and model declaration syntax
 3. **[Tools](03-tools.md)** - Built-in tools for agents (exec, grep, view_file, edit_file)
 4. **[Agents](04-agents.md)** - Defining and using custom agents
-5. **[Events](05-events.md)** - Event system with gsh.on() and gsh.off()
-6. **[Middleware](06-middleware.md)** - Command middleware for intercepting user input
-7. **[UI](07-ui.md)** - Styling helpers and spinner API
+5. **[Events](05-events.md)** - Unified event/middleware system with gsh.use() and gsh.remove()
+6. **[UI](06-ui.md)** - Styling helpers and spinner API
 
 ## Related Resources
 

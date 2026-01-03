@@ -1,6 +1,6 @@
 # Starship Integration
 # Automatically detect and integrate with Starship prompt if available.
-# To disable: unregister this handler with gsh.off("repl.prompt") and register your own.
+# To disable: Add `gsh.removeAll("repl.prompt")` in ~/.gsh/repl.gsh and register your own handler.
 
 # Check if starship is available in PATH
 __starship_check = exec("which starship 2>/dev/null")
@@ -18,7 +18,7 @@ if (__starship_available) {
 }
 
 # Prompt handler - uses Starship if available, otherwise falls back to simple prompt
-tool onReplPrompt() {
+tool onReplPrompt(ctx, next) {
     # Default to simple prompt
     promptText = "gsh> "
 
@@ -36,5 +36,6 @@ tool onReplPrompt() {
     } else {
         gsh.prompt = promptText
     }
+    return next(ctx)
 }
-gsh.on("repl.prompt", onReplPrompt)
+gsh.use("repl.prompt", onReplPrompt)

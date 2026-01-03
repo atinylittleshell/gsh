@@ -144,21 +144,17 @@ func (i *Interpreter) registerGshSDK() {
 			"models":           {Value: modelsObj, ReadOnly: true},
 			"lastCommand":      {Value: lastCommandObj, ReadOnly: true},
 			"prompt":           {Value: promptObj},
-			"on": {Value: &BuiltinValue{
-				Name: "gsh.on",
-				Fn:   i.builtinGshOn,
+			"use": {Value: &BuiltinValue{
+				Name: "gsh.use",
+				Fn:   i.builtinGshUse,
 			}, ReadOnly: true},
-			"off": {Value: &BuiltinValue{
-				Name: "gsh.off",
-				Fn:   i.builtinGshOff,
+			"remove": {Value: &BuiltinValue{
+				Name: "gsh.remove",
+				Fn:   i.builtinGshRemove,
 			}, ReadOnly: true},
-			"useCommandMiddleware": {Value: &BuiltinValue{
-				Name: "gsh.useCommandMiddleware",
-				Fn:   i.builtinGshUseCommandMiddleware,
-			}, ReadOnly: true},
-			"removeCommandMiddleware": {Value: &BuiltinValue{
-				Name: "gsh.removeCommandMiddleware",
-				Fn:   i.builtinGshRemoveCommandMiddleware,
+			"removeAll": {Value: &BuiltinValue{
+				Name: "gsh.removeAll",
+				Fn:   i.builtinGshRemoveAll,
 			}, ReadOnly: true},
 		},
 	}
@@ -173,51 +169,69 @@ func (i *Interpreter) registerGshSDK() {
 	i.env.Set("gsh", gshObj)
 }
 
-// builtinGshOn implements gsh.on(event, handler)
-func (i *Interpreter) builtinGshOn(args []Value) (Value, error) {
+// builtinGshUse implements gsh.use(event, handler)
+// Registers a middleware handler for an event. Returns a unique handler ID.
+// Middleware handlers have the signature: tool(ctx, next)
+func (i *Interpreter) builtinGshUse(args []Value) (Value, error) {
 	if len(args) != 2 {
-		return nil, fmt.Errorf("gsh.on() takes 2 arguments (event: string, handler: tool), got %d", len(args))
+		return nil, fmt.Errorf("gsh.use() takes 2 arguments (event: string, handler: tool), got %d", len(args))
 	}
 
 	eventName, ok := args[0].(*StringValue)
 	if !ok {
-		return nil, fmt.Errorf("gsh.on() first argument must be a string (event name), got %s", args[0].Type())
+		return nil, fmt.Errorf("gsh.use() first argument must be a string (event name), got %s", args[0].Type())
 	}
 
 	handler, ok := args[1].(*ToolValue)
 	if !ok {
-		return nil, fmt.Errorf("gsh.on() second argument must be a tool, got %s", args[1].Type())
+		return nil, fmt.Errorf("gsh.use() second argument must be a tool, got %s", args[1].Type())
+	}
+
+	// Validate tool has correct signature (ctx, next)
+	if len(handler.Parameters) != 2 {
+		return nil, fmt.Errorf("middleware handler must take 2 parameters (ctx, next), got %d", len(handler.Parameters))
 	}
 
 	// Register the handler and return the handler ID
-	handlerID := i.eventManager.On(eventName.Value, handler)
+	handlerID := i.eventManager.Use(eventName.Value, handler)
 	return &StringValue{Value: handlerID}, nil
 }
 
-// builtinGshOff implements gsh.off(event, handlerID?)
-func (i *Interpreter) builtinGshOff(args []Value) (Value, error) {
-	if len(args) < 1 || len(args) > 2 {
-		return nil, fmt.Errorf("gsh.off() takes 1 or 2 arguments (event: string, handlerID?: string), got %d", len(args))
+// builtinGshRemove implements gsh.remove(event, handler)
+// Removes a previously registered middleware handler by tool reference.
+func (i *Interpreter) builtinGshRemove(args []Value) (Value, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("gsh.remove() takes 2 arguments (event: string, handler: tool), got %d", len(args))
 	}
 
 	eventName, ok := args[0].(*StringValue)
 	if !ok {
-		return nil, fmt.Errorf("gsh.off() first argument must be a string (event name), got %s", args[0].Type())
+		return nil, fmt.Errorf("gsh.remove() first argument must be a string (event name), got %s", args[0].Type())
 	}
 
-	handlerID := ""
-	if len(args) == 2 {
-		if args[1].Type() != ValueTypeNull {
-			handlerIDVal, ok := args[1].(*StringValue)
-			if !ok {
-				return nil, fmt.Errorf("gsh.off() second argument must be a string (handler ID) or null, got %s", args[1].Type())
-			}
-			handlerID = handlerIDVal.Value
-		}
+	handler, ok := args[1].(*ToolValue)
+	if !ok {
+		return nil, fmt.Errorf("gsh.remove() second argument must be a tool, got %s", args[1].Type())
 	}
 
-	i.eventManager.Off(eventName.Value, handlerID)
-	return &NullValue{}, nil
+	removed := i.eventManager.Remove(eventName.Value, handler)
+	return &BoolValue{Value: removed}, nil
+}
+
+// builtinGshRemoveAll implements gsh.removeAll(event)
+// Removes all registered handlers for an event. Returns the number of handlers removed.
+func (i *Interpreter) builtinGshRemoveAll(args []Value) (Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("gsh.removeAll() takes 1 argument (event: string), got %d", len(args))
+	}
+
+	eventName, ok := args[0].(*StringValue)
+	if !ok {
+		return nil, fmt.Errorf("gsh.removeAll() argument must be a string (event name), got %s", args[0].Type())
+	}
+
+	count := i.eventManager.RemoveAll(eventName.Value)
+	return &NumberValue{Value: float64(count)}, nil
 }
 
 // builtinMathRandom implements Math.random()
@@ -625,61 +639,6 @@ func (g *GshObjectValue) SetProperty(name string, value Value) error {
 		}
 		return fmt.Errorf("cannot set property '%s' on gsh", name)
 	}
-}
-
-// builtinGshUseCommandMiddleware implements gsh.useCommandMiddleware(middleware)
-// Registers a command middleware function. Returns a unique ID that can be used to remove it.
-// Command middleware runs when the user submits input (presses Enter).
-func (i *Interpreter) builtinGshUseCommandMiddleware(args []Value) (Value, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("gsh.useCommandMiddleware() takes 1 argument (middleware: tool), got %d", len(args))
-	}
-
-	tool, ok := args[0].(*ToolValue)
-	if !ok {
-		return nil, fmt.Errorf("gsh.useCommandMiddleware() argument must be a tool, got %s", args[0].Type())
-	}
-
-	// Validate tool has correct signature (ctx, next)
-	if len(tool.Parameters) != 2 {
-		return nil, fmt.Errorf("middleware tool must take 2 parameters (ctx, next), got %d", len(tool.Parameters))
-	}
-
-	replCtx := i.sdkConfig.GetREPLContext()
-	if replCtx == nil {
-		return nil, fmt.Errorf("gsh.useCommandMiddleware() is only available in the REPL")
-	}
-
-	// Initialize middleware manager if needed
-	if replCtx.MiddlewareManager == nil {
-		replCtx.MiddlewareManager = NewMiddlewareManager()
-	}
-
-	// Register the middleware
-	id := replCtx.MiddlewareManager.Use(tool, replCtx.Interpreter)
-	return &StringValue{Value: id}, nil
-}
-
-// builtinGshRemoveCommandMiddleware implements gsh.removeCommandMiddleware(middleware)
-// Removes a previously registered command middleware by tool reference.
-func (i *Interpreter) builtinGshRemoveCommandMiddleware(args []Value) (Value, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("gsh.removeCommandMiddleware() takes 1 argument (middleware: tool), got %d", len(args))
-	}
-
-	tool, ok := args[0].(*ToolValue)
-	if !ok {
-		return nil, fmt.Errorf("gsh.removeCommandMiddleware() argument must be a tool, got %s", args[0].Type())
-	}
-
-	replCtx := i.sdkConfig.GetREPLContext()
-	if replCtx == nil || replCtx.MiddlewareManager == nil {
-		return &BoolValue{Value: false}, nil
-	}
-
-	// Remove by tool reference
-	removed := replCtx.MiddlewareManager.RemoveByTool(tool)
-	return &BoolValue{Value: removed}, nil
 }
 
 // ModelsObjectValue represents the gsh.models object.

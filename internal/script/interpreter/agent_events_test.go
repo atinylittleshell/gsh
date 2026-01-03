@@ -40,23 +40,23 @@ func TestAgentEventsEmitted(t *testing.T) {
 	_, err := interp.EvalString(`
 emittedEvents = []
 
-tool onAgentStart(ctx) {
-	emittedEvents.push("agent.start")
+tool onAgentStart(ctx, next) {
+	emittedEvents.push("agent.start"); return next(ctx)
 }
-tool onAgentIterationStart(ctx) {
-	emittedEvents.push("agent.iteration.start")
+tool onAgentIterationStart(ctx, next) {
+	emittedEvents.push("agent.iteration.start"); return next(ctx)
 }
-tool onAgentIterationEnd(ctx) {
-	emittedEvents.push("agent.iteration.end")
+tool onAgentIterationEnd(ctx, next) {
+	emittedEvents.push("agent.iteration.end"); return next(ctx)
 }
-tool onAgentEnd(ctx) {
-	emittedEvents.push("agent.end")
+tool onAgentEnd(ctx, next) {
+	emittedEvents.push("agent.end"); return next(ctx)
 }
 
-gsh.on("agent.start", onAgentStart)
-gsh.on("agent.iteration.start", onAgentIterationStart)
-gsh.on("agent.iteration.end", onAgentIterationEnd)
-gsh.on("agent.end", onAgentEnd)
+gsh.use("agent.start", onAgentStart)
+gsh.use("agent.iteration.start", onAgentIterationStart)
+gsh.use("agent.iteration.end", onAgentIterationEnd)
+gsh.use("agent.end", onAgentEnd)
 `, nil)
 	if err != nil {
 		t.Fatalf("Failed to register event handlers: %v", err)
@@ -125,15 +125,15 @@ func TestAgentToolEventsEmitted(t *testing.T) {
 	_, err := interp.EvalString(`
 emittedEvents = []
 
-tool onToolStart(ctx) {
-	emittedEvents.push("agent.tool.start")
+tool onToolStart(ctx, next) {
+	emittedEvents.push("agent.tool.start"); return next(ctx)
 }
-tool onToolEnd(ctx) {
-	emittedEvents.push("agent.tool.end")
+tool onToolEnd(ctx, next) {
+	emittedEvents.push("agent.tool.end"); return next(ctx)
 }
 
-gsh.on("agent.tool.start", onToolStart)
-gsh.on("agent.tool.end", onToolEnd)
+gsh.use("agent.tool.start", onToolStart)
+gsh.use("agent.tool.end", onToolEnd)
 `, nil)
 	if err != nil {
 		t.Fatalf("Failed to register event handlers: %v", err)
@@ -213,11 +213,11 @@ func TestAgentChunkEventsEmitted(t *testing.T) {
 	_, err := interp.EvalString(`
 chunkCount = 0
 
-tool onChunk(ctx) {
+tool onChunk(ctx, next) {
 	chunkCount = chunkCount + 1
 }
 
-gsh.on("agent.chunk", onChunk)
+gsh.use("agent.chunk", onChunk)
 `, nil)
 	if err != nil {
 		t.Fatalf("Failed to register event handlers: %v", err)
@@ -394,7 +394,7 @@ func TestToolStartOverride(t *testing.T) {
 toolWasExecuted = false
 overrideMessage = "Tool execution blocked by permission system"
 
-tool onToolStart(ctx) {
+tool onToolStart(ctx, next) {
 	# Block any tool named get_weather
 	if (ctx.toolCall.name == "get_weather") {
 		return { result: overrideMessage }
@@ -402,7 +402,7 @@ tool onToolStart(ctx) {
 	# No return = allow normal execution
 }
 
-gsh.on("agent.tool.start", onToolStart)
+gsh.use("agent.tool.start", onToolStart)
 `, nil)
 	if err != nil {
 		t.Fatalf("Failed to register event handlers: %v", err)
@@ -490,7 +490,7 @@ tool get_weather(city: string): string {
 	return "{\"weather\": \"sunny\", \"secret\": \"api_key_123\"}"
 }
 
-tool onToolEnd(ctx) {
+tool onToolEnd(ctx, next) {
 	# Redact sensitive information from tool output
 	if (ctx.toolCall.output != null && ctx.toolCall.output.includes("secret")) {
 		return { result: "weather: [REDACTED]" }
@@ -498,7 +498,7 @@ tool onToolEnd(ctx) {
 	# No return = keep original output
 }
 
-gsh.on("agent.tool.end", onToolEnd)
+gsh.use("agent.tool.end", onToolEnd)
 `, nil)
 	if err != nil {
 		t.Fatalf("Failed to register event handlers: %v", err)
@@ -566,11 +566,11 @@ func TestToolStartOverrideWithError(t *testing.T) {
 
 	// Register an event handler that returns an error override
 	_, err := interp.EvalString(`
-tool onToolStart(ctx) {
+tool onToolStart(ctx, next) {
 	return { result: "Permission denied", error: "Tool execution not allowed" }
 }
 
-gsh.on("agent.tool.start", onToolStart)
+gsh.use("agent.tool.start", onToolStart)
 `, nil)
 	if err != nil {
 		t.Fatalf("Failed to register event handlers: %v", err)

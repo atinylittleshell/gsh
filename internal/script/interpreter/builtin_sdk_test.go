@@ -198,15 +198,15 @@ func TestGshEventHandlers(t *testing.T) {
 	interp := New(&Options{})
 	defer interp.Close()
 
-	// Register an event handler using gsh.on
-	result, err := interp.EvalString("tool myHandler() { return \"handler called\" }", nil)
+	// Register an event handler using gsh.use (middleware signature)
+	result, err := interp.EvalString("tool myHandler(ctx, next) { return next(ctx) }", nil)
 	if err != nil {
 		t.Fatalf("unexpected error registering tool: %v", err)
 	}
 
-	result, err = interp.EvalString("gsh.on(\"test.event\", myHandler)", nil)
+	result, err = interp.EvalString(`gsh.use("test.event", myHandler)`, nil)
 	if err != nil {
-		t.Fatalf("unexpected error calling gsh.on: %v", err)
+		t.Fatalf("unexpected error calling gsh.use: %v", err)
 	}
 
 	// Result should be a string (handler ID)
@@ -222,49 +222,52 @@ func TestGshEventHandlers(t *testing.T) {
 }
 
 // TestGshOnWithoutHandler tests gsh.on error handling
-func TestGshOnWithoutHandler(t *testing.T) {
+func TestGshUseWithoutHandler(t *testing.T) {
 	interp := New(&Options{})
 	defer interp.Close()
 
 	// Try to register a non-tool as handler (should fail)
-	_, err := interp.EvalString(`gsh.on("test.event", "not a tool")`, nil)
+	_, err := interp.EvalString(`gsh.use("test.event", "not a tool")`, nil)
 	if err == nil {
-		t.Fatal("expected error when passing non-tool to gsh.on")
+		t.Fatal("expected error when passing non-tool to gsh.use")
 	}
 }
 
 // TestGshOffRemovesAllHandlers tests that gsh.off without handlerID removes all handlers
-func TestGshOffRemovesAllHandlers(t *testing.T) {
+func TestGshRemoveHandler(t *testing.T) {
 	interp := New(&Options{})
 	defer interp.Close()
 
-	// Register multiple handlers
+	// Register a handler (middleware signature)
 	_, err := interp.EvalString(`
-		tool handler1() { return "handler1" }
-		tool handler2() { return "handler2" }
-		gsh.on("test.event", handler1)
-		gsh.on("test.event", handler2)
+		tool handler1(ctx, next) { return next(ctx) }
+		gsh.use("test.event", handler1)
 	`, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Verify both handlers are registered
+	// Verify handler is registered
 	handlers := interp.GetEventHandlers("test.event")
-	if len(handlers) != 2 {
-		t.Errorf("expected 2 handlers, got %d", len(handlers))
+	if len(handlers) != 1 {
+		t.Errorf("expected 1 handler, got %d", len(handlers))
 	}
 
-	// Remove all handlers
-	_, err = interp.EvalString(`gsh.off("test.event")`, nil)
+	// Remove handler by reference
+	result, err := interp.EvalString(`gsh.remove("test.event", handler1)`, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Verify all handlers are removed
+	// Should return true
+	if boolVal, ok := result.FinalResult.(*BoolValue); !ok || !boolVal.Value {
+		t.Errorf("expected true from gsh.remove(), got %v", result.FinalResult)
+	}
+
+	// Verify handler is removed
 	handlers = interp.GetEventHandlers("test.event")
 	if len(handlers) != 0 {
-		t.Errorf("expected 0 handlers after gsh.off without handlerID, got %d", len(handlers))
+		t.Errorf("expected 0 handlers after gsh.remove, got %d", len(handlers))
 	}
 }
 
@@ -280,18 +283,11 @@ func TestGshVersionReadOnly(t *testing.T) {
 	}
 }
 
-func TestGshUseCommandMiddleware(t *testing.T) {
+func TestGshUseCommandInput(t *testing.T) {
 	interp := New(&Options{})
 	defer interp.Close()
 
-	replCtx := &REPLContext{
-		LastCommand:       &REPLLastCommand{},
-		MiddlewareManager: NewMiddlewareManager(),
-		Interpreter:       interp,
-	}
-	interp.SDKConfig().SetREPLContext(replCtx)
-
-	// Define a middleware tool
+	// Define a middleware tool for command.input event
 	_, err := interp.EvalString(`
 tool testMiddleware(ctx, next) {
 	return { handled: true }
@@ -301,38 +297,32 @@ tool testMiddleware(ctx, next) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Register middleware using gsh.useCommandMiddleware()
-	result, err := interp.EvalString(`gsh.useCommandMiddleware(testMiddleware)`, nil)
+	// Register middleware using gsh.use("command.input", ...)
+	result, err := interp.EvalString(`gsh.use("command.input", testMiddleware)`, nil)
 	if err != nil {
-		t.Fatalf("unexpected error calling gsh.useCommandMiddleware(): %v", err)
+		t.Fatalf("unexpected error calling gsh.use(): %v", err)
 	}
 
 	// Should return a string ID
 	if _, ok := result.FinalResult.(*StringValue); !ok {
-		t.Errorf("expected string ID from gsh.useCommandMiddleware(), got %s", result.FinalResult.Type())
+		t.Errorf("expected string ID from gsh.use(), got %s", result.FinalResult.Type())
 	}
 
 	// Verify middleware was registered
-	if replCtx.MiddlewareManager.Len() != 1 {
-		t.Errorf("expected 1 middleware registered, got %d", replCtx.MiddlewareManager.Len())
+	handlers := interp.GetEventHandlers("command.input")
+	if len(handlers) != 1 {
+		t.Errorf("expected 1 handler registered, got %d", len(handlers))
 	}
 }
 
-func TestGshUseCommandMiddlewareValidation(t *testing.T) {
+func TestGshUseMiddlewareValidation(t *testing.T) {
 	interp := New(&Options{})
 	defer interp.Close()
 
-	replCtx := &REPLContext{
-		LastCommand:       &REPLLastCommand{},
-		MiddlewareManager: NewMiddlewareManager(),
-		Interpreter:       interp,
-	}
-	interp.SDKConfig().SetREPLContext(replCtx)
-
 	// Test that non-tool argument fails
-	_, err := interp.EvalString(`gsh.useCommandMiddleware("not a tool")`, nil)
+	_, err := interp.EvalString(`gsh.use("command.input", "not a tool")`, nil)
 	if err == nil {
-		t.Fatal("expected error when passing non-tool to gsh.useCommandMiddleware()")
+		t.Fatal("expected error when passing non-tool to gsh.use()")
 	}
 
 	// Test that wrong parameter count fails
@@ -340,76 +330,64 @@ func TestGshUseCommandMiddlewareValidation(t *testing.T) {
 tool wrongParams(ctx) {
 	return { handled: true }
 }
-gsh.useCommandMiddleware(wrongParams)
+gsh.use("command.input", wrongParams)
 `, nil)
 	if err == nil {
 		t.Fatal("expected error when middleware has wrong parameter count")
 	}
 }
 
-func TestGshRemoveCommandMiddleware(t *testing.T) {
+func TestGshRemoveMiddleware(t *testing.T) {
 	interp := New(&Options{})
 	defer interp.Close()
-
-	replCtx := &REPLContext{
-		LastCommand:       &REPLLastCommand{},
-		MiddlewareManager: NewMiddlewareManager(),
-		Interpreter:       interp,
-	}
-	interp.SDKConfig().SetREPLContext(replCtx)
 
 	// Define and register middleware
 	_, err := interp.EvalString(`
 tool myMiddleware(ctx, next) {
 	return { handled: true }
 }
-gsh.useCommandMiddleware(myMiddleware)
+gsh.use("command.input", myMiddleware)
 `, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	// Verify registered
-	if replCtx.MiddlewareManager.Len() != 1 {
-		t.Fatalf("expected 1 middleware registered, got %d", replCtx.MiddlewareManager.Len())
+	handlers := interp.GetEventHandlers("command.input")
+	if len(handlers) != 1 {
+		t.Fatalf("expected 1 handler registered, got %d", len(handlers))
 	}
 
-	// Remove middleware using gsh.removeCommandMiddleware()
-	result, err := interp.EvalString(`gsh.removeCommandMiddleware(myMiddleware)`, nil)
+	// Remove middleware using gsh.remove()
+	result, err := interp.EvalString(`gsh.remove("command.input", myMiddleware)`, nil)
 	if err != nil {
-		t.Fatalf("unexpected error calling gsh.removeCommandMiddleware(): %v", err)
+		t.Fatalf("unexpected error calling gsh.remove(): %v", err)
 	}
 
 	// Should return true
 	if boolVal, ok := result.FinalResult.(*BoolValue); !ok || !boolVal.Value {
-		t.Errorf("expected true from gsh.removeCommandMiddleware(), got %v", result.FinalResult)
+		t.Errorf("expected true from gsh.remove(), got %v", result.FinalResult)
 	}
 
 	// Verify middleware was removed
-	if replCtx.MiddlewareManager.Len() != 0 {
-		t.Errorf("expected 0 middleware after removal, got %d", replCtx.MiddlewareManager.Len())
+	handlers = interp.GetEventHandlers("command.input")
+	if len(handlers) != 0 {
+		t.Errorf("expected 0 handlers after removal, got %d", len(handlers))
 	}
 
 	// Removing again should return false
-	result, err = interp.EvalString(`gsh.removeCommandMiddleware(myMiddleware)`, nil)
+	result, err = interp.EvalString(`gsh.remove("command.input", myMiddleware)`, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if boolVal, ok := result.FinalResult.(*BoolValue); !ok || boolVal.Value {
-		t.Errorf("expected false from second gsh.removeCommandMiddleware(), got %v", result.FinalResult)
+		t.Errorf("expected false from second gsh.remove(), got %v", result.FinalResult)
 	}
 }
 
-func TestGshCommandMiddlewareExecution(t *testing.T) {
+func TestGshMiddlewareChainExecution(t *testing.T) {
 	interp := New(&Options{})
 	defer interp.Close()
-
-	replCtx := &REPLContext{
-		LastCommand:       &REPLLastCommand{},
-		MiddlewareManager: NewMiddlewareManager(),
-		Interpreter:       interp,
-	}
-	interp.SDKConfig().SetREPLContext(replCtx)
 
 	// Define middleware that handles # prefix
 	_, err := interp.EvalString(`
@@ -419,33 +397,44 @@ tool prefixMiddleware(ctx, next) {
 	}
 	return next(ctx)
 }
-gsh.useCommandMiddleware(prefixMiddleware)
+gsh.use("command.input", prefixMiddleware)
 `, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Test middleware execution via the manager
-	mm := replCtx.MiddlewareManager
+	// Test middleware chain execution via EmitEvent
+	inputCtx := &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"input": {Value: &StringValue{Value: "# hello"}},
+		},
+	}
+	result := interp.EmitEvent("command.input", inputCtx)
 
-	// Input with # should be handled
-	result, err := mm.ExecuteChain("# hello", interp)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	// Input with # should return handled: true
+	if result == nil {
+		t.Fatal("expected non-nil result")
 	}
-	if !result.Handled {
-		t.Error("expected input '# hello' to be handled")
+	if obj, ok := result.(*ObjectValue); ok {
+		if handledVal := obj.GetPropertyValue("handled"); handledVal != nil {
+			if bv, ok := handledVal.(*BoolValue); !ok || !bv.Value {
+				t.Error("expected handled: true")
+			}
+		} else {
+			t.Error("expected handled property in result")
+		}
+	} else {
+		t.Errorf("expected ObjectValue result, got %T", result)
 	}
 
-	// Input without # should fall through
-	result, err = mm.ExecuteChain("echo hello", interp)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	// Input without # should fall through (return nil)
+	inputCtx2 := &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"input": {Value: &StringValue{Value: "echo hello"}},
+		},
 	}
-	if result.Handled {
-		t.Error("expected input 'echo hello' to fall through")
-	}
-	if result.Input != "echo hello" {
-		t.Errorf("expected input 'echo hello', got '%s'", result.Input)
+	result2 := interp.EmitEvent("command.input", inputCtx2)
+	if result2 != nil {
+		t.Errorf("expected nil result for fall-through, got %v", result2)
 	}
 }

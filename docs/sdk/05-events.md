@@ -2,36 +2,80 @@
 
 This chapter documents the event system for customizing gsh behavior.
 
-**Availability:** REPL only
+**Availability:** REPL and scripts
+
+## Overview
+
+Events in gsh use a unified middleware chain model. Every event handler receives `(ctx, next)` and can:
+- **Pass through**: Call `return next(ctx)` to continue to the next handler
+- **Stop chain**: Return a value without calling `next()` to stop processing
+- **Transform**: Modify `ctx` before calling `next(ctx)`
+- **Override**: Return `{ result: "..." }` to override default behavior
+
+```
+Event Fired
+    ↓
+Handler 1 → calls next(ctx) → Handler 2 → calls next(ctx) → Handler 3 → returns value
+                                                                            ↓
+                                                                    Chain stops, value used
+```
 
 ## Event Registration
 
-### `gsh.on(eventName, handler)`
+### `gsh.use(eventName, handler)`
 
-Registers an event handler.
+Registers an event handler. Returns a unique handler ID.
 
 ```gsh
-tool myHandler(ctx) {
+tool myHandler(ctx, next) {
     print("Event fired!")
+    return next(ctx)
 }
 
-gsh.on("repl.ready", myHandler)
+gsh.use("repl.ready", myHandler)
 ```
 
-### `gsh.off(eventName)`
+### `gsh.remove(eventName, handler)`
 
-Unregisters all handlers for an event.
+Removes a previously registered handler by reference.
 
 ```gsh
-gsh.off("repl.ready")
+gsh.remove("repl.ready", myHandler)
 ```
 
-### `gsh.removeEventHandler(eventName, handler)`
+### `gsh.removeAll(eventName)`
 
-Removes a specific handler by reference.
+Removes all handlers for an event. Returns the number of handlers removed.
 
 ```gsh
-gsh.removeEventHandler("repl.ready", myHandler)
+# Remove all default prompt handlers and register your own
+gsh.removeAll("repl.prompt")
+
+tool myPrompt(ctx, next) {
+    gsh.prompt = "$ "
+    return next(ctx)
+}
+gsh.use("repl.prompt", myPrompt)
+```
+
+## Handler Signature
+
+All handlers use the middleware signature `(ctx, next)`:
+
+```gsh
+tool myHandler(ctx, next) {
+    # ctx contains event-specific context
+    
+    # Option 1: Pass through to next handler
+    return next(ctx)
+    
+    # Option 2: Stop chain and return override
+    return { result: "override value" }
+    
+    # Option 3: Transform context, then continue
+    ctx.someProperty = "modified"
+    return next(ctx)
+}
 ```
 
 ## REPL Events
@@ -40,30 +84,57 @@ gsh.removeEventHandler("repl.ready", myHandler)
 
 Fired when the REPL has fully started and is ready for input.
 
-**Context:** None
+**Context:** `null`
 
 ```gsh
-tool welcome() {
+tool welcome(ctx, next) {
     print("Welcome to gsh!")
+    return next(ctx)
 }
-gsh.on("repl.ready", welcome)
+gsh.use("repl.ready", welcome)
 ```
 
 ### `repl.prompt`
 
 Fired after each command to generate the shell prompt. Set `gsh.prompt` to customize.
 
-**Context:** None
+**Context:** `null`
 
 ```gsh
-tool myPrompt() {
+tool myPrompt(ctx, next) {
     if (gsh.lastCommand.exitCode == 0) {
         gsh.prompt = "✓ gsh> "
     } else {
         gsh.prompt = "✗ gsh> "
     }
+    return next(ctx)
 }
-gsh.on("repl.prompt", myPrompt)
+gsh.use("repl.prompt", myPrompt)
+```
+
+### `command.input`
+
+Fired when user submits a command. This is the unified middleware for processing user input.
+
+**Context:**
+
+| Property    | Type     | Description        |
+| ----------- | -------- | ------------------ |
+| `ctx.input` | `string` | The raw user input |
+
+**Return Value:** Return `{ handled: true }` to stop processing (command won't execute as shell command).
+
+```gsh
+# Handle # prefix for agent chat
+tool agentMiddleware(ctx, next) {
+    if (ctx.input.startsWith("#")) {
+        message = ctx.input.substring(1).trim()
+        # ... process agent message ...
+        return { handled: true }
+    }
+    return next(ctx)
+}
+gsh.use("command.input", agentMiddleware)
 ```
 
 ## Agent Events
@@ -74,26 +145,37 @@ These events fire during agent interactions.
 
 Fired when an agent begins responding to a query.
 
-**Context:** None
+**Context:**
+
+| Property       | Type     | Description                      |
+| -------------- | -------- | -------------------------------- |
+| `ctx.agent`    | `string` | Name of the agent                |
+| `ctx.message`  | `string` | The user's message to the agent  |
 
 ```gsh
-tool agentStarted() {
+tool agentStarted(ctx, next) {
     print("🤖 Agent is thinking...")
+    return next(ctx)
 }
-gsh.on("agent.start", agentStarted)
+gsh.use("agent.start", agentStarted)
 ```
 
 ### `agent.iteration.start`
 
-Fired at the beginning of each agent iteration. An iteration ends when the agent gives a final response without tool calls.
+Fired at the beginning of each agent iteration.
 
-**Context:** None
+**Context:**
+
+| Property        | Type     | Description           |
+| --------------- | -------- | --------------------- |
+| `ctx.iteration` | `number` | Current iteration (1-based) |
 
 ```gsh
-tool iterationStart() {
-    print("Starting agent iteration...")
+tool iterationStart(ctx, next) {
+    print("Starting iteration " + ctx.iteration)
+    return next(ctx)
 }
-gsh.on("agent.iteration.start", iterationStart)
+gsh.use("agent.iteration.start", iterationStart)
 ```
 
 ### `agent.chunk`
@@ -107,10 +189,12 @@ Fired when a chunk of agent output is received (streaming).
 | `ctx.content` | `string` | The text chunk received |
 
 ```gsh
-tool chunkReceived(ctx) {
-    # Chunks are printed automatically; use for custom handling
+tool chunkReceived(ctx, next) {
+    # Custom chunk handling
+    gsh.ui.write(ctx.content)
+    return next(ctx)
 }
-gsh.on("agent.chunk", chunkReceived)
+gsh.use("agent.chunk", chunkReceived)
 ```
 
 ### `agent.end`
@@ -128,16 +212,17 @@ Fired when the agent finishes responding.
 | `ctx.error`              | `string` or `null` | Error message if failed        |
 
 ```gsh
-tool agentFinished(ctx) {
+tool agentFinished(ctx, next) {
     if (ctx.error != null) {
         print("Error: " + ctx.error)
-        return
+        return next(ctx)
     }
 
     durationSec = (ctx.query.durationMs / 1000).toFixed(1)
     print("── " + ctx.query.inputTokens + " in, " + ctx.query.outputTokens + " out (" + durationSec + "s) ──")
+    return next(ctx)
 }
-gsh.on("agent.end", agentFinished)
+gsh.use("agent.end", agentFinished)
 ```
 
 ## Tool Events
@@ -156,10 +241,11 @@ Fired when a tool call is streaming from the model (arguments not yet complete).
 | `ctx.toolCall.name` | `string` | Name of the tool being called        |
 
 ```gsh
-tool toolPending(ctx) {
-    print("► Calling " + ctx.toolCall.name + "...")
+tool toolPending(ctx, next) {
+    gsh.ui.spinner.start(ctx.toolCall.name, ctx.toolCall.id)
+    return next(ctx)
 }
-gsh.on("agent.tool.pending", toolPending)
+gsh.use("agent.tool.pending", toolPending)
 ```
 
 ### `agent.tool.start`
@@ -174,11 +260,11 @@ Fired when a tool begins execution (arguments are complete).
 | `ctx.toolCall.name` | `string` | Name of the tool being called        |
 | `ctx.toolCall.args` | `object` | Tool arguments                       |
 
-**Return Value:** Returning `{ result: "..." }` skips tool execution and uses the returned result. Add `error: "..."` to mark as failed.
+**Return Value:** Return `{ result: "..." }` to skip execution and use the returned result. Add `error: "..."` to mark as failed.
 
 ```gsh
 # Permission system example
-tool toolPermissions(ctx) {
+tool toolPermissions(ctx, next) {
     if (ctx.toolCall.name == "exec") {
         command = ctx.toolCall.args.command
         if (command.includes("rm -rf")) {
@@ -188,9 +274,10 @@ tool toolPermissions(ctx) {
             }
         }
     }
-    # No return = allow normal execution
+    # Continue to normal execution
+    return next(ctx)
 }
-gsh.on("agent.tool.start", toolPermissions)
+gsh.use("agent.tool.start", toolPermissions)
 ```
 
 ### `agent.tool.end`
@@ -208,57 +295,62 @@ Fired when a tool finishes execution.
 | `ctx.toolCall.error`      | `string` or `null` | Error message (if failed)            |
 | `ctx.toolCall.durationMs` | `number`           | Execution time in milliseconds       |
 
-**Return Value:** Returning `{ result: "..." }` overrides the tool output passed to the agent.
+**Return Value:** Return `{ result: "..." }` to override the tool output passed to the agent.
 
 ```gsh
 # Redact sensitive output
-tool redactSecrets(ctx) {
+tool redactSecrets(ctx, next) {
     if (ctx.toolCall.output != null) {
         if (ctx.toolCall.output.includes("API_KEY")) {
             return { result: "[OUTPUT REDACTED]" }
         }
     }
+    return next(ctx)
 }
-gsh.on("agent.tool.end", redactSecrets)
+gsh.use("agent.tool.end", redactSecrets)
 ```
 
-## Event Handler Return Values
+## Handler Chain Behavior
 
-Some events support return values to override default behavior:
+When multiple handlers are registered, they run in registration order. Each handler can:
 
-| Event              | Return Value                      | Effect                          |
-| ------------------ | --------------------------------- | ------------------------------- |
-| `agent.tool.start` | `{ result: "..." }`               | Skip execution, use this result |
-| `agent.tool.start` | `{ result: "...", error: "..." }` | Skip execution, mark as error   |
-| `agent.tool.end`   | `{ result: "..." }`               | Override the tool output        |
+1. **Continue the chain**: `return next(ctx)` - passes control to next handler
+2. **Stop the chain**: Return without calling `next()` - no more handlers run
 
-### Multiple Handlers
-
-When multiple handlers are registered, they run in registration order. The **first handler that returns a non-null value** determines the override.
+The **return value propagates back** through the chain:
 
 ```gsh
-tool handler1(ctx) {
-    if (ctx.toolCall.name == "exec") {
-        return { result: "blocked" }  # This wins
-    }
+tool handler1(ctx, next) {
+    print("handler1 before")
+    result = next(ctx)  # Call next handler
+    print("handler1 after")
+    return result
 }
 
-tool handler2(ctx) {
-    return { result: "also blocked" }  # Ignored if handler1 returned
+tool handler2(ctx, next) {
+    print("handler2")
+    return { result: "from handler2" }  # Stop chain, return value
 }
 
-gsh.on("agent.tool.start", handler1)
-gsh.on("agent.tool.start", handler2)
+gsh.use("some.event", handler1)
+gsh.use("some.event", handler2)
+
+# Output:
+# handler1 before
+# handler2
+# handler1 after
+# Final result: { result: "from handler2" }
 ```
 
 ## Best Practices
 
-1. **Keep handlers fast** - They run frequently; avoid expensive operations
-2. **Handle null gracefully** - Not all context properties are always present
-3. **Use return values sparingly** - Only when you need to override behavior
-4. **Check event names** - Typos silently fail to register
-5. **Test incrementally** - Add one handler at a time
+1. **Always call `next(ctx)`** unless you're intentionally stopping the chain
+2. **Keep handlers fast** - They run frequently; avoid expensive operations
+3. **Handle null gracefully** - Not all context properties are always present
+4. **Use return values sparingly** - Only when you need to override behavior
+5. **Check event names** - Typos silently fail to register
+6. **Test incrementally** - Add one handler at a time
 
 ---
 
-**Next:** [Middleware](06-middleware.md) - Command middleware system
+**Next:** [UI](06-ui.md) - Styling helpers and spinner API
