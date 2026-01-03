@@ -555,6 +555,32 @@ func (a *AgentDeclaration) String() string {
 	return out.String()
 }
 
+// ACPDeclaration represents an ACP (Agent Client Protocol) agent declaration
+// acp <name> { <config> }
+type ACPDeclaration struct {
+	Token  lexer.Token // the 'acp' token
+	Name   *Identifier
+	Config map[string]Expression
+}
+
+func (a *ACPDeclaration) statementNode()       {}
+func (a *ACPDeclaration) TokenLiteral() string { return a.Token.Literal }
+func (a *ACPDeclaration) String() string {
+	var out strings.Builder
+	out.WriteString("acp ")
+	out.WriteString(a.Name.String())
+	out.WriteString(" {\n")
+	for key, value := range a.Config {
+		out.WriteString("  ")
+		out.WriteString(key)
+		out.WriteString(": ")
+		out.WriteString(value.String())
+		out.WriteString(",\n")
+	}
+	out.WriteString("}")
+	return out.String()
+}
+
 // ImportStatement represents: import "./file.gsh" or import { a, b } from "./file.gsh"
 type ImportStatement struct {
 	Token   lexer.Token    // The 'import' token

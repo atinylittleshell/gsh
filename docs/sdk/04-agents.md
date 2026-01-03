@@ -18,11 +18,11 @@ agent myAgent {
 
 ### Required Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `model` | model reference | A model object or `gsh.models.*` tier reference |
-| `systemPrompt` | `string` | Defines the agent's behavior and personality |
-| `tools` | `array` | Array of tools the agent can use |
+| Field          | Type            | Description                                     |
+| -------------- | --------------- | ----------------------------------------------- |
+| `model`        | model reference | A model object or `gsh.models.*` tier reference |
+| `systemPrompt` | `string`        | Defines the agent's behavior and personality    |
+| `tools`        | `array`         | Array of tools the agent can use                |
 
 ## Using Agents
 
@@ -146,6 +146,72 @@ When agents run, they emit events that you can hook into for customization:
 - `agent.end` - Agent finishes
 
 See [Events](05-events.md) for details on handling these events.
+
+## ACP Agents (External Agents)
+
+In addition to gsh agents defined in scripts, you can delegate to external agents via the **Agent Client Protocol (ACP)**. ACP agents are powerful standalone AI systems like Rovo Dev that run as separate processes.
+
+### Declaration
+
+```gsh
+acp RovoDev {
+    command: "acli",
+    args: ["rovodev", "acp"],
+    cwd: "/path/to/project",  # Optional
+    env: {                     # Optional
+        API_KEY: env.MY_KEY,
+    },
+}
+```
+
+### Usage
+
+```gsh
+# Start a session
+session = "Analyze this codebase" | RovoDev
+
+# Continue the conversation
+session = session | "Focus on error handling"
+session = session | "Show me specific improvements"
+
+# Access the response
+print(session.lastMessage.content)
+
+# Clean up
+session.close()
+```
+
+### Key Differences from gsh Agents
+
+| Aspect            | gsh Agent           | ACP Agent                |
+| ----------------- | ------------------- | ------------------------ |
+| Type              | `agent` declaration | `acp` declaration        |
+| Result            | `Conversation`      | `ACPSession`             |
+| History           | gsh owns it         | Agent owns it            |
+| Handoffs          | ✅ Can hand off     | ❌ Cannot hand off       |
+| `Value \| String` | Adds message only   | Sends prompt immediately |
+
+### ACPSession Properties
+
+| Property      | Type      | Description                 |
+| ------------- | --------- | --------------------------- |
+| `messages`    | array     | All messages in the session |
+| `lastMessage` | object    | The most recent message     |
+| `agent`       | ACP value | The bound agent             |
+| `sessionId`   | string    | Unique session identifier   |
+| `closed`      | boolean   | Whether session is closed   |
+
+### Events
+
+ACP agents emit the same events as gsh agents:
+
+- `agent.start`, `agent.end`
+- `agent.chunk`
+- `agent.tool.pending`, `agent.tool.start`, `agent.tool.end`
+
+The `ctx.type` field distinguishes them: `"acp"` vs `"gsh"`.
+
+For comprehensive documentation, see **[Chapter 23: ACP Agents](../script/23-acp-agents.md)** in the Scripting Guide.
 
 ---
 

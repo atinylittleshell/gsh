@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/atinylittleshell/gsh/internal/acp"
 	"github.com/atinylittleshell/gsh/internal/script/lexer"
 	"github.com/atinylittleshell/gsh/internal/script/mcp"
 	"github.com/atinylittleshell/gsh/internal/script/parser"
@@ -16,6 +17,16 @@ import (
 	"mvdan.cc/sh/v3/interp"
 	"mvdan.cc/sh/v3/syntax"
 )
+
+// acpClientEntry holds an ACP client and its active sessions
+type acpClientEntry struct {
+	client   *acp.Client
+	sessions map[string]acp.ACPSession // Sessions keyed by session ID
+}
+
+// ACPClientFactory is a function type for creating ACP clients.
+// This can be overridden in tests to inject mock clients.
+type ACPClientFactory func(config acp.ClientConfig) (*acp.Client, error)
 
 // Interpreter represents the gsh script interpreter
 type Interpreter struct {
@@ -38,6 +49,11 @@ type Interpreter struct {
 	importedFiles map[string]bool             // Track imported files (prevent circular imports)
 	moduleExports map[string]map[string]Value // Cache of exported symbols per module
 	exportedNames map[string]bool             // Names exported by the current module
+
+	// ACP client management
+	acpClients       map[string]*acpClientEntry // ACP clients keyed by agent name
+	acpClientsMu     sync.RWMutex               // Protects acpClients access
+	acpClientFactory ACPClientFactory           // Factory for creating ACP clients (can be overridden for testing)
 }
 
 // EvalResult represents the result of evaluating a program
@@ -143,10 +159,45 @@ func New(opts *Options) *Interpreter {
 		importedFiles:    make(map[string]bool),
 		moduleExports:    make(map[string]map[string]Value),
 		exportedNames:    make(map[string]bool),
+		acpClients:       make(map[string]*acpClientEntry),
+		acpClientFactory: defaultACPClientFactory,
 	}
 	i.registerBuiltins()
 	i.registerGshSDK()
 	return i
+}
+
+// defaultACPClientFactory is the default factory for creating ACP clients.
+func defaultACPClientFactory(config acp.ClientConfig) (*acp.Client, error) {
+	client := acp.NewClient(config)
+	ctx := context.Background()
+	if err := client.Connect(ctx); err != nil {
+		return nil, err
+	}
+	return client, nil
+}
+
+// SetACPClientFactory sets a custom factory for creating ACP clients.
+// This is primarily used for testing with mock clients.
+func (i *Interpreter) SetACPClientFactory(factory ACPClientFactory) {
+	i.acpClientFactory = factory
+}
+
+// InjectACPSession injects a mock ACP session for testing.
+// This bypasses the normal client creation and allows direct session injection.
+func (i *Interpreter) InjectACPSession(agentName, sessionID string, session acp.ACPSession) {
+	i.acpClientsMu.Lock()
+	defer i.acpClientsMu.Unlock()
+
+	entry, ok := i.acpClients[agentName]
+	if !ok {
+		entry = &acpClientEntry{
+			client:   nil, // No actual client needed for testing
+			sessions: make(map[string]acp.ACPSession),
+		}
+		i.acpClients[agentName] = entry
+	}
+	entry.sessions[sessionID] = session
 }
 
 // SetStdin sets the stdin reader for the input() function
@@ -271,10 +322,28 @@ func (i *Interpreter) EvalString(source string, origin *ScriptOrigin) (*EvalResu
 
 // Close cleans up resources used by the interpreter
 func (i *Interpreter) Close() error {
-	if i.mcpManager != nil {
-		return i.mcpManager.Close()
+	var lastErr error
+
+	// Close all ACP clients
+	i.acpClientsMu.Lock()
+	for _, entry := range i.acpClients {
+		if entry.client != nil {
+			if err := entry.client.Close(); err != nil {
+				lastErr = err
+			}
+		}
 	}
-	return nil
+	i.acpClients = make(map[string]*acpClientEntry)
+	i.acpClientsMu.Unlock()
+
+	// Close MCP manager
+	if i.mcpManager != nil {
+		if err := i.mcpManager.Close(); err != nil {
+			lastErr = err
+		}
+	}
+
+	return lastErr
 }
 
 // SetVariable defines or updates a variable in the interpreter's environment

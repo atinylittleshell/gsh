@@ -21,6 +21,7 @@ const (
 	KW_MCP
 	KW_MODEL
 	KW_AGENT
+	KW_ACP
 	KW_TOOL
 	KW_IF
 	KW_ELSE
@@ -84,6 +85,7 @@ var keywords = map[string]TokenType{
 	"mcp":      KW_MCP,
 	"model":    KW_MODEL,
 	"agent":    KW_AGENT,
+	"acp":      KW_ACP,
 	"tool":     KW_TOOL,
 	"if":       KW_IF,
 	"else":     KW_ELSE,

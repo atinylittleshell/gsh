@@ -106,6 +106,40 @@ func (i *Interpreter) evalPipeExpression(node *parser.PipeExpression) (Value, er
 		return i.executeAgentWithConversation(convVal, agentVal)
 	}
 
+	// Case 4: String | ACP -> Create ACP session and send prompt
+	if leftType == ValueTypeString && rightType == ValueTypeACP {
+		strVal := left.(*StringValue)
+		acpVal := right.(*ACPValue)
+		return i.executeACPWithString(strVal.Value, acpVal)
+	}
+
+	// Case 5: ACPSession | String -> Send prompt to existing session (auto-executes)
+	if leftType == ValueTypeACPSession && rightType == ValueTypeString {
+		sessionVal := left.(*ACPSessionValue)
+		strVal := right.(*StringValue)
+		return i.sendPromptToACPSession(sessionVal, strVal.Value)
+	}
+
+	// Case 6: ACPSession | ACP -> Error if different agent, error if same (redundant)
+	if leftType == ValueTypeACPSession && rightType == ValueTypeACP {
+		sessionVal := left.(*ACPSessionValue)
+		acpVal := right.(*ACPValue)
+		if sessionVal.Agent.Name == acpVal.Name {
+			return nil, fmt.Errorf("cannot pipe ACPSession to the same ACP agent '%s' - session is already bound to this agent", acpVal.Name)
+		}
+		return nil, fmt.Errorf("cannot pipe ACPSession to a different ACP agent '%s' - session is bound to '%s'", acpVal.Name, sessionVal.Agent.Name)
+	}
+
+	// Case 7: ACPSession | Agent -> Error (cannot mix ACP sessions with gsh agents)
+	if leftType == ValueTypeACPSession && rightType == ValueTypeAgent {
+		return nil, fmt.Errorf("cannot pipe ACPSession to a gsh agent - ACP sessions cannot be handed off to different agents")
+	}
+
+	// Case 8: Conversation | ACP -> Error (cannot pipe local conversation to ACP agent)
+	if leftType == ValueTypeConversation && rightType == ValueTypeACP {
+		return nil, fmt.Errorf("cannot pipe Conversation to ACP agent - use a string prompt to create an ACP session")
+	}
+
 	return nil, fmt.Errorf("invalid pipe operation: cannot pipe %s to %s", leftType, rightType)
 }
 
