@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.0](https://github.com/atinylittleshell/gsh/compare/v1.0.1...v1.1.0) (2026-01-03)
+
+
+### Features
+
+* support external agents via ACP ([#124](https://github.com/atinylittleshell/gsh/issues/124)) ([3f2cda7](https://github.com/atinylittleshell/gsh/commit/3f2cda7defa3dc0c05fc4be80c4bac1dc5bf0434))
+* unified event middleware ([#125](https://github.com/atinylittleshell/gsh/issues/125)) ([0b4bb69](https://github.com/atinylittleshell/gsh/commit/0b4bb694ebe4636fde18a23bd595b66903045ef5))
+
+
+### Bug Fixes
+
+* conversation properties ([#122](https://github.com/atinylittleshell/gsh/issues/122)) ([3e2540d](https://github.com/atinylittleshell/gsh/commit/3e2540d882ca5cbdc20380fb94491d632d382733))
+
 ## [1.0.1](https://github.com/atinylittleshell/gsh/compare/v1.0.0...v1.0.1) (2026-01-03)
 
 
