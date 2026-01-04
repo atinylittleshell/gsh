@@ -60,7 +60,7 @@ type Renderer struct {
 // NewRenderer creates a new Renderer with the given configuration.
 func NewRenderer(config RenderConfig, h *Highlighter) *Renderer {
 	if h == nil {
-		h = NewHighlighter(nil, nil)
+		h = NewHighlighter(nil, nil, nil)
 	}
 
 	return &Renderer{

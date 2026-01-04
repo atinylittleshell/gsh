@@ -3,6 +3,7 @@ package input
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/atinylittleshell/gsh/internal/repl/render"
@@ -53,6 +54,11 @@ type Highlighter struct {
 	// modified in .gshenv or .gsh_profile) instead of the OS process's PATH.
 	getEnv func(name string) string
 
+	// getWorkingDir, if set, is used to resolve relative paths. This keeps
+	// highlighting aligned with the shell's current working directory, which may
+	// differ from the process working directory when users run `cd` inside gsh.
+	getWorkingDir func() string
+
 	// Styles for different token types
 	styles map[TokenType]lipgloss.Style
 }
@@ -64,12 +70,20 @@ type Highlighter struct {
 //
 // If getEnv is non-nil, it is used to get environment variables from the shell,
 // allowing the highlighter to use the shell's PATH and variable values.
-func NewHighlighter(aliasExists func(name string) bool, getEnv func(name string) string) *Highlighter {
+//
+// If getWorkingDir is non-nil, it is used to resolve relative command paths so
+// highlighting matches the shell's current working directory.
+func NewHighlighter(
+	aliasExists func(name string) bool,
+	getEnv func(name string) string,
+	getWorkingDir func() string,
+) *Highlighter {
 	h := &Highlighter{
-		parser:      syntax.NewParser(),
-		aliasExists: aliasExists,
-		getEnv:      getEnv,
-		styles:      make(map[TokenType]lipgloss.Style),
+		parser:        syntax.NewParser(),
+		aliasExists:   aliasExists,
+		getEnv:        getEnv,
+		getWorkingDir: getWorkingDir,
+		styles:        make(map[TokenType]lipgloss.Style),
 	}
 
 	// Initialize styles
@@ -116,7 +130,14 @@ func (h *Highlighter) commandExists(cmd string) bool {
 func (h *Highlighter) lookupCommandInPath(cmd string, pathEnv string) bool {
 	// If the command contains a path separator, check it directly
 	if strings.Contains(cmd, "/") {
-		info, err := os.Stat(cmd)
+		pathToCheck := cmd
+		if !filepath.IsAbs(cmd) {
+			if wd := h.workingDir(); wd != "" {
+				pathToCheck = filepath.Join(wd, cmd)
+			}
+		}
+
+		info, err := os.Stat(pathToCheck)
 		if err != nil {
 			return false
 		}
@@ -126,10 +147,12 @@ func (h *Highlighter) lookupCommandInPath(cmd string, pathEnv string) bool {
 
 	// Search each directory in PATH
 	for _, dir := range strings.Split(pathEnv, string(os.PathListSeparator)) {
-		if dir == "" {
-			dir = "."
+		baseDir := dir
+		if baseDir == "" {
+			baseDir = "."
 		}
-		path := dir + string(os.PathSeparator) + cmd
+
+		path := filepath.Join(baseDir, cmd)
 		info, err := os.Stat(path)
 		if err != nil {
 			continue
@@ -140,6 +163,20 @@ func (h *Highlighter) lookupCommandInPath(cmd string, pathEnv string) bool {
 		}
 	}
 	return false
+}
+
+func (h *Highlighter) workingDir() string {
+	if h.getWorkingDir != nil {
+		if dir := h.getWorkingDir(); dir != "" {
+			return dir
+		}
+	}
+
+	if dir, err := os.Getwd(); err == nil {
+		return dir
+	}
+
+	return ""
 }
 
 // variableHasValue checks if an environment variable has a non-empty value.
