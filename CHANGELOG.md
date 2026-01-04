@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.3](https://github.com/atinylittleshell/gsh/compare/v1.1.2...v1.1.3) (2026-01-04)
+
+
+### Bug Fixes
+
+* Ignore SIGINT while waiting for child ([#133](https://github.com/atinylittleshell/gsh/issues/133)) ([fc4fef9](https://github.com/atinylittleshell/gsh/commit/fc4fef953a2a6695128813b68b01d54f01f0bdd6))
+* syntax highlighting respects working dir ([#132](https://github.com/atinylittleshell/gsh/issues/132)) ([1a77cc9](https://github.com/atinylittleshell/gsh/commit/1a77cc99ace463ee7e69c084535bb4664cbc131a))
+
 ## [1.1.2](https://github.com/atinylittleshell/gsh/compare/v1.1.1...v1.1.2) (2026-01-03)
 
 
