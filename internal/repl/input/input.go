@@ -95,6 +95,11 @@ type Config struct {
 	// environment for variable highlighting.
 	GetEnvFunc func(name string) string
 
+	// GetWorkingDirFunc returns the current working directory from the shell.
+	// If set, the syntax highlighter will resolve relative paths against this
+	// directory instead of the process working directory.
+	GetWorkingDirFunc func() string
+
 	// HistoryValues is the list of previous commands for history navigation.
 	// Index 0 is the most recent.
 	HistoryValues []string
@@ -148,7 +153,7 @@ func New(cfg Config) Model {
 		width = 80
 	}
 
-	renderer := NewRenderer(*renderConfig, NewHighlighter(cfg.AliasExistsFunc, cfg.GetEnvFunc))
+	renderer := NewRenderer(*renderConfig, NewHighlighter(cfg.AliasExistsFunc, cfg.GetEnvFunc, cfg.GetWorkingDirFunc))
 	renderer.SetWidth(width)
 
 	return Model{

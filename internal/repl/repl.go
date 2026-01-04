@@ -319,6 +319,7 @@ func (r *REPL) Run(ctx context.Context) error {
 			CompletionProvider: r.completionProvider,
 			AliasExistsFunc:    r.executor.AliasOrFunctionExists,
 			GetEnvFunc:         r.executor.GetEnv,
+			GetWorkingDirFunc:  r.executor.GetPwd,
 			PredictionState:    predictionState,
 			Width:              termWidth,
 			Logger:             r.logger,

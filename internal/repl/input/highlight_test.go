@@ -2,6 +2,7 @@ package input
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -9,7 +10,7 @@ import (
 )
 
 func TestNewHighlighter(t *testing.T) {
-	h := NewHighlighter(nil, nil)
+	h := NewHighlighter(nil, nil, nil)
 	if h == nil {
 		t.Fatal("NewHighlighter returned nil")
 	}
@@ -22,7 +23,7 @@ func TestNewHighlighter(t *testing.T) {
 }
 
 func TestHighlightEmpty(t *testing.T) {
-	h := NewHighlighter(nil, nil)
+	h := NewHighlighter(nil, nil, nil)
 	result := h.Highlight("")
 	if result != "" {
 		t.Errorf("expected empty string, got %q", result)
@@ -30,7 +31,7 @@ func TestHighlightEmpty(t *testing.T) {
 }
 
 func TestHighlightAgentMode(t *testing.T) {
-	h := NewHighlighter(nil, nil)
+	h := NewHighlighter(nil, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -78,7 +79,7 @@ func TestHighlightAgentMode(t *testing.T) {
 }
 
 func TestHighlightCommandExists(t *testing.T) {
-	h := NewHighlighter(nil, nil)
+	h := NewHighlighter(nil, nil, nil)
 
 	// Test with a command that definitely exists
 	result := h.Highlight("ls")
@@ -90,7 +91,7 @@ func TestHighlightCommandExists(t *testing.T) {
 }
 
 func TestHighlightCommandNotExists(t *testing.T) {
-	h := NewHighlighter(nil, nil)
+	h := NewHighlighter(nil, nil, nil)
 
 	// Test with a command that definitely doesn't exist
 	input := "thiscommanddoesnotexist12345"
@@ -106,19 +107,19 @@ func TestHighlightAliasCountsAsExistingCommand(t *testing.T) {
 	// Use a command name that should not exist on PATH.
 	aliasName := "thiscommanddoesnotexist12345"
 
-	noAlias := NewHighlighter(nil, nil)
+	noAlias := NewHighlighter(nil, nil, nil)
 	if noAlias.commandExists(aliasName) {
 		t.Fatalf("expected %q to not exist without alias lookup", aliasName)
 	}
 
-	withAlias := NewHighlighter(func(name string) bool { return name == aliasName }, nil)
+	withAlias := NewHighlighter(func(name string) bool { return name == aliasName }, nil, nil)
 	if !withAlias.commandExists(aliasName) {
 		t.Fatalf("expected %q to exist when alias lookup reports it as an alias", aliasName)
 	}
 }
 
 func TestHighlightStrings(t *testing.T) {
-	h := NewHighlighter(nil, nil)
+	h := NewHighlighter(nil, nil, nil)
 
 	tests := []struct {
 		name  string
@@ -147,7 +148,7 @@ func TestHighlightStrings(t *testing.T) {
 }
 
 func TestHighlightVariables(t *testing.T) {
-	h := NewHighlighter(nil, nil)
+	h := NewHighlighter(nil, nil, nil)
 
 	tests := []struct {
 		name  string
@@ -176,7 +177,7 @@ func TestHighlightVariables(t *testing.T) {
 }
 
 func TestHighlightFlags(t *testing.T) {
-	h := NewHighlighter(nil, nil)
+	h := NewHighlighter(nil, nil, nil)
 
 	tests := []struct {
 		name  string
@@ -209,7 +210,7 @@ func TestHighlightFlags(t *testing.T) {
 }
 
 func TestHighlightOperators(t *testing.T) {
-	h := NewHighlighter(nil, nil)
+	h := NewHighlighter(nil, nil, nil)
 
 	tests := []struct {
 		name  string
@@ -254,7 +255,7 @@ func TestHighlightOperators(t *testing.T) {
 }
 
 func TestHighlightBasicFallback(t *testing.T) {
-	h := NewHighlighter(nil, nil)
+	h := NewHighlighter(nil, nil, nil)
 
 	// Test with incomplete/invalid syntax that triggers basic fallback
 	tests := []struct {
@@ -283,7 +284,7 @@ func TestHighlightBasicFallback(t *testing.T) {
 }
 
 func TestCommandExistsConsistentResults(t *testing.T) {
-	h := NewHighlighter(nil, nil)
+	h := NewHighlighter(nil, nil, nil)
 
 	// Multiple calls should return consistent results
 	exists1 := h.commandExists("ls")
@@ -295,7 +296,7 @@ func TestCommandExistsConsistentResults(t *testing.T) {
 }
 
 func TestHighlightPreservesText(t *testing.T) {
-	h := NewHighlighter(nil, nil)
+	h := NewHighlighter(nil, nil, nil)
 
 	tests := []struct {
 		name  string
@@ -379,7 +380,7 @@ func TestHighlightUsesShellPath(t *testing.T) {
 
 	// Without custom getEnv, the command should not be found
 	// (since tempDir is not in the OS PATH)
-	noEnv := NewHighlighter(nil, nil)
+	noEnv := NewHighlighter(nil, nil, nil)
 	if noEnv.commandExists("mycustomcmd") {
 		t.Fatal("expected mycustomcmd to not exist without custom PATH")
 	}
@@ -391,7 +392,7 @@ func TestHighlightUsesShellPath(t *testing.T) {
 			return customPath
 		}
 		return ""
-	})
+	}, nil)
 	if !withEnv.commandExists("mycustomcmd") {
 		t.Fatal("expected mycustomcmd to exist when shell PATH includes tempDir")
 	}
@@ -399,7 +400,7 @@ func TestHighlightUsesShellPath(t *testing.T) {
 
 func TestHighlightUsesShellEnvForVariables(t *testing.T) {
 	// Without custom getEnv, MY_CUSTOM_VAR should not have value
-	noEnv := NewHighlighter(nil, nil)
+	noEnv := NewHighlighter(nil, nil, nil)
 	if noEnv.variableHasValue("MY_SHELL_CUSTOM_VAR_12345") {
 		t.Fatal("expected MY_SHELL_CUSTOM_VAR_12345 to not have value without custom env")
 	}
@@ -410,7 +411,7 @@ func TestHighlightUsesShellEnvForVariables(t *testing.T) {
 			return "custom_value"
 		}
 		return ""
-	})
+	}, nil)
 	if !withEnv.variableHasValue("MY_SHELL_CUSTOM_VAR_12345") {
 		t.Fatal("expected MY_SHELL_CUSTOM_VAR_12345 to have value when provided by shell env")
 	}
@@ -440,7 +441,7 @@ func TestHighlightRespectsPathChanges(t *testing.T) {
 			return currentPath
 		}
 		return ""
-	})
+	}, nil)
 
 	// Initially, only cmd1 should exist
 	if !h.commandExists("cmd1") {
@@ -483,7 +484,7 @@ func TestHighlightRespectsWorkingDirectoryForRelativePaths(t *testing.T) {
 	}
 	defer os.Chdir(origDir)
 
-	h := NewHighlighter(nil, nil)
+	h := NewHighlighter(nil, nil, nil)
 
 	// Change to tempDir1 where ./bin/cmd exists
 	if err := os.Chdir(tempDir1); err != nil {
@@ -514,5 +515,36 @@ func TestHighlightRespectsWorkingDirectoryForRelativePaths(t *testing.T) {
 	// ./bin/cmd should exist again
 	if !h.commandExists("./bin/cmd") {
 		t.Fatal("expected ./bin/cmd to exist after chdir back to tempDir1")
+	}
+}
+
+func TestHighlightUsesProvidedWorkingDirForRelativePaths(t *testing.T) {
+	tempDir1 := t.TempDir()
+	tempDir2 := t.TempDir()
+
+	binDir1 := filepath.Join(tempDir1, "bin")
+	if err := os.MkdirAll(binDir1, 0o755); err != nil {
+		t.Fatalf("failed to create bin dir in tempDir1: %v", err)
+	}
+	cmdPath := filepath.Join(binDir1, "cmd")
+	if err := os.WriteFile(cmdPath, []byte("#!/bin/sh\necho 1"), 0o755); err != nil {
+		t.Fatalf("failed to create cmd in tempDir1: %v", err)
+	}
+
+	currentDir := tempDir1
+	h := NewHighlighter(nil, nil, func() string { return currentDir })
+
+	if !h.commandExists("./bin/cmd") {
+		t.Fatal("expected ./bin/cmd to exist when working dir provider points to tempDir1")
+	}
+
+	currentDir = tempDir2
+	if h.commandExists("./bin/cmd") {
+		t.Fatal("expected ./bin/cmd to NOT exist when working dir provider points to tempDir2")
+	}
+
+	currentDir = tempDir1
+	if !h.commandExists("./bin/cmd") {
+		t.Fatal("expected ./bin/cmd to exist again after working dir provider resets to tempDir1")
 	}
 }
