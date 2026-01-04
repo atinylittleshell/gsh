@@ -5,21 +5,21 @@
 class Gsh < Formula
   desc "A battery-included, POSIX-compatible, generative shell"
   homepage "https://github.com/atinylittleshell/gsh"
-  version "1.1.4"
+  version "1.1.5"
   license "GPL-3.0-or-later"
 
   on_macos do
     if Hardware::CPU.intel?
-      url "https://github.com/atinylittleshell/gsh/releases/download/v1.1.4/gsh_Darwin_x86_64.tar.gz"
-      sha256 "48ed069c1fa94cc8d006848aacb780151d5ebf03a6bd509aa8e39e4dc521b28a"
+      url "https://github.com/atinylittleshell/gsh/releases/download/v1.1.5/gsh_Darwin_x86_64.tar.gz"
+      sha256 "112ed76fe147737823365e6ed9618989c8e28a4e6e58654a937bbaca4faf8e52"
 
       def install
         bin.install "gsh"
       end
     end
     if Hardware::CPU.arm?
-      url "https://github.com/atinylittleshell/gsh/releases/download/v1.1.4/gsh_Darwin_arm64.tar.gz"
-      sha256 "415281adde684452247ea6d81cb84c9703e7bbf8e9bc1fa0993d461ed8a201f6"
+      url "https://github.com/atinylittleshell/gsh/releases/download/v1.1.5/gsh_Darwin_arm64.tar.gz"
+      sha256 "ebfe588b816f602f068d5a5918acc5ab406713cfecd96b972889ecaf55ee9e38"
 
       def install
         bin.install "gsh"
@@ -29,15 +29,15 @@ class Gsh < Formula
 
   on_linux do
     if Hardware::CPU.intel? && Hardware::CPU.is_64_bit?
-      url "https://github.com/atinylittleshell/gsh/releases/download/v1.1.4/gsh_Linux_x86_64.tar.gz"
-      sha256 "06597908cb5c16a9c0b7092a8749ec82a28b13be5c9ce49fedf443739f1ff23b"
+      url "https://github.com/atinylittleshell/gsh/releases/download/v1.1.5/gsh_Linux_x86_64.tar.gz"
+      sha256 "cd40b35def1fb66f490e9a25025e80f19d558e4f20271f8b74794ed843c214e7"
       def install
         bin.install "gsh"
       end
     end
     if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
-      url "https://github.com/atinylittleshell/gsh/releases/download/v1.1.4/gsh_Linux_arm64.tar.gz"
-      sha256 "d1c0b1ed8d2e871a06735fcf4e91f9de4da449a7803314f685dd843a38e04e27"
+      url "https://github.com/atinylittleshell/gsh/releases/download/v1.1.5/gsh_Linux_arm64.tar.gz"
+      sha256 "4d201a8e1445fb6687ec2248856fef274e0d14372599bdeda365f2c9df9ef92d"
       def install
         bin.install "gsh"
       end
