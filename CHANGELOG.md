@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.5](https://github.com/atinylittleshell/gsh/compare/v1.1.4...v1.1.5) (2026-01-04)
+
+
+### Bug Fixes
+
+* avoid double prompt render ([#139](https://github.com/atinylittleshell/gsh/issues/139)) ([bc9d05f](https://github.com/atinylittleshell/gsh/commit/bc9d05f320a14de028542cf5f152cd281bdaf60d))
+
 ## [1.1.4](https://github.com/atinylittleshell/gsh/compare/v1.1.3...v1.1.4) (2026-01-04)
 
 
