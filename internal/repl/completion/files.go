@@ -6,14 +6,14 @@ import (
 	"strings"
 )
 
-// osReadDir is a variable that can be overridden for testing.
-var osReadDir = os.ReadDir
+// OsReadDir is a variable that can be overridden for testing.
+var OsReadDir = os.ReadDir
 
-// getFileCompletions returns file completions for the given prefix in the current directory.
-func getFileCompletions(prefix string, currentDirectory string) []string {
+// GetFileCompletions returns file completions for the given prefix in the current directory.
+func GetFileCompletions(prefix string, currentDirectory string) []string {
 	if prefix == "" {
 		// If prefix is empty, use current directory
-		entries, err := osReadDir(currentDirectory)
+		entries, err := OsReadDir(currentDirectory)
 		if err != nil {
 			return []string{}
 		}
@@ -86,7 +86,7 @@ func getFileCompletions(prefix string, currentDirectory string) []string {
 	}
 
 	// Read directory contents
-	entries, err := osReadDir(dir)
+	entries, err := OsReadDir(dir)
 	if err != nil {
 		return []string{}
 	}
@@ -114,7 +114,11 @@ func getFileCompletions(prefix string, currentDirectory string) []string {
 			completionPath = filepath.Join(prefixDir, name)
 		default:
 			// For relative paths, keep them relative
-			if prefixDir == "." {
+			if strings.HasPrefix(prefix, "./") {
+				// Preserve explicit "./" prefix - filepath.Join would strip it
+				// Note: prefixDir from filepath.Dir("./foo/bar") is "foo" (already stripped "./")
+				completionPath = "./" + filepath.Join(prefixDir, name)
+			} else if prefixDir == "." {
 				completionPath = name
 			} else {
 				completionPath = filepath.Join(prefixDir, name)

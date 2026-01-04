@@ -10,20 +10,22 @@ import (
 	"mvdan.cc/sh/v3/interp"
 )
 
-// osReadDir is a variable that can be overridden for testing.
-var osReadDir = os.ReadDir
+// FileCompleterFunc is the signature for a file completion function.
+type FileCompleterFunc func(prefix string, currentDirectory string) []string
 
 // CommandCompleter provides completions for system commands, aliases, and executables.
 type CommandCompleter struct {
-	runner    *interp.Runner
-	pwdGetter func() string
+	runner        *interp.Runner
+	pwdGetter     func() string
+	fileCompleter FileCompleterFunc
 }
 
 // NewCommandCompleter creates a new CommandCompleter.
-func NewCommandCompleter(runner *interp.Runner, pwdGetter func() string) *CommandCompleter {
+func NewCommandCompleter(runner *interp.Runner, pwdGetter func() string, fileCompleter FileCompleterFunc) *CommandCompleter {
 	return &CommandCompleter{
-		runner:    runner,
-		pwdGetter: pwdGetter,
+		runner:        runner,
+		pwdGetter:     pwdGetter,
+		fileCompleter: fileCompleter,
 	}
 }
 
@@ -37,74 +39,55 @@ func (c *CommandCompleter) IsPathBasedCommand(command string) bool {
 		strings.Contains(command, "/") // Any path with directory separator
 }
 
-// GetExecutableCompletions returns executable files that match the given path prefix.
+// GetExecutableCompletions returns executable files and directories that match the given path prefix.
+// Directories are included so users can navigate into them.
 func (c *CommandCompleter) GetExecutableCompletions(pathPrefix string) []string {
-	// Determine the directory to search and the filename prefix
-	var searchDir, filePrefix string
-
-	if strings.HasSuffix(pathPrefix, "/") {
-		// Path ends with /, so we want all executables in that directory
-		searchDir = pathPrefix
-		filePrefix = ""
-	} else {
-		// Extract directory and filename parts
-		searchDir = filepath.Dir(pathPrefix)
-		filePrefix = filepath.Base(pathPrefix)
-
-		// Handle special case where pathPrefix doesn't contain a directory separator
-		if searchDir == "." && !strings.Contains(pathPrefix, "/") {
-			return []string{} // This shouldn't be a path-based command
-		}
+	// Handle special case where pathPrefix doesn't contain a directory separator
+	if !strings.Contains(pathPrefix, "/") {
+		return []string{} // This shouldn't be a path-based command
 	}
 
-	// Resolve the search directory
-	var resolvedDir string
-	if strings.HasPrefix(searchDir, "~/") {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return []string{}
-		}
-		resolvedDir = filepath.Join(homeDir, searchDir[2:])
-	} else if filepath.IsAbs(searchDir) {
-		resolvedDir = searchDir
-	} else {
-		// Relative path
-		currentDir := c.pwdGetter()
-		resolvedDir = filepath.Join(currentDir, searchDir)
-	}
+	// Use the injected file completer for consistent path handling (including "./" preservation)
+	allCompletions := c.fileCompleter(pathPrefix, c.pwdGetter())
 
-	// Read directory contents
-	entries, err := osReadDir(resolvedDir)
-	if err != nil {
-		return []string{}
-	}
-
-	var completions []string
-	for _, entry := range entries {
-		// Skip directories and non-matching files
-		if entry.IsDir() || !strings.HasPrefix(entry.Name(), filePrefix) {
+	// Filter to only executables and directories
+	var executableCompletions []string
+	for _, comp := range allCompletions {
+		// Directories are always included (they end with "/")
+		if strings.HasSuffix(comp, "/") {
+			executableCompletions = append(executableCompletions, comp)
 			continue
 		}
 
-		// Check if file is executable (simplified check)
-		// In a more complete implementation, we'd check file permissions
-		if info, err := entry.Info(); err == nil {
+		// For files, check if executable
+		fullPath := c.resolveCompletionPath(comp)
+		if info, err := os.Stat(fullPath); err == nil {
 			// On Unix-like systems, check if any execute bit is set
 			if info.Mode()&0111 != 0 {
-				// Build the completion preserving the original path structure
-				if strings.HasSuffix(pathPrefix, "/") {
-					completions = append(completions, pathPrefix+entry.Name())
-				} else {
-					// Replace the filename part with the matched file
-					completions = append(completions, filepath.Join(searchDir, entry.Name()))
-				}
+				executableCompletions = append(executableCompletions, comp)
 			}
 		}
 	}
 
-	// Sort alphabetically for consistent ordering
-	sort.Strings(completions)
-	return completions
+	return executableCompletions
+}
+
+// resolveCompletionPath resolves a completion path to an absolute path for checking file info.
+func (c *CommandCompleter) resolveCompletionPath(comp string) string {
+	// Handle home directory
+	if strings.HasPrefix(comp, "~/") {
+		if homeDir, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(homeDir, comp[2:])
+		}
+	}
+
+	// Handle absolute paths
+	if filepath.IsAbs(comp) {
+		return comp
+	}
+
+	// Relative path - resolve against current directory
+	return filepath.Join(c.pwdGetter(), comp)
 }
 
 // GetAvailableCommands returns available system commands that match the given prefix.
@@ -126,7 +109,7 @@ func (c *CommandCompleter) GetAvailableCommands(prefix string) []string {
 
 		// Search each directory in PATH
 		for _, dir := range pathDirs {
-			entries, err := osReadDir(dir)
+			entries, err := os.ReadDir(dir)
 			if err != nil {
 				continue // Skip directories we can't read
 			}
