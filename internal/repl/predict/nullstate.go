@@ -118,7 +118,7 @@ Now predict what my next command should be.`, BestPractices, contextText)
 		},
 	}
 
-	response, err := model.ChatCompletion(request)
+	response, err := model.ChatCompletion(ctx, request)
 	if err != nil {
 		return "", err
 	}

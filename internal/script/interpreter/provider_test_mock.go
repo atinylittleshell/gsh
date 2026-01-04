@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -51,7 +52,7 @@ func getMessageContent(msg ChatMessage) string {
 }
 
 // ChatCompletion simulates an LLM response
-func (m *MockProvider) ChatCompletion(request ChatRequest) (*ChatResponse, error) {
+func (m *MockProvider) ChatCompletion(ctx context.Context, request ChatRequest) (*ChatResponse, error) {
 	// Track the call
 	m.CallHistory = append(m.CallHistory, request)
 
@@ -116,9 +117,9 @@ func (m *MockProvider) GetLastRequest() *ChatRequest {
 }
 
 // StreamingChatCompletion simulates streaming by calling the callback with the full response
-func (m *MockProvider) StreamingChatCompletion(request ChatRequest, callback StreamCallback) (*ChatResponse, error) {
+func (m *MockProvider) StreamingChatCompletion(ctx context.Context, request ChatRequest, callback StreamCallback) (*ChatResponse, error) {
 	// Get the non-streaming response
-	response, err := m.ChatCompletion(request)
+	response, err := m.ChatCompletion(ctx, request)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +152,7 @@ func (s *SmartMockProvider) Name() string {
 }
 
 // ChatCompletion simulates an intelligent LLM response
-func (s *SmartMockProvider) ChatCompletion(request ChatRequest) (*ChatResponse, error) {
+func (s *SmartMockProvider) ChatCompletion(ctx context.Context, request ChatRequest) (*ChatResponse, error) {
 	// Track the call
 	s.CallHistory = append(s.CallHistory, request)
 
@@ -336,9 +337,9 @@ func (s *SmartMockProvider) GetLastRequest() *ChatRequest {
 }
 
 // StreamingChatCompletion simulates streaming by calling the callbacks with the full response
-func (s *SmartMockProvider) StreamingChatCompletion(request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error) {
+func (s *SmartMockProvider) StreamingChatCompletion(ctx context.Context, request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error) {
 	// Get the non-streaming response
-	response, err := s.ChatCompletion(request)
+	response, err := s.ChatCompletion(ctx, request)
 	if err != nil {
 		return nil, err
 	}

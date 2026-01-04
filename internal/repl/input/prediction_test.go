@@ -586,15 +586,15 @@ func (m *mockModelProvider) Name() string {
 	return "mock"
 }
 
-func (m *mockModelProvider) ChatCompletion(request interpreter.ChatRequest) (*interpreter.ChatResponse, error) {
+func (m *mockModelProvider) ChatCompletion(ctx context.Context, request interpreter.ChatRequest) (*interpreter.ChatResponse, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
 	return m.response, nil
 }
 
-func (m *mockModelProvider) StreamingChatCompletion(request interpreter.ChatRequest, callbacks *interpreter.StreamCallbacks) (*interpreter.ChatResponse, error) {
-	response, err := m.ChatCompletion(request)
+func (m *mockModelProvider) StreamingChatCompletion(ctx context.Context, request interpreter.ChatRequest, callbacks *interpreter.StreamCallbacks) (*interpreter.ChatResponse, error) {
+	response, err := m.ChatCompletion(ctx, request)
 	if err != nil {
 		return nil, err
 	}

@@ -708,7 +708,7 @@ type mockModelProvider struct {
 
 func (m *mockModelProvider) Name() string { return m.name }
 
-func (m *mockModelProvider) ChatCompletion(request ChatRequest) (*ChatResponse, error) {
+func (m *mockModelProvider) ChatCompletion(ctx context.Context, request ChatRequest) (*ChatResponse, error) {
 	// Record which model was used
 	m.calledWithModel = request.Model.Name
 	return &ChatResponse{
@@ -717,7 +717,7 @@ func (m *mockModelProvider) ChatCompletion(request ChatRequest) (*ChatResponse, 
 	}, nil
 }
 
-func (m *mockModelProvider) StreamingChatCompletion(request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error) {
+func (m *mockModelProvider) StreamingChatCompletion(ctx context.Context, request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error) {
 	// Record which model was used
 	m.calledWithModel = request.Model.Name
 	return &ChatResponse{

@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -701,7 +702,7 @@ type chainedToolCallMockProvider struct {
 
 func (c *chainedToolCallMockProvider) Name() string { return "chained-mock" }
 
-func (c *chainedToolCallMockProvider) ChatCompletion(request ChatRequest) (*ChatResponse, error) {
+func (c *chainedToolCallMockProvider) ChatCompletion(ctx context.Context, request ChatRequest) (*ChatResponse, error) {
 	c.callCount++
 
 	// Check which tools have been called based on conversation history
@@ -747,8 +748,8 @@ func (c *chainedToolCallMockProvider) ChatCompletion(request ChatRequest) (*Chat
 	}, nil
 }
 
-func (c *chainedToolCallMockProvider) StreamingChatCompletion(request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error) {
-	response, err := c.ChatCompletion(request)
+func (c *chainedToolCallMockProvider) StreamingChatCompletion(ctx context.Context, request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error) {
+	response, err := c.ChatCompletion(ctx, request)
 	if err != nil {
 		return nil, err
 	}
@@ -765,7 +766,7 @@ type infiniteToolCallMockProvider struct {
 
 func (i *infiniteToolCallMockProvider) Name() string { return "infinite-mock" }
 
-func (i *infiniteToolCallMockProvider) ChatCompletion(request ChatRequest) (*ChatResponse, error) {
+func (i *infiniteToolCallMockProvider) ChatCompletion(ctx context.Context, request ChatRequest) (*ChatResponse, error) {
 	i.callCount++
 	return &ChatResponse{
 		Content: "I need to use a tool.",
@@ -775,8 +776,8 @@ func (i *infiniteToolCallMockProvider) ChatCompletion(request ChatRequest) (*Cha
 	}, nil
 }
 
-func (i *infiniteToolCallMockProvider) StreamingChatCompletion(request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error) {
-	response, err := i.ChatCompletion(request)
+func (i *infiniteToolCallMockProvider) StreamingChatCompletion(ctx context.Context, request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error) {
+	response, err := i.ChatCompletion(ctx, request)
 	if err != nil {
 		return nil, err
 	}

@@ -1,17 +1,21 @@
 package interpreter
 
+import "context"
+
 // ModelProvider defines the interface for LLM model providers
 type ModelProvider interface {
 	// Name returns the provider name (e.g., "openai", "anthropic")
 	Name() string
 
-	// ChatCompletion sends a chat completion request
-	ChatCompletion(request ChatRequest) (*ChatResponse, error)
+	// ChatCompletion sends a chat completion request.
+	// The ctx parameter allows cancellation of the request (e.g., via Ctrl+C).
+	ChatCompletion(ctx context.Context, request ChatRequest) (*ChatResponse, error)
 
 	// StreamingChatCompletion sends a chat completion request with streaming response.
+	// The ctx parameter allows cancellation of the streaming request (e.g., via Ctrl+C).
 	// The callbacks provide hooks for content chunks and tool call detection.
 	// Returns the final complete response after streaming is done.
-	StreamingChatCompletion(request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error)
+	StreamingChatCompletion(ctx context.Context, request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error)
 }
 
 // StreamCallback is called for each chunk of streamed content.
