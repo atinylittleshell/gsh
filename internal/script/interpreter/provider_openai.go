@@ -3,6 +3,7 @@ package interpreter
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -77,8 +78,9 @@ func convertMessageContent(msg ChatMessage) []openAIContentPart {
 	}
 }
 
-// ChatCompletion sends a chat completion request to OpenAI
-func (p *OpenAIProvider) ChatCompletion(request ChatRequest) (*ChatResponse, error) {
+// ChatCompletion sends a chat completion request to OpenAI.
+// The ctx parameter allows cancellation of the request (e.g., via Ctrl+C).
+func (p *OpenAIProvider) ChatCompletion(ctx context.Context, request ChatRequest) (*ChatResponse, error) {
 	if request.Model == nil {
 		return nil, fmt.Errorf("OpenAI provider requires a model")
 	}
@@ -205,8 +207,8 @@ func (p *OpenAIProvider) ChatCompletion(request ChatRequest) (*ChatResponse, err
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// Create HTTP request
-	httpReq, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(reqBody))
+	// Create HTTP request with context for cancellation support
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -296,8 +298,9 @@ func (p *OpenAIProvider) ChatCompletion(request ChatRequest) (*ChatResponse, err
 }
 
 // StreamingChatCompletion sends a chat completion request with streaming response.
+// The ctx parameter allows cancellation of the streaming request (e.g., via Ctrl+C).
 // The callbacks provide hooks for content chunks and tool call detection.
-func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error) {
+func (p *OpenAIProvider) StreamingChatCompletion(ctx context.Context, request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error) {
 	if request.Model == nil {
 		return nil, fmt.Errorf("OpenAI provider requires a model")
 	}
@@ -428,8 +431,8 @@ func (p *OpenAIProvider) StreamingChatCompletion(request ChatRequest, callbacks 
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// Create HTTP request
-	httpReq, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(reqBody))
+	// Create HTTP request with context for cancellation support
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

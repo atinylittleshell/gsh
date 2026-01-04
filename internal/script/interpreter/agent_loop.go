@@ -245,14 +245,19 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 					callbacks.OnToolPending(toolCallID, toolName)
 				}
 			}
-			response, err = model.Provider.StreamingChatCompletion(request, streamCallbacks)
+			response, err = model.Provider.StreamingChatCompletion(ctx, request, streamCallbacks)
 		} else {
 			// Non-streaming call
-			response, err = model.ChatCompletion(request)
+			response, err = model.ChatCompletion(ctx, request)
 		}
 
 		if err != nil {
-			err = fmt.Errorf("agent execution failed: %w", err)
+			// Check if the error is due to context cancellation (e.g., Ctrl+C interrupt)
+			if ctx.Err() == context.Canceled {
+				err = fmt.Errorf("agent interrupted")
+			} else {
+				err = fmt.Errorf("agent execution failed: %w", err)
+			}
 			callOnComplete(acp.StopReasonError, err)
 			return nil, err
 		}

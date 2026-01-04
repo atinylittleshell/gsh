@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -507,24 +508,26 @@ func (m *ModelValue) GetModel() *ModelValue {
 
 // ChatCompletion performs a chat completion using this model's provider.
 // This is a convenience method that delegates to the model's provider.
-func (m *ModelValue) ChatCompletion(request ChatRequest) (*ChatResponse, error) {
+// The ctx parameter allows cancellation of the request (e.g., via Ctrl+C).
+func (m *ModelValue) ChatCompletion(ctx context.Context, request ChatRequest) (*ChatResponse, error) {
 	if m.Provider == nil {
 		return nil, fmt.Errorf("model '%s' has no provider configured", m.Name)
 	}
 	// Ensure the request uses this model
 	request.Model = m
-	return m.Provider.ChatCompletion(request)
+	return m.Provider.ChatCompletion(ctx, request)
 }
 
 // StreamingChatCompletion performs a streaming chat completion using this model's provider.
 // This is a convenience method that delegates to the model's provider.
-func (m *ModelValue) StreamingChatCompletion(request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error) {
+// The ctx parameter allows cancellation of the streaming request (e.g., via Ctrl+C).
+func (m *ModelValue) StreamingChatCompletion(ctx context.Context, request ChatRequest, callbacks *StreamCallbacks) (*ChatResponse, error) {
 	if m.Provider == nil {
 		return nil, fmt.Errorf("model '%s' has no provider configured", m.Name)
 	}
 	// Ensure the request uses this model
 	request.Model = m
-	return m.Provider.StreamingChatCompletion(request, callbacks)
+	return m.Provider.StreamingChatCompletion(ctx, request, callbacks)
 }
 
 // AgentValue represents an agent configuration

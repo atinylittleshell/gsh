@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -269,7 +270,7 @@ func TestOpenAIProviderChatCompletion(t *testing.T) {
 
 			// Create provider and make request
 			provider := NewOpenAIProvider()
-			resp, err := provider.ChatCompletion(tt.request)
+			resp, err := provider.ChatCompletion(context.Background(), tt.request)
 
 			// Check error
 			if tt.expectedError != "" {
@@ -426,7 +427,7 @@ func TestOpenAIProviderToolCallMessageFields(t *testing.T) {
 		},
 	}
 
-	resp, err := provider.ChatCompletion(req)
+	resp, err := provider.ChatCompletion(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -527,7 +528,7 @@ func TestOpenAIProviderAssistantToolCallEmptyContentHasTextField(t *testing.T) {
 		},
 	}
 
-	_, err := provider.ChatCompletion(req)
+	_, err := provider.ChatCompletion(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -579,7 +580,7 @@ func TestOpenAIProviderCachedTokens(t *testing.T) {
 		},
 	}
 
-	resp, err := provider.ChatCompletion(req)
+	resp, err := provider.ChatCompletion(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -652,7 +653,7 @@ func TestOpenAIProviderContentParts(t *testing.T) {
 		},
 	}
 
-	resp, err := provider.ChatCompletion(req)
+	resp, err := provider.ChatCompletion(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -774,7 +775,7 @@ func TestOpenAIProviderCustomBaseURL(t *testing.T) {
 		},
 	}
 
-	_, err := provider.ChatCompletion(req)
+	_, err := provider.ChatCompletion(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

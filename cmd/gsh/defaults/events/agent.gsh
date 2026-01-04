@@ -49,7 +49,7 @@ tool onAgentEnd(ctx, next) {
     # Check if there was an error
     if (ctx.error != null) {
         # Print the error message first
-        print(`${gsh.ui.styles.error("error: ")}${ctx.error}`)
+        print(ctx.error)
         
         # Show error footer
         text = "error"

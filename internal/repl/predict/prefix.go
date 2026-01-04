@@ -126,7 +126,7 @@ Respond with JSON in this format: {"predicted_command": "your prediction here"}
 		},
 	}
 
-	response, err := model.ChatCompletion(request)
+	response, err := model.ChatCompletion(ctx, request)
 	if err != nil {
 		return "", err
 	}
