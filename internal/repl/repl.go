@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -53,6 +54,8 @@ type REPL struct {
 	// Startup tracking
 	startTime      time.Time
 	startupTracker StartupTimeTracker
+
+	sigintChannelFactory func() (chan os.Signal, func())
 }
 
 // Options holds configuration options for creating a new REPL.
@@ -246,9 +249,28 @@ func NewREPL(opts Options) (*REPL, error) {
 		logger:             logger,
 		startTime:          opts.StartTime,
 		startupTracker:     opts.StartupTracker,
+		sigintChannelFactory: func() (chan os.Signal, func()) {
+			ch := make(chan os.Signal, 1)
+			signal.Notify(ch, syscall.SIGINT)
+			return ch, func() { signal.Stop(ch) }
+		},
 	}
 
 	return repl, nil
+}
+
+func (r *REPL) newSigintChannel() (chan os.Signal, func()) {
+	if r.sigintChannelFactory != nil {
+		return r.sigintChannelFactory()
+	}
+
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGINT)
+	return ch, func() { signal.Stop(ch) }
+}
+
+func (r *REPL) setSigintChannelFactory(factory func() (chan os.Signal, func())) {
+	r.sigintChannelFactory = factory
 }
 
 // Run starts the interactive REPL loop.
@@ -396,23 +418,31 @@ func (r *REPL) processCommand(ctx context.Context, command string) error {
 	defer cancel()
 
 	// Set up signal handling for SIGINT (Ctrl+C)
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT)
-	defer signal.Stop(sigChan)
+	sigChan, stopSigint := r.newSigintChannel()
+	defer stopSigint()
 
 	// Track if we were interrupted
 	interrupted := false
+	var ignoreSigint atomic.Bool
 
 	// Start a goroutine to handle SIGINT
 	go func() {
-		select {
-		case <-sigChan:
-			// Ctrl+C received - cancel the context
-			// Note: The terminal echoes ^C automatically, so we don't print it here
-			interrupted = true
-			cancel()
-		case <-cmdCtx.Done():
-			// Context was cancelled for another reason, exit goroutine
+		for {
+			select {
+			case <-sigChan:
+				// When a foreground child owns the terminal, let it handle SIGINT.
+				if ignoreSigint.Load() {
+					continue
+				}
+				// Ctrl+C received - cancel the context
+				// Note: The terminal echoes ^C automatically, so we don't print it here
+				interrupted = true
+				cancel()
+				return
+			case <-cmdCtx.Done():
+				// Context was cancelled for another reason, exit goroutine
+				return
+			}
 		}
 	}()
 
@@ -494,7 +524,9 @@ func (r *REPL) processCommand(ctx context.Context, command string) error {
 	}
 
 	// Fall through: execute as shell command
+	ignoreSigint.Store(true)
 	exitCode := r.executeShellCommand(cmdCtx, command)
+	ignoreSigint.Store(false)
 
 	// Finish history entry with actual exit code
 	if historyEntry != nil {
