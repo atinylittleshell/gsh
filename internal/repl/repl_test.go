@@ -2,7 +2,9 @@ package repl
 
 import (
 	"context"
+	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -1010,6 +1012,53 @@ tool slowMiddleware(ctx, next) {
 	require.Len(t, entries, 1)
 	assert.Equal(t, "test command", entries[0].Command)
 	// Exit code 0 for middleware-handled command
+	assert.True(t, entries[0].ExitCode.Valid)
+	assert.Equal(t, int32(0), entries[0].ExitCode.Int32)
+}
+
+func TestREPL_ProcessCommand_IgnoresSigintWhileWaitingForChild(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.db")
+	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
+
+	repl, err := NewREPL(Options{
+		ConfigPath:  configPath,
+		HistoryPath: historyPath,
+		Logger:      zap.NewNop(),
+	})
+	require.NoError(t, err)
+	defer repl.Close()
+
+	sigChan := make(chan os.Signal, 1)
+	repl.setSigintChannelFactory(func() (chan os.Signal, func()) {
+		return sigChan, func() {}
+	})
+
+	ctx := context.Background()
+	done := make(chan struct{})
+	go func() {
+		_ = repl.processCommand(ctx, "sleep 2")
+		close(done)
+	}()
+
+	// Give the command time to start and become the foreground job.
+	time.Sleep(200 * time.Millisecond)
+
+	// Deliver SIGINT to the REPL handler channel; the child should own it.
+	sigChan <- syscall.SIGINT
+
+	// The command should keep running for a bit instead of being interrupted immediately.
+	select {
+	case <-done:
+		t.Fatal("command was interrupted by parent SIGINT")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	<-done
+
+	entries, err := repl.History().GetRecentEntries("", 10)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
 	assert.True(t, entries[0].ExitCode.Valid)
 	assert.Equal(t, int32(0), entries[0].ExitCode.Int32)
 }
