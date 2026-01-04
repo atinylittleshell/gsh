@@ -3,8 +3,10 @@ package appupdate
 import (
 	"bytes"
 	"context"
+	"io"
 
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/atinylittleshell/gsh/internal/core"
@@ -189,4 +191,79 @@ func TestHandleSelfUpdate_MajorVersionBoundary(t *testing.T) {
 
 	// Should NOT update across major version boundary
 	mockUpdater.AssertNotCalled(t, "UpdateTo")
+}
+
+func TestIsHomebrewInstall(t *testing.T) {
+	logger := zap.NewNop()
+	originalExecutablePath := executablePath
+	defer func() { executablePath = originalExecutablePath }()
+
+	testCases := []struct {
+		name     string
+		path     string
+		expected bool
+	}{
+		{"arm64 default cellar", filepath.Join("/opt", "homebrew", "Cellar", "gsh", "1.2.3", "bin", "gsh"), true},
+		{"intel default cellar", filepath.Join("/usr", "local", "Cellar", "gsh", "1.2.3", "bin", "gsh"), true},
+		{"linuxbrew cellar", filepath.Join("/home", "linuxbrew", ".linuxbrew", "Cellar", "gsh", "1.2.3", "bin", "gsh"), true},
+		{"non-homebrew", filepath.Join("/usr", "local", "bin", "gsh"), false},
+	}
+
+	for _, tc := range testCases {
+		executablePath = func() (string, error) {
+			return tc.path, nil
+		}
+		assert.Equal(t, tc.expected, isHomebrewInstall(logger), tc.name)
+	}
+}
+
+func TestHandleSelfUpdate_HomebrewSkipsBinaryUpdate(t *testing.T) {
+	logger := zap.NewNop()
+	originalExecutablePath := executablePath
+	defer func() { executablePath = originalExecutablePath }()
+
+	executablePath = func() (string, error) {
+		return filepath.Join("/opt", "homebrew", "Cellar", "gsh", "1.0.0", "bin", "gsh"), nil
+	}
+
+	mockFS := new(MockFileSystem)
+	mockUpdater := new(MockUpdater)
+	mockRemoteRelease := new(MockRelease)
+
+	mockFileForRead, _ := os.CreateTemp("", "test-latest-version-read")
+	defer os.Remove(mockFileForRead.Name())
+	mockFileForRead.Write([]byte("1.2.0"))
+	mockFileForRead.Seek(0, 0)
+
+	mockFileForWrite, _ := os.CreateTemp("", "test-latest-version-write")
+	defer os.Remove(mockFileForWrite.Name())
+
+	mockFS.On("Open", core.LatestVersionFile()).Return(mockFileForRead, nil)
+	mockFS.On("Create", core.LatestVersionFile()).Return(mockFileForWrite, nil)
+
+	mockRemoteRelease.On("Version").Return("1.2.0")
+	mockUpdater.On("DetectLatest", mock.Anything, "atinylittleshell/gsh").Return(mockRemoteRelease, true, nil)
+
+	originalStdout := os.Stdout
+	readPipe, writePipe, _ := os.Pipe()
+	os.Stdout = writePipe
+
+	resultChannel := HandleSelfUpdate("1.0.0", logger, mockFS, mockUpdater)
+
+	remoteVersion, ok := <-resultChannel
+	writePipe.Close()
+	os.Stdout = originalStdout
+
+	outputBytes, _ := io.ReadAll(readPipe)
+	output := string(outputBytes)
+
+	assert.Equal(t, true, ok)
+	assert.Equal(t, "1.2.0", remoteVersion)
+	assert.Contains(t, output, "Homebrew")
+	assert.Contains(t, output, "brew update && brew upgrade gsh")
+
+	mockUpdater.AssertNotCalled(t, "UpdateTo")
+	mockFS.AssertExpectations(t)
+	mockRemoteRelease.AssertExpectations(t)
+	mockUpdater.AssertExpectations(t)
 }
