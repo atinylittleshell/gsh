@@ -6,6 +6,10 @@
 [![Test Coverage](https://codecov.io/gh/atinylittleshell/gsh/branch/main/graph/badge.svg?token=U7HWPOEPTF)](https://codecov.io/gh/atinylittleshell/gsh)
 
 <p align="center">
+    <img alt="gsh" src="https://github.com/atinylittleshell/gsh/blob/main/assets/banner.png?raw=true">
+</p>
+
+<p align="center">
 A battery-included, POSIX-compatible, <ins>G</ins>enerative <ins>Sh</ins>ell.
 </p>
 
