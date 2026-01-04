@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.4](https://github.com/atinylittleshell/gsh/compare/v1.1.3...v1.1.4) (2026-01-04)
+
+
+### Bug Fixes
+
+* improve agent interruption behavior ([#135](https://github.com/atinylittleshell/gsh/issues/135)) ([4239876](https://github.com/atinylittleshell/gsh/commit/423987618edd3ef034ad1182e09cf79632f0271a))
+
 ## [1.1.3](https://github.com/atinylittleshell/gsh/compare/v1.1.2...v1.1.3) (2026-01-04)
 
 
