@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.6](https://github.com/atinylittleshell/gsh/compare/v1.1.5...v1.1.6) (2026-01-04)
+
+
+### Bug Fixes
+
+* make tab completion work for relative paths ([#141](https://github.com/atinylittleshell/gsh/issues/141)) ([0d88260](https://github.com/atinylittleshell/gsh/commit/0d8826047855ad27132a04ef2dfe137c3ed900cf))
+
 ## [1.1.5](https://github.com/atinylittleshell/gsh/compare/v1.1.4...v1.1.5) (2026-01-04)
 
 
