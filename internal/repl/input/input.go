@@ -65,9 +65,10 @@ type Model struct {
 	currentPrediction string
 
 	// Rendering
-	renderer  *Renderer
-	width     int
-	minHeight int
+	renderer          *Renderer
+	width             int
+	minHeight         int
+	hasReceivedResize bool // tracks if we've received the initial WindowSizeMsg
 
 	// Info panel content (help text, etc.)
 	infoContent InfoPanelContent
@@ -193,8 +194,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		// Track whether this is a real resize or just the initial size message
+		isActualResize := m.hasReceivedResize && msg.Width != m.width
+		m.hasReceivedResize = true
 		m.width = msg.Width
 		m.renderer.SetWidth(msg.Width)
+		// Only clear the screen on actual resize to prevent duplicate prompt rendering.
+		// Don't clear on the initial WindowSizeMsg to preserve the welcome screen.
+		if isActualResize {
+			return m, tea.ClearScreen
+		}
 		return m, nil
 
 	case tea.KeyMsg:

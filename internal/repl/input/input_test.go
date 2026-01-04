@@ -529,12 +529,40 @@ func TestCompletionCancel(t *testing.T) {
 func TestWindowResize(t *testing.T) {
 	m := New(Config{Width: 80})
 
+	// First WindowSizeMsg is the initial size - should NOT clear screen
+	// (to preserve the welcome screen)
 	msg := tea.WindowSizeMsg{Width: 120, Height: 40}
-	newModel, _ := m.Update(msg)
+	newModel, cmd := m.Update(msg)
 	m = newModel.(Model)
 
 	if m.width != 120 {
 		t.Errorf("expected width 120, got %d", m.width)
+	}
+
+	if cmd != nil {
+		t.Error("expected nil command on initial window size, got non-nil")
+	}
+
+	// Second WindowSizeMsg with different width is an actual resize - should clear screen
+	msg = tea.WindowSizeMsg{Width: 100, Height: 40}
+	newModel, cmd = m.Update(msg)
+	m = newModel.(Model)
+
+	if m.width != 100 {
+		t.Errorf("expected width 100, got %d", m.width)
+	}
+
+	if cmd == nil {
+		t.Error("expected ClearScreen command on actual resize, got nil")
+	}
+
+	// WindowSizeMsg with same width should NOT clear screen (no actual resize)
+	msg = tea.WindowSizeMsg{Width: 100, Height: 50}
+	newModel, cmd = m.Update(msg)
+	m = newModel.(Model)
+
+	if cmd != nil {
+		t.Error("expected nil command when width unchanged, got non-nil")
 	}
 }
 
