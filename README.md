@@ -83,6 +83,8 @@ if (diff.stdout == "") {
 gsh can delegate to powerful external agents via the Agent Client Protocol (ACP).
 
 ```gsh
+# ~/.gsh/repl.gsh
+
 acp ClaudeCode {
   command: "npx",
   args: ["-y", "@zed-industries/claude-code-acp"],
