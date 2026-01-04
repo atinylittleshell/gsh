@@ -1,3 +1,4 @@
+// Package completion provides tab completion functionality for the gsh REPL.
 package completion
 
 import (
@@ -11,8 +12,8 @@ import (
 // For testing purposes
 var printf = fmt.Printf
 
-// NewCompleteCommandHandler creates a new ExecHandler for the complete command
-func NewCompleteCommandHandler(completionManager *CompletionManager) func(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
+// NewCompleteCommandHandler creates a new ExecHandler for the complete command.
+func NewCompleteCommandHandler(specRegistry *SpecRegistry) func(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
 	return func(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
 		return func(ctx context.Context, args []string) error {
 			if len(args) == 0 || args[0] != "complete" {
@@ -20,15 +21,15 @@ func NewCompleteCommandHandler(completionManager *CompletionManager) func(next i
 			}
 
 			// Handle the complete command
-			return handleCompleteCommand(completionManager, args[1:])
+			return handleCompleteCommand(specRegistry, args[1:])
 		}
 	}
 }
 
-func handleCompleteCommand(manager *CompletionManager, args []string) error {
+func handleCompleteCommand(registry *SpecRegistry, args []string) error {
 	if len(args) == 0 {
 		// No arguments - print all completion specs
-		return printCompletionSpecs(manager, "")
+		return printCompletionSpecs(registry, "")
 	}
 
 	// Parse options
@@ -74,16 +75,16 @@ func handleCompleteCommand(manager *CompletionManager, args []string) error {
 
 	// Handle different modes
 	if printMode {
-		return printCompletionSpecs(manager, command)
+		return printCompletionSpecs(registry, command)
 	}
 
 	if removeMode {
-		manager.RemoveSpec(command)
+		registry.RemoveSpec(command)
 		return nil
 	}
 
 	if wordList != "" {
-		manager.AddSpec(CompletionSpec{
+		registry.AddSpec(CompletionSpec{
 			Command: command,
 			Type:    WordListCompletion,
 			Value:   wordList,
@@ -92,7 +93,7 @@ func handleCompleteCommand(manager *CompletionManager, args []string) error {
 	}
 
 	if function != "" {
-		manager.AddSpec(CompletionSpec{
+		registry.AddSpec(CompletionSpec{
 			Command: command,
 			Type:    FunctionCompletion,
 			Value:   function,
@@ -103,17 +104,17 @@ func handleCompleteCommand(manager *CompletionManager, args []string) error {
 	return fmt.Errorf("invalid complete command usage")
 }
 
-func printCompletionSpecs(manager *CompletionManager, command string) error {
+func printCompletionSpecs(registry *SpecRegistry, command string) error {
 	if command != "" {
 		// Print specific command
-		if spec, ok := manager.GetSpec(command); ok {
+		if spec, ok := registry.GetSpec(command); ok {
 			printCompletionSpec(spec)
 		}
 		return nil
 	}
 
 	// Print all specs
-	for _, spec := range manager.ListSpecs() {
+	for _, spec := range registry.ListSpecs() {
 		printCompletionSpec(spec)
 	}
 	return nil

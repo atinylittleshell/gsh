@@ -86,7 +86,7 @@ func TestSplitPreservingQuotes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := splitPreservingQuotes(tt.input)
+			result := SplitPreservingQuotes(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -137,7 +137,7 @@ func TestSplitPreservingQuotesEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := splitPreservingQuotes(tt.input)
+			result := SplitPreservingQuotes(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

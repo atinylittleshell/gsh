@@ -41,7 +41,7 @@ func NewProvider(runnerProvider RunnerProvider) *Provider {
 		runnerProvider:   runnerProvider,
 		macroCompleter:   completers.NewMacroCompleter(runner),
 		builtinCompleter: completers.NewBuiltinCompleter(),
-		commandCompleter: completers.NewCommandCompleter(runner, runnerProvider.GetPwd),
+		commandCompleter: completers.NewCommandCompleter(runner, runnerProvider.GetPwd, GetFileCompletions),
 	}
 }
 
@@ -64,7 +64,7 @@ func (p *Provider) GetCompletions(line string, pos int) []string {
 
 	// Split the line into words, preserving quotes
 	line = line[:pos]
-	words := splitPreservingQuotes(line)
+	words := SplitPreservingQuotes(line)
 	if len(words) == 0 {
 		return make([]string, 0)
 	}
@@ -124,7 +124,7 @@ func (p *Provider) GetCompletions(line string, pos int) []string {
 		return make([]string, 0)
 	}
 
-	completions := getFileCompletions(prefix, p.runnerProvider.GetPwd())
+	completions := GetFileCompletions(prefix, p.runnerProvider.GetPwd())
 
 	// Quote completions that contain spaces, but don't add command prefix
 	// The completion handler will replace only the current word (file path)
@@ -153,7 +153,7 @@ func (p *Provider) checkSpecialPrefixes(line string, pos int) []string {
 		if len(completions) == 0 {
 			// No macro matches found, fall back to path completion
 			pathPrefix := strings.TrimPrefix(currentWord, "#/")
-			completions := getFileCompletions(pathPrefix, p.runnerProvider.GetPwd())
+			completions := GetFileCompletions(pathPrefix, p.runnerProvider.GetPwd())
 
 			// Build the proper prefix for the current line context
 			var linePrefix string
@@ -173,7 +173,7 @@ func (p *Provider) checkSpecialPrefixes(line string, pos int) []string {
 		if len(completions) == 0 {
 			// No builtin command matches found, fall back to path completion
 			pathPrefix := strings.TrimPrefix(currentWord, "#!")
-			completions := getFileCompletions(pathPrefix, p.runnerProvider.GetPwd())
+			completions := GetFileCompletions(pathPrefix, p.runnerProvider.GetPwd())
 
 			// Build the proper prefix for the current line context
 			var linePrefix string
@@ -205,7 +205,7 @@ func (p *Provider) checkSpecialPrefixes(line string, pos int) []string {
 			if len(completions) == 0 {
 				// No macro matches found, fall back to path completion
 				pathPrefix := strings.TrimPrefix(potentialWord, "#/")
-				completions := getFileCompletions(pathPrefix, p.runnerProvider.GetPwd())
+				completions := GetFileCompletions(pathPrefix, p.runnerProvider.GetPwd())
 
 				// Build the proper prefix for the current line context
 				var linePrefix string
@@ -225,7 +225,7 @@ func (p *Provider) checkSpecialPrefixes(line string, pos int) []string {
 			if len(completions) == 0 {
 				// No builtin command matches found, fall back to path completion
 				pathPrefix := strings.TrimPrefix(potentialWord, "#!")
-				completions := getFileCompletions(pathPrefix, p.runnerProvider.GetPwd())
+				completions := GetFileCompletions(pathPrefix, p.runnerProvider.GetPwd())
 
 				// Build the proper prefix for the current line context
 				var linePrefix string

@@ -8,8 +8,8 @@ import (
 	"unicode"
 )
 
-// splitPreservingQuotes splits a command line into words while preserving quotes.
-func splitPreservingQuotes(line string) []string {
+// SplitPreservingQuotes splits a command line into words while preserving quotes.
+func SplitPreservingQuotes(line string) []string {
 	var words []string
 	var currentWord strings.Builder
 	inQuote := false

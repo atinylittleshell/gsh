@@ -35,11 +35,19 @@ type SpecRegistry struct {
 	specs map[string]CompletionSpec
 }
 
+// CompletionManager is an alias for SpecRegistry for backward compatibility.
+type CompletionManager = SpecRegistry
+
 // NewSpecRegistry creates a new SpecRegistry.
 func NewSpecRegistry() *SpecRegistry {
 	return &SpecRegistry{
 		specs: make(map[string]CompletionSpec),
 	}
+}
+
+// NewCompletionManager creates a new CompletionManager (alias for NewSpecRegistry).
+func NewCompletionManager() *CompletionManager {
+	return NewSpecRegistry()
 }
 
 // AddSpec adds or updates a completion specification.
