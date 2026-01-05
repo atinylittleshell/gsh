@@ -953,7 +953,7 @@ func TestREPL_ProcessCommand_ContextCancellationStopsShellCommand(t *testing.T) 
 	done := make(chan error, 1)
 	go func() {
 		// sleep 10 should be interrupted
-		done <- repl.processCommand(ctx, "sleep 10")
+		done <- repl.processCommand(ctx, "/bin/sleep 10")
 	}()
 
 	// Give the command a moment to start
@@ -1037,7 +1037,7 @@ func TestREPL_ProcessCommand_IgnoresSigintWhileWaitingForChild(t *testing.T) {
 	ctx := context.Background()
 	done := make(chan struct{})
 	go func() {
-		_ = repl.processCommand(ctx, "sleep 2")
+		_ = repl.processCommand(ctx, "/bin/sleep 2")
 		close(done)
 	}()
 
@@ -1083,7 +1083,7 @@ func TestREPL_ProcessCommand_ContextPassedToShellExecution(t *testing.T) {
 	// Try to run a command with already-cancelled context
 	// The command should fail quickly or return an error
 	start := time.Now()
-	_ = repl.processCommand(ctx, "sleep 5")
+	_ = repl.processCommand(ctx, "/bin/sleep 5")
 	elapsed := time.Since(start)
 
 	// Should complete much faster than 5 seconds because context is cancelled
