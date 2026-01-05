@@ -63,7 +63,7 @@ func TestIsUpgradeFromV0_FreshInstall(t *testing.T) {
 		core.ResetPaths()
 	}()
 
-	// Fresh install: no version marker, no history, no analytics
+	// Fresh install: no version marker and no history
 	// Should NOT be detected as upgrade from v0
 	assert.False(t, IsUpgradeFromV0())
 }

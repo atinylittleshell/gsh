@@ -37,7 +37,7 @@ type REPLExecutor struct {
 // The interpreter is required and provides the shared sh runner for bash execution.
 // The logger is optional (can be nil).
 // The execHandlers are optional middleware for intercepting command execution
-// (e.g., for analytics, history, completion).
+// (e.g., for history and completion).
 func NewREPLExecutor(interp *interpreter.Interpreter, logger *zap.Logger, execHandlers ...ExecMiddleware) (*REPLExecutor, error) {
 	if interp == nil {
 		return nil, fmt.Errorf("interpreter is required")
