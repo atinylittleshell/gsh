@@ -13,6 +13,10 @@ __THINKING_SPINNER_ID = "__thinking__"
 # Example output: "── gsh ─────────────────────────────"
 # For non-default agents: "── MyAgent ─────────────────────────"
 tool onAgentStart(ctx, next) {
+    if (ctx.agent.metadata.hidden) {
+      return next(ctx)
+    }
+
     width = gsh.terminal.width
     if (width > 80) {
         width = 80
@@ -38,6 +42,10 @@ gsh.use("agent.start", onAgentStart)
 # Tokens are formatted with K/M suffix for large numbers
 # Duration uses appropriate units (ms, s, m, h, d)
 tool onAgentEnd(ctx, next) {
+    if (ctx.agent.metadata.hidden) {
+      return next(ctx)
+    }
+
     # Always stop the thinking spinner (in case error occurred before any content)
     gsh.ui.spinner.stop(__THINKING_SPINNER_ID)
 
@@ -122,6 +130,10 @@ gsh.use("agent.end", onAgentEnd)
 
 # Renders the thinking spinner when agent iteration starts
 tool onIterationStart(ctx, next) {
+    if (ctx.agent.metadata.hidden) {
+      return next(ctx)
+    }
+
     gsh.ui.spinner.start("Thinking...", __THINKING_SPINNER_ID)
     __printedRealText = false
     return next(ctx)
@@ -130,6 +142,10 @@ gsh.use("agent.iteration.start", onIterationStart)
 
 # Handles each chunk of agent output - stops thinking spinner and prints content
 tool onChunk(ctx, next) {
+    if (ctx.agent.metadata.hidden) {
+      return next(ctx)
+    }
+
     content = ctx.content
 
     # Check if this is real content (not just whitespace)
@@ -159,6 +175,10 @@ gsh.use("agent.chunk", onChunk)
 # This fires before args are complete - we show the tool name spinner
 # The spinner manager ensures only the most recent spinner renders
 tool onToolPending(ctx, next) {
+    if (ctx.agent.metadata.hidden) {
+      return next(ctx)
+    }
+
     # Stop thinking spinner
     gsh.ui.spinner.stop(__THINKING_SPINNER_ID)
     
@@ -173,6 +193,10 @@ gsh.use("agent.tool.pending", onToolPending)
 # For exec tool: shows the command being executed (e.g., "▶ ls -la")
 # For other tools: shows the tool name with dimmed args on separate lines
 tool onToolStart(ctx, next) {
+    if (ctx.agent.metadata.hidden) {
+      return next(ctx)
+    }
+
     # Stop the pending spinner for this tool (uses same ID)
     gsh.ui.spinner.stop(ctx.toolCall.id)
     
@@ -219,6 +243,10 @@ gsh.use("agent.tool.start", onToolStart)
 #   Example output (success): "● grep ✓ (0.02s)"
 #   Example output (error):   "● grep ✗ (0.01s)"
 tool onToolEnd(ctx, next) {
+    if (ctx.agent.metadata.hidden) {
+      return next(ctx)
+    }
+
     durationSec = (ctx.toolCall.durationMs / 1000).toFixed(2)
     
     # Special handling for exec tool - parse exit code from output

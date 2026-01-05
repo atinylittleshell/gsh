@@ -7,6 +7,7 @@ This chapter documents the event system for customizing gsh behavior.
 ## Overview
 
 Events in gsh use a unified middleware chain model. Every event handler receives `(ctx, next)` and can:
+
 - **Pass through**: Call `return next(ctx)` to continue to the next handler
 - **Stop chain**: Return a value without calling `next()` to stop processing
 - **Transform**: Modify `ctx` before calling `next(ctx)`
@@ -65,13 +66,13 @@ All handlers use the middleware signature `(ctx, next)`:
 ```gsh
 tool myHandler(ctx, next) {
     # ctx contains event-specific context
-    
+
     # Option 1: Pass through to next handler
     return next(ctx)
-    
+
     # Option 2: Stop chain and return override
     return { result: "override value" }
-    
+
     # Option 3: Transform context, then continue
     ctx.someProperty = "modified"
     return next(ctx)
@@ -112,6 +113,60 @@ tool myPrompt(ctx, next) {
 gsh.use("repl.prompt", myPrompt)
 ```
 
+### `repl.exit`
+
+Fired when the REPL is about to exit (via `exit` command or Ctrl+D).
+
+**Context:** `null`
+
+```gsh
+tool onExit(ctx, next) {
+    print("Goodbye!")
+    return next(ctx)
+}
+gsh.use("repl.exit", onExit)
+```
+
+### `repl.command.before`
+
+Fired before a shell command is executed.
+
+**Context:**
+
+| Property      | Type     | Description                |
+| ------------- | -------- | -------------------------- |
+| `ctx.command` | `string` | The command to be executed |
+
+```gsh
+tool beforeCommand(ctx, next) {
+    print("Running: " + ctx.command)
+    return next(ctx)
+}
+gsh.use("repl.command.before", beforeCommand)
+```
+
+### `repl.command.after`
+
+Fired after a shell command has finished executing.
+
+**Context:**
+
+| Property         | Type     | Description                    |
+| ---------------- | -------- | ------------------------------ |
+| `ctx.command`    | `string` | The command that was executed  |
+| `ctx.exitCode`   | `number` | Exit code of the command       |
+| `ctx.durationMs` | `number` | Execution time in milliseconds |
+
+```gsh
+tool afterCommand(ctx, next) {
+    if (ctx.exitCode != 0) {
+        print("Command failed with exit code: " + ctx.exitCode)
+    }
+    return next(ctx)
+}
+gsh.use("repl.command.after", afterCommand)
+```
+
 ### `command.input`
 
 Fired when user submits a command. This is the unified middleware for processing user input.
@@ -137,6 +192,42 @@ tool agentMiddleware(ctx, next) {
 gsh.use("command.input", agentMiddleware)
 ```
 
+### `repl.predict`
+
+Fired when the REPL needs a command prediction (ghost text). Handlers should return a prediction string (or `{ prediction: "..." }`). This event is executed asynchronously and debounced by the REPL; returning `null`/`undefined` lets the next handler or the built-in fallback run.
+
+**Context:**
+
+| Property    | Type     | Description                               |
+| ----------- | -------- | ----------------------------------------- |
+| `ctx.input` | `string` | Current input text (empty for null-state) |
+
+**Return Value:** A string prediction or an object `{ prediction: string, error?: string }`. If `error` is provided, the REPL logs it and falls back to the next handler/fallback provider.
+
+```gsh
+tool myPredictor(ctx, next) {
+    result = next(ctx)  # allow earlier handlers to run
+    if (result != null && result.prediction != null) {
+        return result
+    }
+
+    if (ctx.input == "") {
+        return { prediction: "ls -la" }
+    }
+
+    # Simple prefix rule
+    if (ctx.input.startsWith("git")) {
+        return { prediction: "git status" }
+    }
+
+    return null
+}
+
+gsh.use("repl.predict", myPredictor)
+```
+
+The default config registers a prediction middleware under `cmd/gsh/defaults/middleware/prediction.gsh`. It builds context inside the handler (pwd, git status, last command metadata) and queries `gsh.models.lite` via an agent to keep the behavior customizable without modifying Go code.
+
 ## Agent Events
 
 These events fire during agent interactions.
@@ -147,10 +238,10 @@ Fired when an agent begins responding to a query.
 
 **Context:**
 
-| Property       | Type     | Description                      |
-| -------------- | -------- | -------------------------------- |
-| `ctx.agent`    | `string` | Name of the agent                |
-| `ctx.message`  | `string` | The user's message to the agent  |
+| Property      | Type     | Description                     |
+| ------------- | -------- | ------------------------------- |
+| `ctx.agent`   | `string` | Name of the agent               |
+| `ctx.message` | `string` | The user's message to the agent |
 
 ```gsh
 tool agentStarted(ctx, next) {
@@ -166,8 +257,8 @@ Fired at the beginning of each agent iteration.
 
 **Context:**
 
-| Property        | Type     | Description           |
-| --------------- | -------- | --------------------- |
+| Property        | Type     | Description                 |
+| --------------- | -------- | --------------------------- |
 | `ctx.iteration` | `number` | Current iteration (1-based) |
 
 ```gsh

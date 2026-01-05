@@ -377,6 +377,39 @@ agent DataAnalyst {
     ],
 
     temperature: 0.5,  # Override model default
+
+    # Optional metadata for custom behavior in scripts
+    metadata: {
+        category: "analysis",
+        priority: 1,
+        tags: ["data", "reports"],
+    },
+}
+```
+
+### Agent Metadata
+
+The optional `metadata` field allows you to attach arbitrary key-value pairs to an agent. This metadata can be accessed later in scripts to customize behavior:
+
+```gsh
+agent QuickHelper {
+    model: gpt4,
+    systemPrompt: "You are a quick helper",
+    metadata: {
+        timeout: 30000,
+        retryCount: 3,
+        features: ["fast", "concise"],
+    },
+}
+
+# Access metadata properties on the agent object
+print(QuickHelper.name)                    # "QuickHelper"
+print(QuickHelper.metadata.timeout)        # 30000
+print(QuickHelper.metadata.features)       # ["fast", "concise"]
+
+# Use metadata in conditional logic
+if (QuickHelper.metadata.timeout < 60000) {
+    print("This is a fast agent")
 }
 ```
 

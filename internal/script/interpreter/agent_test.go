@@ -316,6 +316,76 @@ func TestAgentDeclaration(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "Agent declaration with metadata object",
+			input: `
+				model gpt4 {
+					provider: "openai",
+					apiKey: "test-key",
+					model: "gpt-4",
+				}
+				agent WithMetadata {
+					model: gpt4,
+					systemPrompt: "Test",
+					metadata: {
+						category: "analysis",
+						priority: 1,
+						tags: ["data", "reports"],
+						nested: {
+							key: "value",
+						},
+					},
+				}`,
+			checkFunc: func(t *testing.T, result *EvalResult, err error) {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
+				agentVal, ok := result.Env.Get("WithMetadata")
+				if !ok {
+					t.Fatalf("agent 'WithMetadata' not found in environment")
+				}
+
+				agent, ok := agentVal.(*AgentValue)
+				if !ok {
+					t.Fatalf("expected *AgentValue, got %T", agentVal)
+				}
+
+				// Check metadata is present and is an object
+				metadata, ok := agent.Config["metadata"]
+				if !ok {
+					t.Fatalf("agent config missing 'metadata'")
+				}
+				metadataObj, ok := metadata.(*ObjectValue)
+				if !ok {
+					t.Fatalf("expected metadata to be *ObjectValue, got %T", metadata)
+				}
+
+				// Check nested properties
+				category := metadataObj.GetPropertyValue("category")
+				if category.Type() != ValueTypeString {
+					t.Errorf("expected category to be string, got %s", category.Type())
+				}
+				if category.String() != "analysis" {
+					t.Errorf("expected category 'analysis', got %q", category.String())
+				}
+
+				priority := metadataObj.GetPropertyValue("priority")
+				if priority.Type() != ValueTypeNumber {
+					t.Errorf("expected priority to be number, got %s", priority.Type())
+				}
+
+				tags := metadataObj.GetPropertyValue("tags")
+				if tags.Type() != ValueTypeArray {
+					t.Errorf("expected tags to be array, got %s", tags.Type())
+				}
+
+				nested := metadataObj.GetPropertyValue("nested")
+				if nested.Type() != ValueTypeObject {
+					t.Errorf("expected nested to be object, got %s", nested.Type())
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -391,6 +461,48 @@ func TestAgentDeclarationErrors(t *testing.T) {
 					tools: "not an array",
 				}`,
 			expectedError: "tools' must be an array",
+		},
+		{
+			name: "Agent declaration with invalid metadata type (string)",
+			input: `
+				model gpt4 {
+					provider: "openai",
+					apiKey: "test-key",
+					model: "gpt-4",
+				}
+				agent BadMetadata {
+					model: gpt4,
+					metadata: "not an object",
+				}`,
+			expectedError: "metadata' must be an object",
+		},
+		{
+			name: "Agent declaration with invalid metadata type (number)",
+			input: `
+				model gpt4 {
+					provider: "openai",
+					apiKey: "test-key",
+					model: "gpt-4",
+				}
+				agent BadMetadata {
+					model: gpt4,
+					metadata: 123,
+				}`,
+			expectedError: "metadata' must be an object",
+		},
+		{
+			name: "Agent declaration with invalid metadata type (array)",
+			input: `
+				model gpt4 {
+					provider: "openai",
+					apiKey: "test-key",
+					model: "gpt-4",
+				}
+				agent BadMetadata {
+					model: gpt4,
+					metadata: ["not", "an", "object"],
+				}`,
+			expectedError: "metadata' must be an object",
 		},
 	}
 
@@ -1064,5 +1176,288 @@ func TestAgentValueMethods(t *testing.T) {
 	notAgent := &StringValue{Value: "not an agent"}
 	if agent.Equals(notAgent) {
 		t.Error("expected agent to not equal non-agent value")
+	}
+}
+
+func TestAgentGetProperty(t *testing.T) {
+	// Create metadata object
+	metadataObj := &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"category": {Value: &StringValue{Value: "analysis"}},
+			"priority": {Value: &NumberValue{Value: 1}},
+			"tags":     {Value: &ArrayValue{Elements: []Value{&StringValue{Value: "data"}, &StringValue{Value: "reports"}}}},
+		},
+	}
+
+	agent := &AgentValue{
+		Name: "TestAgent",
+		Config: map[string]Value{
+			"systemPrompt": &StringValue{Value: "Test prompt"},
+			"metadata":     metadataObj,
+		},
+	}
+
+	// Test GetProperty for "name"
+	nameVal := agent.GetProperty("name")
+	if nameVal.Type() != ValueTypeString {
+		t.Errorf("expected name to be string, got %s", nameVal.Type())
+	}
+	if nameVal.String() != "TestAgent" {
+		t.Errorf("expected name 'TestAgent', got %q", nameVal.String())
+	}
+
+	// Test GetProperty for config fields
+	promptVal := agent.GetProperty("systemPrompt")
+	if promptVal.Type() != ValueTypeString {
+		t.Errorf("expected systemPrompt to be string, got %s", promptVal.Type())
+	}
+	if promptVal.String() != "Test prompt" {
+		t.Errorf("expected systemPrompt 'Test prompt', got %q", promptVal.String())
+	}
+
+	// Test GetProperty for metadata
+	metaVal := agent.GetProperty("metadata")
+	if metaVal.Type() != ValueTypeObject {
+		t.Errorf("expected metadata to be object, got %s", metaVal.Type())
+	}
+
+	// Test GetProperty for non-existent field returns null
+	nonExistent := agent.GetProperty("nonExistent")
+	if nonExistent.Type() != ValueTypeNull {
+		t.Errorf("expected non-existent property to be null, got %s", nonExistent.Type())
+	}
+}
+
+func TestAgentMetadataPropertyAccess(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		checkFunc func(t *testing.T, result *EvalResult, err error)
+	}{
+		{
+			name: "Access agent.name property",
+			input: `
+				model gpt4 {
+					provider: "openai",
+					apiKey: "test-key",
+					model: "gpt-4",
+				}
+				agent MyAgent {
+					model: gpt4,
+					systemPrompt: "Test",
+				}
+				result = MyAgent.name`,
+			checkFunc: func(t *testing.T, result *EvalResult, err error) {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				resultVal, ok := result.Env.Get("result")
+				if !ok {
+					t.Fatal("result variable not found")
+				}
+				if resultVal.String() != "MyAgent" {
+					t.Errorf("expected 'MyAgent', got %q", resultVal.String())
+				}
+			},
+		},
+		{
+			name: "Access agent.metadata properties",
+			input: `
+				model gpt4 {
+					provider: "openai",
+					apiKey: "test-key",
+					model: "gpt-4",
+				}
+				agent MyAgent {
+					model: gpt4,
+					metadata: {
+						category: "analysis",
+						priority: 42,
+					},
+				}
+				category = MyAgent.metadata.category
+				priority = MyAgent.metadata.priority`,
+			checkFunc: func(t *testing.T, result *EvalResult, err error) {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				categoryVal, ok := result.Env.Get("category")
+				if !ok {
+					t.Fatal("category variable not found")
+				}
+				if categoryVal.String() != "analysis" {
+					t.Errorf("expected category 'analysis', got %q", categoryVal.String())
+				}
+
+				priorityVal, ok := result.Env.Get("priority")
+				if !ok {
+					t.Fatal("priority variable not found")
+				}
+				numVal, ok := priorityVal.(*NumberValue)
+				if !ok {
+					t.Fatalf("expected *NumberValue, got %T", priorityVal)
+				}
+				if numVal.Value != 42 {
+					t.Errorf("expected priority 42, got %v", numVal.Value)
+				}
+			},
+		},
+		{
+			name: "Access nested metadata properties",
+			input: `
+				model gpt4 {
+					provider: "openai",
+					apiKey: "test-key",
+					model: "gpt-4",
+				}
+				agent MyAgent {
+					model: gpt4,
+					metadata: {
+						config: {
+							timeout: 5000,
+							retries: 3,
+						},
+					},
+				}
+				timeout = MyAgent.metadata.config.timeout`,
+			checkFunc: func(t *testing.T, result *EvalResult, err error) {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				timeoutVal, ok := result.Env.Get("timeout")
+				if !ok {
+					t.Fatal("timeout variable not found")
+				}
+				numVal, ok := timeoutVal.(*NumberValue)
+				if !ok {
+					t.Fatalf("expected *NumberValue, got %T", timeoutVal)
+				}
+				if numVal.Value != 5000 {
+					t.Errorf("expected timeout 5000, got %v", numVal.Value)
+				}
+			},
+		},
+		{
+			name: "Access metadata array property",
+			input: `
+				model gpt4 {
+					provider: "openai",
+					apiKey: "test-key",
+					model: "gpt-4",
+				}
+				agent MyAgent {
+					model: gpt4,
+					metadata: {
+						tags: ["fast", "reliable"],
+					},
+				}
+				tags = MyAgent.metadata.tags
+				firstTag = tags[0]`,
+			checkFunc: func(t *testing.T, result *EvalResult, err error) {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				tagsVal, ok := result.Env.Get("tags")
+				if !ok {
+					t.Fatal("tags variable not found")
+				}
+				arrVal, ok := tagsVal.(*ArrayValue)
+				if !ok {
+					t.Fatalf("expected *ArrayValue, got %T", tagsVal)
+				}
+				if len(arrVal.Elements) != 2 {
+					t.Errorf("expected 2 elements, got %d", len(arrVal.Elements))
+				}
+
+				firstTagVal, ok := result.Env.Get("firstTag")
+				if !ok {
+					t.Fatal("firstTag variable not found")
+				}
+				if firstTagVal.String() != "fast" {
+					t.Errorf("expected 'fast', got %q", firstTagVal.String())
+				}
+			},
+		},
+		{
+			name: "Use metadata in conditional",
+			input: `
+				model gpt4 {
+					provider: "openai",
+					apiKey: "test-key",
+					model: "gpt-4",
+				}
+				agent FastAgent {
+					model: gpt4,
+					metadata: {
+						timeout: 1000,
+					},
+				}
+				isFast = false
+				if (FastAgent.metadata.timeout < 5000) {
+					isFast = true
+				}`,
+			checkFunc: func(t *testing.T, result *EvalResult, err error) {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				isFastVal, ok := result.Env.Get("isFast")
+				if !ok {
+					t.Fatal("isFast variable not found")
+				}
+				boolVal, ok := isFastVal.(*BoolValue)
+				if !ok {
+					t.Fatalf("expected *BoolValue, got %T", isFastVal)
+				}
+				if !boolVal.Value {
+					t.Error("expected isFast to be true")
+				}
+			},
+		},
+		{
+			name: "Access non-existent metadata property returns null",
+			input: `
+				model gpt4 {
+					provider: "openai",
+					apiKey: "test-key",
+					model: "gpt-4",
+				}
+				agent MyAgent {
+					model: gpt4,
+					metadata: {
+						existing: "value",
+					},
+				}
+				nonExistent = MyAgent.metadata.nonExistent`,
+			checkFunc: func(t *testing.T, result *EvalResult, err error) {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				nonExistentVal, ok := result.Env.Get("nonExistent")
+				if !ok {
+					t.Fatal("nonExistent variable not found")
+				}
+				if nonExistentVal.Type() != ValueTypeNull {
+					t.Errorf("expected null, got %s", nonExistentVal.Type())
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := parser.New(l)
+			program := p.ParseProgram()
+
+			if len(p.Errors()) > 0 {
+				t.Fatalf("parser errors: %v", p.Errors())
+			}
+
+			interp := New(nil)
+			defer interp.Close()
+
+			result, err := interp.Eval(program)
+			tt.checkFunc(t, result, err)
+		})
 	}
 }

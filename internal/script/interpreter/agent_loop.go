@@ -62,13 +62,13 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 	}
 
 	// Emit agent.start event
-	i.EmitEvent(EventAgentStart, createAgentStartContext(agent.Name, userMessage))
+	i.EmitEvent(EventAgentStart, createAgentStartContext(agent, userMessage))
 
 	// Helper to call OnComplete callback with ACP-aligned result
 	callOnComplete := func(stopReason acp.StopReason, err error) {
 		// Emit agent.end event first
 		durationMs := time.Since(startTime).Milliseconds()
-		i.EmitEvent(EventAgentEnd, createAgentEndContext(agent.Name, string(stopReason), durationMs, totalInputTokens, totalOutputTokens, totalCachedTokens, err))
+		i.EmitEvent(EventAgentEnd, createAgentEndContext(agent, string(stopReason), durationMs, totalInputTokens, totalOutputTokens, totalCachedTokens, err))
 
 		if callbacks != nil && callbacks.OnComplete != nil {
 			result := acp.AgentResult{
@@ -203,7 +203,7 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 		}
 
 		// Emit agent.iteration.start event
-		i.EmitEvent(EventAgentIterationStart, createIterationStartContext(iteration))
+		i.EmitEvent(EventAgentIterationStart, createIterationStartContext(agent, iteration))
 
 		// Call iteration start callback
 		if callbacks != nil && callbacks.OnIterationStart != nil {
@@ -226,7 +226,7 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 			streamCallbacks := &StreamCallbacks{
 				OnContent: func(content string) {
 					// Emit agent.chunk event
-					i.EmitEvent(EventAgentChunk, createChunkContext(content))
+					i.EmitEvent(EventAgentChunk, createChunkContext(agent, content))
 					// Also call the original callback
 					if callbacks != nil && callbacks.OnChunk != nil {
 						callbacks.OnChunk(content)
@@ -239,7 +239,7 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 			}
 			// Always emit SDK event when tool call enters pending state (streaming from LLM)
 			streamCallbacks.OnToolPending = func(toolCallID string, toolName string) {
-				i.EmitEvent(EventAgentToolPending, createToolPendingContext(toolCallID, toolName))
+				i.EmitEvent(EventAgentToolPending, createToolPendingContext(agent, toolCallID, toolName))
 				// Also call the original callback if provided
 				if callbacks != nil && callbacks.OnToolPending != nil {
 					callbacks.OnToolPending(toolCallID, toolName)
@@ -285,7 +285,7 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 				Content: response.Content,
 			})
 			// Emit agent.iteration.end event before completing
-			i.EmitEvent(EventAgentIterationEnd, createIterationEndContext(iteration, iterInputTokens, iterOutputTokens, iterCachedTokens))
+			i.EmitEvent(EventAgentIterationEnd, createIterationEndContext(agent, iteration, iterInputTokens, iterOutputTokens, iterCachedTokens))
 			callOnComplete(acp.StopReasonEndTurn, nil)
 			return newConv, nil
 		}
@@ -310,7 +310,7 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 
 			// Emit agent.tool.start event and check for override
 			// If handler returns { result: "..." }, skip execution and use that result
-			startCtx := createToolCallContext(toolCall.ID, toolCall.Name, toolCall.Arguments, nil, nil, nil)
+			startCtx := createToolCallContext(agent, toolCall.ID, toolCall.Name, toolCall.Arguments, nil, nil, nil)
 			startOverride := i.EmitEvent(EventAgentToolStart, startCtx)
 
 			// Call tool start callback
@@ -341,7 +341,7 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 
 			// Emit agent.tool.end event and check for override
 			// If handler returns { result: "..." }, override the tool result
-			endCtx := createToolCallContext(toolCall.ID, toolCall.Name, toolCall.Arguments, &toolDurationMs, &toolResult, toolErr)
+			endCtx := createToolCallContext(agent, toolCall.ID, toolCall.Name, toolCall.Arguments, &toolDurationMs, &toolResult, toolErr)
 			endOverride := i.EmitEvent(EventAgentToolEnd, endCtx)
 
 			// Check if agent.tool.end handler wants to override the result
@@ -387,7 +387,7 @@ func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *Conversati
 		}
 
 		// Emit agent.iteration.end event
-		i.EmitEvent(EventAgentIterationEnd, createIterationEndContext(iteration, iterInputTokens, iterOutputTokens, iterCachedTokens))
+		i.EmitEvent(EventAgentIterationEnd, createIterationEndContext(agent, iteration, iterInputTokens, iterOutputTokens, iterCachedTokens))
 
 		// Continue loop to make another call
 	}
