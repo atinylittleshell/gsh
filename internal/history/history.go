@@ -2,11 +2,16 @@ package history
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/atinylittleshell/gsh/internal/core"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
@@ -25,21 +30,83 @@ type HistoryEntry struct {
 	ExitCode  sql.NullInt32
 }
 
+const (
+	historySchemaVersion = 1
+)
+
 func NewHistoryManager(dbFilePath string) (*HistoryManager, error) {
+	dbFileExists := true
+	if _, err := os.Stat(dbFilePath); errors.Is(err, os.ErrNotExist) {
+		dbFileExists = false
+	} else if err != nil {
+		fmt.Fprintf(os.Stderr, "error checking history db: %v\n", err)
+		return nil, err
+	}
+
 	db, err := gorm.Open(sqlite.Open(dbFilePath), &gorm.Config{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error opening database")
 		return nil, err
 	}
 
-	if err := db.AutoMigrate(&HistoryEntry{}); err != nil {
-		fmt.Fprintf(os.Stderr, "error auto-migrating database schema: %v\n", err)
-		return nil, err
+	if needsMigration(dbFileExists, db) {
+		if err := db.AutoMigrate(&HistoryEntry{}); err != nil {
+			fmt.Fprintf(os.Stderr, "error auto-migrating database schema: %v\n", err)
+			return nil, err
+		}
+		if err := writeSchemaVersion(historySchemaVersion); err != nil {
+			fmt.Fprintf(os.Stderr, "error writing history schema version: %v\n", err)
+			return nil, err
+		}
 	}
 
 	return &HistoryManager{
 		db: db,
 	}, nil
+}
+
+func needsMigration(dbFileExists bool, db *gorm.DB) bool {
+	if !dbFileExists {
+		return true
+	}
+
+	versionMatches, err := schemaVersionMatches()
+	if err != nil || !versionMatches {
+		return true
+	}
+
+	// If the version marker is present but the table is missing (corruption or manual deletion),
+	// re-run migrations to restore the schema.
+	return !db.Migrator().HasTable(&HistoryEntry{})
+}
+
+func writeSchemaVersion(version int) error {
+	versionPath := schemaVersionPath()
+	return os.WriteFile(versionPath, []byte(strconv.Itoa(version)), 0644)
+}
+
+func schemaVersionMatches() (bool, error) {
+	versionPath := schemaVersionPath()
+	data, err := os.ReadFile(versionPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, err
+	}
+	if err != nil {
+		return false, err
+	}
+	trimmed := strings.TrimSpace(string(data))
+	version, err := strconv.Atoi(trimmed)
+	if err != nil {
+		return false, err
+	}
+	if version != historySchemaVersion {
+		return false, fmt.Errorf("history schema version mismatch: got %d, want %d", version, historySchemaVersion)
+	}
+	return true, nil
+}
+
+func schemaVersionPath() string {
+	return filepath.Join(core.DataDir(), "history_schema_version")
 }
 
 func (historyManager *HistoryManager) StartCommand(command string, directory string) (*HistoryEntry, error) {

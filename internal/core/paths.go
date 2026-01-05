@@ -10,7 +10,6 @@ type Paths struct {
 	DataDir           string
 	LogFile           string
 	HistoryFile       string
-	AnalyticsFile     string
 	LatestVersionFile string
 	VersionMarkerFile string
 }
@@ -29,7 +28,6 @@ func ensureDefaultPaths() {
 			DataDir:           filepath.Join(homeDir, ".gsh"),
 			LogFile:           filepath.Join(homeDir, ".gsh", "gsh.log"),
 			HistoryFile:       filepath.Join(homeDir, ".gsh", "history.db"),
-			AnalyticsFile:     filepath.Join(homeDir, ".gsh", "analytics.db"),
 			LatestVersionFile: filepath.Join(homeDir, ".gsh", "latest_version.txt"),
 			VersionMarkerFile: filepath.Join(homeDir, ".gsh", "version_marker"),
 		}
@@ -59,11 +57,6 @@ func LogFile() string {
 func HistoryFile() string {
 	ensureDefaultPaths()
 	return defaultPaths.HistoryFile
-}
-
-func AnalyticsFile() string {
-	ensureDefaultPaths()
-	return defaultPaths.AnalyticsFile
 }
 
 func LatestVersionFile() string {

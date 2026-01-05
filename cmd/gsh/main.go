@@ -10,13 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atinylittleshell/gsh/internal/analytics"
 	"github.com/atinylittleshell/gsh/internal/analytics/telemetry"
 	"github.com/atinylittleshell/gsh/internal/appupdate"
 	"github.com/atinylittleshell/gsh/internal/bash"
 	"github.com/atinylittleshell/gsh/internal/core"
 	"github.com/atinylittleshell/gsh/internal/environment"
-	"github.com/atinylittleshell/gsh/internal/evaluate"
 	"github.com/atinylittleshell/gsh/internal/filesystem"
 	"github.com/atinylittleshell/gsh/internal/history"
 	"github.com/atinylittleshell/gsh/internal/repl"
@@ -273,14 +271,9 @@ func runREPLMode(startTime time.Time, opts replOptions) {
 		panic("failed to initialize history manager")
 	}
 
-	analyticsManager, err := initializeAnalyticsManager()
-	if err != nil {
-		panic("failed to initialize analytics manager")
-	}
-
 	completionManager := initializeCompletionManager()
 
-	runner, err := initializeRunner(analyticsManager, historyManager, completionManager, opts.login)
+	runner, err := initializeRunner(historyManager, completionManager, opts.login)
 	if err != nil {
 		panic(err)
 	}
@@ -291,7 +284,6 @@ func runREPLMode(startTime time.Time, opts replOptions) {
 	}
 	defer logger.Sync()
 
-	analyticsManager.Logger = logger
 	logger.Info("-------- new gsh session --------", zap.Any("args", os.Args))
 
 	// Check for updates in background
@@ -358,10 +350,9 @@ func runRunCommand(startTime time.Time, args []string) {
 
 	// Initialize managers (minimal for script execution)
 	historyManager, _ := initializeHistoryManager()
-	analyticsManager, _ := initializeAnalyticsManager()
 	completionManager := initializeCompletionManager()
 
-	runner, err := initializeRunner(analyticsManager, historyManager, completionManager, false)
+	runner, err := initializeRunner(historyManager, completionManager, false)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gsh: failed to initialize: %v\n", err)
 		os.Exit(1)
@@ -567,21 +558,12 @@ func initializeHistoryManager() (*history.HistoryManager, error) {
 	return historyManager, nil
 }
 
-func initializeAnalyticsManager() (*analytics.AnalyticsManager, error) {
-	analyticsManager, err := analytics.NewAnalyticsManager(core.AnalyticsFile())
-	if err != nil {
-		return nil, err
-	}
-
-	return analyticsManager, nil
-}
-
 func initializeCompletionManager() *completion.CompletionManager {
 	return completion.NewCompletionManager()
 }
 
 // initializeRunner loads the shell configuration files and sets up the interpreter.
-func initializeRunner(analyticsManager *analytics.AnalyticsManager, historyManager *history.HistoryManager, completionManager *completion.CompletionManager, loginShell bool) (*interp.Runner, error) {
+func initializeRunner(historyManager *history.HistoryManager, completionManager *completion.CompletionManager, loginShell bool) (*interp.Runner, error) {
 	shellPath, err := os.Executable()
 	if err != nil {
 		panic(err)
@@ -597,8 +579,6 @@ func initializeRunner(analyticsManager *analytics.AnalyticsManager, historyManag
 		interp.Env(env),
 		interp.StdIO(os.Stdin, os.Stdout, os.Stderr),
 		interp.ExecHandlers(
-			analytics.NewAnalyticsCommandHandler(analyticsManager),
-			evaluate.NewEvaluateCommandHandler(analyticsManager),
 			history.NewHistoryCommandHandler(historyManager),
 			completion.NewCompleteCommandHandler(completionManager),
 		),
@@ -631,8 +611,6 @@ func initializeRunner(analyticsManager *analytics.AnalyticsManager, historyManag
 			}
 		}
 	}
-
-	analyticsManager.Runner = runner
 
 	return runner, nil
 }
