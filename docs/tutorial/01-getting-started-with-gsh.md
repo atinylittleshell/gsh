@@ -29,7 +29,7 @@ Windows is not supported (yet).
 
 ### Upgrading
 
-gsh can automatically detect newer versions and self update.
+gsh detects newer versions automatically. If you installed via Homebrew, gsh will tell you when an update is available and show the `brew update && brew upgrade gsh` command to apply it. Other installation methods can self update in-place.
 
 ### Building from Source
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
@@ -24,6 +25,8 @@ func HandleSelfUpdate(
 ) chan string {
 	resultChannel := make(chan string)
 
+	isHomebrewInstall := isHomebrewInstall(logger)
+
 	currentSemVer, err := semver.NewVersion(currentVersion)
 	if err != nil {
 		logger.Debug("running a dev build, skipping self-update check")
@@ -32,12 +35,38 @@ func HandleSelfUpdate(
 	}
 
 	// Check if we have previously detected a newer version
-	updateToLatestVersion(currentSemVer, logger, fs, updater)
+	updateToLatestVersion(currentSemVer, logger, fs, updater, isHomebrewInstall)
 
 	// Check for newer versions from remote repository
 	go fetchAndSaveLatestVersion(resultChannel, logger, fs, updater)
 
 	return resultChannel
+}
+
+var executablePath = selfupdate.ExecutablePath
+
+func isHomebrewInstall(logger *zap.Logger) bool {
+	executable, err := executablePath()
+	if err != nil {
+		logger.Debug("failed to determine executable path for update strategy", zap.Error(err))
+		return false
+	}
+
+	resolvedExecutable := executable
+	if resolved, err := filepath.EvalSymlinks(executable); err == nil {
+		resolvedExecutable = resolved
+	} else {
+		logger.Debug("failed to resolve symlinks for executable", zap.Error(err))
+	}
+
+	homebrewPrefix := filepath.Join("Cellar", "gsh") + string(os.PathSeparator)
+	if strings.Contains(resolvedExecutable, homebrewPrefix) ||
+		strings.Contains(executable, homebrewPrefix) {
+		logger.Info("detected Homebrew installation; skipping self-update")
+		return true
+	}
+
+	return false
 }
 
 func readLatestVersion(fs filesystem.FileSystem) string {
@@ -56,7 +85,13 @@ func readLatestVersion(fs filesystem.FileSystem) string {
 	return strings.TrimSpace(buf.String())
 }
 
-func updateToLatestVersion(currentSemVer *semver.Version, logger *zap.Logger, fs filesystem.FileSystem, updater Updater) {
+func updateToLatestVersion(
+	currentSemVer *semver.Version,
+	logger *zap.Logger,
+	fs filesystem.FileSystem,
+	updater Updater,
+	isHomebrewInstall bool,
+) {
 	latestVersion := readLatestVersion(fs)
 	if latestVersion == "" {
 		return
@@ -68,6 +103,13 @@ func updateToLatestVersion(currentSemVer *semver.Version, logger *zap.Logger, fs
 		return
 	}
 	if latestSemVer.LessThanEqual(currentSemVer) {
+		return
+	}
+
+	// Homebrew installations shouldn't self-update; just notify the user.
+	if isHomebrewInstall {
+		fmt.Printf("\nNew version of gsh available: %s (current: %s)\n", latestVersion, currentSemVer.String())
+		fmt.Println("gsh was installed via Homebrew. Run `brew update && brew upgrade gsh` to install the latest version.")
 		return
 	}
 
