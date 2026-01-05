@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.7](https://github.com/atinylittleshell/gsh/compare/v1.1.6...v1.1.7) (2026-01-05)
+
+
+### Bug Fixes
+
+* disable self update for Homebrew installations ([#143](https://github.com/atinylittleshell/gsh/issues/143)) ([b90ed0d](https://github.com/atinylittleshell/gsh/commit/b90ed0d628ebfc9f9d21472ad9a9320a9aa56fef))
+* Gate history migrations on schema version ([#145](https://github.com/atinylittleshell/gsh/issues/145)) ([5670107](https://github.com/atinylittleshell/gsh/commit/56701077cdf53e3d0b6b37e29d9c6a1581ed1063))
+
 ## [1.1.6](https://github.com/atinylittleshell/gsh/compare/v1.1.5...v1.1.6) (2026-01-04)
 
 
