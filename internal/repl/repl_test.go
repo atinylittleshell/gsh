@@ -402,7 +402,7 @@ func TestREPL_HandleBuiltinCommand_UnknownCommand(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestREPL_ContextProviderInitialized(t *testing.T) {
+func TestREPL_PredictorInitialized(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyPath := filepath.Join(tmpDir, "history.db")
 	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
@@ -415,142 +415,8 @@ func TestREPL_ContextProviderInitialized(t *testing.T) {
 	require.NoError(t, err)
 	defer repl.Close()
 
-	// Verify context provider was created
-	assert.NotNil(t, repl.contextProvider)
-
-	// Get context and verify it contains expected keys
-	contextMap := repl.contextProvider.GetContext()
-
-	// Should have working_directory
-	_, hasWorkingDir := contextMap["working_directory"]
-	assert.True(t, hasWorkingDir, "context should include working_directory")
-
-	// Should have system_info
-	_, hasSystemInfo := contextMap["system_info"]
-	assert.True(t, hasSystemInfo, "context should include system_info")
-
-	// Should have git_status (might be "not in a git repository")
-	_, hasGitStatus := contextMap["git_status"]
-	assert.True(t, hasGitStatus, "context should include git_status")
-
-	// Should have history_concise (since history manager was initialized)
-	_, hasHistory := contextMap["history_concise"]
-	assert.True(t, hasHistory, "context should include history_concise")
-}
-
-func TestREPL_UpdatePredictorContext_WithLazyModelResolver(t *testing.T) {
-	tmpDir := t.TempDir()
-	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
-
-	repl, err := NewREPL(Options{
-		ConfigPath:  configPath,
-		HistoryPath: historyPath,
-		Logger:      zap.NewNop(),
-	})
-	require.NoError(t, err)
-	defer repl.Close()
-
-	// Predictor is now always created with lazy model resolution (SDKModelRef)
-	// It will return empty predictions if gsh.models.lite is not configured
+	// Verify predictor was created (event-driven prediction provider)
 	assert.NotNil(t, repl.predictor)
-
-	// updatePredictorContext should not panic
-	repl.updatePredictorContext()
-}
-
-func TestREPL_UpdatePredictorContext_NilContextProvider(t *testing.T) {
-	tmpDir := t.TempDir()
-	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
-
-	repl, err := NewREPL(Options{
-		ConfigPath:  configPath,
-		HistoryPath: historyPath,
-		Logger:      zap.NewNop(),
-	})
-	require.NoError(t, err)
-	defer repl.Close()
-
-	// Manually set contextProvider to nil to test edge case
-	repl.contextProvider = nil
-
-	// updatePredictorContext should not panic with nil contextProvider
-	repl.updatePredictorContext()
-}
-
-func TestREPL_ContextProviderWithoutHistory(t *testing.T) {
-	tmpDir := t.TempDir()
-	// Use an invalid history path that will cause history initialization to fail
-	historyPath := filepath.Join(tmpDir, "nonexistent_dir", "subdir", "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
-
-	logger := zaptest.NewLogger(t)
-
-	repl, err := NewREPL(Options{
-		ConfigPath:  configPath,
-		HistoryPath: historyPath,
-		Logger:      logger,
-	})
-	require.NoError(t, err)
-	defer repl.Close()
-
-	// Context provider should still be initialized
-	assert.NotNil(t, repl.contextProvider)
-
-	// Get context - should still have basic retrievers
-	contextMap := repl.contextProvider.GetContext()
-
-	// Should have working_directory
-	_, hasWorkingDir := contextMap["working_directory"]
-	assert.True(t, hasWorkingDir, "context should include working_directory")
-
-	// Should have system_info
-	_, hasSystemInfo := contextMap["system_info"]
-	assert.True(t, hasSystemInfo, "context should include system_info")
-}
-
-func TestREPL_ContextContainsWorkingDirectory(t *testing.T) {
-	tmpDir := t.TempDir()
-	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
-
-	repl, err := NewREPL(Options{
-		ConfigPath:  configPath,
-		HistoryPath: historyPath,
-		Logger:      zap.NewNop(),
-	})
-	require.NoError(t, err)
-	defer repl.Close()
-
-	contextMap := repl.contextProvider.GetContext()
-
-	// Verify working_directory contains actual path
-	workingDir := contextMap["working_directory"]
-	assert.Contains(t, workingDir, "<working_dir>")
-	assert.Contains(t, workingDir, "</working_dir>")
-}
-
-func TestREPL_ContextContainsSystemInfo(t *testing.T) {
-	tmpDir := t.TempDir()
-	historyPath := filepath.Join(tmpDir, "history.db")
-	configPath := filepath.Join(tmpDir, "nonexistent.repl.gsh")
-
-	repl, err := NewREPL(Options{
-		ConfigPath:  configPath,
-		HistoryPath: historyPath,
-		Logger:      zap.NewNop(),
-	})
-	require.NoError(t, err)
-	defer repl.Close()
-
-	contextMap := repl.contextProvider.GetContext()
-
-	// Verify system_info contains OS and arch
-	systemInfo := contextMap["system_info"]
-	assert.Contains(t, systemInfo, "<system_info>")
-	assert.Contains(t, systemInfo, "OS:")
-	assert.Contains(t, systemInfo, "Arch:")
 }
 
 func TestREPL_HistoryPredictionWithoutLLM(t *testing.T) {

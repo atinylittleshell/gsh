@@ -76,16 +76,16 @@ func (i *Interpreter) executeACPWithString(message string, acpVal *ACPValue) (Va
 	startTime := time.Now()
 
 	// Emit agent.start event
-	i.EmitEvent(EventAgentStart, createACPAgentStartContext(acpVal.Name, message))
+	i.EmitEvent(EventAgentStart, createACPAgentStartContext(acpVal, message))
 
 	// Emit agent.iteration.start event immediately to show the "Thinking..." spinner
 	// This needs to happen before getOrCreateACPClient which may take time to spawn the ACP server
-	i.EmitEvent(EventAgentIterationStart, createIterationStartContext(1))
+	i.EmitEvent(EventAgentIterationStart, createACPIterationStartContext(acpVal, 1))
 
 	// Get or create ACP client
 	client, err := i.getOrCreateACPClient(acpVal)
 	if err != nil {
-		i.EmitEvent(EventAgentEnd, createACPAgentEndContext(acpVal.Name, "error", time.Since(startTime).Milliseconds(), err))
+		i.EmitEvent(EventAgentEnd, createACPAgentEndContext(acpVal, "error", time.Since(startTime).Milliseconds(), err))
 		return nil, fmt.Errorf("failed to connect to ACP agent '%s': %w", acpVal.Name, err)
 	}
 
@@ -101,7 +101,7 @@ func (i *Interpreter) executeACPWithString(message string, acpVal *ACPValue) (Va
 	ctx := context.Background()
 	acpSession, err := client.NewSession(ctx, cwd, nil) // TODO: Support MCP servers
 	if err != nil {
-		i.EmitEvent(EventAgentEnd, createACPAgentEndContext(acpVal.Name, "error", time.Since(startTime).Milliseconds(), err))
+		i.EmitEvent(EventAgentEnd, createACPAgentEndContext(acpVal, "error", time.Since(startTime).Milliseconds(), err))
 		return nil, fmt.Errorf("failed to create ACP session: %w", err)
 	}
 
@@ -135,10 +135,10 @@ func (i *Interpreter) sendPromptToACPSession(session *ACPSessionValue, message s
 	startTime := time.Now()
 
 	// Emit agent.start event
-	i.EmitEvent(EventAgentStart, createACPAgentStartContext(session.Agent.Name, message))
+	i.EmitEvent(EventAgentStart, createACPAgentStartContext(session.Agent, message))
 
 	// Emit agent.iteration.start event immediately to show the "Thinking..." spinner
-	i.EmitEvent(EventAgentIterationStart, createIterationStartContext(1))
+	i.EmitEvent(EventAgentIterationStart, createACPIterationStartContext(session.Agent, 1))
 
 	// Get the ACP session from our cache
 	i.acpClientsMu.RLock()
@@ -146,14 +146,14 @@ func (i *Interpreter) sendPromptToACPSession(session *ACPSessionValue, message s
 	if !ok {
 		i.acpClientsMu.RUnlock()
 		err := fmt.Errorf("ACP client for '%s' not found", session.Agent.Name)
-		i.EmitEvent(EventAgentEnd, createACPAgentEndContext(session.Agent.Name, "error", time.Since(startTime).Milliseconds(), err))
+		i.EmitEvent(EventAgentEnd, createACPAgentEndContext(session.Agent, "error", time.Since(startTime).Milliseconds(), err))
 		return nil, err
 	}
 	acpSession, ok := entry.sessions[session.SessionID]
 	if !ok {
 		i.acpClientsMu.RUnlock()
 		err := fmt.Errorf("ACP session '%s' not found", session.SessionID)
-		i.EmitEvent(EventAgentEnd, createACPAgentEndContext(session.Agent.Name, "error", time.Since(startTime).Milliseconds(), err))
+		i.EmitEvent(EventAgentEnd, createACPAgentEndContext(session.Agent, "error", time.Since(startTime).Milliseconds(), err))
 		return nil, err
 	}
 	i.acpClientsMu.RUnlock()
@@ -174,7 +174,7 @@ func (i *Interpreter) sendPromptToACPSessionInternal(session *ACPSessionValue, a
 	})
 
 	if err != nil {
-		i.EmitEvent(EventAgentEnd, createACPAgentEndContext(session.Agent.Name, "error", time.Since(startTime).Milliseconds(), err))
+		i.EmitEvent(EventAgentEnd, createACPAgentEndContext(session.Agent, "error", time.Since(startTime).Milliseconds(), err))
 		return nil, fmt.Errorf("ACP prompt failed: %w", err)
 	}
 
@@ -205,7 +205,7 @@ func (i *Interpreter) sendPromptToACPSessionInternal(session *ACPSessionValue, a
 	if result != nil && result.StopReason != "" {
 		stopReason = result.StopReason
 	}
-	i.EmitEvent(EventAgentEnd, createACPAgentEndContext(session.Agent.Name, stopReason, time.Since(startTime).Milliseconds(), nil))
+	i.EmitEvent(EventAgentEnd, createACPAgentEndContext(session.Agent, stopReason, time.Since(startTime).Milliseconds(), nil))
 
 	return session, nil
 }
@@ -216,7 +216,7 @@ func (i *Interpreter) handleACPSessionUpdate(session *ACPSessionValue, update *a
 	case acp.SessionUpdateAgentMessageChunk:
 		// Emit agent.chunk event
 		if content := update.Update.GetMessageContent(); content != nil && content.Type == "text" {
-			i.EmitEvent(EventAgentChunk, createChunkContext(content.Text))
+			i.EmitEvent(EventAgentChunk, createACPChunkContext(session.Agent, content.Text))
 		}
 
 	case acp.SessionUpdateToolCall:
@@ -225,11 +225,11 @@ func (i *Interpreter) handleACPSessionUpdate(session *ACPSessionValue, update *a
 		toolName := update.Update.GetToolName()
 
 		// Emit pending event (tool call detected, may not have full args yet)
-		i.EmitEvent(EventAgentToolPending, createToolPendingContext(toolCallID, toolName))
+		i.EmitEvent(EventAgentToolPending, createACPToolPendingContext(session.Agent, toolCallID, toolName))
 
 		// Emit start event with arguments
 		toolCallStarts[toolCallID] = time.Now()
-		i.EmitEvent(EventAgentToolStart, createToolCallContext(toolCallID, toolName, update.Update.Arguments, nil, nil, nil))
+		i.EmitEvent(EventAgentToolStart, createACPToolCallContext(session.Agent, toolCallID, toolName, update.Update.Arguments, nil, nil, nil))
 
 	case acp.SessionUpdateToolCallUpdate:
 		// Tool call update - check status and emit agent.tool.end if completed/failed
@@ -259,7 +259,7 @@ func (i *Interpreter) handleACPSessionUpdate(session *ACPSessionValue, update *a
 				toolErr = fmt.Errorf("tool call failed")
 			}
 
-			i.EmitEvent(EventAgentToolEnd, createToolCallContext(toolCallID, toolName, nil, &durationMs, &output, toolErr))
+			i.EmitEvent(EventAgentToolEnd, createACPToolCallContext(session.Agent, toolCallID, toolName, nil, &durationMs, &output, toolErr))
 		}
 	}
 }
@@ -425,16 +425,34 @@ func (i *Interpreter) callACPSessionMethod(method *ACPSessionMethodValue, args [
 
 // Helper functions for ACP-specific event contexts
 
+// acpValueToContextObject converts an ACPValue to an ObjectValue for event contexts.
+// This provides access to agent.name, agent.metadata, agent.type, and other config properties.
+func acpValueToContextObject(acp *ACPValue) Value {
+	if acp == nil {
+		return &NullValue{}
+	}
+
+	props := map[string]*PropertyDescriptor{
+		"name": {Value: &StringValue{Value: acp.Name}},
+		"type": {Value: &StringValue{Value: "acp"}},
+	}
+
+	// Add metadata if present (as an object for nested property access)
+	if metadataVal, ok := acp.Config["metadata"]; ok {
+		props["metadata"] = &PropertyDescriptor{Value: metadataVal}
+	} else {
+		// Provide empty object so ctx.agent.metadata.* doesn't error
+		props["metadata"] = &PropertyDescriptor{Value: &ObjectValue{Properties: map[string]*PropertyDescriptor{}}}
+	}
+
+	return &ObjectValue{Properties: props}
+}
+
 // createACPAgentStartContext creates the context object for agent.start event for ACP agents
-func createACPAgentStartContext(agentName, message string) Value {
+func createACPAgentStartContext(acp *ACPValue, message string) Value {
 	return &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
-			"agent": {Value: &ObjectValue{
-				Properties: map[string]*PropertyDescriptor{
-					"name": {Value: &StringValue{Value: agentName}},
-					"type": {Value: &StringValue{Value: "acp"}},
-				},
-			}},
+			"agent":   {Value: acpValueToContextObject(acp)},
 			"message": {Value: &StringValue{Value: message}},
 		},
 	}
@@ -442,7 +460,7 @@ func createACPAgentStartContext(agentName, message string) Value {
 
 // createACPAgentEndContext creates the context object for agent.end event for ACP agents
 // Note: ACP agents don't provide token counts, so we set them to 0
-func createACPAgentEndContext(agentName string, stopReason string, durationMs int64, err error) Value {
+func createACPAgentEndContext(acp *ACPValue, stopReason string, durationMs int64, err error) Value {
 	var errorVal Value = &NullValue{}
 	if err != nil {
 		errorVal = &StringValue{Value: err.Error()}
@@ -450,12 +468,7 @@ func createACPAgentEndContext(agentName string, stopReason string, durationMs in
 
 	return &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
-			"agent": {Value: &ObjectValue{
-				Properties: map[string]*PropertyDescriptor{
-					"name": {Value: &StringValue{Value: agentName}},
-					"type": {Value: &StringValue{Value: "acp"}},
-				},
-			}},
+			"agent": {Value: acpValueToContextObject(acp)},
 			"query": {Value: &ObjectValue{
 				Properties: map[string]*PropertyDescriptor{
 					"inputTokens":  {Value: &NumberValue{Value: 0}},
@@ -466,6 +479,76 @@ func createACPAgentEndContext(agentName string, stopReason string, durationMs in
 			}},
 			"stopReason": {Value: &StringValue{Value: stopReason}},
 			"error":      {Value: errorVal},
+		},
+	}
+}
+
+// createACPIterationStartContext creates the context object for agent.iteration.start event for ACP agents
+func createACPIterationStartContext(acp *ACPValue, iteration int) Value {
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"agent":     {Value: acpValueToContextObject(acp)},
+			"iteration": {Value: &NumberValue{Value: float64(iteration)}},
+		},
+	}
+}
+
+// createACPChunkContext creates the context object for agent.chunk event for ACP agents
+func createACPChunkContext(acp *ACPValue, content string) Value {
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"agent":   {Value: acpValueToContextObject(acp)},
+			"content": {Value: &StringValue{Value: content}},
+		},
+	}
+}
+
+// createACPToolPendingContext creates the context object for agent.tool.pending event for ACP agents
+func createACPToolPendingContext(acp *ACPValue, id, name string) Value {
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"agent": {Value: acpValueToContextObject(acp)},
+			"toolCall": {Value: &ObjectValue{
+				Properties: map[string]*PropertyDescriptor{
+					"id":     {Value: &StringValue{Value: id}},
+					"name":   {Value: &StringValue{Value: name}},
+					"status": {Value: &StringValue{Value: "pending"}},
+				},
+			}},
+		},
+	}
+}
+
+// createACPToolCallContext creates the context object for agent.tool.start/end events for ACP agents
+func createACPToolCallContext(acp *ACPValue, id, name string, args map[string]interface{}, durationMs *int64, output *string, err error) Value {
+	// Convert args to ObjectValue
+	argsProps := make(map[string]*PropertyDescriptor)
+	for k, v := range args {
+		argsProps[k] = &PropertyDescriptor{Value: InterfaceToValue(v)}
+	}
+
+	toolCallProps := map[string]*PropertyDescriptor{
+		"id":   {Value: &StringValue{Value: id}},
+		"name": {Value: &StringValue{Value: name}},
+		"args": {Value: &ObjectValue{Properties: argsProps}},
+	}
+
+	if durationMs != nil {
+		toolCallProps["durationMs"] = &PropertyDescriptor{Value: &NumberValue{Value: float64(*durationMs)}}
+	}
+	if output != nil {
+		toolCallProps["output"] = &PropertyDescriptor{Value: &StringValue{Value: *output}}
+	}
+	if err != nil {
+		toolCallProps["error"] = &PropertyDescriptor{Value: &StringValue{Value: err.Error()}}
+	} else if durationMs != nil {
+		toolCallProps["error"] = &PropertyDescriptor{Value: &NullValue{}}
+	}
+
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"agent":    {Value: acpValueToContextObject(acp)},
+			"toolCall": {Value: &ObjectValue{Properties: toolCallProps}},
 		},
 	}
 }

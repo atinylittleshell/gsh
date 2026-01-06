@@ -11,8 +11,9 @@ import "./events/ready.gsh"
 # Enable starship prompt integration
 import "./starship.gsh"
 
-# Import default agent middleware
+# Import default middleware
 import "./middleware/agent.gsh"
+import "./middleware/prediction.gsh"
 
 # Set log level: "debug", "info", "warn", "error"
 if (gsh.version == "dev") {

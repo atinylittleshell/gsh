@@ -35,6 +35,10 @@ func (i *Interpreter) evalAgentDeclaration(node *parser.AgentDeclaration) (Value
 			if _, ok := value.(*ArrayValue); !ok {
 				return nil, fmt.Errorf("agent config 'tools' must be an array, got %s", value.Type())
 			}
+		case "metadata":
+			if _, ok := value.(*ObjectValue); !ok {
+				return nil, fmt.Errorf("agent config 'metadata' must be an object, got %s", value.Type())
+			}
 			// Allow other fields without validation for extensibility
 		}
 

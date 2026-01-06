@@ -79,6 +79,37 @@ agent DataExpert {
 - Range: 0.0 (deterministic) to 1.0 (creative)
 - Default: inherits from the model
 
+**`metadata` (optional):**
+
+- An object containing arbitrary key-value pairs
+- Use for custom configuration, categorization, or behavior flags
+- Accessible via `agentName.metadata.propertyName` in scripts
+- Useful for differentiating agent behavior in event handlers or conditional logic
+
+Example:
+
+```gsh
+agent QuickHelper {
+    model: ollama,
+    systemPrompt: "You help with quick tasks",
+    metadata: {
+        category: "utilities",
+        timeout: 30000,
+        features: ["fast", "concise"],
+    },
+}
+
+# Access metadata in scripts
+print(QuickHelper.name)                    # "QuickHelper"
+print(QuickHelper.metadata.category)       # "utilities"
+print(QuickHelper.metadata.timeout)        # 30000
+
+# Use in conditional logic
+if (QuickHelper.metadata.timeout < 60000) {
+    print("This is a fast agent")
+}
+```
+
 ### Dynamic vs. Static Model Assignment
 
 When you assign a model to an agent, gsh supports two modes:

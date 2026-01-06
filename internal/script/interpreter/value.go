@@ -548,6 +548,22 @@ func (a *AgentValue) Equals(other Value) bool {
 	return false
 }
 
+// GetProperty returns a property of the agent.
+// Supports "name" for the agent name, "metadata" for user-defined metadata,
+// and any other config field.
+func (a *AgentValue) GetProperty(name string) Value {
+	switch name {
+	case "name":
+		return &StringValue{Value: a.Name}
+	default:
+		// Check if the property exists in the Config map
+		if val, ok := a.Config[name]; ok {
+			return val
+		}
+		return &NullValue{}
+	}
+}
+
 // ConversationValue represents a conversation state
 type ConversationValue struct {
 	// Messages in the conversation history

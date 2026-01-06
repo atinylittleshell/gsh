@@ -61,24 +61,47 @@ func extractToolOverride(val Value) *ToolOverride {
 
 // Helper functions to create event context objects
 
+// agentValueToContextObject converts an AgentValue to an ObjectValue for event contexts.
+// This provides access to agent.name, agent.metadata, and other config properties.
+func agentValueToContextObject(agent *AgentValue) Value {
+	if agent == nil {
+		return &NullValue{}
+	}
+
+	props := map[string]*PropertyDescriptor{
+		"name": {Value: &StringValue{Value: agent.Name}},
+	}
+
+	// Add metadata if present (as an object for nested property access)
+	if metadataVal, ok := agent.Config["metadata"]; ok {
+		props["metadata"] = &PropertyDescriptor{Value: metadataVal}
+	} else {
+		// Provide empty object so ctx.agent.metadata.* doesn't error
+		props["metadata"] = &PropertyDescriptor{Value: &ObjectValue{Properties: map[string]*PropertyDescriptor{}}}
+	}
+
+	// Add other config fields that might be useful
+	if systemPrompt, ok := agent.Config["systemPrompt"]; ok {
+		props["systemPrompt"] = &PropertyDescriptor{Value: systemPrompt}
+	}
+
+	return &ObjectValue{Properties: props}
+}
+
 // createAgentStartContext creates the context object for agent.start event
-// ctx: { agent: { name }, message: string }
-func createAgentStartContext(agentName, message string) Value {
+// ctx: { agent: { name, metadata, ... }, message: string }
+func createAgentStartContext(agent *AgentValue, message string) Value {
 	return &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
-			"agent": {Value: &ObjectValue{
-				Properties: map[string]*PropertyDescriptor{
-					"name": {Value: &StringValue{Value: agentName}},
-				},
-			}},
+			"agent":   {Value: agentValueToContextObject(agent)},
 			"message": {Value: &StringValue{Value: message}},
 		},
 	}
 }
 
 // createAgentEndContext creates the context object for agent.end event
-// ctx: { agent: { name }, query: { inputTokens, outputTokens, cachedTokens, durationMs }, error }
-func createAgentEndContext(agentName string, stopReason string, durationMs int64, inputTokens, outputTokens, cachedTokens int, err error) Value {
+// ctx: { agent: { name, metadata, ... }, query: { inputTokens, outputTokens, cachedTokens, durationMs }, error }
+func createAgentEndContext(agent *AgentValue, stopReason string, durationMs int64, inputTokens, outputTokens, cachedTokens int, err error) Value {
 	var errorVal Value = &NullValue{}
 	if err != nil {
 		errorVal = &StringValue{Value: err.Error()}
@@ -86,11 +109,7 @@ func createAgentEndContext(agentName string, stopReason string, durationMs int64
 
 	return &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
-			"agent": {Value: &ObjectValue{
-				Properties: map[string]*PropertyDescriptor{
-					"name": {Value: &StringValue{Value: agentName}},
-				},
-			}},
+			"agent": {Value: agentValueToContextObject(agent)},
 			"query": {Value: &ObjectValue{
 				Properties: map[string]*PropertyDescriptor{
 					"inputTokens":  {Value: &NumberValue{Value: float64(inputTokens)}},
@@ -105,20 +124,22 @@ func createAgentEndContext(agentName string, stopReason string, durationMs int64
 }
 
 // createIterationStartContext creates the context object for agent.iteration.start event
-// ctx: { iteration: number }
-func createIterationStartContext(iteration int) Value {
+// ctx: { agent: { name, metadata, ... }, iteration: number }
+func createIterationStartContext(agent *AgentValue, iteration int) Value {
 	return &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
+			"agent":     {Value: agentValueToContextObject(agent)},
 			"iteration": {Value: &NumberValue{Value: float64(iteration + 1)}}, // 1-based for users
 		},
 	}
 }
 
 // createIterationEndContext creates the context object for agent.iteration.end event
-// ctx: { iteration: number, usage: { inputTokens, outputTokens, cachedTokens } }
-func createIterationEndContext(iteration int, inputTokens, outputTokens, cachedTokens int) Value {
+// ctx: { agent: { name, metadata, ... }, iteration: number, usage: { inputTokens, outputTokens, cachedTokens } }
+func createIterationEndContext(agent *AgentValue, iteration int, inputTokens, outputTokens, cachedTokens int) Value {
 	return &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
+			"agent":     {Value: agentValueToContextObject(agent)},
 			"iteration": {Value: &NumberValue{Value: float64(iteration + 1)}}, // 1-based for users
 			"usage": {Value: &ObjectValue{
 				Properties: map[string]*PropertyDescriptor{
@@ -132,10 +153,11 @@ func createIterationEndContext(iteration int, inputTokens, outputTokens, cachedT
 }
 
 // createChunkContext creates the context object for agent.chunk event
-// ctx: { content: string }
-func createChunkContext(content string) Value {
+// ctx: { agent: { name, metadata, ... }, content: string }
+func createChunkContext(agent *AgentValue, content string) Value {
 	return &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
+			"agent":   {Value: agentValueToContextObject(agent)},
 			"content": {Value: &StringValue{Value: content}},
 		},
 	}
@@ -143,10 +165,11 @@ func createChunkContext(content string) Value {
 
 // createToolPendingContext creates the context object for agent.tool.pending event
 // This fires when a tool call starts streaming from the LLM (status: pending, before args are complete)
-// ctx: { toolCall: { id, name, status } }
-func createToolPendingContext(id, name string) Value {
+// ctx: { agent: { name, metadata, ... }, toolCall: { id, name, status } }
+func createToolPendingContext(agent *AgentValue, id, name string) Value {
 	return &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
+			"agent": {Value: agentValueToContextObject(agent)},
 			"toolCall": {Value: &ObjectValue{
 				Properties: map[string]*PropertyDescriptor{
 					"id":     {Value: &StringValue{Value: id}},
@@ -159,8 +182,8 @@ func createToolPendingContext(id, name string) Value {
 }
 
 // createToolCallContext creates the context object for agent.tool.start/end events
-// ctx: { toolCall: { id, name, args, durationMs?, output?, error? } }
-func createToolCallContext(id, name string, args map[string]interface{}, durationMs *int64, output *string, err error) Value {
+// ctx: { agent: { name, metadata, ... }, toolCall: { id, name, args, durationMs?, output?, error? } }
+func createToolCallContext(agent *AgentValue, id, name string, args map[string]interface{}, durationMs *int64, output *string, err error) Value {
 	// Convert args to ObjectValue
 	argsProps := make(map[string]*PropertyDescriptor)
 	for k, v := range args {
@@ -188,6 +211,7 @@ func createToolCallContext(id, name string, args map[string]interface{}, duratio
 
 	return &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
+			"agent":    {Value: agentValueToContextObject(agent)},
 			"toolCall": {Value: &ObjectValue{Properties: toolCallProps}},
 		},
 	}

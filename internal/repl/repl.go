@@ -24,7 +24,6 @@ import (
 	"github.com/atinylittleshell/gsh/internal/history"
 	"github.com/atinylittleshell/gsh/internal/repl/completion"
 	"github.com/atinylittleshell/gsh/internal/repl/config"
-	replcontext "github.com/atinylittleshell/gsh/internal/repl/context"
 	"github.com/atinylittleshell/gsh/internal/repl/executor"
 	"github.com/atinylittleshell/gsh/internal/repl/input"
 	"github.com/atinylittleshell/gsh/internal/repl/predict"
@@ -39,11 +38,12 @@ var timeNow = time.Now
 
 // REPL is the main interactive shell interface.
 type REPL struct {
-	config             *config.Config
-	executor           *executor.REPLExecutor
-	history            *history.HistoryManager
-	predictor          *predict.Router
-	contextProvider    *replcontext.Provider
+	config    *config.Config
+	executor  *executor.REPLExecutor
+	history   *history.HistoryManager
+	predictor interface {
+		Predict(ctx context.Context, input string) (string, error)
+	}
 	completionProvider *completion.Provider
 	logger             *zap.Logger
 
@@ -216,25 +216,9 @@ func NewREPL(opts Options) (*REPL, error) {
 		// Continue without history - not fatal
 	}
 
-	// Initialize prediction router using lazy model resolution.
-	// Use SDKModelRef so that predictions always use the current gsh.models.lite value,
-	// even if the user changes it after startup (e.g., in an event handler).
-	liteModelRef := &interpreter.SDKModelRef{Tier: "lite", Models: interp.SDKConfig().GetModels()}
-
-	// Initialize prediction router using the lite model tier with lazy resolution
-	predictor := predict.NewRouterFromConfig(liteModelRef, logger)
-
-	// Initialize context provider with retrievers for predictions
-	contextProvider := replcontext.NewProvider(logger,
-		replcontext.NewWorkingDirectoryRetriever(exec),
-		replcontext.NewGitStatusRetriever(exec, logger),
-		replcontext.NewSystemInfoRetriever(),
-	)
-
-	// Add history retriever if history is available
-	if historyMgr != nil {
-		contextProvider.AddRetriever(replcontext.NewConciseHistoryRetriever(historyMgr, 0))
-	}
+	// Event-driven prediction provider that delegates to gsh middleware (repl.predict event).
+	// The middleware in cmd/gsh/defaults/middleware/prediction.gsh handles context gathering internally.
+	eventPredictor := predict.NewEventPredictionProvider(interp, logger)
 
 	// Initialize completion provider
 	completionProvider := completion.NewProvider(exec)
@@ -243,8 +227,7 @@ func NewREPL(opts Options) (*REPL, error) {
 		config:             loadResult.Config,
 		executor:           exec,
 		history:            historyMgr,
-		predictor:          predictor,
-		contextProvider:    contextProvider,
+		predictor:          eventPredictor,
 		completionProvider: completionProvider,
 		logger:             logger,
 		startTime:          opts.StartTime,
@@ -278,7 +261,7 @@ func (r *REPL) Run(ctx context.Context) error {
 	r.logger.Info("starting REPL")
 
 	// Emit repl.ready event (welcome screen is handled by event handler in defaults/events/repl.gsh)
-	r.emitREPLEvent("repl.ready")
+	r.executor.Interpreter().EmitEvent(interpreter.EventReplReady, interpreter.CreateReplReadyContext())
 
 	// Track startup time - this is when the user actually sees the welcome screen
 	if r.startupTracker != nil && !r.startTime.IsZero() {
@@ -313,7 +296,7 @@ func (r *REPL) Run(ctx context.Context) error {
 		// Check context cancellation
 		select {
 		case <-ctx.Done():
-			r.emitREPLEvent("repl.exit")
+			r.executor.Interpreter().EmitEvent(interpreter.EventReplExit, interpreter.CreateReplExitContext())
 			return ctx.Err()
 		default:
 		}
@@ -346,9 +329,6 @@ func (r *REPL) Run(ctx context.Context) error {
 			Width:              termWidth,
 			Logger:             r.logger,
 		})
-
-		// Update predictor context asynchronously (don't block prompt display)
-		go r.updatePredictorContext()
 
 		// Run the input loop
 		p := tea.NewProgram(inputModel,
@@ -393,7 +373,7 @@ func (r *REPL) Run(ctx context.Context) error {
 			if err := r.processCommand(ctx, result.Value); err != nil {
 				// Check if user requested exit
 				if err == ErrExit {
-					r.emitREPLEvent("repl.exit")
+					r.executor.Interpreter().EmitEvent(interpreter.EventReplExit, interpreter.CreateReplExitContext())
 					return nil
 				}
 				// Log other errors but continue
@@ -546,7 +526,7 @@ func (r *REPL) processCommand(ctx context.Context, command string) error {
 // Returns the exit code of the command.
 func (r *REPL) executeShellCommand(ctx context.Context, command string) int {
 	// Emit repl.command.before event with the command text
-	r.emitREPLEvent("repl.command.before", &interpreter.StringValue{Value: command})
+	r.executor.Interpreter().EmitEvent(interpreter.EventReplCommandBefore, interpreter.CreateReplCommandBeforeContext(command))
 
 	// Execute the command
 	startTime := timeNow()
@@ -561,10 +541,7 @@ func (r *REPL) executeShellCommand(ctx context.Context, command string) int {
 	r.executor.Interpreter().SDKConfig().UpdateLastCommand(exitCode, r.lastDurationMs)
 
 	// Emit repl.command.after event with command, exit code, and duration
-	r.emitREPLEvent("repl.command.after",
-		&interpreter.StringValue{Value: command},
-		&interpreter.NumberValue{Value: float64(exitCode)},
-		&interpreter.NumberValue{Value: float64(r.lastDurationMs)})
+	r.executor.Interpreter().EmitEvent(interpreter.EventReplCommandAfter, interpreter.CreateReplCommandAfterContext(command, exitCode, r.lastDurationMs))
 
 	// Display error if execution failed (not just non-zero exit)
 	if err != nil {
@@ -594,7 +571,7 @@ func (r *REPL) getPrompt() string {
 	interp := r.executor.Interpreter()
 
 	// Emit repl.prompt event to let handlers update the prompt dynamically
-	interp.EmitEvent("repl.prompt", &interpreter.NullValue{})
+	interp.EmitEvent(interpreter.EventReplPrompt, interpreter.CreateReplPromptContext())
 
 	// Read gsh.prompt property (may have been updated by event handler)
 	replCtx := interp.SDKConfig().GetREPLContext()
@@ -606,16 +583,6 @@ func (r *REPL) getPrompt() string {
 
 	// Fallback to default prompt if gsh.prompt not set
 	return "gsh> "
-}
-
-// updatePredictorContext updates the predictor with current context information.
-func (r *REPL) updatePredictorContext() {
-	if r.predictor == nil || r.contextProvider == nil {
-		return
-	}
-
-	contextMap := r.contextProvider.GetContext()
-	r.predictor.UpdateContext(contextMap)
 }
 
 // getHistoryValues returns recent history entries for navigation.
@@ -683,29 +650,6 @@ func (r *REPL) Executor() *executor.REPLExecutor {
 // History returns the history manager.
 func (r *REPL) History() *history.HistoryManager {
 	return r.history
-}
-
-// emitREPLEvent emits a REPL event by calling all registered handlers for that event
-func (r *REPL) emitREPLEvent(eventName string, args ...interpreter.Value) {
-	interp := r.executor.Interpreter()
-
-	// Create context object from args
-	var ctx interpreter.Value
-	if len(args) == 0 {
-		ctx = &interpreter.NullValue{}
-	} else if len(args) == 1 {
-		ctx = args[0]
-	} else {
-		// Multiple args - wrap in an object
-		props := make(map[string]*interpreter.PropertyDescriptor)
-		for i, arg := range args {
-			props[fmt.Sprintf("arg%d", i)] = &interpreter.PropertyDescriptor{Value: arg}
-		}
-		ctx = &interpreter.ObjectValue{Properties: props}
-	}
-
-	// Use the interpreter's EmitEvent which handles the middleware chain
-	interp.EmitEvent(eventName, ctx)
 }
 
 // loadBashConfigs loads bash configuration files in the correct order.
