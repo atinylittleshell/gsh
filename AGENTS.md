@@ -147,3 +147,7 @@ rm /tmp/tmp_rovodev_test.gsh
 ```
 
 Use `JSON.parse()` for parsing JSON strings in gsh scripts - it's more reliable than manual string parsing.
+
+## Generated code
+
+When you need stringer outputs (e.g., `TokenType.String()`), do **not** hand-write them. Run `make install-tools` once to install `stringer`, then run `make test` (which runs `go generate`) to produce the generated files.
