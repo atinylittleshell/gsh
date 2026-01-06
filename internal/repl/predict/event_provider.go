@@ -71,9 +71,6 @@ func (p *EventPredictionProvider) emitPredictEvent(ctx context.Context, request 
 		Prediction: prediction.Prediction,
 		Source:     input.ParsePredictionSource(prediction.Source),
 	}
-	if response.Source == input.PredictionSourceNone && request.Source != input.PredictionSourceNone {
-		response.Source = request.Source
-	}
 
 	return response, err
 }

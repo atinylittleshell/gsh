@@ -353,9 +353,6 @@ func (ps *PredictionState) tryHistoryPrediction(stateID int64, input string, his
 	}
 
 	source := response.Source
-	if source == PredictionSourceNone {
-		source = PredictionSourceHistory
-	}
 
 	ps.logger.Debug("instant history prediction",
 		zap.String("input", input),
@@ -464,11 +461,7 @@ func (ps *PredictionState) predictWithProvider(
 	sourceFromProvider := prediction.Source
 
 	if prediction.Prediction != "" {
-		result.Source = source
-		if sourceFromProvider != PredictionSourceNone {
-			result.Source = sourceFromProvider
-		}
-
+		result.Source = sourceFromProvider
 		result.Prediction = prediction.Prediction
 
 		ps.logger.Debug("prediction",
