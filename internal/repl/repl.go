@@ -42,7 +42,7 @@ type REPL struct {
 	executor  *executor.REPLExecutor
 	history   *history.HistoryManager
 	predictor interface {
-		Predict(ctx context.Context, input string) (string, error)
+		Predict(ctx context.Context, request input.PredictionRequest) (input.PredictionResponse, error)
 	}
 	completionProvider *completion.Provider
 	logger             *zap.Logger
@@ -277,18 +277,17 @@ func (r *REPL) Run(ctx context.Context) error {
 		historyProvider = input.NewHistoryPredictionAdapter(r.history)
 	}
 
-	// Create prediction state if we have history or LLM predictor
-	if historyProvider != nil || r.predictor != nil {
-		// Only set LLMProvider if predictor is not nil to avoid nil interface issues
-		var llmProvider input.PredictionProvider
-		if r.predictor != nil {
-			llmProvider = r.predictor
-		}
+	// Create prediction state if we have history or a prediction provider
+	var predictionProvider input.PredictionProvider
+	if r.predictor != nil {
+		predictionProvider = r.predictor
+	}
 
+	if historyProvider != nil || predictionProvider != nil {
 		predictionState = input.NewPredictionState(input.PredictionStateConfig{
-			HistoryProvider: historyProvider,
-			LLMProvider:     llmProvider,
-			Logger:          r.logger,
+			HistoryProvider:    historyProvider,
+			PredictionProvider: predictionProvider,
+			Logger:             r.logger,
 		})
 	}
 

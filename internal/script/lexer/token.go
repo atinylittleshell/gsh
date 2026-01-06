@@ -1,5 +1,7 @@
 package lexer
 
+import "fmt"
+
 //go:generate stringer -type=TokenType -trimprefix=TokenType
 
 // TokenType represents the type of a token
@@ -71,6 +73,74 @@ const (
 	LBRACKET  // [
 	RBRACKET  // ]
 )
+
+var tokenTypeNames = [...]string{
+	ILLEGAL:          "ILLEGAL",
+	EOF:              "EOF",
+	COMMENT:          "COMMENT",
+	IDENT:            "IDENT",
+	NUMBER:           "NUMBER",
+	STRING:           "STRING",
+	TEMPLATE_LITERAL: "TEMPLATE_LITERAL",
+	KW_MCP:           "KW_MCP",
+	KW_MODEL:         "KW_MODEL",
+	KW_AGENT:         "KW_AGENT",
+	KW_ACP:           "KW_ACP",
+	KW_TOOL:          "KW_TOOL",
+	KW_IF:            "KW_IF",
+	KW_ELSE:          "KW_ELSE",
+	KW_FOR:           "KW_FOR",
+	KW_OF:            "KW_OF",
+	KW_WHILE:         "KW_WHILE",
+	KW_BREAK:         "KW_BREAK",
+	KW_CONTINUE:      "KW_CONTINUE",
+	KW_TRY:           "KW_TRY",
+	KW_CATCH:         "KW_CATCH",
+	KW_FINALLY:       "KW_FINALLY",
+	KW_RETURN:        "KW_RETURN",
+	KW_IMPORT:        "KW_IMPORT",
+	KW_EXPORT:        "KW_EXPORT",
+	KW_FROM:          "KW_FROM",
+	KW_GO:            "KW_GO",
+	OP_ASSIGN:        "OP_ASSIGN",
+	OP_PLUS:          "OP_PLUS",
+	OP_MINUS:         "OP_MINUS",
+	OP_ASTERISK:      "OP_ASTERISK",
+	OP_SLASH:         "OP_SLASH",
+	OP_PERCENT:       "OP_PERCENT",
+	OP_BANG:          "OP_BANG",
+	OP_EQ:            "OP_EQ",
+	OP_NEQ:           "OP_NEQ",
+	OP_LT:            "OP_LT",
+	OP_GT:            "OP_GT",
+	OP_LTE:           "OP_LTE",
+	OP_GTE:           "OP_GTE",
+	OP_AND:           "OP_AND",
+	OP_OR:            "OP_OR",
+	OP_PIPE:          "OP_PIPE",
+	OP_QUESTION:      "OP_QUESTION",
+	OP_NULLCOAL:      "OP_NULLCOAL",
+	COMMA:            "COMMA",
+	COLON:            "COLON",
+	SEMICOLON:        "SEMICOLON",
+	DOT:              "DOT",
+	LPAREN:           "LPAREN",
+	RPAREN:           "RPAREN",
+	LBRACE:           "LBRACE",
+	RBRACE:           "RBRACE",
+	LBRACKET:         "LBRACKET",
+	RBRACKET:         "RBRACKET",
+}
+
+// String implements fmt.Stringer for TokenType.
+func (t TokenType) String() string {
+	if int(t) >= 0 && int(t) < len(tokenTypeNames) {
+		if name := tokenTypeNames[t]; name != "" {
+			return name
+		}
+	}
+	return fmt.Sprintf("TokenType(%d)", t)
+}
 
 // Token represents a lexical token
 type Token struct {

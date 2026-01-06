@@ -23,6 +23,19 @@ import (
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
+type historyOnlyProvider struct{}
+
+//nolint:revive // context is unused in this simple provider
+func (historyOnlyProvider) Predict(_ context.Context, req input.PredictionRequest) (input.PredictionResponse, error) {
+	if len(req.History) > 0 && req.Source == input.PredictionSourceHistory {
+		return input.PredictionResponse{
+			Prediction: req.History[0].Command,
+			Source:     input.PredictionSourceHistory,
+		}, nil
+	}
+	return input.PredictionResponse{}, nil
+}
+
 func TestDirectoryStructure(t *testing.T) {
 	// This test verifies that all subpackages in internal/repl/ can be imported.
 	// The imports above will fail at compile time if any package is missing
@@ -463,11 +476,11 @@ func TestREPL_HistoryPredictionWithoutLLM(t *testing.T) {
 	require.NotNil(t, historyProvider)
 
 	// Create prediction state with history but WITHOUT LLM provider
-	// This is the key test - it should not panic when llmProvider is nil
+	// This is the key test - it should not panic when the predictor only supports history
 	predictionState := input.NewPredictionState(input.PredictionStateConfig{
-		HistoryProvider: historyProvider,
-		LLMProvider:     nil, // Explicitly nil - no LLM configured
-		Logger:          logger,
+		HistoryProvider:    historyProvider,
+		PredictionProvider: historyOnlyProvider{},
+		Logger:             logger,
 	})
 	require.NotNil(t, predictionState)
 

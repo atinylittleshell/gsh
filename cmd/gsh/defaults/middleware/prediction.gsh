@@ -24,6 +24,23 @@ tool __predictionContext() {
     return contextParts.join("\n")
 }
 
+tool __historyPrediction(ctx) {
+    input = ctx.input
+    history = ctx.history
+    if (history == null || input == null || input == "") {
+        return null
+    }
+
+    for (i = 0; i < history.length; i++) {
+        entry = history[i]
+        if (entry != null && entry.command != null && entry.command.startsWith(input)) {
+            return entry.command
+        }
+    }
+
+    return null
+}
+
 # Agent used for predictions (prefix + null-state)
 agent __predictionAgent {
     model: gsh.models.lite,
@@ -37,14 +54,24 @@ agent __predictionAgent {
 tool __onPredict(ctx, next) {
     # Allow earlier middleware to override
     input = ctx.input
+    source = ctx.source
 
-    # Skip agent chat messages
-    if (input != null && input.startsWith("#")) {
+    if (source == "history") {
+        historyPrediction = __historyPrediction(ctx)
+        if (historyPrediction != null && historyPrediction != "") {
+            return { prediction: historyPrediction, source: "history" }
+        }
+
         return next(ctx)
     }
 
     # Ensure prediction model is available
     if (gsh.models == null || gsh.models.lite == null) {
+        return next(ctx)
+    }
+
+    # Skip agent chat messages for non-history predictions
+    if (input != null && input.startsWith("#")) {
         return next(ctx)
     }
 
@@ -119,7 +146,7 @@ Respond with JSON in this format: {"predicted_command": "your prediction here"}
         return next(ctx)
     }
 
-    return { prediction: prediction }
+    return { prediction: prediction, source: "llm" }
 }
 
 gsh.use("repl.predict", __onPredict)

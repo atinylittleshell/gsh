@@ -198,11 +198,13 @@ Fired when the REPL needs a command prediction (ghost text). Handlers should ret
 
 **Context:**
 
-| Property    | Type     | Description                               |
-| ----------- | -------- | ----------------------------------------- |
-| `ctx.input` | `string` | Current input text (empty for null-state) |
+| Property      | Type                                   | Description                                                                               |
+| ------------- | -------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `ctx.input`   | `string`                               | Current input text (empty for null-state)                                                 |
+| `ctx.history` | `Array<{command, directory, exitCode}>` | Recent history entries matching the current prefix (most recent first). May be empty.     |
+| `ctx.source`  | `string`                               | Hint about the requested prediction source (`"history"` or `"llm"`).                      |
 
-**Return Value:** A string prediction or an object `{ prediction: string, error?: string }`. If `error` is provided, the REPL logs it and falls back to the next handler/fallback provider.
+**Return Value:** A string prediction or an object `{ prediction: string, error?: string, source?: string }`. If `error` is provided, the REPL logs it and falls back to the next handler/fallback provider. `source` is optional metadata (e.g., `"history"`/`"llm"`).
 
 ```gsh
 tool myPredictor(ctx, next) {
@@ -226,7 +228,7 @@ tool myPredictor(ctx, next) {
 gsh.use("repl.predict", myPredictor)
 ```
 
-The default config registers a prediction middleware under `cmd/gsh/defaults/middleware/prediction.gsh`. It builds context inside the handler (pwd, git status, last command metadata) and queries `gsh.models.lite` via an agent to keep the behavior customizable without modifying Go code.
+The default config registers a prediction middleware under `cmd/gsh/defaults/middleware/prediction.gsh`. It builds context inside the handler (pwd, git status, last command metadata, history matches) and handles both history-based and LLM-based predictions via `gsh.models.lite`, keeping the behavior customizable without modifying Go code.
 
 ## Agent Events
 

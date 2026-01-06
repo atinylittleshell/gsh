@@ -41,19 +41,30 @@ type mockPredictionProvider struct {
 	mu          sync.Mutex
 }
 
-func (m *mockPredictionProvider) Predict(ctx context.Context, input string) (string, error) {
+func (m *mockPredictionProvider) Predict(ctx context.Context, request PredictionRequest) (PredictionResponse, error) {
 	m.mu.Lock()
 	m.callCount++
 	m.mu.Unlock()
 
 	if m.err != nil {
-		return "", m.err
+		return PredictionResponse{}, m.err
 	}
-	prediction, ok := m.predictions[input]
+
+	if request.Source == PredictionSourceHistory && len(request.History) > 0 {
+		return PredictionResponse{
+			Prediction: request.History[0].Command,
+			Source:     PredictionSourceHistory,
+		}, nil
+	}
+
+	prediction, ok := m.predictions[request.Input]
 	if !ok {
-		return "", nil
+		return PredictionResponse{}, nil
 	}
-	return prediction, nil
+	return PredictionResponse{
+		Prediction: prediction,
+		Source:     PredictionSourceLLM,
+	}, nil
 }
 
 func (m *mockPredictionProvider) getCallCount() int {
@@ -78,6 +89,23 @@ func TestPredictionSource_String(t *testing.T) {
 			assert.Equal(t, tt.expected, tt.source.String())
 		})
 	}
+
+	parseTests := []struct {
+		value    string
+		expected PredictionSource
+	}{
+		{"history", PredictionSourceHistory},
+		{"llm", PredictionSourceLLM},
+		{"LLM", PredictionSourceLLM},
+		{"", PredictionSourceNone},
+		{"unknown", PredictionSourceNone},
+	}
+
+	for _, tt := range parseTests {
+		t.Run("parse_"+tt.value, func(t *testing.T) {
+			assert.Equal(t, tt.expected, ParsePredictionSource(tt.value))
+		})
+	}
 }
 
 func TestNewPredictionState(t *testing.T) {
@@ -88,7 +116,7 @@ func TestNewPredictionState(t *testing.T) {
 		assert.Equal(t, 10, ps.historyPrefixLimit)
 		assert.NotNil(t, ps.logger)
 		assert.Nil(t, ps.historyProvider)
-		assert.Nil(t, ps.llmProvider)
+		assert.Nil(t, ps.provider)
 	})
 
 	t.Run("custom values", func(t *testing.T) {
@@ -99,13 +127,13 @@ func TestNewPredictionState(t *testing.T) {
 			DebounceDelay:      100 * time.Millisecond,
 			HistoryPrefixLimit: 5,
 			HistoryProvider:    historyProvider,
-			LLMProvider:        llmProvider,
+			PredictionProvider: llmProvider,
 		})
 
 		assert.Equal(t, 100*time.Millisecond, ps.debounceDelay)
 		assert.Equal(t, 5, ps.historyPrefixLimit)
 		assert.Equal(t, historyProvider, ps.historyProvider)
-		assert.Equal(t, llmProvider, ps.llmProvider)
+		assert.Equal(t, llmProvider, ps.provider)
 	})
 }
 
@@ -240,8 +268,9 @@ func TestPredictionState_HistoryPrediction(t *testing.T) {
 	}
 
 	ps := NewPredictionState(PredictionStateConfig{
-		DebounceDelay:   10 * time.Millisecond,
-		HistoryProvider: historyProvider,
+		DebounceDelay:      10 * time.Millisecond,
+		HistoryProvider:    historyProvider,
+		PredictionProvider: &mockPredictionProvider{},
 	})
 
 	ch := ps.OnInputChanged("git")
@@ -273,8 +302,9 @@ func TestPredictionState_HistoryPredictionIsInstant(t *testing.T) {
 	// Use a very long debounce delay to make the test obvious
 	// If history predictions were debounced, this test would timeout
 	ps := NewPredictionState(PredictionStateConfig{
-		DebounceDelay:   10 * time.Second, // Very long debounce
-		HistoryProvider: historyProvider,
+		DebounceDelay:      10 * time.Second, // Very long debounce
+		HistoryProvider:    historyProvider,
+		PredictionProvider: &mockPredictionProvider{},
 	})
 
 	start := time.Now()
@@ -316,9 +346,9 @@ func TestPredictionState_LLMPredictionIsDebounced(t *testing.T) {
 
 	debounceDelay := 50 * time.Millisecond
 	ps := NewPredictionState(PredictionStateConfig{
-		DebounceDelay:   debounceDelay,
-		HistoryProvider: historyProvider,
-		LLMProvider:     llmProvider,
+		DebounceDelay:      debounceDelay,
+		HistoryProvider:    historyProvider,
+		PredictionProvider: llmProvider,
 	})
 
 	start := time.Now()
@@ -354,9 +384,9 @@ func TestPredictionState_LLMFallback(t *testing.T) {
 	}
 
 	ps := NewPredictionState(PredictionStateConfig{
-		DebounceDelay:   10 * time.Millisecond,
-		HistoryProvider: historyProvider,
-		LLMProvider:     llmProvider,
+		DebounceDelay:      10 * time.Millisecond,
+		HistoryProvider:    historyProvider,
+		PredictionProvider: llmProvider,
 	})
 
 	ch := ps.OnInputChanged("docker")
@@ -381,8 +411,8 @@ func TestPredictionState_NullStatePrediction(t *testing.T) {
 	}
 
 	ps := NewPredictionState(PredictionStateConfig{
-		DebounceDelay: 10 * time.Millisecond,
-		LLMProvider:   llmProvider,
+		DebounceDelay:      10 * time.Millisecond,
+		PredictionProvider: llmProvider,
 	})
 
 	// Mark dirty first, then clear
@@ -409,8 +439,8 @@ func TestPredictionState_AgentChatSkipped(t *testing.T) {
 		}
 
 		ps := NewPredictionState(PredictionStateConfig{
-			DebounceDelay: 10 * time.Millisecond,
-			LLMProvider:   llmProvider,
+			DebounceDelay:      10 * time.Millisecond,
+			PredictionProvider: llmProvider,
 		})
 
 		ch := ps.OnInputChanged("#hello")
@@ -444,8 +474,9 @@ func TestPredictionState_AgentChatSkipped(t *testing.T) {
 		}
 
 		ps := NewPredictionState(PredictionStateConfig{
-			DebounceDelay:   10 * time.Millisecond,
-			HistoryProvider: historyProvider,
+			DebounceDelay:      10 * time.Millisecond,
+			HistoryProvider:    historyProvider,
+			PredictionProvider: &mockPredictionProvider{},
 		})
 
 		ch := ps.OnInputChanged("#")
@@ -473,8 +504,8 @@ func TestPredictionState_Debouncing(t *testing.T) {
 	}
 
 	ps := NewPredictionState(PredictionStateConfig{
-		DebounceDelay: 50 * time.Millisecond,
-		LLMProvider:   llmProvider,
+		DebounceDelay:      50 * time.Millisecond,
+		PredictionProvider: llmProvider,
 	})
 
 	// Rapid input changes
@@ -506,8 +537,8 @@ func TestPredictionState_CancellationOnNewInput(t *testing.T) {
 	}
 
 	ps := NewPredictionState(PredictionStateConfig{
-		DebounceDelay: 10 * time.Millisecond,
-		LLMProvider:   slowProvider,
+		DebounceDelay:      10 * time.Millisecond,
+		PredictionProvider: slowProvider,
 	})
 
 	// Start first prediction
@@ -533,8 +564,8 @@ func TestPredictionState_LLMError(t *testing.T) {
 	}
 
 	ps := NewPredictionState(PredictionStateConfig{
-		DebounceDelay: 10 * time.Millisecond,
-		LLMProvider:   llmProvider,
+		DebounceDelay:      10 * time.Millisecond,
+		PredictionProvider: llmProvider,
 	})
 
 	ch := ps.OnInputChanged("test")
@@ -552,9 +583,9 @@ func TestPredictionState_LLMError(t *testing.T) {
 func TestLLMPredictionProvider(t *testing.T) {
 	t.Run("nil model returns empty", func(t *testing.T) {
 		provider := NewLLMPredictionProvider(nil, nil, nil)
-		prediction, err := provider.Predict(context.Background(), "test")
+		prediction, err := provider.Predict(context.Background(), PredictionRequest{Input: "test"})
 		assert.NoError(t, err)
-		assert.Equal(t, "", prediction)
+		assert.Equal(t, "", prediction.Prediction)
 	})
 
 	t.Run("update context", func(t *testing.T) {
@@ -618,10 +649,10 @@ func TestLLMPredictionProvider_WithMockProvider(t *testing.T) {
 		}
 
 		provider := NewLLMPredictionProvider(model, mockProvider, nil)
-		prediction, err := provider.Predict(context.Background(), "git")
+		prediction, err := provider.Predict(context.Background(), PredictionRequest{Input: "git"})
 
 		assert.NoError(t, err)
-		assert.Equal(t, "git status", prediction)
+		assert.Equal(t, "git status", prediction.Prediction)
 	})
 
 	t.Run("null state prediction", func(t *testing.T) {
@@ -632,10 +663,10 @@ func TestLLMPredictionProvider_WithMockProvider(t *testing.T) {
 		}
 
 		provider := NewLLMPredictionProvider(model, mockProvider, nil)
-		prediction, err := provider.Predict(context.Background(), "")
+		prediction, err := provider.Predict(context.Background(), PredictionRequest{Input: ""})
 
 		assert.NoError(t, err)
-		assert.Equal(t, "ls -la", prediction)
+		assert.Equal(t, "ls -la", prediction.Prediction)
 	})
 
 	t.Run("provider error", func(t *testing.T) {
@@ -644,7 +675,7 @@ func TestLLMPredictionProvider_WithMockProvider(t *testing.T) {
 		}
 
 		provider := NewLLMPredictionProvider(model, mockProvider, nil)
-		_, err := provider.Predict(context.Background(), "test")
+		_, err := provider.Predict(context.Background(), PredictionRequest{Input: "test"})
 
 		assert.Error(t, err)
 	})
@@ -657,10 +688,10 @@ func TestLLMPredictionProvider_WithMockProvider(t *testing.T) {
 		}
 
 		provider := NewLLMPredictionProvider(model, mockProvider, nil)
-		prediction, err := provider.Predict(context.Background(), "test")
+		prediction, err := provider.Predict(context.Background(), PredictionRequest{Input: "test"})
 
 		assert.NoError(t, err)
-		assert.Equal(t, "", prediction)
+		assert.Equal(t, "", prediction.Prediction)
 	})
 }
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/atinylittleshell/gsh/internal/history"
+	"github.com/atinylittleshell/gsh/internal/repl/input"
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 	"github.com/atinylittleshell/gsh/internal/script/lexer"
 	"github.com/atinylittleshell/gsh/internal/script/parser"
@@ -38,10 +40,10 @@ gsh.use("repl.predict", predict)
 	evalScript(t, interp, script)
 
 	provider := NewEventPredictionProvider(interp, zap.NewNop())
-	pred, err := provider.Predict(context.Background(), "ls")
+	pred, err := provider.Predict(context.Background(), input.PredictionRequest{Input: "ls"})
 
 	require.NoError(t, err)
-	assert.Equal(t, "ls -la", pred)
+	assert.Equal(t, "ls -la", pred.Prediction)
 }
 
 func TestEventPredictionProvider_ReturnsEmptyOnNull(t *testing.T) {
@@ -56,9 +58,9 @@ gsh.use("repl.predict", predict)
 
 	provider := NewEventPredictionProvider(interp, zap.NewNop())
 
-	pred, err := provider.Predict(context.Background(), "echo")
+	pred, err := provider.Predict(context.Background(), input.PredictionRequest{Input: "echo"})
 	require.NoError(t, err)
-	assert.Equal(t, "", pred)
+	assert.Equal(t, "", pred.Prediction)
 }
 
 func TestEventPredictionProvider_ReturnsEmptyOnError(t *testing.T) {
@@ -73,7 +75,36 @@ gsh.use("repl.predict", predict)
 
 	provider := NewEventPredictionProvider(interp, zap.NewNop())
 
-	pred, err := provider.Predict(context.Background(), "git")
+	pred, err := provider.Predict(context.Background(), input.PredictionRequest{Input: "git"})
 	require.NoError(t, err)
-	assert.Equal(t, "", pred)
+	assert.Equal(t, "", pred.Prediction)
+}
+
+func TestEventPredictionProvider_HistoryContext(t *testing.T) {
+	interp := interpreter.New(nil)
+	script := `
+tool predict(ctx, next) {
+    if (ctx.source == "history" && ctx.history != null && ctx.history.length > 0) {
+        return { prediction: ctx.history[0].command, source: "history" }
+    }
+    return null
+}
+gsh.use("repl.predict", predict)
+`
+	evalScript(t, interp, script)
+
+	provider := NewEventPredictionProvider(interp, zap.NewNop())
+
+	request := input.PredictionRequest{
+		Input: "git",
+		History: []history.HistoryEntry{
+			{Command: "git status"},
+		},
+		Source: input.PredictionSourceHistory,
+	}
+
+	pred, err := provider.Predict(context.Background(), request)
+	require.NoError(t, err)
+	assert.Equal(t, "git status", pred.Prediction)
+	assert.Equal(t, input.PredictionSourceHistory, pred.Source)
 }
