@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/atinylittleshell/gsh/compare/v1.1.7...v1.2.0) (2026-01-07)
+
+
+### Features
+
+* support extra body on model definition ([#151](https://github.com/atinylittleshell/gsh/issues/151)) ([a68c62f](https://github.com/atinylittleshell/gsh/commit/a68c62f30a1a8d66734004f9f74c14801c117391))
+
+
+### Bug Fixes
+
+* migrate history prediction also to middleware ([#149](https://github.com/atinylittleshell/gsh/issues/149)) ([9de923c](https://github.com/atinylittleshell/gsh/commit/9de923c8fabd6e90960f3bb05033b2a50a3b9fcd))
+
 ## [1.1.7](https://github.com/atinylittleshell/gsh/compare/v1.1.6...v1.1.7) (2026-01-05)
 
 
