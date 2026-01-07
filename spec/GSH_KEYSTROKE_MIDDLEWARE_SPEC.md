@@ -2,9 +2,15 @@
 
 This document specifies a **keystroke middleware** system that extends the existing command middleware to enable scriptable syntax highlighting, command prediction, and tab completion.
 
-## Status: Draft / Design Phase
+## Status: Draft / Partially Implemented
 
-This spec captures design thinking and open questions for future implementation. The existing command middleware (`gsh.useCommandMiddleware`) handles input after submission; this spec covers input processing _during_ typing.
+This spec captures design thinking for future implementation. The existing command middleware (`gsh.useCommandMiddleware`) handles input after submission; this spec covers input processing _during_ typing.
+
+**Current implementation status:**
+
+- ✅ `repl.predict` - Fully implemented with trigger context
+- 🔲 `repl.highlight` - Not yet implemented
+- 🔲 `repl.completion` - Not yet implemented
 
 ## Motivation
 
@@ -24,98 +30,143 @@ These are powerful features, but they're hardcoded in Go. Users cannot:
 
 Following gsh's neovim-inspired extensibility model, we want to make these features scriptable while maintaining good performance.
 
-## Relationship to Command Middleware
+## Architecture: Separate Events Model
 
-gsh will have **two types of middleware**:
+Rather than a single unified `repl.keystroke` event, gsh uses **separate events** for each feature. This allows:
+
+1. **Independent timing** - Each feature can have its own debounce/trigger behavior
+2. **Simpler middleware** - Each handler focuses on one concern
+3. **Gradual migration** - Features can be moved to scripts incrementally
+4. **Better performance** - Only run the middleware needed for each trigger
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                     User Types in REPL                          │
 └─────────────────────────────────────────────────────────────────┘
                               │
-         ┌────────────────────┴────────────────────┐
-         │                                         │
-         ▼                                         ▼
-┌─────────────────────┐                 ┌─────────────────────┐
-│ Keystroke Middleware│                 │ Command Middleware  │
-│ (runs while typing) │                 │ (runs on Enter)     │
-├─────────────────────┤                 ├─────────────────────┤
-│ • Syntax highlight  │                 │ • Route # commands  │
-│ • Ghost prediction  │                 │ • Custom commands   │
-│ • Tab completions   │                 │ • Transform input   │
-│                     │                 │ • Fall through to   │
-│ Async, debounced    │                 │   shell execution   │
-└─────────────────────┘                 └─────────────────────┘
+         ┌────────────────────┼────────────────────┐
+         │                    │                    │
+         ▼                    ▼                    ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│  repl.predict   │  │  repl.highlight │  │ repl.completion │
+│  (ghost text)   │  │  (syntax color) │  │  (tab menu)     │
+├─────────────────┤  ├─────────────────┤  ├─────────────────┤
+│ trigger:        │  │ trigger:        │  │ trigger:        │
+│ • "instant"     │  │ • "change"      │  │ • "tab"         │
+│ • "debounced"   │  │                 │  │                 │
+│                 │  │ debounce: 50ms  │  │ debounce: 0ms   │
+│ instant: 0ms    │  │                 │  │ (immediate)     │
+│ debounced: 200ms│  │                 │  │                 │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
 ```
 
-## API Design
+## Event: repl.predict (Implemented)
 
-### Registration Functions
+The `repl.predict` event handles command prediction (ghost text suggestions).
 
-```gsh
-// Command middleware (existing, renamed for clarity)
-gsh.useCommandMiddleware(tool)
-gsh.removeCommandMiddleware(tool)
+### Trigger Types
 
-// Keystroke middleware (new)
-gsh.useKeystrokeMiddleware(tool)
-gsh.removeKeystrokeMiddleware(tool)
-```
+| Trigger     | When               | Debounce | Use Case                   |
+| ----------- | ------------------ | -------- | -------------------------- |
+| `instant`   | Every input change | 0ms      | Fast predictions (history) |
+| `debounced` | After typing pause | 200ms    | Slow predictions (LLM)     |
 
-### Keystroke Middleware Signature
+The Go layer calls `repl.predict` twice per input change:
 
-```gsh
-tool myKeystrokeMiddleware(ctx, next) {
-    // ctx contains everything about the current input state
-    // Return object can set any/all of: highlight, prediction, completions
-
-    result = next(ctx)  // Get results from downstream middleware
-
-    // Merge/override with our results
-    return {
-        highlight: result.highlight,      // Styled string or null
-        prediction: result.prediction,    // Ghost text or null
-        completions: result.completions,  // Array of suggestions or null
-    }
-}
-```
+1. **Instant call** (`trigger: "instant"`) - for fast, synchronous predictions
+2. **Debounced call** (`trigger: "debounced"`) - for slow, async predictions (only if instant returned no result)
 
 ### Context Object
 
-The context provides rich information about the current input state:
-
 ```gsh
 ctx = {
-    // Core input state
-    input: "git commit -m \"fix bug\"",
-    cursorPos: 14,                    // Cursor position in input
-
-    // Parsed word context (useful for completion)
-    word: {
-        text: "commit",               // Current word under cursor
-        start: 4,                     // Start index of word
-        end: 10,                      // End index of word
-    },
-
-    // Input classification hints (computed by Go, informational only)
-    hints: {
-        isAgentMode: false,           // Starts with #
-        firstWord: "git",             // First token
-        commandExists: true,          // Is first word a valid command?
-    },
-
-    // Trigger info - why this middleware is running
-    trigger: "change",                // "change" | "tab" | "idle"
+    input: "git commit -m",     // Current input text
+    trigger: "instant",         // "instant" | "debounced"
 }
 ```
 
 ### Result Object
 
-Middleware returns an object with any combination of:
+```gsh
+{
+    prediction: "git commit -m \"fix: description\"",  // Full predicted command, or null
+}
+```
+
+### Default Implementation
+
+The default prediction middleware in `cmd/gsh/defaults/middleware/prediction.gsh`:
+
+```gsh
+tool __onPredict(ctx, next) {
+    input = ctx.input
+    trigger = ctx.trigger
+
+    # Skip agent chat messages
+    if (input != null && input.startsWith("#")) {
+        return next(ctx)
+    }
+
+    # For instant trigger, only check history (must be fast!)
+    if (trigger == "instant") {
+        if (input != null && input != "") {
+            match = gsh.history.findPrefix(input, 10)
+            if (match != null) {
+                return { prediction: match }
+            }
+        }
+        return next(ctx)
+    }
+
+    # For debounced trigger, try history first, then LLM
+    if (input != null && input != "") {
+        match = gsh.history.findPrefix(input, 10)
+        if (match != null) {
+            return { prediction: match }
+        }
+    }
+
+    # Fall back to LLM prediction...
+    # (LLM logic here)
+
+    return next(ctx)
+}
+
+gsh.use("repl.predict", __onPredict)
+```
+
+### SDK: gsh.history.findPrefix()
+
+```gsh
+// Find the most recent command that starts with the given prefix
+// Returns the full command string, or null if no match
+match = gsh.history.findPrefix(prefix, limit)
+
+// Parameters:
+//   prefix (string): The prefix to search for
+//   limit (number): Maximum number of history entries to search (default: 10)
+//
+// Returns:
+//   string | null: The most recent matching command, or null
+```
+
+## Event: repl.highlight (Not Yet Implemented)
+
+The `repl.highlight` event handles syntax highlighting.
+
+### Context Object
+
+```gsh
+ctx = {
+    input: "git commit -m \"fix bug\"",
+    cursorPos: 14,
+}
+```
+
+### Result Object
 
 ```gsh
 {
-    // Syntax highlighting - styled version of input
     // Option A: Pre-rendered string with ANSI codes
     highlight: "\x1b[32mgit\x1b[0m commit -m \"fix bug\"",
 
@@ -126,11 +177,35 @@ Middleware returns an object with any combination of:
         { start: 11, end: 13, style: "flag" },
         { start: 14, end: 23, style: "string" },
     ],
+}
+```
 
-    // Command prediction - ghost text shown after cursor
-    prediction: " --amend",           // Or null for no prediction
+## Event: repl.completion (Not Yet Implemented)
 
-    // Tab completions - shown in completion menu
+The `repl.completion` event handles tab completion.
+
+### Context Object
+
+```gsh
+ctx = {
+    input: "git comm",
+    cursorPos: 8,
+    word: {
+        text: "comm",
+        start: 4,
+        end: 8,
+    },
+    hints: {
+        firstWord: "git",
+        commandExists: true,
+    },
+}
+```
+
+### Result Object
+
+```gsh
+{
     // Option A: Rich objects
     completions: [
         { value: "commit", description: "Record changes" },
@@ -141,95 +216,35 @@ Middleware returns an object with any combination of:
 }
 ```
 
-## Execution Model
-
-### Async + Debounced Execution
-
-Keystroke middleware runs **asynchronously** with **built-in debouncing** on the Go side:
-
-```
-User types 'g'
-    → Debounce timer starts (e.g., 50ms)
-User types 'i' (within 50ms)
-    → Debounce timer resets
-User types 't' (within 50ms)
-    → Debounce timer resets
-... 50ms passes with no input ...
-    → Fire keystroke middleware chain async
-    → When result arrives:
-        - If input hasn't changed: update UI
-        - If input changed: discard results (stale)
-```
-
-### Trigger Types
-
-Different actions trigger middleware with different urgency:
-
-| Trigger  | When               | Debounce        | Use Case                             |
-| -------- | ------------------ | --------------- | ------------------------------------ |
-| `change` | User types/deletes | 50ms            | Highlighting, basic predictions      |
-| `tab`    | User presses Tab   | 0ms (immediate) | Tab completion must feel instant     |
-| `idle`   | Extended pause     | 300ms           | Heavy operations like LLM prediction |
-
-### Chain Execution
-
-```
-Middleware 1 (user's custom)
-    ↓ next(ctx)
-Middleware 2 (user's custom)
-    ↓ next(ctx)
-Default Middleware (from defaults/middleware.gsh)
-    ↓ next(ctx)
-Go Fallback (built-in highlighter, predictor, completer)
-    → Returns { highlight, prediction, completions }
-
-Results bubble back up, each middleware can override/merge
-```
-
-## Default Implementation
-
-The default middleware in `defaults/middleware.gsh` would delegate to Go's implementation:
-
-```gsh
-tool __defaultKeystrokeMiddleware(ctx, next) {
-    result = next(ctx)  // Get Go fallback results
-
-    // Could enhance/override here in the future
-    // For now, pass through Go's implementation
-
-    return result
-}
-
-gsh.useKeystrokeMiddleware(__defaultKeystrokeMiddleware)
-```
-
 ## Example: Custom Middleware
 
-### Custom Syntax Highlighting for a DSL
+### Custom Prediction Source
 
 ```gsh
-tool queryHighlighter(ctx, next) {
-    result = next(ctx)
-
-    if (ctx.input.startsWith("@query")) {
-        // Custom highlighting for query DSL
-        result.highlight = highlightQueryDSL(ctx.input)
+tool historyPredictor(ctx, next) {
+    # Check history first for any trigger type
+    if (ctx.input != null && ctx.input != "") {
+        match = gsh.history.findPrefix(ctx.input, 10)
+        if (match != null) {
+            return { prediction: match }
+        }
     }
 
-    return result
+    # Fall through to default (LLM) prediction
+    return next(ctx)
 }
 
-gsh.useKeystrokeMiddleware(queryHighlighter)
+gsh.use("repl.predict", historyPredictor)
 ```
 
-### Custom Completions for kubectl
+### Custom Completions for kubectl (Future)
 
 ```gsh
 tool k8sCompleter(ctx, next) {
     result = next(ctx)
 
-    if (ctx.trigger == "tab" && ctx.hints.firstWord == "kubectl") {
-        // Add kubernetes-specific completions
+    if (ctx.hints.firstWord == "kubectl") {
+        # Add kubernetes-specific completions
         pods = exec("kubectl get pods -o name").split("\n")
         result.completions = pods.map(p => p.replace("pod/", ""))
     }
@@ -237,109 +252,70 @@ tool k8sCompleter(ctx, next) {
     return result
 }
 
-gsh.useKeystrokeMiddleware(k8sCompleter)
+gsh.use("repl.completion", k8sCompleter)
 ```
 
-### Custom Prediction Source
+### Custom Syntax Highlighting for a DSL (Future)
 
 ```gsh
-tool historyPredictor(ctx, next) {
+tool queryHighlighter(ctx, next) {
     result = next(ctx)
 
-    if (ctx.trigger == "idle" && result.prediction == null) {
-        // Add prediction from command history matching prefix
-        match = gsh.history.findPrefix(ctx.input)
-        if (match != null) {
-            result.prediction = match.substring(ctx.input.length())
-        }
+    if (ctx.input.startsWith("@query")) {
+        # Custom highlighting for query DSL
+        result.highlight = highlightQueryDSL(ctx.input)
     }
 
     return result
 }
 
-gsh.useKeystrokeMiddleware(historyPredictor)
+gsh.use("repl.highlight", queryHighlighter)
 ```
 
 ## Open Design Questions
 
-### 1. Highlight Format
+### 1. Highlight Format (for repl.highlight)
 
 Should highlight return:
 
 - **Option A: Styled string** (with ANSI codes)
-
-  - Pros: Simpler, direct output
-  - Cons: Harder to compose, middleware can't easily merge highlights
-
-- **Option B: Span array**
-
-  - Pros: Structured, easy to merge, can define standard style names
-  - Cons: More complex, needs Go-side rendering
-
+- **Option B: Span array** (structured, easier to merge)
 - **Option C: Both** - accept either format
-  - Pros: Flexibility
-  - Cons: Complexity in handling
 
 **Leaning toward:** Option C with span array as the "preferred" format.
 
-### 2. Trigger Granularity
+### 2. Debounce Configuration
 
-Current triggers: `change`, `tab`, `idle`
-
-Should we add more?
-
-- `enter` - Before command middleware runs (for last-second transforms)?
-- `cursor` - Cursor moved but input unchanged?
-- `paste` - Large input pasted (might want different debounce)?
-
-**Leaning toward:** Start minimal (`change`, `tab`, `idle`), add more if needed.
-
-### 3. Go Fallback Behavior
-
-Options:
-
-- **Option A:** Go fallback always runs at end of chain, middleware wraps it
-- **Option B:** Go fallback only runs if no middleware is registered
-- **Option C:** Go fallback runs, but middleware can return `{ useDefault: false }` to suppress
-
-**Leaning toward:** Option A - most flexible, matches event system.
-
-### 4. Debounce Configuration
-
-Should users be able to configure debounce timing?
+Should users be able to configure debounce timing per event?
 
 ```gsh
-gsh.config.keystroke = {
-    debounceMs: 50,        // For regular changes
-    idleMs: 300,           // Before firing "idle" trigger
-    tabDebounceMs: 0,      // Tab is immediate
+gsh.config.predict = {
+    instantEnabled: true,
+    debouncedDelayMs: 200,
 }
 ```
 
 **Leaning toward:** Yes, but with sensible defaults.
 
-### 5. Cancellation
+### 3. Cancellation
 
 If user keeps typing while middleware is running, should we:
 
 - **Option A:** Let it finish but discard results (simpler)
-- **Option B:** Actually cancel the execution (more complex, needs interpreter support)
+- **Option B:** Actually cancel the execution (more complex)
 
-**Leaning toward:** Option A for simplicity. The debounce + stale-check should handle most cases.
+**Decision:** Option A - the Go layer handles stale-check and discards outdated results.
 
-### 6. Performance Budget
+### 4. Performance Budget
 
-What's an acceptable latency for keystroke middleware?
+Target latencies:
 
-- Highlighting: < 5ms (feels instant)
-- Completion: < 50ms (feels responsive)
-- Prediction: < 200ms (can be slightly delayed)
+- `repl.predict` (instant): < 10ms (history lookup)
+- `repl.predict` (debounced): < 500ms (LLM call)
+- `repl.highlight`: < 5ms
+- `repl.completion`: < 50ms
 
-Should we have timeouts that fall back to Go implementation if script is too slow?
-
-### 7. Style Names for Spans
-
-If using span-based highlighting, what standard style names should we support?
+### 5. Style Names for Spans (for repl.highlight)
 
 ```gsh
 // Potential standard styles
@@ -355,36 +331,30 @@ If using span-based highlighting, what standard style names should we support?
 
 ## Implementation Plan
 
-### Phase 1: API Rename (Current)
+### Phase 1: repl.predict Migration (Current)
 
-Rename existing middleware API to be more specific:
+1. ✅ Add `trigger` field to `repl.predict` context ("instant" | "debounced")
+2. ✅ Add `gsh.history.findPrefix(prefix, limit)` SDK function
+3. ✅ Update `prediction.gsh` to handle both triggers with history + LLM logic
+4. ✅ Simplify Go prediction code to always delegate to gsh scripts
 
-- `gsh.use()` → `gsh.useCommandMiddleware()`
-- `gsh.remove()` → `gsh.removeCommandMiddleware()`
+### Phase 2: repl.highlight (Future)
 
-### Phase 2: Keystroke Middleware Infrastructure
+1. Add `repl.highlight` event
+2. Create default highlighting middleware
+3. Migrate Go highlighter to fallback
 
-1. Create `KeystrokeMiddlewareManager` in interpreter
-2. Add `gsh.useKeystrokeMiddleware()` / `gsh.removeKeystrokeMiddleware()`
-3. Implement debounce + async execution in Go
-4. Wire up to REPL input handling
+### Phase 3: repl.completion (Future)
 
-### Phase 3: Migrate Existing Features
-
-1. Create Go-side "fallback" that wraps existing highlighter/predictor/completer
-2. Add default keystroke middleware to `defaults/middleware.gsh`
-3. Test that existing behavior is preserved
-
-### Phase 4: Documentation & Examples
-
-1. Document keystroke middleware in tutorial
-2. Provide example middleware for common use cases
-3. Document performance considerations
+1. Add `repl.completion` event
+2. Create default completion middleware
+3. Migrate Go completer to fallback
 
 ## Related Files
 
-- `spec/GSH_MIDDLEWARE_SPEC.md` - Command middleware specification
-- `internal/script/interpreter/middleware.go` - Current middleware implementation
-- `internal/repl/input/highlight.go` - Current syntax highlighter
-- `internal/repl/input/prediction.go` - Current prediction system
-- `internal/repl/input/completion.go` - Current completion system
+- `cmd/gsh/defaults/middleware/prediction.gsh` - Default prediction middleware
+- `internal/repl/input/prediction.go` - Go prediction coordinator
+- `internal/repl/predict/event_provider.go` - Event provider for repl.predict
+- `internal/script/interpreter/repl_events.go` - Event context creation
+- `internal/script/interpreter/builtin_sdk.go` - SDK functions including gsh.history
+- `docs/sdk/05-events.md` - Event documentation

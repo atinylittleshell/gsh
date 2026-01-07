@@ -57,6 +57,9 @@ func (i *Interpreter) registerGshSDK() {
 	// Create gsh.ui object for UI control (spinner, styles, cursor)
 	uiObj := i.createUIObject()
 
+	// Create gsh.history object for command history access
+	historyObj := i.createHistoryObject()
+
 	// Create Math object with common methods and constants
 	mathObj := &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
@@ -143,6 +146,7 @@ func (i *Interpreter) registerGshSDK() {
 			"ui":               {Value: uiObj, ReadOnly: true},
 			"models":           {Value: modelsObj, ReadOnly: true},
 			"lastCommand":      {Value: lastCommandObj, ReadOnly: true},
+			"history":          {Value: historyObj, ReadOnly: true},
 			"prompt":           {Value: promptObj},
 			"use": {Value: &BuiltinValue{
 				Name: "gsh.use",
@@ -739,6 +743,8 @@ func (c *LastCommandObjectValue) GetProperty(name string) Value {
 		return &NullValue{}
 	}
 	switch name {
+	case "command":
+		return &StringValue{Value: c.lastCommand.Command}
 	case "exitCode":
 		return &NumberValue{Value: float64(c.lastCommand.ExitCode)}
 	case "durationMs":
@@ -764,4 +770,74 @@ func (i *Interpreter) createNativeToolsObject() *ObjectValue {
 			"edit_file": {Value: CreateEditFileNativeTool(), ReadOnly: true},
 		},
 	}
+}
+
+// createHistoryObject creates the gsh.history object for command history access.
+func (i *Interpreter) createHistoryObject() *ObjectValue {
+	return &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"findPrefix": {Value: &BuiltinValue{
+				Name: "gsh.history.findPrefix",
+				Fn:   i.builtinHistoryFindPrefix,
+			}, ReadOnly: true},
+		},
+	}
+}
+
+// builtinHistoryFindPrefix implements gsh.history.findPrefix(prefix, limit)
+// Returns an array of history entries that start with the given prefix, ordered by most recent first.
+// Each entry is an object with { command, exitCode, timestamp }.
+// Parameters:
+//   - prefix (string): The prefix to search for
+//   - limit (number, optional): Maximum number of history entries to return (default: 10)
+func (i *Interpreter) builtinHistoryFindPrefix(args []Value) (Value, error) {
+	if len(args) < 1 || len(args) > 2 {
+		return nil, fmt.Errorf("gsh.history.findPrefix() takes 1-2 arguments (prefix: string, limit?: number), got %d", len(args))
+	}
+
+	// Get prefix argument
+	prefix, ok := args[0].(*StringValue)
+	if !ok {
+		return nil, fmt.Errorf("gsh.history.findPrefix() first argument must be a string, got %s", args[0].Type())
+	}
+
+	// Get optional limit argument (default: 10)
+	limit := 10
+	if len(args) == 2 {
+		limitVal, ok := args[1].(*NumberValue)
+		if !ok {
+			return nil, fmt.Errorf("gsh.history.findPrefix() second argument must be a number, got %s", args[1].Type())
+		}
+		limit = int(limitVal.Value)
+		if limit <= 0 {
+			limit = 10
+		}
+	}
+
+	// Get history provider from SDK config
+	provider := i.sdkConfig.GetHistoryProvider()
+	if provider == nil {
+		// No history provider available (e.g., in script mode)
+		return &ArrayValue{Elements: []Value{}}, nil
+	}
+
+	// Search history for matching prefix
+	entries, err := provider.FindPrefix(prefix.Value, limit)
+	if err != nil {
+		return &ArrayValue{Elements: []Value{}}, nil // Return empty array on error
+	}
+
+	// Convert to array of objects
+	elements := make([]Value, len(entries))
+	for i, entry := range entries {
+		elements[i] = &ObjectValue{
+			Properties: map[string]*PropertyDescriptor{
+				"command":   {Value: &StringValue{Value: entry.Command}},
+				"exitCode":  {Value: &NumberValue{Value: float64(entry.ExitCode)}},
+				"timestamp": {Value: &NumberValue{Value: float64(entry.Timestamp)}},
+			},
+		}
+	}
+
+	return &ArrayValue{Elements: elements}, nil
 }

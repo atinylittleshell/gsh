@@ -32,10 +32,11 @@ func NewEventPredictionProvider(
 	}
 }
 
-// Predict emits the repl.predict event and parses the middleware response.
+// Predict emits the repl.predict event with the specified trigger and parses the middleware response.
 // If middleware returns no prediction or an error, an empty string is returned.
-func (p *EventPredictionProvider) Predict(ctx context.Context, input string) (string, error) {
-	prediction, err := p.emitPredictEvent(ctx, input)
+// Implements PredictionProvider interface.
+func (p *EventPredictionProvider) Predict(ctx context.Context, input string, trigger interpreter.PredictTrigger) (string, error) {
+	prediction, err := p.emitPredictEvent(ctx, input, trigger)
 	if err != nil {
 		p.logger.Warn("prediction middleware returned error", zap.Error(err))
 		return "", nil
@@ -43,7 +44,7 @@ func (p *EventPredictionProvider) Predict(ctx context.Context, input string) (st
 	return prediction, nil
 }
 
-func (p *EventPredictionProvider) emitPredictEvent(ctx context.Context, input string) (string, error) {
+func (p *EventPredictionProvider) emitPredictEvent(ctx context.Context, input string, trigger interpreter.PredictTrigger) (string, error) {
 	if p.interp == nil {
 		return "", nil
 	}
@@ -56,7 +57,7 @@ func (p *EventPredictionProvider) emitPredictEvent(ctx context.Context, input st
 		p.mu.Unlock()
 	}()
 
-	val := p.interp.EmitEvent(interpreter.EventReplPredict, interpreter.CreateReplPredictContext(input))
+	val := p.interp.EmitEvent(interpreter.EventReplPredict, interpreter.CreateReplPredictContext(input, trigger))
 	prediction, err, _ := interpreter.ExtractPredictionResult(val)
 	return prediction, err
 }

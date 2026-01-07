@@ -1,5 +1,12 @@
 # Default command prediction middleware.
 # This handler listens to repl.predict and returns a predicted command string.
+# 
+# The handler receives a context with:
+#   - input: string - the current input text
+#   - trigger: "instant" | "debounced" - the prediction trigger type
+#
+# For "instant" trigger: Only fast operations (like history lookup) should run.
+# For "debounced" trigger: Slower operations (like LLM calls) can run.
 
 # Build lightweight context for the LLM using built-in facilities.
 tool __predictionContext() {
@@ -16,9 +23,10 @@ tool __predictionContext() {
     }
 
     if (gsh.lastCommand != null) {
+        lastCmd = gsh.lastCommand.command
         lastExit = gsh.lastCommand.exitCode
         lastDuration = gsh.lastCommand.durationMs
-        contextParts.push(`<last_command exit="${lastExit}" duration_ms="${lastDuration}"></last_command>`)
+        contextParts.push(`<last_command exit="${lastExit}" duration_ms="${lastDuration}">${lastCmd}</last_command>`)
     }
 
     return contextParts.join("\n")
@@ -34,22 +42,34 @@ agent __predictionAgent {
     },
 }
 
-tool __onPredict(ctx, next) {
-    # Allow earlier middleware to override
-    input = ctx.input
-
-    # Skip agent chat messages
-    if (input != null && input.startsWith("#")) {
-        return next(ctx)
+# Try to get a prediction from command history
+tool __historyPredict(input) {
+    if (input == null || input == "") {
+        return null
     }
+    
+    # Use gsh.history.findPrefix to search command history
+    # Returns an array of { command, exitCode, timestamp } objects
+    entries = gsh.history.findPrefix(input, 30)
+    
+    # Find the first successful command (exitCode == 0)
+    for (entry of entries) {
+        if (entry.exitCode == 0) {
+            return entry.command
+        }
+    }
+    
+    return null
+}
 
+# Get LLM-based prediction
+tool __llmPredict(input) {
     # Ensure prediction model is available
     if (gsh.models == null || gsh.models.lite == null) {
-        return next(ctx)
+        return null
     }
 
     context = __predictionContext()
-
     bestPractices = "* Git commit messages should follow conventional commit message format"
 
     if (input == null) {
@@ -95,12 +115,12 @@ Respond with JSON in this format: {"predicted_command": "your prediction here"}
 
     conv = userMessage | __predictionAgent
     if (conv == null) {
-        return next(ctx)
+        return null
     }
 
     lastMessage = conv.lastMessage
     if (lastMessage == null || lastMessage.content == null) {
-        return next(ctx)
+        return null
     }
 
     prediction = ""
@@ -108,18 +128,52 @@ Respond with JSON in this format: {"predicted_command": "your prediction here"}
         parsed = JSON.parse(lastMessage.content)
         prediction = parsed.predicted_command
     } catch (e) {
-        return next(ctx)
+        return null
     }
 
     if (prediction == null || prediction == "") {
-        return next(ctx)
+        return null
     }
 
     if (input != "" && !prediction.startsWith(input)) {
+        return null
+    }
+
+    return prediction
+}
+
+tool __onPredict(ctx, next) {
+    input = ctx.input
+    trigger = ctx.trigger
+
+    # Skip agent chat messages
+    if (input != null && input.startsWith("#")) {
         return next(ctx)
     }
 
-    return { prediction: prediction }
+    # For "instant" trigger: only check history (must be fast!)
+    if (trigger == "instant") {
+        historyMatch = __historyPredict(input)
+        if (historyMatch != null) {
+            return { prediction: historyMatch }
+        }
+        # No instant prediction available
+        return next(ctx)
+    }
+
+    # For "debounced" trigger: try history first, then LLM
+    historyMatch = __historyPredict(input)
+    if (historyMatch != null) {
+        return { prediction: historyMatch }
+    }
+
+    # Fall back to LLM prediction
+    llmPrediction = __llmPredict(input)
+    if (llmPrediction != null) {
+        return { prediction: llmPrediction }
+    }
+
+    return next(ctx)
 }
 
 gsh.use("repl.predict", __onPredict)

@@ -162,7 +162,7 @@ func TestGshReplLastCommand(t *testing.T) {
 	}
 
 	// Update lastCommand through SDKConfig
-	interp.SDKConfig().UpdateLastCommand(42, 1500)
+	interp.SDKConfig().UpdateLastCommand("test command", 42, 1500)
 
 	// Test updated values
 	result, err = interp.EvalString(`gsh.lastCommand.exitCode`, nil)
@@ -190,6 +190,20 @@ func TestGshReplLastCommand(t *testing.T) {
 		}
 	} else {
 		t.Errorf("expected number, got %s", result.FinalResult.Type())
+	}
+
+	// Test command string
+	result, err = interp.EvalString(`gsh.lastCommand.command`, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if strVal, ok := result.FinalResult.(*StringValue); ok {
+		if strVal.Value != "test command" {
+			t.Errorf("expected 'test command', got '%v'", strVal.Value)
+		}
+	} else {
+		t.Errorf("expected string, got %s", result.FinalResult.Type())
 	}
 }
 

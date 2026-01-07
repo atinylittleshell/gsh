@@ -126,6 +126,7 @@ Information about the most recently executed command.
 
 | Property                     | Type     | Description                              |
 | ---------------------------- | -------- | ---------------------------------------- |
+| `gsh.lastCommand.command`    | `string` | The command string that was executed     |
 | `gsh.lastCommand.exitCode`   | `number` | Exit code of last command (0 = success)  |
 | `gsh.lastCommand.durationMs` | `number` | Duration of last command in milliseconds |
 
@@ -133,15 +134,71 @@ Information about the most recently executed command.
 
 ```gsh
 tool showStats() {
+    cmd = gsh.lastCommand.command
     exitCode = gsh.lastCommand.exitCode
     durationSec = gsh.lastCommand.durationMs / 1000
 
     if (exitCode != 0) {
-        print("Command failed with exit code: " + exitCode)
+        print("Command failed: " + cmd)
+        print("Exit code: " + exitCode)
     }
     print("Duration: " + durationSec + "s")
 }
 gsh.on("repl.prompt", showStats)
+```
+
+## `gsh.history`
+
+**Type:** `object` (read-only)  
+**Availability:** REPL only
+
+Provides access to the command history database for script-based history features.
+
+### Methods
+
+#### `gsh.history.findPrefix(prefix, limit)`
+
+Returns an array of history entries that start with the given prefix, ordered by most recent first.
+
+| Parameter | Type     | Description                                                 |
+| --------- | -------- | ----------------------------------------------------------- |
+| `prefix`  | `string` | The prefix to search for                                    |
+| `limit`   | `number` | Maximum number of entries to return (optional, default: 10) |
+
+**Returns:** `array` - Array of history entry objects, each with:
+
+- `command` (string): The command that was executed
+- `exitCode` (number): Exit code (-1 if unknown/still running)
+- `timestamp` (number): Unix timestamp when the command was executed
+
+### Example
+
+```gsh
+# Find commands starting with "git"
+entries = gsh.history.findPrefix("git", 10)
+for entry of entries {
+    print(entry.command + " (exit: " + entry.exitCode + ")")
+}
+```
+
+### Use Case: Custom Prediction
+
+The primary use case is implementing custom command prediction in the `repl.predict` event:
+
+```gsh
+tool historyPredictor(ctx, next) {
+    if (ctx.trigger == "instant" && ctx.input != "") {
+        entries = gsh.history.findPrefix(ctx.input, 10)
+        # Find first successful command
+        for entry of entries {
+            if (entry.exitCode == 0) {
+                return { prediction: entry.command }
+            }
+        }
+    }
+    return next(ctx)
+}
+gsh.use("repl.predict", historyPredictor)
 ```
 
 ---
