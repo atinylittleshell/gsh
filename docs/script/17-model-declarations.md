@@ -165,6 +165,41 @@ The `headers` configuration accepts an object where:
 
 ---
 
+## Extra Body Parameters
+
+Some LLM providers support additional parameters in the request body that aren't part of the standard OpenAI API. The `extraBody` configuration allows you to pass provider-specific parameters that will be merged directly into the request body as top-level fields:
+
+```gsh
+model customModel {
+    provider: "openai",
+    apiKey: env.OPENAI_API_KEY,
+    model: "gpt-4",
+    baseURL: "https://custom-provider.example.com/v1",
+    extraBody: {
+        "custom_param": "custom-value",
+        "provider_option": true,
+        "nested_config": {
+            "setting1": "value1",
+            "setting2": 42,
+        },
+    },
+}
+```
+
+The `extraBody` configuration accepts an object where:
+
+- Keys are the parameter names (strings)
+- Values can be any type (strings, numbers, booleans, objects, arrays)
+
+**Common use cases for extra body parameters:**
+
+- **Provider-specific features:** Enable features unique to certain LLM providers
+- **Custom routing:** Parameters for load balancers or model routers
+- **Advanced model options:** Provider-specific tuning parameters not in the standard API
+- **Metadata:** Additional context that the provider can use for logging or routing
+
+---
+
 ## Multiple Models in One Script
 
 You can declare multiple models and choose which one to use for different tasks:
@@ -450,6 +485,7 @@ In the next chapter, you'll learn how to use these models in agents!
 - **Always use environment variables** for API keys, never hardcode them
 - **`temperature` parameter controls creativity:** Low for precision, high for diversity
 - **`headers` parameter allows custom HTTP headers** for proxies, auth, and observability
+- **`extraBody` parameter allows provider-specific request body parameters**
 - **Multiple models** can coexist in one script for different purposes
 - **Models are passive** — they just sit there configured; agents actually use them (Chapter 18)
 - **Ollama enables local execution** without API calls or cloud costs

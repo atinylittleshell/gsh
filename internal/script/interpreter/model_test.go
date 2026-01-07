@@ -420,6 +420,73 @@ func TestModelDeclaration(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "Model with extraBody",
+			input: `model withExtraBody {
+				provider: "openai",
+				model: "gpt-4",
+				extraBody: {
+					"custom_param": "custom-value",
+					"nested": {
+						"key": "value",
+					},
+					"numeric": 42,
+					"flag": true,
+				},
+			}`,
+			checkFunc: func(t *testing.T, result *EvalResult, err error) {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
+				modelVal, ok := result.Env.Get("withExtraBody")
+				if !ok {
+					t.Fatalf("model 'withExtraBody' not found in environment")
+				}
+
+				model, ok := modelVal.(*ModelValue)
+				if !ok {
+					t.Fatalf("expected *ModelValue, got %T", modelVal)
+				}
+
+				// Check extraBody exists
+				extraBody, ok := model.Config["extraBody"]
+				if !ok {
+					t.Fatalf("model config missing 'extraBody'")
+				}
+				extraBodyObj, ok := extraBody.(*ObjectValue)
+				if !ok {
+					t.Fatalf("expected extraBody to be *ObjectValue, got %T", extraBody)
+				}
+
+				// Check specific values
+				customParam := extraBodyObj.GetPropertyValue("custom_param")
+				if customParam.Type() != ValueTypeString {
+					t.Fatalf("expected custom_param to be string, got %s", customParam.Type())
+				}
+				if customParam.String() != "custom-value" {
+					t.Errorf("expected custom_param 'custom-value', got %q", customParam.String())
+				}
+
+				// Check nested object
+				nested := extraBodyObj.GetPropertyValue("nested")
+				if nested.Type() != ValueTypeObject {
+					t.Fatalf("expected nested to be object, got %s", nested.Type())
+				}
+
+				// Check numeric value
+				numeric := extraBodyObj.GetPropertyValue("numeric")
+				if numeric.Type() != ValueTypeNumber {
+					t.Fatalf("expected numeric to be number, got %s", numeric.Type())
+				}
+
+				// Check boolean value
+				flag := extraBodyObj.GetPropertyValue("flag")
+				if flag.Type() != ValueTypeBool {
+					t.Fatalf("expected flag to be boolean, got %s", flag.Type())
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -503,6 +570,14 @@ func TestModelDeclarationErrors(t *testing.T) {
 				},
 			}`,
 			expectedError: "headers.X-Custom-Header' must be a string",
+		},
+		{
+			name: "Model with invalid extraBody type (not an object)",
+			input: `model bad {
+				provider: "openai",
+				extraBody: "not-an-object",
+			}`,
+			expectedError: "extraBody' must be an object",
 		},
 	}
 

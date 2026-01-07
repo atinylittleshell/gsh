@@ -201,8 +201,16 @@ func (p *OpenAIProvider) ChatCompletion(ctx context.Context, request ChatRequest
 		}
 	}
 
-	// Marshal request
-	reqBody, err := json.Marshal(openaiReq)
+	// Get extraBody if configured
+	var extraBody map[string]interface{}
+	if extraBodyVal, ok := request.Model.Config["extraBody"]; ok {
+		if extraBodyObj, ok := extraBodyVal.(*ObjectValue); ok {
+			extraBody = objectValueToMap(extraBodyObj)
+		}
+	}
+
+	// Marshal request with extraBody merged at top level
+	reqBody, err := marshalRequestWithExtraBody(openaiReq, extraBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
@@ -425,8 +433,16 @@ func (p *OpenAIProvider) StreamingChatCompletion(ctx context.Context, request Ch
 		}
 	}
 
-	// Marshal request
-	reqBody, err := json.Marshal(openaiReq)
+	// Get extraBody if configured
+	var extraBody map[string]interface{}
+	if extraBodyVal, ok := request.Model.Config["extraBody"]; ok {
+		if extraBodyObj, ok := extraBodyVal.(*ObjectValue); ok {
+			extraBody = objectValueToMap(extraBodyObj)
+		}
+	}
+
+	// Marshal request with extraBody merged at top level
+	reqBody, err := marshalRequestWithExtraBody(openaiReq, extraBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
@@ -602,6 +618,45 @@ func (p *OpenAIProvider) StreamingChatCompletion(ctx context.Context, request Ch
 	}
 
 	return response, nil
+}
+
+// objectValueToMap converts an ObjectValue to a map[string]interface{} for JSON serialization.
+func objectValueToMap(obj *ObjectValue) map[string]interface{} {
+	result := make(map[string]interface{})
+	for key := range obj.Properties {
+		val := obj.GetPropertyValue(key)
+		result[key] = ValueToInterface(val)
+	}
+	return result
+}
+
+// marshalRequestWithExtraBody marshals a request struct to JSON and merges extraBody
+// properties as top-level fields in the resulting JSON object.
+func marshalRequestWithExtraBody(req interface{}, extraBody map[string]interface{}) ([]byte, error) {
+	// First marshal the struct to JSON
+	baseJSON, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+
+	// If no extraBody, return the base JSON as-is
+	if len(extraBody) == 0 {
+		return baseJSON, nil
+	}
+
+	// Unmarshal into a map so we can add extra fields
+	var merged map[string]interface{}
+	if err := json.Unmarshal(baseJSON, &merged); err != nil {
+		return nil, err
+	}
+
+	// Merge extraBody properties at top level
+	for key, value := range extraBody {
+		merged[key] = value
+	}
+
+	// Marshal the merged result
+	return json.Marshal(merged)
 }
 
 // OpenAI-specific types

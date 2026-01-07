@@ -86,6 +86,11 @@ agent DataExpert {
 - Accessible via `agentName.metadata.propertyName` in scripts
 - Useful for differentiating agent behavior in event handlers or conditional logic
 
+**Reserved metadata properties:**
+
+- `hidden: true` - Hides the agent from UI rendering (no headers, footers, or tool status)
+- `streaming: false` - Disables streaming responses for this agent (useful for background agents)
+
 Example:
 
 ```gsh
@@ -107,6 +112,21 @@ print(QuickHelper.metadata.timeout)        # 30000
 # Use in conditional logic
 if (QuickHelper.metadata.timeout < 60000) {
     print("This is a fast agent")
+}
+```
+
+**Background agent example:**
+
+```gsh
+# Agent that runs without streaming (e.g., for predictions or background tasks)
+agent BackgroundProcessor {
+    model: gsh.models.lite,
+    systemPrompt: "Process data and return JSON results",
+    tools: [],
+    metadata: {
+        hidden: true,      # No UI output
+        streaming: false,  # Non-streaming for efficiency
+    },
 }
 ```
 

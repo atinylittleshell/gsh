@@ -57,6 +57,11 @@ func (i *Interpreter) evalModelDeclaration(node *parser.ModelDeclaration) (Value
 					return nil, fmt.Errorf("model config 'headers.%s' must be a string, got %s", headerKey, headerVal.Type())
 				}
 			}
+		case "extraBody":
+			// extraBody must be an object (values can be any type)
+			if _, ok := value.(*ObjectValue); !ok {
+				return nil, fmt.Errorf("model config 'extraBody' must be an object, got %s", value.Type())
+			}
 			// Allow other fields without validation for extensibility
 		}
 

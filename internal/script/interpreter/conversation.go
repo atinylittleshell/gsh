@@ -199,9 +199,21 @@ func (i *Interpreter) executeAgentWithConversation(conv *ConversationValue, agen
 		Messages: messages,
 	}
 
-	// Enable streaming when running in REPL mode so agent.chunk events are emitted
-	// and the response is displayed to the user
+	// Determine streaming mode:
+	// 1. If agent has metadata.streaming explicitly set to false, don't stream
+	// 2. Otherwise, stream when in REPL mode (so agent.chunk events are emitted)
 	streaming := i.sdkConfig.GetREPLContext() != nil
+
+	// Check if agent explicitly disables streaming via metadata
+	if metadataVal, ok := agent.Config["metadata"]; ok {
+		if metadataObj, ok := metadataVal.(*ObjectValue); ok {
+			if streamingDesc, ok := metadataObj.Properties["streaming"]; ok {
+				if boolVal, ok := streamingDesc.Value.(*BoolValue); ok && !boolVal.Value {
+					streaming = false
+				}
+			}
+		}
+	}
 
 	// Use interpreter's context for cancellation support (e.g., Ctrl+C)
 	return i.ExecuteAgent(i.Context(), execConv, agent, streaming)
