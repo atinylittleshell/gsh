@@ -39,6 +39,7 @@ agent __predictionAgent {
     tools: [],
     metadata: {
       hidden: true,
+      streaming: false,
     },
 }
 

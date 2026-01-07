@@ -780,3 +780,150 @@ func TestOpenAIProviderCustomBaseURL(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestOpenAIProviderExtraBody(t *testing.T) {
+	// Test that extraBody properties are merged at the top level of the request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Parse request body
+		var reqBody map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+			t.Errorf("failed to decode request body: %v", err)
+		}
+
+		// Verify extra_body is NOT present (properties should be at top level)
+		if _, ok := reqBody["extra_body"]; ok {
+			t.Fatal("extra_body field should not exist - properties should be at top level")
+		}
+
+		// Verify string value at top level
+		if reqBody["custom_param"] != "custom-value" {
+			t.Errorf("expected custom_param 'custom-value', got %v", reqBody["custom_param"])
+		}
+
+		// Verify boolean value at top level
+		if reqBody["flag"] != true {
+			t.Errorf("expected flag true, got %v", reqBody["flag"])
+		}
+
+		// Verify numeric value at top level
+		if reqBody["count"] != float64(42) { // JSON numbers are float64
+			t.Errorf("expected count 42, got %v", reqBody["count"])
+		}
+
+		// Verify nested object at top level
+		nested, ok := reqBody["nested"].(map[string]interface{})
+		if !ok {
+			t.Fatal("nested field not found or not an object")
+		}
+		if nested["key"] != "value" {
+			t.Errorf("expected nested.key 'value', got %v", nested["key"])
+		}
+
+		// Send mock response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"id": "chatcmpl-extra",
+			"object": "chat.completion",
+			"created": 1234567890,
+			"model": "gpt-4",
+			"choices": [{
+				"index": 0,
+				"message": {"role": "assistant", "content": "Response"},
+				"finish_reason": "stop"
+			}]
+		}`))
+	}))
+	defer server.Close()
+
+	provider := NewOpenAIProvider()
+	req := ChatRequest{
+		Model: &ModelValue{
+			Name: "gpt4",
+			Config: map[string]Value{
+				"provider": &StringValue{Value: "openai"},
+				"apiKey":   &StringValue{Value: "test-key"},
+				"model":    &StringValue{Value: "gpt-4"},
+				"baseURL":  &StringValue{Value: server.URL},
+				"extraBody": &ObjectValue{
+					Properties: map[string]*PropertyDescriptor{
+						"custom_param": {Value: &StringValue{Value: "custom-value"}},
+						"flag":         {Value: &BoolValue{Value: true}},
+						"count":        {Value: &NumberValue{Value: 42}},
+						"nested": {Value: &ObjectValue{
+							Properties: map[string]*PropertyDescriptor{
+								"key": {Value: &StringValue{Value: "value"}},
+							},
+						}},
+					},
+				},
+			},
+		},
+		Messages: []ChatMessage{
+			{Role: "user", Content: "Test"},
+		},
+	}
+
+	_, err := provider.ChatCompletion(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestOpenAIProviderExtraBodyStreaming(t *testing.T) {
+	// Test that extraBody properties are merged at the top level of the streaming request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Parse request body
+		var reqBody map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+			t.Errorf("failed to decode request body: %v", err)
+		}
+
+		// Verify extra_body is NOT present (properties should be at top level)
+		if _, ok := reqBody["extra_body"]; ok {
+			t.Fatal("extra_body field should not exist - properties should be at top level")
+		}
+
+		// Verify value at top level
+		if reqBody["streaming_param"] != "streaming-value" {
+			t.Errorf("expected streaming_param 'streaming-value', got %v", reqBody["streaming_param"])
+		}
+
+		// Send mock streaming response
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`data: {"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":"Hi"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+`))
+	}))
+	defer server.Close()
+
+	provider := NewOpenAIProvider()
+	req := ChatRequest{
+		Model: &ModelValue{
+			Name: "gpt4",
+			Config: map[string]Value{
+				"provider": &StringValue{Value: "openai"},
+				"apiKey":   &StringValue{Value: "test-key"},
+				"model":    &StringValue{Value: "gpt-4"},
+				"baseURL":  &StringValue{Value: server.URL},
+				"extraBody": &ObjectValue{
+					Properties: map[string]*PropertyDescriptor{
+						"streaming_param": {Value: &StringValue{Value: "streaming-value"}},
+					},
+				},
+			},
+		},
+		Messages: []ChatMessage{
+			{Role: "user", Content: "Test"},
+		},
+	}
+
+	_, err := provider.StreamingChatCompletion(context.Background(), req, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
