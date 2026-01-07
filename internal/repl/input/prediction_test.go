@@ -7,59 +7,35 @@ import (
 	"testing"
 	"time"
 
-	"github.com/atinylittleshell/gsh/internal/history"
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// mockHistoryProvider implements HistoryProvider for testing.
-type mockHistoryProvider struct {
-	entries map[string][]history.HistoryEntry
-	err     error
+// mockProvider implements PredictionProvider for testing.
+type mockProvider struct {
+	instantPredictions   map[string]string
+	debouncedPredictions map[string]string
+	err                  error
 }
 
-func (m *mockHistoryProvider) GetRecentEntriesByPrefix(prefix string, limit int) ([]history.HistoryEntry, error) {
-	if m.err != nil {
-		return nil, m.err
-	}
-	entries, ok := m.entries[prefix]
-	if !ok {
-		return nil, nil
-	}
-	if len(entries) > limit {
-		return entries[:limit], nil
-	}
-	return entries, nil
-}
-
-// mockPredictionProvider implements PredictionProvider for testing.
-type mockPredictionProvider struct {
-	predictions map[string]string
-	err         error
-	callCount   int
-	mu          sync.Mutex
-}
-
-func (m *mockPredictionProvider) Predict(ctx context.Context, input string) (string, error) {
-	m.mu.Lock()
-	m.callCount++
-	m.mu.Unlock()
-
+func (m *mockProvider) Predict(ctx context.Context, input string, trigger interpreter.PredictTrigger) (string, error) {
 	if m.err != nil {
 		return "", m.err
 	}
-	prediction, ok := m.predictions[input]
+	if trigger == interpreter.PredictTriggerInstant {
+		prediction, ok := m.instantPredictions[input]
+		if !ok {
+			return "", nil
+		}
+		return prediction, nil
+	}
+	// Debounced trigger
+	prediction, ok := m.debouncedPredictions[input]
 	if !ok {
 		return "", nil
 	}
 	return prediction, nil
-}
-
-func (m *mockPredictionProvider) getCallCount() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.callCount
 }
 
 func TestPredictionSource_String(t *testing.T) {
@@ -85,27 +61,20 @@ func TestNewPredictionState(t *testing.T) {
 		ps := NewPredictionState(PredictionStateConfig{})
 
 		assert.Equal(t, 200*time.Millisecond, ps.debounceDelay)
-		assert.Equal(t, 10, ps.historyPrefixLimit)
 		assert.NotNil(t, ps.logger)
-		assert.Nil(t, ps.historyProvider)
-		assert.Nil(t, ps.llmProvider)
+		assert.Nil(t, ps.provider)
 	})
 
 	t.Run("custom values", func(t *testing.T) {
-		historyProvider := &mockHistoryProvider{}
-		llmProvider := &mockPredictionProvider{}
+		provider := &mockProvider{}
 
 		ps := NewPredictionState(PredictionStateConfig{
-			DebounceDelay:      100 * time.Millisecond,
-			HistoryPrefixLimit: 5,
-			HistoryProvider:    historyProvider,
-			LLMProvider:        llmProvider,
+			DebounceDelay: 100 * time.Millisecond,
+			Provider:      provider,
 		})
 
 		assert.Equal(t, 100*time.Millisecond, ps.debounceDelay)
-		assert.Equal(t, 5, ps.historyPrefixLimit)
-		assert.Equal(t, historyProvider, ps.historyProvider)
-		assert.Equal(t, llmProvider, ps.llmProvider)
+		assert.Equal(t, provider, ps.provider)
 	})
 }
 
@@ -229,19 +198,16 @@ func TestPredictionState_OnInputChanged(t *testing.T) {
 	})
 }
 
-func TestPredictionState_HistoryPrediction(t *testing.T) {
-	historyProvider := &mockHistoryProvider{
-		entries: map[string][]history.HistoryEntry{
-			"git": {
-				{Command: "git status"},
-				{Command: "git log"},
-			},
+func TestPredictionState_InstantPrediction(t *testing.T) {
+	provider := &mockProvider{
+		instantPredictions: map[string]string{
+			"git": "git status",
 		},
 	}
 
 	ps := NewPredictionState(PredictionStateConfig{
-		DebounceDelay:   10 * time.Millisecond,
-		HistoryProvider: historyProvider,
+		DebounceDelay: 10 * time.Millisecond,
+		Provider:      provider,
 	})
 
 	ch := ps.OnInputChanged("git")
@@ -258,23 +224,21 @@ func TestPredictionState_HistoryPrediction(t *testing.T) {
 	}
 }
 
-func TestPredictionState_HistoryPredictionIsInstant(t *testing.T) {
-	// This test verifies that history-based predictions bypass the debounce delay
+func TestPredictionState_InstantPredictionIsInstant(t *testing.T) {
+	// This test verifies that instant predictions bypass the debounce delay
 	// and return immediately (synchronously).
 
-	historyProvider := &mockHistoryProvider{
-		entries: map[string][]history.HistoryEntry{
-			"git": {
-				{Command: "git status"},
-			},
+	provider := &mockProvider{
+		instantPredictions: map[string]string{
+			"git": "git status",
 		},
 	}
 
 	// Use a very long debounce delay to make the test obvious
-	// If history predictions were debounced, this test would timeout
+	// If instant predictions were debounced, this test would timeout
 	ps := NewPredictionState(PredictionStateConfig{
-		DebounceDelay:   10 * time.Second, // Very long debounce
-		HistoryProvider: historyProvider,
+		DebounceDelay: 10 * time.Second, // Very long debounce
+		Provider:      provider,
 	})
 
 	start := time.Now()
@@ -288,7 +252,7 @@ func TestPredictionState_HistoryPredictionIsInstant(t *testing.T) {
 
 		// Should complete in under 10ms (well under the 10s debounce)
 		assert.Less(t, elapsed, 10*time.Millisecond,
-			"history prediction should be instant, not debounced")
+			"instant prediction should be instant, not debounced")
 
 		assert.Equal(t, "git status", result.Prediction)
 		assert.Equal(t, PredictionSourceHistory, result.Source)
@@ -296,29 +260,25 @@ func TestPredictionState_HistoryPredictionIsInstant(t *testing.T) {
 		// Verify prediction was also set synchronously on the state
 		assert.Equal(t, "git status", ps.Prediction())
 	case <-time.After(100 * time.Millisecond):
-		t.Fatal("history prediction should be instant, but timed out")
+		t.Fatal("instant prediction should be instant, but timed out")
 	}
 }
 
-func TestPredictionState_LLMPredictionIsDebounced(t *testing.T) {
-	// This test verifies that LLM predictions (when no history match) ARE debounced
+func TestPredictionState_DebouncedPrediction(t *testing.T) {
+	// This test verifies that debounced predictions (when no instant match) ARE debounced
 
-	// Empty history - no matches
-	historyProvider := &mockHistoryProvider{
-		entries: map[string][]history.HistoryEntry{},
-	}
-
-	llmProvider := &mockPredictionProvider{
-		predictions: map[string]string{
+	// Provider with no instant matches but debounced match
+	provider := &mockProvider{
+		instantPredictions: map[string]string{},
+		debouncedPredictions: map[string]string{
 			"docker": "docker ps",
 		},
 	}
 
 	debounceDelay := 50 * time.Millisecond
 	ps := NewPredictionState(PredictionStateConfig{
-		DebounceDelay:   debounceDelay,
-		HistoryProvider: historyProvider,
-		LLMProvider:     llmProvider,
+		DebounceDelay: debounceDelay,
+		Provider:      provider,
 	})
 
 	start := time.Now()
@@ -341,22 +301,18 @@ func TestPredictionState_LLMPredictionIsDebounced(t *testing.T) {
 	}
 }
 
-func TestPredictionState_LLMFallback(t *testing.T) {
-	// Empty history provider
-	historyProvider := &mockHistoryProvider{
-		entries: map[string][]history.HistoryEntry{},
-	}
-
-	llmProvider := &mockPredictionProvider{
-		predictions: map[string]string{
+func TestPredictionState_DebouncedFallback(t *testing.T) {
+	// No instant matches, should fall back to debounced prediction
+	provider := &mockProvider{
+		instantPredictions: map[string]string{},
+		debouncedPredictions: map[string]string{
 			"docker": "docker ps",
 		},
 	}
 
 	ps := NewPredictionState(PredictionStateConfig{
-		DebounceDelay:   10 * time.Millisecond,
-		HistoryProvider: historyProvider,
-		LLMProvider:     llmProvider,
+		DebounceDelay: 10 * time.Millisecond,
+		Provider:      provider,
 	})
 
 	ch := ps.OnInputChanged("docker")
@@ -374,15 +330,15 @@ func TestPredictionState_LLMFallback(t *testing.T) {
 }
 
 func TestPredictionState_NullStatePrediction(t *testing.T) {
-	llmProvider := &mockPredictionProvider{
-		predictions: map[string]string{
+	provider := &mockProvider{
+		debouncedPredictions: map[string]string{
 			"": "ls -la",
 		},
 	}
 
 	ps := NewPredictionState(PredictionStateConfig{
 		DebounceDelay: 10 * time.Millisecond,
-		LLMProvider:   llmProvider,
+		Provider:      provider,
 	})
 
 	// Mark dirty first, then clear
@@ -401,24 +357,24 @@ func TestPredictionState_NullStatePrediction(t *testing.T) {
 }
 
 func TestPredictionState_AgentChatSkipped(t *testing.T) {
-	t.Run("LLM prediction skipped for agent commands", func(t *testing.T) {
-		llmProvider := &mockPredictionProvider{
-			predictions: map[string]string{
+	t.Run("debounced prediction skipped for agent commands", func(t *testing.T) {
+		provider := &mockProvider{
+			debouncedPredictions: map[string]string{
 				"#hello": "should not appear",
 			},
 		}
 
 		ps := NewPredictionState(PredictionStateConfig{
 			DebounceDelay: 10 * time.Millisecond,
-			LLMProvider:   llmProvider,
+			Provider:      provider,
 		})
 
 		ch := ps.OnInputChanged("#hello")
-		// LLM prediction is started but will return empty for agent chat messages
+		// Debounced prediction is started but will return empty for agent chat messages
 		if ch != nil {
 			select {
 			case result := <-ch:
-				// LLM should return empty prediction for agent commands
+				// Should return empty prediction for agent commands
 				assert.Equal(t, "", result.Prediction)
 				assert.Equal(t, PredictionSourceNone, result.Source)
 			case <-time.After(500 * time.Millisecond):
@@ -433,27 +389,24 @@ func TestPredictionState_AgentChatSkipped(t *testing.T) {
 		// Note: LLM is called but skips prediction internally for # commands
 	})
 
-	t.Run("history prediction works for agent commands", func(t *testing.T) {
-		historyProvider := &mockHistoryProvider{
-			entries: map[string][]history.HistoryEntry{
-				"#": {
-					{Command: "#explain this code"},
-					{Command: "#help"},
-				},
+	t.Run("instant prediction works for agent commands", func(t *testing.T) {
+		provider := &mockProvider{
+			instantPredictions: map[string]string{
+				"#": "#explain this code",
 			},
 		}
 
 		ps := NewPredictionState(PredictionStateConfig{
-			DebounceDelay:   10 * time.Millisecond,
-			HistoryProvider: historyProvider,
+			DebounceDelay: 10 * time.Millisecond,
+			Provider:      provider,
 		})
 
 		ch := ps.OnInputChanged("#")
-		require.NotNil(t, ch, "history prediction should return a channel for agent commands")
+		require.NotNil(t, ch, "instant prediction should return a channel for agent commands")
 
 		select {
 		case result := <-ch:
-			// History prediction should work for agent commands
+			// Instant prediction should work for agent commands
 			assert.Equal(t, "#explain this code", result.Prediction)
 			assert.Equal(t, PredictionSourceHistory, result.Source)
 		case <-time.After(100 * time.Millisecond):
@@ -466,15 +419,15 @@ func TestPredictionState_AgentChatSkipped(t *testing.T) {
 }
 
 func TestPredictionState_Debouncing(t *testing.T) {
-	llmProvider := &mockPredictionProvider{
-		predictions: map[string]string{
+	provider := &mockProvider{
+		debouncedPredictions: map[string]string{
 			"final": "final command",
 		},
 	}
 
 	ps := NewPredictionState(PredictionStateConfig{
 		DebounceDelay: 50 * time.Millisecond,
-		LLMProvider:   llmProvider,
+		Provider:      provider,
 	})
 
 	// Rapid input changes
@@ -492,14 +445,11 @@ func TestPredictionState_Debouncing(t *testing.T) {
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("timeout waiting for prediction")
 	}
-
-	// Only one actual LLM call should have been made
-	assert.Equal(t, 1, llmProvider.getCallCount())
 }
 
 func TestPredictionState_CancellationOnNewInput(t *testing.T) {
-	slowProvider := &mockPredictionProvider{
-		predictions: map[string]string{
+	provider := &mockProvider{
+		debouncedPredictions: map[string]string{
 			"slow": "slow result",
 			"fast": "fast result",
 		},
@@ -507,7 +457,7 @@ func TestPredictionState_CancellationOnNewInput(t *testing.T) {
 
 	ps := NewPredictionState(PredictionStateConfig{
 		DebounceDelay: 10 * time.Millisecond,
-		LLMProvider:   slowProvider,
+		Provider:      provider,
 	})
 
 	// Start first prediction
@@ -527,14 +477,14 @@ func TestPredictionState_CancellationOnNewInput(t *testing.T) {
 	}
 }
 
-func TestPredictionState_LLMError(t *testing.T) {
-	llmProvider := &mockPredictionProvider{
-		err: errors.New("LLM error"),
+func TestPredictionState_ProviderError(t *testing.T) {
+	provider := &mockProvider{
+		err: errors.New("provider error"),
 	}
 
 	ps := NewPredictionState(PredictionStateConfig{
 		DebounceDelay: 10 * time.Millisecond,
-		LLMProvider:   llmProvider,
+		Provider:      provider,
 	})
 
 	ch := ps.OnInputChanged("test")
@@ -552,7 +502,7 @@ func TestPredictionState_LLMError(t *testing.T) {
 func TestLLMPredictionProvider(t *testing.T) {
 	t.Run("nil model returns empty", func(t *testing.T) {
 		provider := NewLLMPredictionProvider(nil, nil, nil)
-		prediction, err := provider.Predict(context.Background(), "test")
+		prediction, err := provider.Predict(context.Background(), "test", interpreter.PredictTriggerDebounced)
 		assert.NoError(t, err)
 		assert.Equal(t, "", prediction)
 	})
@@ -564,15 +514,6 @@ func TestLLMPredictionProvider(t *testing.T) {
 		provider.contextTextMu.RLock()
 		assert.Equal(t, "cwd: /home/user", provider.contextText)
 		provider.contextTextMu.RUnlock()
-	})
-}
-
-func TestHistoryPredictionAdapter(t *testing.T) {
-	t.Run("nil manager returns nil", func(t *testing.T) {
-		adapter := NewHistoryPredictionAdapter(nil)
-		entries, err := adapter.GetRecentEntriesByPrefix("git", 10)
-		assert.NoError(t, err)
-		assert.Nil(t, entries)
 	})
 }
 
@@ -618,7 +559,7 @@ func TestLLMPredictionProvider_WithMockProvider(t *testing.T) {
 		}
 
 		provider := NewLLMPredictionProvider(model, mockProvider, nil)
-		prediction, err := provider.Predict(context.Background(), "git")
+		prediction, err := provider.Predict(context.Background(), "git", interpreter.PredictTriggerDebounced)
 
 		assert.NoError(t, err)
 		assert.Equal(t, "git status", prediction)
@@ -632,7 +573,7 @@ func TestLLMPredictionProvider_WithMockProvider(t *testing.T) {
 		}
 
 		provider := NewLLMPredictionProvider(model, mockProvider, nil)
-		prediction, err := provider.Predict(context.Background(), "")
+		prediction, err := provider.Predict(context.Background(), "", interpreter.PredictTriggerDebounced)
 
 		assert.NoError(t, err)
 		assert.Equal(t, "ls -la", prediction)
@@ -644,7 +585,7 @@ func TestLLMPredictionProvider_WithMockProvider(t *testing.T) {
 		}
 
 		provider := NewLLMPredictionProvider(model, mockProvider, nil)
-		_, err := provider.Predict(context.Background(), "test")
+		_, err := provider.Predict(context.Background(), "test", interpreter.PredictTriggerDebounced)
 
 		assert.Error(t, err)
 	})
@@ -657,7 +598,7 @@ func TestLLMPredictionProvider_WithMockProvider(t *testing.T) {
 		}
 
 		provider := NewLLMPredictionProvider(model, mockProvider, nil)
-		prediction, err := provider.Predict(context.Background(), "test")
+		prediction, err := provider.Predict(context.Background(), "test", interpreter.PredictTriggerDebounced)
 
 		assert.NoError(t, err)
 		assert.Equal(t, "", prediction)

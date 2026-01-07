@@ -194,33 +194,45 @@ gsh.use("command.input", agentMiddleware)
 
 ### `repl.predict`
 
-Fired when the REPL needs a command prediction (ghost text). Handlers should return a prediction string (or `{ prediction: "..." }`). This event is executed asynchronously and debounced by the REPL; returning `null`/`undefined` lets the next handler or the built-in fallback run.
+Fired when the REPL needs a command prediction (ghost text). Handlers should return a prediction string (or `{ prediction: "..." }`). Returning `null`/`undefined` lets the next handler or the built-in fallback run.
+
+The event is fired with two different triggers:
+
+- **`instant`**: Called synchronously on every keystroke. Only fast operations (like `gsh.history.findPrefix()`) should run here.
+- **`debounced`**: Called after a 200ms pause in typing. Slower operations (like LLM calls) can run here.
 
 **Context:**
 
-| Property    | Type     | Description                               |
-| ----------- | -------- | ----------------------------------------- |
-| `ctx.input` | `string` | Current input text (empty for null-state) |
+| Property      | Type     | Description                                           |
+| ------------- | -------- | ----------------------------------------------------- |
+| `ctx.input`   | `string` | Current input text (empty for null-state)             |
+| `ctx.trigger` | `string` | `"instant"` or `"debounced"` - the prediction trigger |
 
 **Return Value:** A string prediction or an object `{ prediction: string, error?: string }`. If `error` is provided, the REPL logs it and falls back to the next handler/fallback provider.
 
 ```gsh
 tool myPredictor(ctx, next) {
-    result = next(ctx)  # allow earlier handlers to run
-    if (result != null && result.prediction != null) {
-        return result
+    input = ctx.input
+    trigger = ctx.trigger
+
+    # For instant trigger, only do fast lookups (like history)
+    if (trigger == "instant") {
+        match = gsh.history.findPrefix(input, 10)
+        if (match != null) {
+            return { prediction: match }
+        }
+        return next(ctx)
     }
 
-    if (ctx.input == "") {
-        return { prediction: "ls -la" }
-    }
+    # For debounced trigger, can do slower operations
+    # (e.g., LLM calls, external API lookups)
 
-    # Simple prefix rule
-    if (ctx.input.startsWith("git")) {
+    # Simple prefix rule example
+    if (input.startsWith("git")) {
         return { prediction: "git status" }
     }
 
-    return null
+    return next(ctx)
 }
 
 gsh.use("repl.predict", myPredictor)

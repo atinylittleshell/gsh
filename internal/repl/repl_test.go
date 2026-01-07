@@ -23,6 +23,18 @@ import (
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 )
 
+// mockPredictionProvider implements input.PredictionProvider for testing.
+type mockPredictionProvider struct {
+	prediction string
+}
+
+func (m *mockPredictionProvider) Predict(ctx context.Context, input string, trigger interpreter.PredictTrigger) (string, error) {
+	if trigger == interpreter.PredictTriggerInstant {
+		return m.prediction, nil
+	}
+	return "", nil
+}
+
 func TestDirectoryStructure(t *testing.T) {
 	// This test verifies that all subpackages in internal/repl/ can be imported.
 	// The imports above will fail at compile time if any package is missing
@@ -458,16 +470,15 @@ func TestREPL_HistoryPredictionWithoutLLM(t *testing.T) {
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(entries), 2, "should have at least 2 history entries with 'echo' prefix")
 
-	// Create a history provider from the history manager
-	historyProvider := input.NewHistoryPredictionAdapter(repl.history)
-	require.NotNil(t, historyProvider)
+	// Create a mock provider that returns a prediction for instant trigger
+	provider := &mockPredictionProvider{
+		prediction: "echo hello world",
+	}
 
-	// Create prediction state with history but WITHOUT LLM provider
-	// This is the key test - it should not panic when llmProvider is nil
+	// Create prediction state with provider
 	predictionState := input.NewPredictionState(input.PredictionStateConfig{
-		HistoryProvider: historyProvider,
-		LLMProvider:     nil, // Explicitly nil - no LLM configured
-		Logger:          logger,
+		Provider: provider,
+		Logger:   logger,
 	})
 	require.NotNil(t, predictionState)
 
@@ -478,9 +489,9 @@ func TestREPL_HistoryPredictionWithoutLLM(t *testing.T) {
 	// Wait for the prediction result (with timeout)
 	select {
 	case result := <-resultCh:
-		// Should get a history-based prediction without error or panic
+		// Should get an instant prediction without error or panic
 		assert.NoError(t, result.Error, "prediction should not return an error")
-		assert.Equal(t, input.PredictionSourceHistory, result.Source, "prediction should come from history")
+		assert.Equal(t, input.PredictionSourceHistory, result.Source, "prediction should come from instant provider")
 		assert.Contains(t, result.Prediction, "echo", "prediction should start with the input prefix")
 	case <-time.After(1 * time.Second):
 		t.Fatal("prediction timed out")

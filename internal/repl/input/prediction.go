@@ -10,7 +10,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/atinylittleshell/gsh/internal/history"
 	"github.com/atinylittleshell/gsh/internal/script/interpreter"
 	"go.uber.org/zap"
 )
@@ -58,17 +57,12 @@ func (ps PredictionSource) String() string {
 }
 
 // PredictionProvider defines the interface for making predictions.
-// This abstraction allows for different prediction backends (history, LLM, etc.)
+// This abstraction allows for different prediction backends.
 type PredictionProvider interface {
 	// Predict returns a prediction for the given input.
 	// The context can be used for cancellation.
-	Predict(ctx context.Context, input string) (prediction string, err error)
-}
-
-// HistoryProvider defines the interface for history-based predictions.
-type HistoryProvider interface {
-	// GetRecentEntriesByPrefix returns history entries matching the given prefix.
-	GetRecentEntriesByPrefix(prefix string, limit int) ([]history.HistoryEntry, error)
+	// The trigger indicates whether this is an "instant" (synchronous) or "debounced" (async) prediction.
+	Predict(ctx context.Context, input string, trigger interpreter.PredictTrigger) (prediction string, err error)
 }
 
 // PredictionState manages the prediction lifecycle including debouncing,
@@ -92,13 +86,9 @@ type PredictionState struct {
 	// Configuration
 	debounceDelay time.Duration
 
-	// Providers
-	historyProvider HistoryProvider
-	llmProvider     PredictionProvider
-	logger          *zap.Logger
-
-	// Number of history entries to check for prefix matches
-	historyPrefixLimit int
+	// Provider for predictions (handles both instant and debounced via trigger parameter)
+	provider PredictionProvider
+	logger   *zap.Logger
 
 	// Pending prediction cancel function
 	cancelPending context.CancelFunc
@@ -106,22 +96,15 @@ type PredictionState struct {
 
 // PredictionStateConfig holds configuration for creating a PredictionState.
 type PredictionStateConfig struct {
-	// DebounceDelay is the delay before making a prediction request.
+	// DebounceDelay is the delay before making a debounced prediction request.
 	// Defaults to 200ms if not set.
 	DebounceDelay time.Duration
 
-	// HistoryProvider provides history-based predictions.
-	HistoryProvider HistoryProvider
-
-	// LLMProvider provides LLM-based predictions.
-	LLMProvider PredictionProvider
+	// Provider handles predictions (both instant and debounced via trigger parameter).
+	Provider PredictionProvider
 
 	// Logger for debug output.
 	Logger *zap.Logger
-
-	// HistoryPrefixLimit is the number of history entries to check.
-	// Defaults to 10 if not set.
-	HistoryPrefixLimit int
 }
 
 // NewPredictionState creates a new PredictionState with the given configuration.
@@ -131,22 +114,15 @@ func NewPredictionState(config PredictionStateConfig) *PredictionState {
 		debounceDelay = 200 * time.Millisecond
 	}
 
-	historyLimit := config.HistoryPrefixLimit
-	if historyLimit == 0 {
-		historyLimit = 10
-	}
-
 	logger := config.Logger
 	if logger == nil {
 		logger = zap.NewNop()
 	}
 
 	return &PredictionState{
-		debounceDelay:      debounceDelay,
-		historyProvider:    config.HistoryProvider,
-		llmProvider:        config.LLMProvider,
-		logger:             logger,
-		historyPrefixLimit: historyLimit,
+		debounceDelay: debounceDelay,
+		provider:      config.Provider,
+		logger:        logger,
 	}
 }
 
@@ -226,8 +202,8 @@ func (ps *PredictionState) SetPrediction(stateID int64, prediction string) bool 
 // no prediction should be made (e.g., prediction already matches input).
 // The caller should handle the result asynchronously.
 //
-// History-based predictions are checked synchronously for instant feedback,
-// while LLM predictions are debounced to avoid API spam.
+// Instant predictions (via InstantProvider or deprecated HistoryProvider) are checked
+// synchronously for instant feedback, while debounced predictions are delayed to avoid spam.
 func (ps *PredictionState) OnInputChanged(input string) <-chan PredictionResult {
 	ps.mu.Lock()
 
@@ -248,8 +224,8 @@ func (ps *PredictionState) OnInputChanged(input string) <-chan PredictionResult 
 		ps.inputForPrediction = ""
 		ps.mu.Unlock()
 
-		// Still need to potentially get a null-state prediction (LLM only)
-		return ps.startLLMPrediction(newStateID, input)
+		// Still need to potentially get a null-state prediction (debounced only)
+		return ps.startDebouncedPrediction(newStateID, input)
 	}
 
 	// If current prediction already starts with input, keep it
@@ -266,46 +242,43 @@ func (ps *PredictionState) OnInputChanged(input string) <-chan PredictionResult 
 	ps.prediction = ""
 	ps.mu.Unlock()
 
-	// Try history-based prediction synchronously (instant feedback)
-	if input != "" && ps.historyProvider != nil {
-		entries, err := ps.historyProvider.GetRecentEntriesByPrefix(input, ps.historyPrefixLimit)
-		if err == nil && len(entries) > 0 {
-			// Use the most recent matching entry
-			historyPrediction := entries[0].Command
-
-			ps.logger.Debug("instant history prediction",
+	// Try instant prediction synchronously
+	if ps.provider != nil {
+		prediction, err := ps.provider.Predict(context.Background(), input, interpreter.PredictTriggerInstant)
+		if err == nil && prediction != "" {
+			ps.logger.Debug("instant prediction",
 				zap.String("input", input),
-				zap.String("prediction", historyPrediction),
+				zap.String("prediction", prediction),
 			)
 
 			// Set prediction immediately
 			ps.mu.Lock()
-			ps.prediction = historyPrediction
+			ps.prediction = prediction
 			ps.inputForPrediction = input
 			ps.mu.Unlock()
 
 			// Return result synchronously via a pre-filled channel
 			resultCh := make(chan PredictionResult, 1)
 			resultCh <- PredictionResult{
-				Prediction: historyPrediction,
+				Prediction: prediction,
 				StateID:    newStateID,
-				Source:     PredictionSourceHistory,
+				Source:     PredictionSourceHistory, // Instant predictions are typically from history
 			}
 			close(resultCh)
 			return resultCh
 		}
 	}
 
-	// No history match, fall back to debounced LLM prediction
-	return ps.startLLMPrediction(newStateID, input)
+	// No instant match, fall back to debounced prediction
+	return ps.startDebouncedPrediction(newStateID, input)
 }
 
-// startLLMPrediction starts a debounced async LLM prediction request.
-// History-based predictions are handled synchronously in OnInputChanged,
-// so this function only handles LLM fallback predictions.
-func (ps *PredictionState) startLLMPrediction(stateID int64, input string) <-chan PredictionResult {
-	// If no LLM provider, nothing to do
-	if ps.llmProvider == nil {
+// startDebouncedPrediction starts a debounced async prediction request.
+// Instant predictions are handled synchronously in OnInputChanged,
+// so this function handles debounced predictions.
+func (ps *PredictionState) startDebouncedPrediction(stateID int64, input string) <-chan PredictionResult {
+	// If no provider, nothing to do
+	if ps.provider == nil {
 		return nil
 	}
 
@@ -321,7 +294,7 @@ func (ps *PredictionState) startLLMPrediction(stateID int64, input string) <-cha
 	go func() {
 		defer close(resultCh)
 
-		// Debounce LLM calls to avoid API spam
+		// Debounce calls to avoid spam
 		select {
 		case <-ctx.Done():
 			return
@@ -333,8 +306,8 @@ func (ps *PredictionState) startLLMPrediction(stateID int64, input string) <-cha
 			return
 		}
 
-		// Make LLM prediction
-		result := ps.predictLLM(ctx, stateID, input)
+		// Make debounced prediction
+		result := ps.predictDebounced(ctx, stateID, input)
 
 		// Send result if still valid
 		if ps.stateID.Load() == stateID {
@@ -348,9 +321,9 @@ func (ps *PredictionState) startLLMPrediction(stateID int64, input string) <-cha
 	return resultCh
 }
 
-// predictLLM makes a prediction using the LLM provider.
-// History-based predictions are handled synchronously in OnInputChanged.
-func (ps *PredictionState) predictLLM(ctx context.Context, stateID int64, input string) PredictionResult {
+// predictDebounced makes a prediction using the provider with debounced trigger.
+// Instant predictions are handled synchronously in OnInputChanged.
+func (ps *PredictionState) predictDebounced(ctx context.Context, stateID int64, input string) PredictionResult {
 	result := PredictionResult{
 		StateID: stateID,
 		Source:  PredictionSourceNone,
@@ -361,22 +334,22 @@ func (ps *PredictionState) predictLLM(ctx context.Context, stateID int64, input 
 		return result
 	}
 
-	if ps.llmProvider == nil {
+	if ps.provider == nil {
 		return result
 	}
 
-	prediction, err := ps.llmProvider.Predict(ctx, input)
+	prediction, err := ps.provider.Predict(ctx, input, interpreter.PredictTriggerDebounced)
 	if err != nil {
-		ps.logger.Debug("LLM prediction failed", zap.Error(err))
+		ps.logger.Debug("debounced prediction failed", zap.Error(err))
 		result.Error = err
 		return result
 	}
 
 	if prediction != "" {
 		result.Prediction = prediction
-		result.Source = PredictionSourceLLM
+		result.Source = PredictionSourceLLM // Debounced predictions are typically from LLM
 
-		ps.logger.Debug("LLM prediction",
+		ps.logger.Debug("debounced prediction",
 			zap.String("input", input),
 			zap.String("prediction", prediction),
 		)
@@ -442,7 +415,8 @@ type predictedCommandResponse struct {
 }
 
 // Predict implements PredictionProvider.
-func (p *LLMPredictionProvider) Predict(ctx context.Context, input string) (string, error) {
+// Note: LLMPredictionProvider ignores the trigger parameter as it always does LLM-based prediction.
+func (p *LLMPredictionProvider) Predict(ctx context.Context, input string, trigger interpreter.PredictTrigger) (string, error) {
 	if p.model == nil || p.provider == nil {
 		return "", nil
 	}
@@ -514,22 +488,4 @@ Respond with JSON in this format: {"predicted_command": "your prediction here"}
 	p.logger.Debug("LLM prediction response", zap.String("prediction", prediction.PredictedCommand))
 
 	return prediction.PredictedCommand, nil
-}
-
-// HistoryPredictionAdapter adapts a history.HistoryManager to the HistoryProvider interface.
-type HistoryPredictionAdapter struct {
-	manager *history.HistoryManager
-}
-
-// NewHistoryPredictionAdapter creates a new adapter for the history manager.
-func NewHistoryPredictionAdapter(manager *history.HistoryManager) *HistoryPredictionAdapter {
-	return &HistoryPredictionAdapter{manager: manager}
-}
-
-// GetRecentEntriesByPrefix implements HistoryProvider.
-func (a *HistoryPredictionAdapter) GetRecentEntriesByPrefix(prefix string, limit int) ([]history.HistoryEntry, error) {
-	if a.manager == nil {
-		return nil, nil
-	}
-	return a.manager.GetRecentEntriesByPrefix(prefix, limit)
 }

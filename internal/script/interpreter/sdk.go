@@ -157,6 +157,8 @@ type SDKConfig struct {
 	models *Models
 	// REPL context (nil in script mode)
 	replContext *REPLContext
+	// History provider for gsh.history access (nil in script mode)
+	historyProvider HistoryProvider
 }
 
 // REPLContext holds REPL-specific state that's available in the SDK
@@ -175,8 +177,23 @@ type Models struct {
 
 // REPLLastCommand holds information about the last executed command
 type REPLLastCommand struct {
+	Command    string
 	ExitCode   int
 	DurationMs int64
+}
+
+// HistoryEntry represents a single command history entry
+type HistoryEntry struct {
+	Command   string
+	Timestamp int64
+	ExitCode  int
+}
+
+// HistoryProvider provides access to command history for gsh scripts
+type HistoryProvider interface {
+	// FindPrefix returns history entries matching the given prefix, ordered by most recent first.
+	// The limit parameter controls the maximum number of entries to search.
+	FindPrefix(prefix string, limit int) ([]HistoryEntry, error)
 }
 
 // NewSDKConfig creates a new SDK configuration
@@ -284,11 +301,12 @@ func (sc *SDKConfig) GetREPLContext() *REPLContext {
 	return sc.replContext
 }
 
-// UpdateLastCommand updates the last command's exit code and duration
-func (sc *SDKConfig) UpdateLastCommand(exitCode int, durationMs int64) {
+// UpdateLastCommand updates the last command's info including the command string, exit code and duration
+func (sc *SDKConfig) UpdateLastCommand(command string, exitCode int, durationMs int64) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	if sc.replContext != nil && sc.replContext.LastCommand != nil {
+		sc.replContext.LastCommand.Command = command
 		sc.replContext.LastCommand.ExitCode = exitCode
 		sc.replContext.LastCommand.DurationMs = durationMs
 	}
@@ -299,4 +317,18 @@ func (sc *SDKConfig) GetModels() *Models {
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
 	return sc.models
+}
+
+// SetHistoryProvider sets the history provider for gsh.history access
+func (sc *SDKConfig) SetHistoryProvider(provider HistoryProvider) {
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
+	sc.historyProvider = provider
+}
+
+// GetHistoryProvider returns the history provider (nil in script mode)
+func (sc *SDKConfig) GetHistoryProvider() HistoryProvider {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+	return sc.historyProvider
 }

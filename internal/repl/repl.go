@@ -38,12 +38,10 @@ var timeNow = time.Now
 
 // REPL is the main interactive shell interface.
 type REPL struct {
-	config    *config.Config
-	executor  *executor.REPLExecutor
-	history   *history.HistoryManager
-	predictor interface {
-		Predict(ctx context.Context, input string) (string, error)
-	}
+	config             *config.Config
+	executor           *executor.REPLExecutor
+	history            *history.HistoryManager
+	predictor          input.PredictionProvider
 	completionProvider *completion.Provider
 	logger             *zap.Logger
 
@@ -216,6 +214,11 @@ func NewREPL(opts Options) (*REPL, error) {
 		// Continue without history - not fatal
 	}
 
+	// Wire up history provider for gsh.history SDK access
+	if historyMgr != nil {
+		interp.SDKConfig().SetHistoryProvider(&historyProviderAdapter{manager: historyMgr})
+	}
+
 	// Event-driven prediction provider that delegates to gsh middleware (repl.predict event).
 	// The middleware in cmd/gsh/defaults/middleware/prediction.gsh handles context gathering internally.
 	eventPredictor := predict.NewEventPredictionProvider(interp, logger)
@@ -269,26 +272,14 @@ func (r *REPL) Run(ctx context.Context) error {
 		r.startupTracker.TrackStartupTime(startupMs)
 	}
 
-	// Create prediction state if history or LLM predictor is available
-	// History-based prediction doesn't require an LLM model
+	// Create prediction state if predictor is available
+	// The predictor handles both instant (history) and debounced (LLM) predictions
+	// via the repl.predict event with different trigger types.
 	var predictionState *input.PredictionState
-	var historyProvider input.HistoryProvider
-	if r.history != nil {
-		historyProvider = input.NewHistoryPredictionAdapter(r.history)
-	}
-
-	// Create prediction state if we have history or LLM predictor
-	if historyProvider != nil || r.predictor != nil {
-		// Only set LLMProvider if predictor is not nil to avoid nil interface issues
-		var llmProvider input.PredictionProvider
-		if r.predictor != nil {
-			llmProvider = r.predictor
-		}
-
+	if r.predictor != nil {
 		predictionState = input.NewPredictionState(input.PredictionStateConfig{
-			HistoryProvider: historyProvider,
-			LLMProvider:     llmProvider,
-			Logger:          r.logger,
+			Provider: r.predictor,
+			Logger:   r.logger,
 		})
 	}
 
@@ -538,7 +529,7 @@ func (r *REPL) executeShellCommand(ctx context.Context, command string) int {
 	r.lastDurationMs = duration.Milliseconds()
 
 	// Update the interpreter's REPL context with the last command info
-	r.executor.Interpreter().SDKConfig().UpdateLastCommand(exitCode, r.lastDurationMs)
+	r.executor.Interpreter().SDKConfig().UpdateLastCommand(command, exitCode, r.lastDurationMs)
 
 	// Emit repl.command.after event with command, exit code, and duration
 	r.executor.Interpreter().EmitEvent(interpreter.EventReplCommandAfter, interpreter.CreateReplCommandAfterContext(command, exitCode, r.lastDurationMs))
@@ -650,6 +641,36 @@ func (r *REPL) Executor() *executor.REPLExecutor {
 // History returns the history manager.
 func (r *REPL) History() *history.HistoryManager {
 	return r.history
+}
+
+// historyProviderAdapter adapts history.HistoryManager to interpreter.HistoryProvider
+type historyProviderAdapter struct {
+	manager *history.HistoryManager
+}
+
+// FindPrefix implements interpreter.HistoryProvider
+func (a *historyProviderAdapter) FindPrefix(prefix string, limit int) ([]interpreter.HistoryEntry, error) {
+	if a.manager == nil {
+		return nil, nil
+	}
+	entries, err := a.manager.GetRecentEntriesByPrefix(prefix, limit)
+	if err != nil {
+		return nil, err
+	}
+	// Convert history.HistoryEntry to interpreter.HistoryEntry
+	result := make([]interpreter.HistoryEntry, len(entries))
+	for i, e := range entries {
+		exitCode := -1 // Default to -1 if exit code is not recorded
+		if e.ExitCode.Valid {
+			exitCode = int(e.ExitCode.Int32)
+		}
+		result[i] = interpreter.HistoryEntry{
+			Command:   e.Command,
+			Timestamp: e.CreatedAt.Unix(),
+			ExitCode:  exitCode,
+		}
+	}
+	return result, nil
 }
 
 // loadBashConfigs loads bash configuration files in the correct order.

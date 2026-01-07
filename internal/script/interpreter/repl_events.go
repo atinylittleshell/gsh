@@ -52,12 +52,23 @@ func CreateReplCommandAfterContext(command string, exitCode int, durationMs int6
 	}
 }
 
+// PredictTrigger represents the trigger type for prediction events
+type PredictTrigger string
+
+const (
+	// PredictTriggerInstant is used for instant predictions (must be fast, e.g., history lookup)
+	PredictTriggerInstant PredictTrigger = "instant"
+	// PredictTriggerDebounced is used for debounced predictions (can be slow, e.g., LLM)
+	PredictTriggerDebounced PredictTrigger = "debounced"
+)
+
 // CreateReplPredictContext creates the context object for repl.predict event
-// ctx: { input: string }
-func CreateReplPredictContext(input string) Value {
+// ctx: { input: string, trigger: "instant" | "debounced" }
+func CreateReplPredictContext(input string, trigger PredictTrigger) Value {
 	return &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
-			"input": {Value: &StringValue{Value: input}},
+			"input":   {Value: &StringValue{Value: input}},
+			"trigger": {Value: &StringValue{Value: string(trigger)}},
 		},
 	}
 }

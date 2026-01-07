@@ -38,7 +38,7 @@ gsh.use("repl.predict", predict)
 	evalScript(t, interp, script)
 
 	provider := NewEventPredictionProvider(interp, zap.NewNop())
-	pred, err := provider.Predict(context.Background(), "ls")
+	pred, err := provider.Predict(context.Background(), "ls", interpreter.PredictTriggerDebounced)
 
 	require.NoError(t, err)
 	assert.Equal(t, "ls -la", pred)
@@ -56,7 +56,7 @@ gsh.use("repl.predict", predict)
 
 	provider := NewEventPredictionProvider(interp, zap.NewNop())
 
-	pred, err := provider.Predict(context.Background(), "echo")
+	pred, err := provider.Predict(context.Background(), "echo", interpreter.PredictTriggerDebounced)
 	require.NoError(t, err)
 	assert.Equal(t, "", pred)
 }
@@ -73,7 +73,7 @@ gsh.use("repl.predict", predict)
 
 	provider := NewEventPredictionProvider(interp, zap.NewNop())
 
-	pred, err := provider.Predict(context.Background(), "git")
+	pred, err := provider.Predict(context.Background(), "git", interpreter.PredictTriggerDebounced)
 	require.NoError(t, err)
 	assert.Equal(t, "", pred)
 }
