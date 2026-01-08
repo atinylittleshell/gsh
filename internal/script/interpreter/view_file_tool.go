@@ -14,6 +14,9 @@ func ExecuteNativeViewFileTool(ctx context.Context, args map[string]interface{})
 	if !ok {
 		return "", fmt.Errorf("view_file tool requires 'file_path' argument as string")
 	}
+	if !filepath.IsAbs(filePath) {
+		return "", fmt.Errorf("view_file tool requires 'file_path' to be an absolute path, got: %s", filePath)
+	}
 
 	startLine := 0
 	endLine := 0
@@ -196,7 +199,7 @@ func viewFileToolParameters() map[string]interface{} {
 		"properties": map[string]interface{}{
 			"file_path": map[string]interface{}{
 				"type":        "string",
-				"description": "The path to the file to view (can be relative or absolute)",
+				"description": "The absolute path to the file to view",
 			},
 			"start_line": map[string]interface{}{
 				"type":        "integer",

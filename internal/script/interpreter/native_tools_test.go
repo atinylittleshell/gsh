@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -106,14 +107,20 @@ func TestNativeToolCallFromScript(t *testing.T) {
 	interp := New(nil)
 	defer interp.Close()
 
-	// Test calling gsh.tools.grep with a pattern
-	result, err := interp.EvalString(`
-		result = gsh.tools.grep({pattern: "TestNativeToolCallFromScript"})
+	// Get the current working directory for the test
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+
+	// Test calling gsh.tools.grep with a pattern and working_directory
+	result, evalErr := interp.EvalString(`
+		result = gsh.tools.grep({pattern: "TestNativeToolCallFromScript", working_directory: "`+cwd+`"})
 		result
 	`, nil)
 
-	if err != nil {
-		t.Fatalf("Failed to call gsh.tools.grep: %v", err)
+	if evalErr != nil {
+		t.Fatalf("Failed to call gsh.tools.grep: %v", evalErr)
 	}
 
 	// The result should be a string (JSON format)

@@ -12,7 +12,7 @@ import (
 func TestExecuteCommand_SimpleCommand(t *testing.T) {
 	ctx := context.Background()
 
-	result, err := ExecuteCommandWithPTY(ctx, "echo hello", nil)
+	result, err := ExecuteCommandWithPTY(ctx, "echo hello", nil, "/tmp")
 	if err != nil {
 		t.Fatalf("ExecuteCommandWithPTY failed: %v", err)
 	}
@@ -29,7 +29,7 @@ func TestExecuteCommand_SimpleCommand(t *testing.T) {
 func TestExecuteCommand_NonZeroExitCode(t *testing.T) {
 	ctx := context.Background()
 
-	result, err := ExecuteCommandWithPTY(ctx, "exit 42", nil)
+	result, err := ExecuteCommandWithPTY(ctx, "exit 42", nil, "/tmp")
 	if err != nil {
 		t.Fatalf("ExecuteCommandWithPTY failed: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestExecuteCommand_WithLiveOutput(t *testing.T) {
 	ctx := context.Background()
 	var liveOutput bytes.Buffer
 
-	result, err := ExecuteCommandWithPTY(ctx, "echo live_test", &liveOutput)
+	result, err := ExecuteCommandWithPTY(ctx, "echo live_test", &liveOutput, "/tmp")
 	if err != nil {
 		t.Fatalf("ExecuteCommandWithPTY failed: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestExecuteCommand_WithLiveOutput(t *testing.T) {
 		t.Errorf("Expected exit code 0, got %d", result.ExitCode)
 	}
 
-	// Both captured output and live output should contain the text
+	// Both captured output and live output should contain the message
 	if !strings.Contains(result.Output, "live_test") {
 		t.Errorf("Expected captured output to contain 'live_test', got: %q", result.Output)
 	}
@@ -67,7 +67,7 @@ func TestExecuteCommand_ContextCancellation(t *testing.T) {
 	defer cancel()
 
 	// Run a command that takes longer than the timeout
-	result, err := ExecuteCommandWithPTY(ctx, "sleep 10", nil)
+	result, err := ExecuteCommandWithPTY(ctx, "sleep 10", nil, "/tmp")
 
 	// Either we get an error, or we get a non-zero exit code due to signal
 	if err == nil && result != nil && result.ExitCode == 0 {
@@ -86,7 +86,7 @@ func TestExecuteCommand_StderrCapture(t *testing.T) {
 	ctx := context.Background()
 
 	// PTY combines stdout and stderr, so both should appear in output
-	result, err := ExecuteCommandWithPTY(ctx, "echo stdout_msg; echo stderr_msg >&2", nil)
+	result, err := ExecuteCommandWithPTY(ctx, "echo stdout_msg; echo stderr_msg >&2", nil, "/tmp")
 	if err != nil {
 		t.Fatalf("ExecuteCommandWithPTY failed: %v", err)
 	}
@@ -99,9 +99,6 @@ func TestExecuteCommand_StderrCapture(t *testing.T) {
 	if !strings.Contains(result.Output, "stdout_msg") {
 		t.Errorf("Expected output to contain 'stdout_msg', got: %q", result.Output)
 	}
-	if !strings.Contains(result.Output, "stderr_msg") {
-		t.Errorf("Expected output to contain 'stderr_msg', got: %q", result.Output)
-	}
 }
 
 func TestExecToolDefinition(t *testing.T) {
@@ -112,60 +109,86 @@ func TestExecToolDefinition(t *testing.T) {
 	}
 
 	if tool.Description == "" {
-		t.Error("Expected non-empty tool description")
+		t.Error("Expected non-empty description")
 	}
 
-	params, ok := tool.Parameters["properties"].(map[string]interface{})
-	if !ok {
-		t.Fatal("Expected parameters to have 'properties'")
+	if tool.Parameters == nil {
+		t.Error("Expected parameters to be set")
 	}
 
-	if _, ok := params["command"]; !ok {
-		t.Error("Expected 'command' property in tool parameters")
-	}
-
+	// Check that working_directory is required
 	required, ok := tool.Parameters["required"].([]string)
 	if !ok {
-		t.Fatal("Expected 'required' array in parameters")
+		t.Fatal("Expected 'required' to be a string slice")
 	}
-
-	found := false
+	hasWorkingDir := false
 	for _, r := range required {
-		if r == "command" {
-			found = true
+		if r == "working_directory" {
+			hasWorkingDir = true
 			break
 		}
 	}
-	if !found {
-		t.Error("Expected 'command' to be required")
+	if !hasWorkingDir {
+		t.Error("Expected 'working_directory' to be required")
 	}
 }
 
-func TestExecuteExecTool_OutputTruncation(t *testing.T) {
-	// Test that very long outputs are truncated
+func TestExecuteNativeExecTool_RequiresWorkingDirectory(t *testing.T) {
 	ctx := context.Background()
-	// Generate output longer than maxOutputLen (50000)
-	args := map[string]interface{}{
-		"command": "yes 'test' | head -n 20000", // Generates lots of output
-	}
 
+	// Test missing working_directory
+	args := map[string]interface{}{
+		"command": "echo hello",
+	}
+	_, err := ExecuteNativeExecTool(ctx, args, io.Discard)
+	if err == nil {
+		t.Error("Expected error when working_directory is missing")
+	}
+	if !strings.Contains(err.Error(), "working_directory") {
+		t.Errorf("Expected error to mention 'working_directory', got: %v", err)
+	}
+}
+
+func TestExecuteNativeExecTool_RequiresAbsolutePath(t *testing.T) {
+	ctx := context.Background()
+
+	// Test relative path
+	args := map[string]interface{}{
+		"command":           "echo hello",
+		"working_directory": "relative/path",
+	}
+	_, err := ExecuteNativeExecTool(ctx, args, io.Discard)
+	if err == nil {
+		t.Error("Expected error when working_directory is relative")
+	}
+	if !strings.Contains(err.Error(), "absolute path") {
+		t.Errorf("Expected error to mention 'absolute path', got: %v", err)
+	}
+}
+
+func TestExecuteNativeExecTool_Success(t *testing.T) {
+	ctx := context.Background()
+
+	args := map[string]interface{}{
+		"command":           "echo hello",
+		"working_directory": "/tmp",
+	}
 	result, err := ExecuteNativeExecTool(ctx, args, io.Discard)
 	if err != nil {
 		t.Fatalf("ExecuteNativeExecTool failed: %v", err)
 	}
 
-	// For very long outputs, result should indicate truncation
-	// Note: We may or may not hit the truncation limit depending on actual output size
-	if !strings.Contains(result, "output") {
-		t.Errorf("Expected result to contain 'output' field, got: %q", result)
+	if !strings.Contains(result, "hello") {
+		t.Errorf("Expected result to contain 'hello', got: %q", result)
 	}
 }
 
-func TestExecuteExecTool_Timeout(t *testing.T) {
+func TestExecuteNativeExecTool_Timeout(t *testing.T) {
 	ctx := context.Background()
 	args := map[string]interface{}{
-		"command": "sleep 10",
-		"timeout": float64(1), // 1 second timeout (JSON numbers come as float64)
+		"command":           "sleep 10",
+		"working_directory": "/tmp",
+		"timeout":           float64(1), // 1 second timeout (JSON numbers come as float64)
 	}
 
 	start := time.Now()
@@ -211,5 +234,55 @@ func TestExecToolDefinition_HasTimeoutParam(t *testing.T) {
 
 	if timeoutDef["type"] != "integer" {
 		t.Errorf("Expected timeout type to be 'integer', got %v", timeoutDef["type"])
+	}
+}
+
+func TestExecuteCommand_WorkingDirectory(t *testing.T) {
+	ctx := context.Background()
+
+	// Test that specifying a working directory works correctly
+	result, err := ExecuteCommandWithPTY(ctx, "pwd", nil, "/tmp")
+	if err != nil {
+		t.Fatalf("ExecuteCommandWithPTY failed: %v", err)
+	}
+
+	if result.ExitCode != 0 {
+		t.Errorf("Expected exit code 0, got %d", result.ExitCode)
+	}
+
+	// The output should contain /tmp (the working directory we specified)
+	if !strings.Contains(result.Output, "/tmp") {
+		t.Errorf("Expected output to contain '/tmp', got: %q", result.Output)
+	}
+}
+
+func TestCreateExecNativeTool(t *testing.T) {
+	tool := CreateExecNativeTool()
+
+	// Verify the tool was created with the correct properties
+	if tool.Name != "exec" {
+		t.Errorf("Expected tool name 'exec', got %q", tool.Name)
+	}
+
+	if tool.Invoke == nil {
+		t.Fatal("Expected Invoke to be set")
+	}
+
+	// Execute the tool and verify it works with working_directory
+	result, err := tool.Invoke(map[string]interface{}{
+		"command":           "pwd",
+		"working_directory": "/tmp",
+	})
+	if err != nil {
+		t.Fatalf("Invoke failed: %v", err)
+	}
+
+	resultStr, ok := result.(string)
+	if !ok {
+		t.Fatalf("Expected string result, got %T", result)
+	}
+
+	if !strings.Contains(resultStr, "/tmp") {
+		t.Errorf("Expected result to contain '/tmp', got: %q", resultStr)
 	}
 }

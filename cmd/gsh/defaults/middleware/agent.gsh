@@ -4,12 +4,17 @@
 # Default agent for REPL chat interactions
 agent __defaultAgent {
     model: gsh.models.workhorse,
-    systemPrompt: "You are gsh, the generative shell. You help users with tasks in the shell. Use concise plain text (no markdown) for response.",
+    systemPrompt: "You are gsh, the generative shell. You help users with their tasks in the shell. " +
+    "Unless explicitly stated otherwise, assume the user's intent is to work within the latest current directory. " +
+    "Use concise plain text (no markdown) for response.",
     tools: [gsh.tools.exec, gsh.tools.grep, gsh.tools.view_file, gsh.tools.edit_file],
 }
 
 # Conversation state (null means no active conversation)
 __conversation = null
+
+# Track the last known directory to detect changes
+__lastKnownDirectory = null
 
 # Default input middleware - handles # prefix for agent chat
 tool __defaultAgentMiddleware(ctx, next) {
@@ -24,20 +29,21 @@ tool __defaultAgentMiddleware(ctx, next) {
     if (input.startsWith("#")) {
         message = input.substring(1).trim()
         
-        # Empty message shows help
-        if (message == "") {
-            print("Agent mode: type your message after # to chat with the agent.")
-            print("Commands:")
-            print("  # /clear - clear conversation history")
-            return { handled: true }
-        }
-        
         # Handle /clear command
         if (message == "/clear") {
             __conversation = null
+            __lastKnownDirectory = null
             print("Conversation cleared")
             return { handled: true }
         }
+        
+        # Check if directory has changed since last agent interaction
+        currentDir = gsh.currentDirectory
+        if (__lastKnownDirectory != currentDir) {
+            # Directory changed - prepend current directory info
+            message = `<current_directory>${currentDir}</current_directory>` + "\n\n" + message
+        }
+        __lastKnownDirectory = currentDir
         
         # Chat with the default agent using pipe expressions
         if (__conversation == null) {

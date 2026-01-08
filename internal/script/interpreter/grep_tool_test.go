@@ -142,7 +142,7 @@ func TestExecuteGrep_Integration(t *testing.T) {
 	defer os.Chdir(origDir)
 
 	ctx := context.Background()
-	result, err := ExecuteGrep(ctx, "hello")
+	result, err := ExecuteGrep(ctx, "hello", tmpDir)
 	if err != nil {
 		t.Fatalf("ExecuteGrep failed: %v", err)
 	}
@@ -194,7 +194,7 @@ func TestExecuteGrep_NoMatches(t *testing.T) {
 	defer os.Chdir(origDir)
 
 	ctx := context.Background()
-	result, err := ExecuteGrep(ctx, "nonexistent_pattern_xyz123")
+	result, err := ExecuteGrep(ctx, "nonexistent_pattern_xyz123", tmpDir)
 	if err != nil {
 		t.Fatalf("ExecuteGrep failed: %v", err)
 	}
@@ -304,7 +304,8 @@ func TestExecuteGrepTool_Integration(t *testing.T) {
 
 	ctx := context.Background()
 	args := map[string]interface{}{
-		"pattern": "unique_grep_tool_test_marker",
+		"pattern":           "unique_grep_tool_test_marker",
+		"working_directory": tmpDir,
 	}
 
 	result, err := ExecuteNativeGrepTool(ctx, args)
@@ -353,7 +354,8 @@ func TestExecuteGrepTool_NoMatches(t *testing.T) {
 
 	ctx := context.Background()
 	args := map[string]interface{}{
-		"pattern": "nonexistent_pattern_abc789",
+		"pattern":           "nonexistent_pattern_abc789",
+		"working_directory": tmpDir,
 	}
 
 	result, err := ExecuteNativeGrepTool(ctx, args)
@@ -402,7 +404,8 @@ func TestExecuteGrepTool_Direct(t *testing.T) {
 
 	ctx := context.Background()
 	args := map[string]interface{}{
-		"pattern": "executor_grep_test",
+		"pattern":           "executor_grep_test",
+		"working_directory": tmpDir,
 	}
 
 	result, err := ExecuteNativeGrepTool(ctx, args)
@@ -490,7 +493,7 @@ func TestExecuteGrep_HiddenFiles(t *testing.T) {
 	defer os.Chdir(origDir)
 
 	ctx := context.Background()
-	result, err := ExecuteGrep(ctx, "hidden_file_marker_xyz")
+	result, err := ExecuteGrep(ctx, "hidden_file_marker_xyz", tmpDir)
 	if err != nil {
 		t.Fatalf("ExecuteGrep failed: %v", err)
 	}
@@ -551,7 +554,7 @@ func TestGitGrepDetection(t *testing.T) {
 
 	// Grep should work in the git directory
 	ctx := context.Background()
-	result, err := ExecuteGrep(ctx, "git grep test content")
+	result, err := ExecuteGrep(ctx, "git grep test content", tmpDir)
 	if err != nil {
 		t.Fatalf("ExecuteGrep failed: %v", err)
 	}

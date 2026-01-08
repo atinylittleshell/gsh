@@ -60,6 +60,13 @@ func (i *Interpreter) registerGshSDK() {
 	// Create gsh.history object for command history access
 	historyObj := i.createHistoryObject()
 
+	// Create gsh.currentDirectory (dynamic, reads from interpreter's working directory)
+	currentDirectoryObj := &DynamicValue{
+		Get: func() Value {
+			return &StringValue{Value: i.GetWorkingDir()}
+		},
+	}
+
 	// Create Math object with common methods and constants
 	mathObj := &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
@@ -147,6 +154,7 @@ func (i *Interpreter) registerGshSDK() {
 			"models":           {Value: modelsObj, ReadOnly: true},
 			"lastCommand":      {Value: lastCommandObj, ReadOnly: true},
 			"history":          {Value: historyObj, ReadOnly: true},
+			"currentDirectory": {Value: currentDirectoryObj, ReadOnly: true},
 			"prompt":           {Value: promptObj},
 			"use": {Value: &BuiltinValue{
 				Name: "gsh.use",

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -12,6 +13,9 @@ func ExecuteNativeEditFileTool(ctx context.Context, args map[string]interface{})
 	filePath, ok := args["file_path"].(string)
 	if !ok {
 		return "", fmt.Errorf("edit_file tool requires 'file_path' argument as string")
+	}
+	if !filepath.IsAbs(filePath) {
+		return "", fmt.Errorf("edit_file tool requires 'file_path' to be an absolute path, got: %s", filePath)
 	}
 
 	find, ok := args["find"].(string)
@@ -197,7 +201,7 @@ func editFileToolParameters() map[string]interface{} {
 		"properties": map[string]interface{}{
 			"file_path": map[string]interface{}{
 				"type":        "string",
-				"description": "The path to the file to edit (can be relative or absolute)",
+				"description": "The absolute path to the file to edit",
 			},
 			"find": map[string]interface{}{
 				"type":        "string",
