@@ -28,7 +28,7 @@ type mockPredictionProvider struct {
 	prediction string
 }
 
-func (m *mockPredictionProvider) Predict(ctx context.Context, input string, trigger interpreter.PredictTrigger) (string, error) {
+func (m *mockPredictionProvider) Predict(ctx context.Context, inputStr string, trigger interpreter.PredictTrigger, existingPrediction string) (string, error) {
 	if trigger == interpreter.PredictTriggerInstant {
 		return m.prediction, nil
 	}

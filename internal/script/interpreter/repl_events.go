@@ -63,12 +63,20 @@ const (
 )
 
 // CreateReplPredictContext creates the context object for repl.predict event
-// ctx: { input: string, trigger: "instant" | "debounced" }
-func CreateReplPredictContext(input string, trigger PredictTrigger) Value {
+// ctx: { input: string, trigger: "instant" | "debounced", existingPrediction: string | null }
+func CreateReplPredictContext(input string, trigger PredictTrigger, existingPrediction string) Value {
+	var existingPredictionValue Value
+	if existingPrediction == "" {
+		existingPredictionValue = &NullValue{}
+	} else {
+		existingPredictionValue = &StringValue{Value: existingPrediction}
+	}
+
 	return &ObjectValue{
 		Properties: map[string]*PropertyDescriptor{
-			"input":   {Value: &StringValue{Value: input}},
-			"trigger": {Value: &StringValue{Value: string(trigger)}},
+			"input":              {Value: &StringValue{Value: input}},
+			"trigger":            {Value: &StringValue{Value: string(trigger)}},
+			"existingPrediction": {Value: existingPredictionValue},
 		},
 	}
 }

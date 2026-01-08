@@ -19,7 +19,7 @@ type mockProvider struct {
 	err                  error
 }
 
-func (m *mockProvider) Predict(ctx context.Context, input string, trigger interpreter.PredictTrigger) (string, error) {
+func (m *mockProvider) Predict(ctx context.Context, input string, trigger interpreter.PredictTrigger, existingPrediction string) (string, error) {
 	if m.err != nil {
 		return "", m.err
 	}
@@ -36,24 +36,6 @@ func (m *mockProvider) Predict(ctx context.Context, input string, trigger interp
 		return "", nil
 	}
 	return prediction, nil
-}
-
-func TestPredictionSource_String(t *testing.T) {
-	tests := []struct {
-		source   PredictionSource
-		expected string
-	}{
-		{PredictionSourceNone, "none"},
-		{PredictionSourceHistory, "history"},
-		{PredictionSourceLLM, "llm"},
-		{PredictionSource(99), "unknown"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.expected, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.source.String())
-		})
-	}
 }
 
 func TestNewPredictionState(t *testing.T) {
@@ -164,24 +146,47 @@ func TestPredictionState_OnInputChanged(t *testing.T) {
 		assert.Equal(t, initialID+1, ps.StateID())
 	})
 
-	t.Run("keeps prediction when input matches prefix", func(t *testing.T) {
+	t.Run("passes existing prediction to provider", func(t *testing.T) {
+		// Now the provider (middleware) decides whether to keep the prediction
+		// The Go code always calls the provider with the existing prediction
+		provider := &mockProvider{
+			instantPredictions: map[string]string{
+				"git": "git status", // Provider returns same prediction
+			},
+		}
+
 		ps := NewPredictionState(PredictionStateConfig{
 			DebounceDelay: 10 * time.Millisecond,
+			Provider:      provider,
 		})
 
 		ps.SetPrediction(ps.StateID(), "git status")
 		ch := ps.OnInputChanged("git")
-		assert.Nil(t, ch) // no new prediction needed
-		assert.Equal(t, "git status", ps.Prediction())
+		require.NotNil(t, ch) // Provider is always called now
+		result := <-ch
+		assert.Equal(t, "git status", result.Prediction)
 	})
 
-	t.Run("clears prediction when input does not match", func(t *testing.T) {
+	t.Run("clears prediction when provider returns empty", func(t *testing.T) {
+		// Provider decides whether to keep or clear prediction
+		// If provider returns empty for a mismatched input, prediction is cleared
+		provider := &mockProvider{
+			instantPredictions:   map[string]string{},
+			debouncedPredictions: map[string]string{},
+		}
+
 		ps := NewPredictionState(PredictionStateConfig{
 			DebounceDelay: 10 * time.Millisecond,
+			Provider:      provider,
 		})
 
 		ps.SetPrediction(ps.StateID(), "git status")
-		ps.OnInputChanged("ls")
+		ch := ps.OnInputChanged("ls")
+		// Wait for debounced result (instant returns empty, so falls through to debounced)
+		if ch != nil {
+			<-ch
+		}
+		// No prediction returned from provider, so it stays empty
 		assert.Equal(t, "", ps.Prediction())
 	})
 
@@ -502,7 +507,7 @@ func TestPredictionState_ProviderError(t *testing.T) {
 func TestLLMPredictionProvider(t *testing.T) {
 	t.Run("nil model returns empty", func(t *testing.T) {
 		provider := NewLLMPredictionProvider(nil, nil, nil)
-		prediction, err := provider.Predict(context.Background(), "test", interpreter.PredictTriggerDebounced)
+		prediction, err := provider.Predict(context.Background(), "test", interpreter.PredictTriggerDebounced, "")
 		assert.NoError(t, err)
 		assert.Equal(t, "", prediction)
 	})
@@ -559,7 +564,7 @@ func TestLLMPredictionProvider_WithMockProvider(t *testing.T) {
 		}
 
 		provider := NewLLMPredictionProvider(model, mockProvider, nil)
-		prediction, err := provider.Predict(context.Background(), "git", interpreter.PredictTriggerDebounced)
+		prediction, err := provider.Predict(context.Background(), "git", interpreter.PredictTriggerDebounced, "")
 
 		assert.NoError(t, err)
 		assert.Equal(t, "git status", prediction)
@@ -573,7 +578,7 @@ func TestLLMPredictionProvider_WithMockProvider(t *testing.T) {
 		}
 
 		provider := NewLLMPredictionProvider(model, mockProvider, nil)
-		prediction, err := provider.Predict(context.Background(), "", interpreter.PredictTriggerDebounced)
+		prediction, err := provider.Predict(context.Background(), "", interpreter.PredictTriggerDebounced, "")
 
 		assert.NoError(t, err)
 		assert.Equal(t, "ls -la", prediction)
@@ -585,7 +590,7 @@ func TestLLMPredictionProvider_WithMockProvider(t *testing.T) {
 		}
 
 		provider := NewLLMPredictionProvider(model, mockProvider, nil)
-		_, err := provider.Predict(context.Background(), "test", interpreter.PredictTriggerDebounced)
+		_, err := provider.Predict(context.Background(), "test", interpreter.PredictTriggerDebounced, "")
 
 		assert.Error(t, err)
 	})
@@ -598,7 +603,7 @@ func TestLLMPredictionProvider_WithMockProvider(t *testing.T) {
 		}
 
 		provider := NewLLMPredictionProvider(model, mockProvider, nil)
-		prediction, err := provider.Predict(context.Background(), "test", interpreter.PredictTriggerDebounced)
+		prediction, err := provider.Predict(context.Background(), "test", interpreter.PredictTriggerDebounced, "")
 
 		assert.NoError(t, err)
 		assert.Equal(t, "", prediction)

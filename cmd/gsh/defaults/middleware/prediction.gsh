@@ -4,9 +4,16 @@
 # The handler receives a context with:
 #   - input: string - the current input text
 #   - trigger: "instant" | "debounced" - the prediction trigger type
+#   - existingPrediction: string | null - the current prediction (if any)
 #
 # For "instant" trigger: Only fast operations (like history lookup) should run.
 # For "debounced" trigger: Slower operations (like LLM calls) can run.
+#
+# The middleware is responsible for deciding whether to keep an existing prediction
+# or generate a new one. This allows special cases like VCS commit messages to
+# always get fresh predictions even if there's an existing prefix match.
+
+import { parseVcsCommitMessage, commitMessageInstructions } from "./vcs_commit.gsh"
 
 # Build lightweight context for the LLM using built-in facilities.
 tool __predictionContext() {
@@ -71,10 +78,23 @@ tool __llmPredict(input) {
     }
 
     context = __predictionContext()
-    bestPractices = "* Git commit messages should follow conventional commit message format"
 
     if (input == null) {
         input = ""
+    }
+
+    # Special case: VCS commit/describe message - include changes and specific instructions
+    vcsInfo = parseVcsCommitMessage(input)
+    changesContext = ""
+    commitInstructions = ""
+    
+    if (vcsInfo != null && vcsInfo.changes != null) {
+        changesContext = `
+# Changes to be Committed
+<diff>
+${vcsInfo.changes}
+</diff>`
+        commitInstructions = commitMessageInstructions
     }
 
     userMessage = ""
@@ -84,9 +104,6 @@ tool __llmPredict(input) {
 # Instructions
 * Based on the context, analyze my potential intent
 * Your prediction must be a valid, single-line, complete bash command
-
-# Best Practices
-${bestPractices}
 
 # Latest Context
 ${context}
@@ -104,10 +121,11 @@ You are asked to predict what the complete bash command is.
 * Your prediction must be a valid, single-line, complete bash command
 
 # Best Practices
-${bestPractices}
+${commitInstructions}
 
 # Latest Context
 ${context}
+${changesContext}
 
 Respond with JSON in this format: {"predicted_command": "your prediction here"}
 
@@ -126,7 +144,14 @@ Respond with JSON in this format: {"predicted_command": "your prediction here"}
 
     prediction = ""
     try {
-        parsed = JSON.parse(lastMessage.content)
+        content = lastMessage.content
+        # Extract JSON from surrounding text (LLM might add extra text around the JSON)
+        firstBrace = content.indexOf("{")
+        lastBrace = content.lastIndexOf("}")
+        if (firstBrace != -1 && lastBrace != -1 && lastBrace > firstBrace) {
+            content = content.substring(firstBrace, lastBrace + 1)
+        }
+        parsed = JSON.parse(content)
         prediction = parsed.predicted_command
     } catch (e) {
         return null
@@ -146,29 +171,40 @@ Respond with JSON in this format: {"predicted_command": "your prediction here"}
 tool __onPredict(ctx, next) {
     input = ctx.input
     trigger = ctx.trigger
+    existingPrediction = ctx.existingPrediction
 
     # Skip agent chat messages
     if (input != null && input.startsWith("#")) {
         return next(ctx)
     }
 
-    # For "instant" trigger: only check history (must be fast!)
-    if (trigger == "instant") {
+    # Check if this is a VCS commit/describe message command
+    isCommitMessage = parseVcsCommitMessage(input) != null
+
+    # Check if we should keep the existing prediction
+    # For regular commands: keep if existing prediction starts with input (prefix match)
+    # For VCS commit messages: always generate fresh (don't keep stale suggestions)
+    if (existingPrediction != null && existingPrediction != "") {
+        if (!isCommitMessage && existingPrediction.startsWith(input)) {
+            # Keep the existing prediction - it's still valid
+            return { prediction: existingPrediction }
+        }
+    }
+
+    # Whether it's "instant" or "debounced", try history first (unless commit message)
+    if (!isCommitMessage) {
         historyMatch = __historyPredict(input)
         if (historyMatch != null) {
             return { prediction: historyMatch }
         }
-        # No instant prediction available
+    }
+
+    # For "instant" trigger: that's it - don't use LLM which is heavy. wait for debounced trigger
+    if (trigger == "instant") {
         return next(ctx)
     }
 
-    # For "debounced" trigger: try history first, then LLM
-    historyMatch = __historyPredict(input)
-    if (historyMatch != null) {
-        return { prediction: historyMatch }
-    }
-
-    # Fall back to LLM prediction
+    # For "debounced" trigger we use LLM prediction if no history based prediction done above
     llmPrediction = __llmPredict(input)
     if (llmPrediction != null) {
         return { prediction: llmPrediction }
