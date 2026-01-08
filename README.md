@@ -13,17 +13,6 @@
 A battery-included, POSIX-compatible, <ins>G</ins>enerative <ins>Sh</ins>ell.
 </p>
 
-## Status
-
-This project is in early development stage. Use at your own risk! Please expect bugs, incomplete features, and breaking changes. The v1.0 version number reflects our first major breaking change, not stability—we follow [Semantic Versioning](https://semver.org/).
-
-That said, if you try it out and provide feedback, that would help make gsh more useful!
-
-If you're upgrading from v0.x, note that configuration has changed since v1.0:
-
-- **New:** `~/.gsh/repl.gsh` for gsh-specific features (models, agents, prompts, middleware)
-- **Updated:** `~/.gshrc` still works as a POSIX-compatible config file, but it no longer includes gsh-specific features
-
 ## Key features
 
 - **POSIX-compatible REPL**: you don't need to completely change how you use your shell
@@ -35,9 +24,9 @@ If you're upgrading from v0.x, note that configuration has changed since v1.0:
 
 ### Generative suggestion of shell commands
 
-gsh will automatically suggest the next command you are likely want to run.
+gsh will automatically complete the next command you're likely to run based on your context and history.
 
-![Generative Suggestion](assets/prediction.gif)
+![Generative Suggestion](assets/prediction.png)
 
 ### Agent chat
 
@@ -170,6 +159,17 @@ gsh telemetry on
 # Or use environment variable
 export GSH_NO_TELEMETRY=1
 ```
+
+## Status
+
+This project is in early development stage. Use at your own risk! Please expect bugs, incomplete features, and breaking changes. The v1.0 version number reflects our first major breaking change, not stability—we follow [Semantic Versioning](https://semver.org/).
+
+That said, if you try it out and provide feedback, that would help make gsh more useful!
+
+If you're upgrading from v0.x, note that configuration has changed since v1.0:
+
+- **New:** `~/.gsh/repl.gsh` for gsh-specific features (models, agents, prompts, middleware)
+- **Updated:** `~/.gshrc` still works as a POSIX-compatible config file, but it no longer includes gsh-specific features
 
 ## Roadmap
 
