@@ -792,6 +792,10 @@ func (i *Interpreter) createHistoryObject() *ObjectValue {
 				Name: "gsh.history.findPrefix",
 				Fn:   i.builtinHistoryFindPrefix,
 			}, ReadOnly: true},
+			"getRecent": {Value: &BuiltinValue{
+				Name: "gsh.history.getRecent",
+				Fn:   i.builtinHistoryGetRecent,
+			}, ReadOnly: true},
 		},
 	}
 }
@@ -835,6 +839,59 @@ func (i *Interpreter) builtinHistoryFindPrefix(args []Value) (Value, error) {
 
 	// Search history for matching prefix
 	entries, err := provider.FindPrefix(prefix.Value, limit)
+	if err != nil {
+		return &ArrayValue{Elements: []Value{}}, nil // Return empty array on error
+	}
+
+	// Convert to array of objects
+	elements := make([]Value, len(entries))
+	for i, entry := range entries {
+		elements[i] = &ObjectValue{
+			Properties: map[string]*PropertyDescriptor{
+				"command":   {Value: &StringValue{Value: entry.Command}},
+				"exitCode":  {Value: &NumberValue{Value: float64(entry.ExitCode)}},
+				"timestamp": {Value: &NumberValue{Value: float64(entry.Timestamp)}},
+			},
+		}
+	}
+
+	return &ArrayValue{Elements: elements}, nil
+}
+
+// builtinHistoryGetRecent implements gsh.history.getRecent(limit)
+// Returns an array of the most recent history entries in chronological order
+// (oldest first, most recent last). This ordering is ideal for providing context
+// to LLMs as it shows the natural flow of commands.
+// Each entry is an object with { command, exitCode, timestamp }.
+// Parameters:
+//   - limit (number, optional): Maximum number of history entries to return (default: 10)
+func (i *Interpreter) builtinHistoryGetRecent(args []Value) (Value, error) {
+	if len(args) > 1 {
+		return nil, fmt.Errorf("gsh.history.getRecent() takes 0-1 arguments (limit?: number), got %d", len(args))
+	}
+
+	// Get optional limit argument (default: 10)
+	limit := 10
+	if len(args) == 1 {
+		limitVal, ok := args[0].(*NumberValue)
+		if !ok {
+			return nil, fmt.Errorf("gsh.history.getRecent() argument must be a number, got %s", args[0].Type())
+		}
+		limit = int(limitVal.Value)
+		if limit <= 0 {
+			limit = 10
+		}
+	}
+
+	// Get history provider from SDK config
+	provider := i.sdkConfig.GetHistoryProvider()
+	if provider == nil {
+		// No history provider available (e.g., in script mode)
+		return &ArrayValue{Elements: []Value{}}, nil
+	}
+
+	// Get recent history entries
+	entries, err := provider.GetRecent(limit)
 	if err != nil {
 		return &ArrayValue{Elements: []Value{}}, nil // Return empty array on error
 	}

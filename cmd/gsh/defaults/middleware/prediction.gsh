@@ -29,11 +29,14 @@ tool __predictionContext() {
         contextParts.push(`<git>${gitResult.stdout.trim()}</git>`)
     }
 
-    if (gsh.lastCommand != null) {
-        lastCmd = gsh.lastCommand.command
-        lastExit = gsh.lastCommand.exitCode
-        lastDuration = gsh.lastCommand.durationMs
-        contextParts.push(`<last_command exit="${lastExit}" duration_ms="${lastDuration}">${lastCmd}</last_command>`)
+    # Include last 10 history commands with metadata (chronological order, most recent at bottom)
+    recentHistory = gsh.history.getRecent(10)
+    if (recentHistory != null && recentHistory.length > 0) {
+        historyLines = []
+        for (entry of recentHistory) {
+            historyLines.push(`<cmd exit="${entry.exitCode}">${entry.command}</cmd>`)
+        }
+        contextParts.push(`<history description="chronological order, most recent command last">\n${historyLines.join("\n")}\n</history>`)
     }
 
     return contextParts.join("\n")
@@ -63,7 +66,11 @@ tool __historyPredict(input) {
     # Find the first successful command (exitCode == 0)
     for (entry of entries) {
         if (entry.exitCode == 0) {
-            return entry.command
+            if (parseVcsCommitMessage(entry.command) == null) {
+              return entry.command
+            } else {
+              return null
+            }
         }
     }
     

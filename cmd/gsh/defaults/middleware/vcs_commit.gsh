@@ -76,7 +76,7 @@ export tool getGitChanges(autoStage) {
     }
     
     # Get the actual diff (limited to avoid huge outputs)
-    diffResult = exec(`git diff ${diffFlag} 2>/dev/null | head -500`)
+    diffResult = exec(`git diff ${diffFlag} -U15 2>/dev/null | head -1000`)
     if (diffResult.exitCode != 0 || diffResult.stdout == null || diffResult.stdout.trim() == "") {
         return statResult.stdout.trim()
     }
@@ -120,7 +120,7 @@ export tool getJjChanges() {
     }
     
     # Get the actual diff (limited to avoid huge outputs)
-    diffResult = exec(`jj diff 2>/dev/null | head -500`)
+    diffResult = exec(`jj diff --context 15 2>/dev/null | head -1000`)
     if (diffResult.exitCode != 0 || diffResult.stdout == null || diffResult.stdout.trim() == "") {
         return statResult.stdout.trim()
     }
