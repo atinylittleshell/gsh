@@ -222,7 +222,6 @@ func TestPredictionState_InstantPrediction(t *testing.T) {
 	select {
 	case result := <-ch:
 		assert.Equal(t, "git status", result.Prediction)
-		assert.Equal(t, PredictionSourceHistory, result.Source)
 		assert.NoError(t, result.Error)
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("timeout waiting for prediction")
@@ -260,7 +259,6 @@ func TestPredictionState_InstantPredictionIsInstant(t *testing.T) {
 			"instant prediction should be instant, not debounced")
 
 		assert.Equal(t, "git status", result.Prediction)
-		assert.Equal(t, PredictionSourceHistory, result.Source)
 
 		// Verify prediction was also set synchronously on the state
 		assert.Equal(t, "git status", ps.Prediction())
@@ -300,7 +298,6 @@ func TestPredictionState_DebouncedPrediction(t *testing.T) {
 			"LLM prediction should be debounced")
 
 		assert.Equal(t, "docker ps", result.Prediction)
-		assert.Equal(t, PredictionSourceLLM, result.Source)
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("timeout waiting for LLM prediction")
 	}
@@ -327,7 +324,6 @@ func TestPredictionState_DebouncedFallback(t *testing.T) {
 	select {
 	case result := <-ch:
 		assert.Equal(t, "docker ps", result.Prediction)
-		assert.Equal(t, PredictionSourceLLM, result.Source)
 		assert.NoError(t, result.Error)
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("timeout waiting for prediction")
@@ -355,7 +351,6 @@ func TestPredictionState_NullStatePrediction(t *testing.T) {
 	select {
 	case result := <-ch:
 		assert.Equal(t, "ls -la", result.Prediction)
-		assert.Equal(t, PredictionSourceLLM, result.Source)
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("timeout waiting for prediction")
 	}
@@ -381,7 +376,6 @@ func TestPredictionState_AgentChatSkipped(t *testing.T) {
 			case result := <-ch:
 				// Should return empty prediction for agent commands
 				assert.Equal(t, "", result.Prediction)
-				assert.Equal(t, PredictionSourceNone, result.Source)
 			case <-time.After(500 * time.Millisecond):
 				t.Fatal("timeout waiting for prediction result")
 			}
@@ -413,7 +407,6 @@ func TestPredictionState_AgentChatSkipped(t *testing.T) {
 		case result := <-ch:
 			// Instant prediction should work for agent commands
 			assert.Equal(t, "#explain this code", result.Prediction)
-			assert.Equal(t, PredictionSourceHistory, result.Source)
 		case <-time.After(100 * time.Millisecond):
 			t.Fatal("timeout waiting for history prediction")
 		}

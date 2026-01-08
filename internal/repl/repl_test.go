@@ -491,7 +491,6 @@ func TestREPL_HistoryPredictionWithoutLLM(t *testing.T) {
 	case result := <-resultCh:
 		// Should get an instant prediction without error or panic
 		assert.NoError(t, result.Error, "prediction should not return an error")
-		assert.Equal(t, input.PredictionSourceHistory, result.Source, "prediction should come from instant provider")
 		assert.Contains(t, result.Prediction, "echo", "prediction should start with the input prefix")
 	case <-time.After(1 * time.Second):
 		t.Fatal("prediction timed out")

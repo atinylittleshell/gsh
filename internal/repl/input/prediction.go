@@ -23,24 +23,9 @@ type PredictionResult struct {
 	// Used to discard stale predictions.
 	StateID int64
 
-	// Source indicates where the prediction came from.
-	Source PredictionSource
-
 	// Error contains any error that occurred during prediction.
 	Error error
 }
-
-// PredictionSource indicates the source of a prediction.
-type PredictionSource int
-
-const (
-	// PredictionSourceNone indicates no prediction was made.
-	PredictionSourceNone PredictionSource = iota
-	// PredictionSourceHistory indicates the prediction came from command history.
-	PredictionSourceHistory
-	// PredictionSourceLLM indicates the prediction came from an LLM.
-	PredictionSourceLLM
-)
 
 // PredictionProvider defines the interface for making predictions.
 // This abstraction allows for different prediction backends.
@@ -232,12 +217,6 @@ func (ps *PredictionState) OnInputChanged(input string) <-chan PredictionResult 
 				zap.String("existingPrediction", existingPrediction),
 			)
 
-			// Determine source: if prediction matches existing, keep the source; otherwise it's from history
-			source := PredictionSourceHistory
-			if prediction == existingPrediction {
-				source = PredictionSourceLLM // Could have been from LLM previously, but we don't track - assume LLM for kept predictions
-			}
-
 			// Set prediction immediately
 			ps.mu.Lock()
 			ps.prediction = prediction
@@ -249,7 +228,6 @@ func (ps *PredictionState) OnInputChanged(input string) <-chan PredictionResult 
 			resultCh <- PredictionResult{
 				Prediction: prediction,
 				StateID:    newStateID,
-				Source:     source,
 			}
 			close(resultCh)
 			return resultCh
@@ -318,7 +296,6 @@ func (ps *PredictionState) startDebouncedPrediction(stateID int64, input string,
 func (ps *PredictionState) predictDebounced(ctx context.Context, stateID int64, input string, existingPrediction string) PredictionResult {
 	result := PredictionResult{
 		StateID: stateID,
-		Source:  PredictionSourceNone,
 	}
 
 	// Don't predict for agent chat messages
@@ -339,12 +316,6 @@ func (ps *PredictionState) predictDebounced(ctx context.Context, stateID int64, 
 
 	if prediction != "" {
 		result.Prediction = prediction
-		// If prediction matches existing, it was kept; otherwise it's new from LLM
-		if prediction == existingPrediction {
-			result.Source = PredictionSourceLLM // Kept prediction - assume LLM since we don't track source
-		} else {
-			result.Source = PredictionSourceLLM // New debounced predictions are typically from LLM
-		}
 
 		ps.logger.Debug("debounced prediction",
 			zap.String("input", input),
