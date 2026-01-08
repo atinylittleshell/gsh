@@ -42,27 +42,15 @@ const (
 	PredictionSourceLLM
 )
 
-// String returns the string representation of the prediction source.
-func (ps PredictionSource) String() string {
-	switch ps {
-	case PredictionSourceNone:
-		return "none"
-	case PredictionSourceHistory:
-		return "history"
-	case PredictionSourceLLM:
-		return "llm"
-	default:
-		return "unknown"
-	}
-}
-
 // PredictionProvider defines the interface for making predictions.
 // This abstraction allows for different prediction backends.
 type PredictionProvider interface {
 	// Predict returns a prediction for the given input.
 	// The context can be used for cancellation.
 	// The trigger indicates whether this is an "instant" (synchronous) or "debounced" (async) prediction.
-	Predict(ctx context.Context, input string, trigger interpreter.PredictTrigger) (prediction string, err error)
+	// The existingPrediction parameter provides the current prediction (may be empty),
+	// allowing the provider to decide whether to keep the existing prediction or generate a new one.
+	Predict(ctx context.Context, input string, trigger interpreter.PredictTrigger, existingPrediction string) (prediction string, err error)
 }
 
 // PredictionState manages the prediction lifecycle including debouncing,
@@ -218,6 +206,9 @@ func (ps *PredictionState) OnInputChanged(input string) <-chan PredictionResult 
 	// Increment state ID
 	newStateID := ps.stateID.Add(1)
 
+	// Capture existing prediction before any modifications
+	existingPrediction := ps.prediction
+
 	// If input is empty and we were dirty, clear prediction
 	if len(input) == 0 && ps.dirty {
 		ps.prediction = ""
@@ -225,31 +216,27 @@ func (ps *PredictionState) OnInputChanged(input string) <-chan PredictionResult 
 		ps.mu.Unlock()
 
 		// Still need to potentially get a null-state prediction (debounced only)
-		return ps.startDebouncedPrediction(newStateID, input)
+		return ps.startDebouncedPrediction(newStateID, input, "")
 	}
 
-	// If current prediction already starts with input, keep it
-	if len(input) > 0 && strings.HasPrefix(ps.prediction, input) {
-		ps.logger.Debug("keeping existing prediction",
-			zap.String("input", input),
-			zap.String("prediction", ps.prediction),
-		)
-		ps.mu.Unlock()
-		return nil
-	}
-
-	// Clear current prediction
-	ps.prediction = ""
 	ps.mu.Unlock()
 
 	// Try instant prediction synchronously
+	// The provider decides whether to keep existing prediction or generate new one
 	if ps.provider != nil {
-		prediction, err := ps.provider.Predict(context.Background(), input, interpreter.PredictTriggerInstant)
+		prediction, err := ps.provider.Predict(context.Background(), input, interpreter.PredictTriggerInstant, existingPrediction)
 		if err == nil && prediction != "" {
 			ps.logger.Debug("instant prediction",
 				zap.String("input", input),
 				zap.String("prediction", prediction),
+				zap.String("existingPrediction", existingPrediction),
 			)
+
+			// Determine source: if prediction matches existing, keep the source; otherwise it's from history
+			source := PredictionSourceHistory
+			if prediction == existingPrediction {
+				source = PredictionSourceLLM // Could have been from LLM previously, but we don't track - assume LLM for kept predictions
+			}
 
 			// Set prediction immediately
 			ps.mu.Lock()
@@ -262,7 +249,7 @@ func (ps *PredictionState) OnInputChanged(input string) <-chan PredictionResult 
 			resultCh <- PredictionResult{
 				Prediction: prediction,
 				StateID:    newStateID,
-				Source:     PredictionSourceHistory, // Instant predictions are typically from history
+				Source:     source,
 			}
 			close(resultCh)
 			return resultCh
@@ -270,13 +257,13 @@ func (ps *PredictionState) OnInputChanged(input string) <-chan PredictionResult 
 	}
 
 	// No instant match, fall back to debounced prediction
-	return ps.startDebouncedPrediction(newStateID, input)
+	return ps.startDebouncedPrediction(newStateID, input, existingPrediction)
 }
 
 // startDebouncedPrediction starts a debounced async prediction request.
 // Instant predictions are handled synchronously in OnInputChanged,
 // so this function handles debounced predictions.
-func (ps *PredictionState) startDebouncedPrediction(stateID int64, input string) <-chan PredictionResult {
+func (ps *PredictionState) startDebouncedPrediction(stateID int64, input string, existingPrediction string) <-chan PredictionResult {
 	// If no provider, nothing to do
 	if ps.provider == nil {
 		return nil
@@ -307,10 +294,15 @@ func (ps *PredictionState) startDebouncedPrediction(stateID int64, input string)
 		}
 
 		// Make debounced prediction
-		result := ps.predictDebounced(ctx, stateID, input)
+		result := ps.predictDebounced(ctx, stateID, input, existingPrediction)
 
-		// Send result if still valid
+		// Update prediction state if still valid
 		if ps.stateID.Load() == stateID {
+			ps.mu.Lock()
+			ps.prediction = result.Prediction
+			ps.inputForPrediction = input
+			ps.mu.Unlock()
+
 			select {
 			case resultCh <- result:
 			case <-ctx.Done():
@@ -323,7 +315,7 @@ func (ps *PredictionState) startDebouncedPrediction(stateID int64, input string)
 
 // predictDebounced makes a prediction using the provider with debounced trigger.
 // Instant predictions are handled synchronously in OnInputChanged.
-func (ps *PredictionState) predictDebounced(ctx context.Context, stateID int64, input string) PredictionResult {
+func (ps *PredictionState) predictDebounced(ctx context.Context, stateID int64, input string, existingPrediction string) PredictionResult {
 	result := PredictionResult{
 		StateID: stateID,
 		Source:  PredictionSourceNone,
@@ -338,7 +330,7 @@ func (ps *PredictionState) predictDebounced(ctx context.Context, stateID int64, 
 		return result
 	}
 
-	prediction, err := ps.provider.Predict(ctx, input, interpreter.PredictTriggerDebounced)
+	prediction, err := ps.provider.Predict(ctx, input, interpreter.PredictTriggerDebounced, existingPrediction)
 	if err != nil {
 		ps.logger.Debug("debounced prediction failed", zap.Error(err))
 		result.Error = err
@@ -347,7 +339,12 @@ func (ps *PredictionState) predictDebounced(ctx context.Context, stateID int64, 
 
 	if prediction != "" {
 		result.Prediction = prediction
-		result.Source = PredictionSourceLLM // Debounced predictions are typically from LLM
+		// If prediction matches existing, it was kept; otherwise it's new from LLM
+		if prediction == existingPrediction {
+			result.Source = PredictionSourceLLM // Kept prediction - assume LLM since we don't track source
+		} else {
+			result.Source = PredictionSourceLLM // New debounced predictions are typically from LLM
+		}
 
 		ps.logger.Debug("debounced prediction",
 			zap.String("input", input),
@@ -415,8 +412,8 @@ type predictedCommandResponse struct {
 }
 
 // Predict implements PredictionProvider.
-// Note: LLMPredictionProvider ignores the trigger parameter as it always does LLM-based prediction.
-func (p *LLMPredictionProvider) Predict(ctx context.Context, input string, trigger interpreter.PredictTrigger) (string, error) {
+// Note: LLMPredictionProvider ignores the trigger and existing prediction parameters as it always does LLM-based prediction.
+func (p *LLMPredictionProvider) Predict(ctx context.Context, input string, trigger interpreter.PredictTrigger, existingPrediction string) (string, error) {
 	if p.model == nil || p.provider == nil {
 		return "", nil
 	}

@@ -35,16 +35,32 @@ func NewEventPredictionProvider(
 // Predict emits the repl.predict event with the specified trigger and parses the middleware response.
 // If middleware returns no prediction or an error, an empty string is returned.
 // Implements PredictionProvider interface.
-func (p *EventPredictionProvider) Predict(ctx context.Context, input string, trigger interpreter.PredictTrigger) (string, error) {
-	prediction, err := p.emitPredictEvent(ctx, input, trigger)
+func (p *EventPredictionProvider) Predict(ctx context.Context, input string, trigger interpreter.PredictTrigger, existingPrediction string) (string, error) {
+	p.logger.Debug("prediction request",
+		zap.String("input", input),
+		zap.String("trigger", string(trigger)),
+		zap.String("existingPrediction", existingPrediction),
+	)
+
+	prediction, err := p.emitPredictEvent(ctx, input, trigger, existingPrediction)
 	if err != nil {
-		p.logger.Warn("prediction middleware returned error", zap.Error(err))
+		p.logger.Debug("prediction failed",
+			zap.String("input", input),
+			zap.String("trigger", string(trigger)),
+			zap.Error(err),
+		)
 		return "", nil
 	}
+
+	p.logger.Debug("prediction result",
+		zap.String("input", input),
+		zap.String("trigger", string(trigger)),
+		zap.String("prediction", prediction),
+	)
 	return prediction, nil
 }
 
-func (p *EventPredictionProvider) emitPredictEvent(ctx context.Context, input string, trigger interpreter.PredictTrigger) (string, error) {
+func (p *EventPredictionProvider) emitPredictEvent(ctx context.Context, input string, trigger interpreter.PredictTrigger, existingPrediction string) (string, error) {
 	if p.interp == nil {
 		return "", nil
 	}
@@ -57,7 +73,7 @@ func (p *EventPredictionProvider) emitPredictEvent(ctx context.Context, input st
 		p.mu.Unlock()
 	}()
 
-	val := p.interp.EmitEvent(interpreter.EventReplPredict, interpreter.CreateReplPredictContext(input, trigger))
+	val := p.interp.EmitEvent(interpreter.EventReplPredict, interpreter.CreateReplPredictContext(input, trigger, existingPrediction))
 	prediction, err, _ := interpreter.ExtractPredictionResult(val)
 	return prediction, err
 }
