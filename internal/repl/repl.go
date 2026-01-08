@@ -673,6 +673,34 @@ func (a *historyProviderAdapter) FindPrefix(prefix string, limit int) ([]interpr
 	return result, nil
 }
 
+// GetRecent implements interpreter.HistoryProvider
+// Returns entries in chronological order (oldest first, most recent last).
+func (a *historyProviderAdapter) GetRecent(limit int) ([]interpreter.HistoryEntry, error) {
+	if a.manager == nil {
+		return nil, nil
+	}
+	// GetRecentEntries returns entries in chronological order (oldest first)
+	entries, err := a.manager.GetRecentEntries("", limit)
+	if err != nil {
+		return nil, err
+	}
+	// Convert history.HistoryEntry to interpreter.HistoryEntry
+	// Keep chronological order (oldest first, most recent last)
+	result := make([]interpreter.HistoryEntry, len(entries))
+	for i, e := range entries {
+		exitCode := -1 // Default to -1 if exit code is not recorded
+		if e.ExitCode.Valid {
+			exitCode = int(e.ExitCode.Int32)
+		}
+		result[i] = interpreter.HistoryEntry{
+			Command:   e.Command,
+			Timestamp: e.CreatedAt.Unix(),
+			ExitCode:  exitCode,
+		}
+	}
+	return result, nil
+}
+
 // loadBashConfigs loads bash configuration files in the correct order.
 // This maintains compatibility with bash/zsh configurations.
 func loadBashConfigs(ctx context.Context, exec *executor.REPLExecutor, logger *zap.Logger) error {

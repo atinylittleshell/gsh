@@ -194,6 +194,10 @@ type HistoryProvider interface {
 	// FindPrefix returns history entries matching the given prefix, ordered by most recent first.
 	// The limit parameter controls the maximum number of entries to search.
 	FindPrefix(prefix string, limit int) ([]HistoryEntry, error)
+	// GetRecent returns the most recent history entries in chronological order
+	// (oldest first, most recent last). The limit parameter controls the maximum
+	// number of entries to return.
+	GetRecent(limit int) ([]HistoryEntry, error)
 }
 
 // NewSDKConfig creates a new SDK configuration

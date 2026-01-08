@@ -452,3 +452,278 @@ gsh.use("command.input", prefixMiddleware)
 		t.Errorf("expected nil result for fall-through, got %v", result2)
 	}
 }
+
+// mockHistoryProvider is a test implementation of HistoryProvider
+type mockHistoryProvider struct {
+	entries []HistoryEntry
+}
+
+func (m *mockHistoryProvider) FindPrefix(prefix string, limit int) ([]HistoryEntry, error) {
+	var result []HistoryEntry
+	for _, e := range m.entries {
+		if len(prefix) == 0 || (len(e.Command) >= len(prefix) && e.Command[:len(prefix)] == prefix) {
+			result = append(result, e)
+			if len(result) >= limit {
+				break
+			}
+		}
+	}
+	return result, nil
+}
+
+func (m *mockHistoryProvider) GetRecent(limit int) ([]HistoryEntry, error) {
+	if limit > len(m.entries) {
+		limit = len(m.entries)
+	}
+	// Return in chronological order (oldest first, most recent last)
+	start := len(m.entries) - limit
+	if start < 0 {
+		start = 0
+	}
+	return m.entries[start:], nil
+}
+
+func TestGshHistoryGetRecent(t *testing.T) {
+	t.Run("returns empty array without history provider", func(t *testing.T) {
+		interp := New(&Options{})
+		defer interp.Close()
+
+		result, err := interp.EvalString(`gsh.history.getRecent()`, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		arr, ok := result.FinalResult.(*ArrayValue)
+		if !ok {
+			t.Fatalf("expected ArrayValue, got %T", result.FinalResult)
+		}
+		if len(arr.Elements) != 0 {
+			t.Errorf("expected empty array, got %d elements", len(arr.Elements))
+		}
+	})
+
+	t.Run("returns history entries in chronological order", func(t *testing.T) {
+		interp := New(&Options{})
+		defer interp.Close()
+
+		// Set up mock history provider with entries in chronological order
+		provider := &mockHistoryProvider{
+			entries: []HistoryEntry{
+				{Command: "cmd1", ExitCode: 0, Timestamp: 1000},
+				{Command: "cmd2", ExitCode: 1, Timestamp: 2000},
+				{Command: "cmd3", ExitCode: 0, Timestamp: 3000},
+			},
+		}
+		interp.SDKConfig().SetHistoryProvider(provider)
+
+		result, err := interp.EvalString(`gsh.history.getRecent(10)`, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		arr, ok := result.FinalResult.(*ArrayValue)
+		if !ok {
+			t.Fatalf("expected ArrayValue, got %T", result.FinalResult)
+		}
+		if len(arr.Elements) != 3 {
+			t.Fatalf("expected 3 elements, got %d", len(arr.Elements))
+		}
+
+		// Verify chronological order (oldest first)
+		commands := []string{"cmd1", "cmd2", "cmd3"}
+		for i, elem := range arr.Elements {
+			obj, ok := elem.(*ObjectValue)
+			if !ok {
+				t.Fatalf("expected ObjectValue at index %d, got %T", i, elem)
+			}
+			cmdVal := obj.GetPropertyValue("command")
+			if cmdVal == nil {
+				t.Fatalf("expected command property at index %d", i)
+			}
+			strVal, ok := cmdVal.(*StringValue)
+			if !ok {
+				t.Fatalf("expected StringValue for command at index %d, got %T", i, cmdVal)
+			}
+			if strVal.Value != commands[i] {
+				t.Errorf("expected command %q at index %d, got %q", commands[i], i, strVal.Value)
+			}
+		}
+	})
+
+	t.Run("respects limit parameter", func(t *testing.T) {
+		interp := New(&Options{})
+		defer interp.Close()
+
+		provider := &mockHistoryProvider{
+			entries: []HistoryEntry{
+				{Command: "cmd1", ExitCode: 0, Timestamp: 1000},
+				{Command: "cmd2", ExitCode: 0, Timestamp: 2000},
+				{Command: "cmd3", ExitCode: 0, Timestamp: 3000},
+				{Command: "cmd4", ExitCode: 0, Timestamp: 4000},
+				{Command: "cmd5", ExitCode: 0, Timestamp: 5000},
+			},
+		}
+		interp.SDKConfig().SetHistoryProvider(provider)
+
+		result, err := interp.EvalString(`gsh.history.getRecent(3)`, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		arr, ok := result.FinalResult.(*ArrayValue)
+		if !ok {
+			t.Fatalf("expected ArrayValue, got %T", result.FinalResult)
+		}
+		if len(arr.Elements) != 3 {
+			t.Fatalf("expected 3 elements, got %d", len(arr.Elements))
+		}
+
+		// Should return the 3 most recent in chronological order
+		commands := []string{"cmd3", "cmd4", "cmd5"}
+		for i, elem := range arr.Elements {
+			obj := elem.(*ObjectValue)
+			strVal := obj.GetPropertyValue("command").(*StringValue)
+			if strVal.Value != commands[i] {
+				t.Errorf("expected command %q at index %d, got %q", commands[i], i, strVal.Value)
+			}
+		}
+	})
+
+	t.Run("uses default limit of 10", func(t *testing.T) {
+		interp := New(&Options{})
+		defer interp.Close()
+
+		// Create 15 entries
+		entries := make([]HistoryEntry, 15)
+		for i := 0; i < 15; i++ {
+			entries[i] = HistoryEntry{Command: "cmd", ExitCode: 0, Timestamp: int64(i * 1000)}
+		}
+		provider := &mockHistoryProvider{entries: entries}
+		interp.SDKConfig().SetHistoryProvider(provider)
+
+		result, err := interp.EvalString(`gsh.history.getRecent()`, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		arr, ok := result.FinalResult.(*ArrayValue)
+		if !ok {
+			t.Fatalf("expected ArrayValue, got %T", result.FinalResult)
+		}
+		if len(arr.Elements) != 10 {
+			t.Errorf("expected 10 elements (default limit), got %d", len(arr.Elements))
+		}
+	})
+
+	t.Run("includes exitCode and timestamp in entries", func(t *testing.T) {
+		interp := New(&Options{})
+		defer interp.Close()
+
+		provider := &mockHistoryProvider{
+			entries: []HistoryEntry{
+				{Command: "failing-cmd", ExitCode: 127, Timestamp: 1234567890},
+			},
+		}
+		interp.SDKConfig().SetHistoryProvider(provider)
+
+		// Get the entry
+		result, err := interp.EvalString(`gsh.history.getRecent(1)[0]`, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		obj, ok := result.FinalResult.(*ObjectValue)
+		if !ok {
+			t.Fatalf("expected ObjectValue, got %T", result.FinalResult)
+		}
+
+		// Check command
+		cmdVal := obj.GetPropertyValue("command")
+		if strVal, ok := cmdVal.(*StringValue); !ok || strVal.Value != "failing-cmd" {
+			t.Errorf("expected command 'failing-cmd', got %v", cmdVal)
+		}
+		// Check exitCode
+		exitVal := obj.GetPropertyValue("exitCode")
+		if numVal, ok := exitVal.(*NumberValue); !ok || numVal.Value != 127 {
+			t.Errorf("expected exitCode 127, got %v", exitVal)
+		}
+		// Check timestamp
+		tsVal := obj.GetPropertyValue("timestamp")
+		if numVal, ok := tsVal.(*NumberValue); !ok || numVal.Value != 1234567890 {
+			t.Errorf("expected timestamp 1234567890, got %v", tsVal)
+		}
+	})
+
+	t.Run("validates argument types", func(t *testing.T) {
+		interp := New(&Options{})
+		defer interp.Close()
+
+		// String argument should fail
+		_, err := interp.EvalString(`gsh.history.getRecent("invalid")`, nil)
+		if err == nil {
+			t.Error("expected error for string argument")
+		}
+
+		// Too many arguments should fail
+		_, err = interp.EvalString(`gsh.history.getRecent(1, 2)`, nil)
+		if err == nil {
+			t.Error("expected error for too many arguments")
+		}
+	})
+}
+
+func TestGshHistoryFindPrefix(t *testing.T) {
+	t.Run("returns empty array without history provider", func(t *testing.T) {
+		interp := New(&Options{})
+		defer interp.Close()
+
+		result, err := interp.EvalString(`gsh.history.findPrefix("git")`, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		arr, ok := result.FinalResult.(*ArrayValue)
+		if !ok {
+			t.Fatalf("expected ArrayValue, got %T", result.FinalResult)
+		}
+		if len(arr.Elements) != 0 {
+			t.Errorf("expected empty array, got %d elements", len(arr.Elements))
+		}
+	})
+
+	t.Run("finds entries matching prefix", func(t *testing.T) {
+		interp := New(&Options{})
+		defer interp.Close()
+
+		provider := &mockHistoryProvider{
+			entries: []HistoryEntry{
+				{Command: "git status", ExitCode: 0, Timestamp: 1000},
+				{Command: "git commit", ExitCode: 0, Timestamp: 2000},
+				{Command: "ls -la", ExitCode: 0, Timestamp: 3000},
+			},
+		}
+		interp.SDKConfig().SetHistoryProvider(provider)
+
+		result, err := interp.EvalString(`gsh.history.findPrefix("git", 10)`, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		arr, ok := result.FinalResult.(*ArrayValue)
+		if !ok {
+			t.Fatalf("expected ArrayValue, got %T", result.FinalResult)
+		}
+		if len(arr.Elements) != 2 {
+			t.Fatalf("expected 2 elements, got %d", len(arr.Elements))
+		}
+
+		// Verify matches
+		for _, elem := range arr.Elements {
+			obj := elem.(*ObjectValue)
+			strVal := obj.GetPropertyValue("command").(*StringValue)
+			if len(strVal.Value) < 3 || strVal.Value[:3] != "git" {
+				t.Errorf("expected command starting with 'git', got %q", strVal.Value)
+			}
+		}
+	})
+}
