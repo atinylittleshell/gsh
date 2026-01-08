@@ -931,25 +931,218 @@ DateTime.diff(timestamp1: number, timestamp2: number, unit?: string): number
 
 ---
 
+## Regular Expressions: `Regexp`
+
+The `Regexp` object provides **static methods for working with regular expressions**. It uses Go's RE2 regex syntax, which is safe and efficient (no backtracking).
+
+### Testing Patterns: `Regexp.test()`
+
+Check if a pattern matches a string:
+
+```gsh
+# Simple match
+Regexp.test("hello world", "world")  # true
+Regexp.test("hello", "xyz")          # false
+
+# Pattern anchors
+Regexp.test("hello world", "^hello")  # true (starts with)
+Regexp.test("hello world", "world$")  # true (ends with)
+
+# Character classes
+Regexp.test("abc123", "\\d+")         # true (contains digits)
+Regexp.test("abcdef", "\\d+")         # false (no digits)
+```
+
+### Finding Matches: `Regexp.match()`
+
+Get the first match and any capture groups:
+
+```gsh
+# Simple match returns array with full match
+result = Regexp.match("hello world", "world")
+print(result)  # ["world"]
+
+# Capture groups are included
+result = Regexp.match("hello world", "(\\w+) (\\w+)")
+print(result)  # ["hello world", "hello", "world"]
+
+# No match returns null
+result = Regexp.match("hello", "xyz")
+print(result)  # null
+```
+
+### Finding All Matches: `Regexp.findAll()`
+
+Get all matches as an array:
+
+```gsh
+# Find all words
+words = Regexp.findAll("hello world gsh", "\\w+")
+print(words)  # ["hello", "world", "gsh"]
+
+# Find all digits
+digits = Regexp.findAll("a1b2c3", "\\d")
+print(digits)  # ["1", "2", "3"]
+
+# Limit results
+first2 = Regexp.findAll("a1b2c3d4", "\\d", 2)
+print(first2)  # ["1", "2"]
+```
+
+### Replacing Text: `Regexp.replace()` and `Regexp.replaceAll()`
+
+Replace matches with new text:
+
+```gsh
+# Replace first occurrence only
+result = Regexp.replace("hello hello hello", "hello", "hi")
+print(result)  # "hi hello hello"
+
+# Replace all occurrences
+result = Regexp.replaceAll("hello hello hello", "hello", "hi")
+print(result)  # "hi hi hi"
+
+# Use capture groups in replacement ($1, $2, etc.)
+result = Regexp.replaceAll("foo bar baz", "(\\w+)", "[$1]")
+print(result)  # "[foo] [bar] [baz]"
+
+# Swap words using capture groups
+result = Regexp.replace("hello world", "(\\w+) (\\w+)", "$2 $1")
+print(result)  # "world hello"
+```
+
+### Splitting Strings: `Regexp.split()`
+
+Split a string by a pattern:
+
+```gsh
+# Split by whitespace
+parts = Regexp.split("hello   world  gsh", "\\s+")
+print(parts)  # ["hello", "world", "gsh"]
+
+# Split by comma with optional spaces
+parts = Regexp.split("a, b,c,  d", ",\\s*")
+print(parts)  # ["a", "b", "c", "d"]
+
+# Limit splits
+parts = Regexp.split("a-b-c-d", "-", 2)
+print(parts)  # ["a", "b-c-d"]
+```
+
+### Escaping Special Characters: `Regexp.escape()`
+
+Escape regex metacharacters to match them literally:
+
+```gsh
+# Escape special characters
+escaped = Regexp.escape("hello.world")
+print(escaped)  # "hello\.world"
+
+escaped = Regexp.escape("[test]")
+print(escaped)  # "\[test\]"
+
+# Use escaped string in a pattern
+filename = "config.json"
+pattern = Regexp.escape(filename)
+Regexp.test("Found config.json in directory", pattern)  # true
+```
+
+### Practical Example: Parsing Log Lines
+
+```gsh
+logLine = "2024-01-15 10:30:45 [INFO] User logged in: alice@example.com"
+
+# Extract timestamp, level, and message
+match = Regexp.match(logLine, "(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}) \\[(\\w+)\\] (.+)")
+
+if (match != null) {
+    timestamp = match[1]
+    level = match[2]
+    message = match[3]
+
+    print("Timestamp:", timestamp)
+    print("Level:", level)
+    print("Message:", message)
+}
+```
+
+**Output:**
+
+```
+Timestamp: 2024-01-15 10:30:45
+Level: INFO
+Message: User logged in: alice@example.com
+```
+
+### Practical Example: Validating Input
+
+```gsh
+tool validateEmail(email: string): bool {
+    # Simple email pattern
+    return Regexp.test(email, "^[\\w.+-]+@[\\w.-]+\\.[a-zA-Z]{2,}$")
+}
+
+tool validatePhone(phone: string): bool {
+    # US phone pattern (flexible)
+    return Regexp.test(phone, "^\\+?1?[-.\\s]?\\(?\\d{3}\\)?[-.\\s]?\\d{3}[-.\\s]?\\d{4}$")
+}
+
+print(validateEmail("user@example.com"))   # true
+print(validateEmail("invalid-email"))       # false
+print(validatePhone("555-123-4567"))        # true
+print(validatePhone("(555) 123-4567"))      # true
+```
+
+### Function Signatures
+
+```gsh
+Regexp.test(str: string, pattern: string): bool
+Regexp.match(str: string, pattern: string): array | null
+Regexp.findAll(str: string, pattern: string, limit?: number): array
+Regexp.replace(str: string, pattern: string, replacement: string): string
+Regexp.replaceAll(str: string, pattern: string, replacement: string): string
+Regexp.split(str: string, pattern: string, limit?: number): array
+Regexp.escape(str: string): string
+```
+
+### Notes on RE2 Syntax
+
+gsh uses Go's RE2 regex engine, which differs slightly from PCRE (Perl-compatible):
+
+- **No backreferences** in patterns (but `$1`, `$2` work in replacements)
+- **No lookahead/lookbehind** assertions
+- **Guaranteed linear time** execution (safe against ReDoS attacks)
+
+Common patterns work the same: `\d`, `\w`, `\s`, `[a-z]`, `+`, `*`, `?`, `^`, `$`, etc.
+
+---
+
 ## Summary: When to Use Each Built-in
 
-| Function            | Purpose                            | Example                             |
-| ------------------- | ---------------------------------- | ----------------------------------- |
-| `print()`           | Output to stdout                   | `print("Result:", value)`           |
-| `log.info()`        | Structured logging (info level)    | `log.info("Processing started")`    |
-| `log.warn()`        | Structured logging (warning level) | `log.warn("Deprecated API")`        |
-| `log.error()`       | Structured logging (error level)   | `log.error("Failed:", err.message)` |
-| `input()`           | Read user input                    | `name = input("Enter name: ")`      |
-| `JSON.parse()`      | Parse JSON strings                 | `data = JSON.parse(jsonStr)`        |
-| `JSON.stringify()`  | Convert to JSON                    | `jsonStr = JSON.stringify(data)`    |
-| `exec()`            | Run shell commands                 | `result = exec("git status")`       |
-| `env`               | Access environment variables       | `token = env.API_KEY`               |
-| `Map()`             | Key-value collections              | `config = Map([["key", "value"]])`  |
-| `Set()`             | Unique value collections           | `unique = Set([1, 2, 2, 3])`        |
-| `DateTime.now()`    | Current timestamp (ms)             | `ts = DateTime.now()`               |
-| `DateTime.parse()`  | Parse date strings                 | `ts = DateTime.parse("2024-01-15")` |
-| `DateTime.format()` | Format timestamps                  | `DateTime.format(ts, "YYYY-MM-DD")` |
-| `DateTime.diff()`   | Calculate time differences         | `DateTime.diff(end, start, "days")` |
+| Function              | Purpose                            | Example                              |
+| --------------------- | ---------------------------------- | ------------------------------------ |
+| `print()`             | Output to stdout                   | `print("Result:", value)`            |
+| `log.info()`          | Structured logging (info level)    | `log.info("Processing started")`     |
+| `log.warn()`          | Structured logging (warning level) | `log.warn("Deprecated API")`         |
+| `log.error()`         | Structured logging (error level)   | `log.error("Failed:", err.message)`  |
+| `input()`             | Read user input                    | `name = input("Enter name: ")`       |
+| `JSON.parse()`        | Parse JSON strings                 | `data = JSON.parse(jsonStr)`         |
+| `JSON.stringify()`    | Convert to JSON                    | `jsonStr = JSON.stringify(data)`     |
+| `exec()`              | Run shell commands                 | `result = exec("git status")`        |
+| `env`                 | Access environment variables       | `token = env.API_KEY`                |
+| `Map()`               | Key-value collections              | `config = Map([["key", "value"]])`   |
+| `Set()`               | Unique value collections           | `unique = Set([1, 2, 2, 3])`         |
+| `DateTime.now()`      | Current timestamp (ms)             | `ts = DateTime.now()`                |
+| `DateTime.parse()`    | Parse date strings                 | `ts = DateTime.parse("2024-01-15")`  |
+| `DateTime.format()`   | Format timestamps                  | `DateTime.format(ts, "YYYY-MM-DD")`  |
+| `DateTime.diff()`     | Calculate time differences         | `DateTime.diff(end, start, "days")`  |
+| `Regexp.test()`       | Test if pattern matches            | `Regexp.test(str, "\\d+")`           |
+| `Regexp.match()`      | Get match with capture groups      | `Regexp.match(str, "(\\w+)")`        |
+| `Regexp.findAll()`    | Find all matches                   | `Regexp.findAll(str, "\\w+")`        |
+| `Regexp.replace()`    | Replace first match                | `Regexp.replace(str, "old", "new")`  |
+| `Regexp.replaceAll()` | Replace all matches                | `Regexp.replaceAll(str, "\\d", "X")` |
+| `Regexp.split()`      | Split by pattern                   | `Regexp.split(str, "\\s+")`          |
+| `Regexp.escape()`     | Escape special characters          | `Regexp.escape("file.txt")`          |
 
 ---
 
@@ -963,6 +1156,7 @@ DateTime.diff(timestamp1: number, timestamp2: number, unit?: string): number
 6. **`env` accesses environment variables**—bridge between gsh and the system
 7. **`Map()` and `Set()` provide specialized collections**—maps for lookups, sets for uniqueness
 8. **`DateTime` provides date/time utilities**—parsing, formatting, and calculating differences
+9. **`Regexp` provides regular expression utilities**—pattern matching, replacement, and text extraction
 
 ---
 
