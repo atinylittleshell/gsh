@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.0](https://github.com/atinylittleshell/gsh/compare/v1.2.1...v1.3.0) (2026-01-08)
+
+
+### Features
+
+* **prediction:** Add VCS commit message detection and context ([#157](https://github.com/atinylittleshell/gsh/issues/157)) ([0d3bd8b](https://github.com/atinylittleshell/gsh/commit/0d3bd8b7bafad1e72c91adc1492e0b434af583c9))
+* Regexp built-in object ([#155](https://github.com/atinylittleshell/gsh/issues/155)) ([253d53e](https://github.com/atinylittleshell/gsh/commit/253d53e08ae099fe9d99c3803ac8605ebddade53))
+
+
+### Bug Fixes
+
+* improve prediction context ([#159](https://github.com/atinylittleshell/gsh/issues/159)) ([1a86b29](https://github.com/atinylittleshell/gsh/commit/1a86b297d9a22bc1300f3802c4f0236241424c3d))
+
 ## [1.2.1](https://github.com/atinylittleshell/gsh/compare/v1.2.0...v1.2.1) (2026-01-08)
 
 
