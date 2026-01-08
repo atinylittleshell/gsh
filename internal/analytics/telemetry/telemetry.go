@@ -103,6 +103,10 @@ func NewClient(cfg Config) (*Client, error) {
 			posthogAPIKey,
 			posthog.Config{
 				Endpoint: posthogEndpoint,
+				// Send events immediately instead of batching to avoid
+				// delays during client.Close() which flushes the queue
+				BatchSize: 10,
+				Interval:  100 * time.Millisecond,
 			},
 		)
 		if err != nil {
