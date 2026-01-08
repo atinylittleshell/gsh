@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 )
 
 // GrepBackend represents the grep implementation to use.
@@ -42,7 +43,16 @@ func ExecuteNativeGrepTool(ctx context.Context, args map[string]interface{}) (st
 		return "", fmt.Errorf("grep tool requires non-empty 'pattern' argument")
 	}
 
-	result, err := ExecuteGrep(ctx, pattern)
+	// Get working_directory (required, must be absolute path)
+	workingDir, ok := args["working_directory"].(string)
+	if !ok || workingDir == "" {
+		return "", fmt.Errorf("grep tool requires 'working_directory' argument as string")
+	}
+	if !filepath.IsAbs(workingDir) {
+		return "", fmt.Errorf("grep tool requires 'working_directory' to be an absolute path, got: %s", workingDir)
+	}
+
+	result, err := ExecuteGrep(ctx, pattern, workingDir)
 	if err != nil {
 		return fmt.Sprintf(`{"error": %q}`, err.Error()), nil
 	}
@@ -78,20 +88,21 @@ type GrepResult struct {
 	Backend  string
 }
 
-// ExecuteGrep runs a grep search with the detected backend.
-func ExecuteGrep(ctx context.Context, pattern string) (*GrepResult, error) {
+// ExecuteGrep runs a grep search with the detected backend in the specified directory.
+func ExecuteGrep(ctx context.Context, pattern string, workingDir string) (*GrepResult, error) {
 	backend := DetectGrepBackend()
-	return ExecuteGrepWithBackend(ctx, pattern, backend)
+	return ExecuteGrepWithBackend(ctx, pattern, backend, workingDir)
 }
 
-// ExecuteGrepWithBackend runs a grep search with a specific backend.
-func ExecuteGrepWithBackend(ctx context.Context, pattern string, backend GrepBackend) (*GrepResult, error) {
+// ExecuteGrepWithBackend runs a grep search with a specific backend in the specified directory.
+func ExecuteGrepWithBackend(ctx context.Context, pattern string, backend GrepBackend, workingDir string) (*GrepResult, error) {
 	cmdName, args, err := BuildGrepCommand(backend, pattern)
 	if err != nil {
 		return nil, err
 	}
 
 	cmd := exec.CommandContext(ctx, cmdName, args...)
+	cmd.Dir = workingDir
 	cmd.Env = os.Environ()
 
 	var outputBuf bytes.Buffer
@@ -182,8 +193,12 @@ func grepToolParameters() map[string]interface{} {
 				"type":        "string",
 				"description": "The regex pattern to search for",
 			},
+			"working_directory": map[string]interface{}{
+				"type":        "string",
+				"description": "The absolute path to the directory where the search should be performed",
+			},
 		},
-		"required": []string{"pattern"},
+		"required": []string{"pattern", "working_directory"},
 	}
 }
 

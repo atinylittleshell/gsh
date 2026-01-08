@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -16,10 +17,20 @@ import (
 
 // ExecuteNativeExecTool executes a shell command with PTY support.
 // This is the shared implementation used by both gsh.tools.exec and the REPL agent.
+// The working_directory must be provided in args and must be an absolute path.
 func ExecuteNativeExecTool(ctx context.Context, args map[string]interface{}, liveOutput io.Writer) (string, error) {
 	command, ok := args["command"].(string)
 	if !ok {
 		return "", fmt.Errorf("exec tool requires 'command' argument as string")
+	}
+
+	// Get working_directory (required, must be absolute path)
+	workingDir, ok := args["working_directory"].(string)
+	if !ok || workingDir == "" {
+		return "", fmt.Errorf("exec tool requires 'working_directory' argument as string")
+	}
+	if !filepath.IsAbs(workingDir) {
+		return "", fmt.Errorf("exec tool requires 'working_directory' to be an absolute path, got: %s", workingDir)
 	}
 
 	// Parse timeout (optional, defaults to DefaultExecTimeout)
@@ -40,7 +51,7 @@ func ExecuteNativeExecTool(ctx context.Context, args map[string]interface{}, liv
 	defer cancel()
 
 	// Execute with live output
-	result, err := ExecuteCommandWithPTY(execCtx, command, liveOutput)
+	result, err := ExecuteCommandWithPTY(execCtx, command, liveOutput, workingDir)
 
 	if err != nil {
 		return fmt.Sprintf(`{"error": %q}`, err.Error()), nil
@@ -72,8 +83,12 @@ type ExecResult struct {
 // This allows live output display while also capturing the output.
 // The liveOutput writer receives output in real-time as the command runs.
 // If liveOutput is nil, output is only captured (not displayed).
-func ExecuteCommandWithPTY(ctx context.Context, command string, liveOutput io.Writer) (*ExecResult, error) {
+// The workingDir parameter specifies the directory to run the command in.
+func ExecuteCommandWithPTY(ctx context.Context, command string, liveOutput io.Writer, workingDir string) (*ExecResult, error) {
 	cmd := exec.CommandContext(ctx, "bash", "-c", command)
+
+	// Set working directory
+	cmd.Dir = workingDir
 
 	// Set environment variables to disable interactive pagers and prompts
 	cmd.Env = append(os.Environ(),
@@ -167,12 +182,16 @@ func execToolParameters() map[string]interface{} {
 				"type":        "string",
 				"description": "The bash command to execute",
 			},
+			"working_directory": map[string]interface{}{
+				"type":        "string",
+				"description": "The absolute path to the directory where the command should be executed",
+			},
 			"timeout": map[string]interface{}{
 				"type":        "integer",
 				"description": "Timeout in seconds for the command execution. Defaults to 60 seconds if not specified.",
 			},
 		},
-		"required": []string{"command"},
+		"required": []string{"command", "working_directory"},
 	}
 }
 
