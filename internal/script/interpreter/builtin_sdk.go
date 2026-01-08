@@ -178,6 +178,10 @@ func (i *Interpreter) registerGshSDK() {
 	dateTimeObj := createDateTimeObject()
 	i.env.Set("DateTime", dateTimeObj)
 
+	// Register Regexp as a global object (not under gsh)
+	regexpObj := createRegexpObject()
+	i.env.Set("Regexp", regexpObj)
+
 	i.env.Set("gsh", gshObj)
 }
 

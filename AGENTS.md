@@ -88,6 +88,15 @@ When a package file exceeds ~500 lines and contains multiple distinct concerns, 
 
 **Pattern to watch for:** If a file has multiple sections with disjoint imports or dependencies, it's a sign the file should be split.
 
+## Adding Global Objects to the Interpreter
+
+When adding new global objects (like `Math`, `DateTime`, `Regexp`) to the interpreter:
+
+1. Register the object in `internal/script/interpreter/builtin_sdk.go` (in `registerGshSDK()`)
+2. **Add the name to `builtinNames` in `internal/script/interpreter/builtin_core.go`**
+
+The `builtinNames` map is used by `isBuiltin()` to filter out built-in objects when returning user-defined variables via `Variables()` and `GetVariables()`. Forgetting to add to this whitelist will cause tests that check variable counts to fail.
+
 ## Error Visibility
 
 When logging errors that users need to see for debugging, use appropriate log levels:

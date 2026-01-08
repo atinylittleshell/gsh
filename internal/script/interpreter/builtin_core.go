@@ -18,6 +18,7 @@ var builtinNames = map[string]bool{
 	"gsh":      true,
 	"Math":     true,
 	"DateTime": true,
+	"Regexp":   true,
 	"typeof":   true,
 }
 
