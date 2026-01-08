@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/atinylittleshell/gsh/compare/v1.2.0...v1.2.1) (2026-01-08)
+
+
+### Bug Fixes
+
+* make the default agent more path aware ([#154](https://github.com/atinylittleshell/gsh/issues/154)) ([187b1a7](https://github.com/atinylittleshell/gsh/commit/187b1a7d5f2a442fe06ccb675b1950ff9fc88b99))
+* reduce exit delay by tweaking telemetry buffer ([#152](https://github.com/atinylittleshell/gsh/issues/152)) ([0be4ebc](https://github.com/atinylittleshell/gsh/commit/0be4ebc9a0c3ca4f7136a6365ca4379be5093976))
+
 ## [1.2.0](https://github.com/atinylittleshell/gsh/compare/v1.1.7...v1.2.0) (2026-01-07)
 
 
