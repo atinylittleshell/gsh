@@ -33,11 +33,11 @@ type Interpreter struct {
 	env              *Environment
 	mcpManager       *mcp.Manager
 	providerRegistry *ProviderRegistry
-	callStack        []StackFrame   // Track call stack for error reporting
-	logger           *zap.Logger    // Optional zap logger for log.* functions
-	stdin            io.Reader      // Reader for input() function, defaults to os.Stdin
-	runner           *interp.Runner // Shared sh runner for env vars, working dir, and exec()
-	runnerMu         sync.RWMutex   // Protects runner access
+	callStacks       *goroutineCallStacks // Per-goroutine call stacks for error reporting
+	logger           *zap.Logger          // Optional zap logger for log.* functions
+	stdin            io.Reader            // Reader for input() function, defaults to os.Stdin
+	runner           *interp.Runner       // Shared sh runner for env vars, working dir, and exec()
+	runnerMu         sync.RWMutex         // Protects runner access
 
 	// Context for cancellation (e.g., Ctrl+C handling)
 	ctx   context.Context // Current execution context
@@ -157,6 +157,7 @@ func New(opts *Options) *Interpreter {
 		logger:           opts.Logger,
 		stdin:            os.Stdin,
 		runner:           runner,
+		callStacks:       newGoroutineCallStacks(),
 		eventManager:     NewEventManager(),
 		sdkConfig:        NewSDKConfig(opts.Logger, atomicLevel),
 		version:          version,
@@ -485,7 +486,7 @@ func (i *Interpreter) SDKConfig() *SDKConfig {
 	return i.sdkConfig
 }
 
-// Eval evaluates a program and returns the result
+// Eval evaluates a program and returns the result.
 func (i *Interpreter) Eval(program *parser.Program) (*EvalResult, error) {
 	var finalResult Value = &NullValue{}
 
@@ -510,10 +511,13 @@ func (i *Interpreter) wrapError(err error, node parser.Node) error {
 		return err
 	}
 
+	// Get the current goroutine's call stack
+	callStack := i.callStacks.get()
+
 	// If it's already a RuntimeError, add current stack
 	if rte, ok := err.(*RuntimeError); ok {
 		// Add all frames from the call stack
-		for _, frame := range i.callStack {
+		for _, frame := range callStack {
 			rte.AddStackFrame(frame.FunctionName, frame.Location)
 		}
 		return rte
@@ -522,24 +526,19 @@ func (i *Interpreter) wrapError(err error, node parser.Node) error {
 	// Otherwise, create a new RuntimeError
 	rte := &RuntimeError{
 		Message:    err.Error(),
-		StackTrace: make([]StackFrame, len(i.callStack)),
+		StackTrace: make([]StackFrame, len(callStack)),
 	}
-	copy(rte.StackTrace, i.callStack)
+	copy(rte.StackTrace, callStack)
 
 	return rte
 }
 
-// pushStackFrame adds a frame to the call stack
+// pushStackFrame adds a frame to the current goroutine's call stack
 func (i *Interpreter) pushStackFrame(functionName, location string) {
-	i.callStack = append(i.callStack, StackFrame{
-		FunctionName: functionName,
-		Location:     location,
-	})
+	i.callStacks.push(functionName, location)
 }
 
-// popStackFrame removes the top frame from the call stack
+// popStackFrame removes the top frame from the current goroutine's call stack
 func (i *Interpreter) popStackFrame() {
-	if len(i.callStack) > 0 {
-		i.callStack = i.callStack[:len(i.callStack)-1]
-	}
+	i.callStacks.pop()
 }
