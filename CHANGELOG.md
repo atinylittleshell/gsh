@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/atinylittleshell/gsh/compare/v1.3.0...v1.3.1) (2026-01-12)
+
+
+### Bug Fixes
+
+* **interpreter:** prevent concurrent execution ([#162](https://github.com/atinylittleshell/gsh/issues/162)) ([b913852](https://github.com/atinylittleshell/gsh/commit/b913852c4063af215bbfca62d7f088a920fc3cc7))
+
 ## [1.3.0](https://github.com/atinylittleshell/gsh/compare/v1.2.1...v1.3.0) (2026-01-08)
 
 
