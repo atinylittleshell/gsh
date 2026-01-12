@@ -19,22 +19,27 @@ if (__starship_available) {
 
 # Prompt handler - uses Starship if available, otherwise falls back to simple prompt
 tool onReplPrompt(ctx, next) {
-    # Default to simple prompt
-    promptText = "gsh> "
-
+    # Get starship prompt directly without intermediate variable to avoid race condition
+    # with prediction system that may call this handler concurrently
     if (__starship_available) {
-        exitCode = gsh.lastCommand.exitCode
-        durationMs = gsh.lastCommand.durationMs
-        result = exec(`starship prompt --status=${exitCode} --cmd-duration=${durationMs} 2>/dev/null`)
-        if (result.exitCode == 0) {
-            promptText = result.stdout
+        __starship_exitCode = gsh.lastCommand.exitCode
+        __starship_durationMs = gsh.lastCommand.durationMs
+        __starship_result = exec(`starship prompt --status=${__starship_exitCode} --cmd-duration=${__starship_durationMs}`)
+        if (__starship_result.exitCode == 0 && __starship_result.stdout != "") {
+            if (gsh.version == "dev") {
+                gsh.prompt = `[dev] ${__starship_result.stdout}`
+            } else {
+                gsh.prompt = __starship_result.stdout
+            }
+            return next(ctx)
         }
     }
-    
+
+    # Fallback to simple prompt
     if (gsh.version == "dev") {
-        gsh.prompt = `[dev] ${promptText}`
+        gsh.prompt = "[dev] gsh> "
     } else {
-        gsh.prompt = promptText
+        gsh.prompt = "gsh> "
     }
     return next(ctx)
 }
