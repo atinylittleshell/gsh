@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2](https://github.com/atinylittleshell/gsh/compare/v1.3.1...v1.3.2) (2026-01-19)
+
+
+### Bug Fixes
+
+* **predict:** fix commit message detection in prediction logic ([#164](https://github.com/atinylittleshell/gsh/issues/164)) ([65fcc04](https://github.com/atinylittleshell/gsh/commit/65fcc0487758959d0b3f6709fd2632ff1a5b7084))
+
 ## [1.3.1](https://github.com/atinylittleshell/gsh/compare/v1.3.0...v1.3.1) (2026-01-12)
 
 
