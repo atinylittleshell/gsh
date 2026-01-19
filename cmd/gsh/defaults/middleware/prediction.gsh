@@ -13,7 +13,7 @@
 # or generate a new one. This allows special cases like VCS commit messages to
 # always get fresh predictions even if there's an existing prefix match.
 
-import { parseVcsCommitMessage, commitMessageInstructions } from "./vcs_commit.gsh"
+import { parseVcsCommitMessage, isVcsCommitMessage, commitMessageInstructions } from "./vcs_commit.gsh"
 
 # Build lightweight context for the LLM using built-in facilities.
 tool __predictionContext() {
@@ -58,22 +58,23 @@ tool __historyPredict(input) {
     if (input == null || input == "") {
         return null
     }
-    
+
     # Use gsh.history.findPrefix to search command history
     # Returns an array of { command, exitCode, timestamp } objects
     entries = gsh.history.findPrefix(input, 30)
-    
+
     # Find the first successful command (exitCode == 0)
     for (entry of entries) {
         if (entry.exitCode == 0) {
-            if (parseVcsCommitMessage(entry.command) == null) {
+            # Use fast check (no diff execution) to skip VCS commit messages
+            if (!isVcsCommitMessage(entry.command)) {
               return entry.command
             } else {
               return null
             }
         }
     }
-    
+
     return null
 }
 
@@ -185,8 +186,8 @@ tool __onPredict(ctx, next) {
         return next(ctx)
     }
 
-    # Check if this is a VCS commit/describe message command
-    isCommitMessage = parseVcsCommitMessage(input) != null
+    # Check if this is a VCS commit/describe message command (fast check, no diff)
+    isCommitMessage = isVcsCommitMessage(input)
 
     # Check if we should keep the existing prediction
     # For regular commands: keep if existing prediction starts with input (prefix match)

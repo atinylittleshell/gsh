@@ -132,8 +132,21 @@ export tool getJjChanges() {
 # Unified Interface
 # =============================================================================
 
-# Check if input is any VCS commit/describe message command
+# Fast check if input is any VCS commit/describe message command (no diff execution)
+# Returns true if it matches a VCS commit message pattern, false otherwise
+export tool isVcsCommitMessage(input) {
+    if (parseGitCommit(input) != null) {
+        return true
+    }
+    if (parseJjCommitOrDescribe(input) != null) {
+        return true
+    }
+    return false
+}
+
+# Check if input is any VCS commit/describe message command AND get changes
 # Returns { vcs: "git" | "jj", changes: string | null } or null if not a commit message
+# WARNING: This runs expensive diff commands - only call when you need the changes!
 export tool parseVcsCommitMessage(input) {
     # Try git
     gitInfo = parseGitCommit(input)
@@ -141,13 +154,13 @@ export tool parseVcsCommitMessage(input) {
         changes = getGitChanges(gitInfo.autoStage)
         return { vcs: "git", changes: changes }
     }
-    
+
     # Try jj (commit or describe)
     jjInfo = parseJjCommitOrDescribe(input)
     if (jjInfo != null) {
         changes = getJjChanges()
         return { vcs: "jj", changes: changes }
     }
-    
+
     return null
 }
