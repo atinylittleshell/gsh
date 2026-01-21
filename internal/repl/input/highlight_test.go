@@ -518,6 +518,47 @@ func TestHighlightRespectsWorkingDirectoryForRelativePaths(t *testing.T) {
 	}
 }
 
+func TestHighlightHandlesTildeHomeDirectory(t *testing.T) {
+	// Get the user's home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Skipf("cannot get home directory: %v", err)
+	}
+
+	// Create a temp directory inside the home directory
+	tempSubDir, err := os.MkdirTemp(homeDir, "gsh_highlight_test_")
+	if err != nil {
+		t.Skipf("cannot create temp dir in home: %v", err)
+	}
+	defer os.RemoveAll(tempSubDir)
+
+	// Create an executable in the temp directory
+	cmdPath := filepath.Join(tempSubDir, "testcmd")
+	if err := os.WriteFile(cmdPath, []byte("#!/bin/sh\necho test"), 0755); err != nil {
+		t.Fatalf("failed to create test command: %v", err)
+	}
+
+	h := NewHighlighter(nil, nil, nil)
+
+	// Get the relative path from home directory
+	relPath, err := filepath.Rel(homeDir, cmdPath)
+	if err != nil {
+		t.Fatalf("failed to get relative path: %v", err)
+	}
+
+	// Test with ~/relative/path format
+	tildePath := "~/" + relPath
+	if !h.commandExists(tildePath) {
+		t.Errorf("expected %q to be recognized as existing command", tildePath)
+	}
+
+	// Test that a non-existent tilde path returns false
+	nonExistentPath := "~/this_path_should_not_exist_12345/cmd"
+	if h.commandExists(nonExistentPath) {
+		t.Errorf("expected %q to NOT be recognized as existing command", nonExistentPath)
+	}
+}
+
 func TestHighlightUsesProvidedWorkingDirForRelativePaths(t *testing.T) {
 	tempDir1 := t.TempDir()
 	tempDir2 := t.TempDir()
