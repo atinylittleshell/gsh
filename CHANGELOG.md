@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.3](https://github.com/atinylittleshell/gsh/compare/v1.3.2...v1.3.3) (2026-02-03)
+
+
+### Bug Fixes
+
+* **highlight:** support home directory expansion in command existence checks ([#167](https://github.com/atinylittleshell/gsh/issues/167)) ([0a35db0](https://github.com/atinylittleshell/gsh/commit/0a35db079c176450441b4ca3ee583fc557858484))
+
 ## [1.3.2](https://github.com/atinylittleshell/gsh/compare/v1.3.1...v1.3.2) (2026-01-19)
 
 
