@@ -2,38 +2,37 @@
   description = "A battery-included, POSIX-compatible, generative shell";
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = {
-    self,
-    nixpkgs,
-    flake-utils,
-  }:
-    flake-utils.lib.eachDefaultSystem (system: let
-      pkgs = import nixpkgs {inherit system;};
-    in {
-      defaultPackage = pkgs.buildGoModule rec {
+  outputs = { nixpkgs, ... }:
+  let
+    forAllSystems = f:
+      nixpkgs.lib.genAttrs
+        [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ]
+        (system: f nixpkgs.legacyPackages.${system});
+  in {
+    packages = forAllSystems (pkgs: {
+      default = pkgs.buildGoModule rec {
         name = "gsh";
-        version = "v0.22.2";
+        version = "v1.3.3";
         src = pkgs.fetchFromGitHub {
           owner = "atinylittleshell";
           repo = "gsh";
           rev = version;
-          hash = "sha256-r4vWse5zAzxaMNVXbISYHvB7158BF6MFWnVhJTN5Y0M=";
+          hash = "sha256-kyEWFoBXuR23wM4Y17tcPmPLpcSKUXy8v857CYeyv0U=";
         };
-        vendorHash = "sha256-Lcl6fyZf3ku8B8q4J4ljUyqhLhJ+q61DLj/Bs/RrQZo=";
+        vendorHash = "sha256-0ZzdlcI6ZdaWq9yutdrONMkshwfoiHxmLupNXo8Zjtc=";
 
-        checkFlags = let
-          # Skip tests that require network access or violate
-          # the filesystem sandboxing
-          skippedTests = [
-            "TestReadLatestVersion"
-            "TestHandleSelfUpdate_UpdateNeeded"
-            "TestHandleSelfUpdate_NoUpdateNeeded"
-            "TestFileCompletions"
-          ];
-        in ["-skip=^${builtins.concatStringsSep "$|^" skippedTests}$"];
+        nativeBuildInputs = with pkgs; [
+          which
+        ];
+
+        # Skip tests that require network access or violate
+        # the filesystem sandboxing. Basically all tests tries
+        # to create a /homeless-shelter directory and errors with
+        # 'read-only file system'.
+        doCheck = false;
       };
     });
+  };
 }
