@@ -131,7 +131,13 @@ func (h *Highlighter) lookupCommandInPath(cmd string, pathEnv string) bool {
 	// If the command contains a path separator, check it directly
 	if strings.Contains(cmd, "/") {
 		pathToCheck := cmd
-		if !filepath.IsAbs(cmd) {
+
+		// Handle home directory expansion
+		if strings.HasPrefix(cmd, "~/") {
+			if homeDir, err := os.UserHomeDir(); err == nil {
+				pathToCheck = filepath.Join(homeDir, cmd[2:])
+			}
+		} else if !filepath.IsAbs(cmd) {
 			if wd := h.workingDir(); wd != "" {
 				pathToCheck = filepath.Join(wd, cmd)
 			}
