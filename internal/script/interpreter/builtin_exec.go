@@ -41,16 +41,20 @@ func (i *Interpreter) builtinExec(args []Value) (Value, error) {
 		}
 	}
 
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	// Create context with timeout, derived from the interpreter's context
+	// so that cancellation (e.g., from prediction debounce) propagates to subprocesses
+	ctx, cancel := context.WithTimeout(i.Context(), timeout)
 	defer cancel()
 
 	// Execute the command in a subshell
 	stdout, stderr, exitCode, err := i.executeBashInSubshell(ctx, command)
 
-	// Check for context timeout
+	// Check for context errors (timeout or cancellation)
 	if ctx.Err() == context.DeadlineExceeded {
 		return nil, fmt.Errorf("exec() command timed out after %v", timeout)
+	}
+	if ctx.Err() == context.Canceled {
+		return nil, fmt.Errorf("exec() command cancelled")
 	}
 
 	// If there's an execution error (not just non-zero exit code), return it

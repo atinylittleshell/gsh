@@ -266,6 +266,11 @@ func (ps *PredictionState) startDebouncedPrediction(stateID int64, input string,
 		case <-time.After(ps.debounceDelay):
 		}
 
+		// Bail out if cancelled during the debounce wait
+		if ctx.Err() != nil {
+			return
+		}
+
 		// Check if state is still valid
 		if ps.stateID.Load() != stateID {
 			return
