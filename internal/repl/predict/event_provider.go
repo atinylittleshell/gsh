@@ -65,7 +65,17 @@ func (p *EventPredictionProvider) emitPredictEvent(ctx context.Context, input st
 		return "", nil
 	}
 
-	p.mu.Lock()
+	// For instant predictions, use TryLock to avoid blocking the UI thread.
+	// If a debounced prediction is running (holding the mutex for expensive
+	// operations like git diff or LLM calls), we skip rather than block.
+	if trigger == interpreter.PredictTriggerInstant {
+		if !p.mu.TryLock() {
+			return "", nil
+		}
+	} else {
+		p.mu.Lock()
+	}
+
 	// Ensure middleware sees the cancellable context used by PredictionState
 	p.interp.SetContext(ctx)
 	defer func() {

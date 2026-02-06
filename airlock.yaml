@@ -1,0 +1,37 @@
+# Airlock pipeline configuration
+# Documentation: https://github.com/airlock-hq/airlock
+
+pipeline:
+  stages:
+    # Pre-freeze: patches are auto-applied to the worktree
+
+    # Run linters and formatters, auto-fix issues
+    - name: lint
+      use: airlock-hq/airlock/stages/lint@main
+
+    # Commit auto-fix patches and lock the worktree
+    - name: freeze
+      run: airlock exec freeze
+
+    # Post-freeze: patches are queued for user review
+
+    # Generate PR title and description from the diff
+    - name: describe
+      use: airlock-hq/airlock/stages/describe@main
+
+    # Run tests
+    - name: test
+      use: airlock-hq/airlock/stages/test@main
+
+    # Pause for user review before pushing
+    - name: review
+      run: "true"
+      require_approval: true
+
+    # Push changes to upstream
+    - name: push
+      use: airlock-hq/airlock/stages/push@main
+
+    # Create pull/merge request
+    - name: create-pr
+      use: airlock-hq/airlock/stages/create-pr@main
