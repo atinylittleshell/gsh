@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.4](https://github.com/atinylittleshell/gsh/compare/v1.3.3...v1.3.4) (2026-02-06)
+
+
+### Bug Fixes
+
+* prevent debounced prediction freezing repl ([#170](https://github.com/atinylittleshell/gsh/issues/170)) ([6a83f31](https://github.com/atinylittleshell/gsh/commit/6a83f317ff566929311c26c610c5968cfe970570))
+
 ## [1.3.3](https://github.com/atinylittleshell/gsh/compare/v1.3.2...v1.3.3) (2026-02-03)
 
 
