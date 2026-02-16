@@ -68,11 +68,18 @@ type FSCapabilities struct {
 	WriteTextFile bool `json:"writeTextFile,omitempty"`
 }
 
+// AuthMethod represents an authentication method advertised by the agent.
+type AuthMethod struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
 // InitializeResult represents the result of the initialize request.
 type InitializeResult struct {
 	ProtocolVersion   int               `json:"protocolVersion"`
 	AgentCapabilities AgentCapabilities `json:"agentCapabilities,omitempty"`
-	AuthMethods       []string          `json:"authMethods,omitempty"`
+	AuthMethods       []AuthMethod      `json:"authMethods,omitempty"`
 }
 
 // AgentCapabilities represents the agent's capabilities.

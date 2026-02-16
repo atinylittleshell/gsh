@@ -109,8 +109,12 @@ func (c *Client) Connect(ctx context.Context) error {
 
 	// Perform initialization handshake
 	if err := c.initialize(ctx); err != nil {
+		stderrOutput := proc.ReadStderr()
 		proc.Close()
 		c.process = nil
+		if stderrOutput != "" {
+			return fmt.Errorf("initialization failed: %w\nagent stderr: %s", err, stderrOutput)
+		}
 		return fmt.Errorf("initialization failed: %w", err)
 	}
 
