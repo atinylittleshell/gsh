@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/atinylittleshell/gsh/compare/v1.4.4...v1.5.0) (2026-02-17)
+
+
+### Features
+
+* **script:** add throw statement support ([#185](https://github.com/atinylittleshell/gsh/issues/185)) ([581267a](https://github.com/atinylittleshell/gsh/commit/581267af5ebd76678e3ffb98b305f5d2a15f80ea))
+
 ## [1.4.4](https://github.com/atinylittleshell/gsh/compare/v1.4.3...v1.4.4) (2026-02-17)
 
 
