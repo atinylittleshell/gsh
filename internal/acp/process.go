@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 // Process manages an ACP agent subprocess.
@@ -18,6 +20,7 @@ type Process struct {
 	stdin  io.WriteCloser
 	stdout *bufio.Reader
 	stderr io.ReadCloser
+	logger *zap.Logger
 
 	mu       sync.Mutex
 	closed   bool
@@ -41,7 +44,7 @@ type ProcessConfig struct {
 }
 
 // SpawnProcess starts an ACP agent subprocess.
-func SpawnProcess(ctx context.Context, config ProcessConfig) (*Process, error) {
+func SpawnProcess(ctx context.Context, config ProcessConfig, logger *zap.Logger) (*Process, error) {
 	if config.Command == "" {
 		return nil, fmt.Errorf("command is required")
 	}
@@ -89,6 +92,15 @@ func SpawnProcess(ctx context.Context, config ProcessConfig) (*Process, error) {
 		return nil, fmt.Errorf("failed to start process: %w", err)
 	}
 
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
+	logger.Debug("ACP process spawned",
+		zap.String("command", config.Command),
+		zap.Strings("args", config.Args),
+		zap.Int("pid", cmd.Process.Pid))
+
 	procCtx, cancel := context.WithCancel(ctx)
 
 	p := &Process{
@@ -96,6 +108,7 @@ func SpawnProcess(ctx context.Context, config ProcessConfig) (*Process, error) {
 		stdin:          stdin,
 		stdout:         bufio.NewReader(stdout),
 		stderr:         stderr,
+		logger:         logger,
 		closedCh:       make(chan struct{}),
 		notificationCh: make(chan *JSONRPCNotification, 100),
 		responseCh:     make(chan *JSONRPCResponse, 10),
@@ -112,12 +125,16 @@ func SpawnProcess(ctx context.Context, config ProcessConfig) (*Process, error) {
 
 // readLoop reads JSON-RPC messages from stdout and routes them.
 func (p *Process) readLoop() {
-	defer close(p.notificationCh)
-	defer close(p.responseCh)
+	defer func() {
+		p.logger.Debug("ACP readLoop exiting, closing channels")
+		close(p.notificationCh)
+		close(p.responseCh)
+	}()
 
 	for {
 		select {
 		case <-p.ctx.Done():
+			p.logger.Debug("ACP readLoop context cancelled")
 			return
 		default:
 		}
@@ -125,10 +142,13 @@ func (p *Process) readLoop() {
 		line, err := p.stdout.ReadBytes('\n')
 		if err != nil {
 			if err != io.EOF {
+				p.logger.Debug("ACP readLoop read error", zap.Error(err))
 				select {
 				case p.errCh <- fmt.Errorf("read error: %w", err):
 				default:
 				}
+			} else {
+				p.logger.Debug("ACP readLoop EOF, agent process stdout closed")
 			}
 			return
 		}
@@ -140,28 +160,73 @@ func (p *Process) readLoop() {
 		// Try to parse as a generic JSON object first
 		var msg map[string]json.RawMessage
 		if err := json.Unmarshal(line, &msg); err != nil {
-			// Skip malformed lines
+			p.logger.Debug("ACP received malformed line, skipping",
+				zap.ByteString("line", line))
 			continue
 		}
 
-		// Check if it's a response (has id) or notification (has method, no id)
-		if _, hasID := msg["id"]; hasID {
-			// It's a response
+		_, hasID := msg["id"]
+		methodRaw, hasMethod := msg["method"]
+
+		if hasID && hasMethod {
+			// It's a request from the agent to the client (has both "method" and "id").
+			// We don't support handling agent-to-client requests, so respond with
+			// a JSON-RPC error to unblock the agent.
+			var method string
+			_ = json.Unmarshal(methodRaw, &method)
+			reqID := msg["id"]
+
+			p.logger.Warn("ACP received unsupported agent-to-client request, rejecting",
+				zap.String("method", method),
+				zap.ByteString("id", reqID))
+
+			// Send a "method not found" error response back
+			errResp := map[string]interface{}{
+				"jsonrpc": JSONRPCVersion,
+				"id":      json.RawMessage(reqID),
+				"error": map[string]interface{}{
+					"code":    -32601,
+					"message": fmt.Sprintf("method not supported by client: %s", method),
+				},
+			}
+			if data, err := json.Marshal(errResp); err == nil {
+				data = append(data, '\n')
+				p.mu.Lock()
+				if !p.closed {
+					_, _ = p.stdin.Write(data)
+				}
+				p.mu.Unlock()
+			}
+		} else if hasID {
+			// It's a response (has "id" but no "method")
 			var resp JSONRPCResponse
 			if err := json.Unmarshal(line, &resp); err != nil {
+				p.logger.Debug("ACP failed to parse response", zap.Error(err))
 				continue
 			}
+			respID := -1
+			if resp.ID != nil {
+				respID = *resp.ID
+			}
+			hasError := resp.Error != nil
+			p.logger.Debug("ACP received response",
+				zap.Int("id", respID),
+				zap.Bool("hasError", hasError))
 			select {
 			case p.responseCh <- &resp:
 			case <-p.ctx.Done():
 				return
 			}
-		} else if _, hasMethod := msg["method"]; hasMethod {
-			// It's a notification
+		} else if hasMethod {
+			// It's a notification (has "method" but no "id")
 			var notif JSONRPCNotification
 			if err := json.Unmarshal(line, &notif); err != nil {
+				p.logger.Debug("ACP failed to parse notification", zap.Error(err))
 				continue
 			}
+			var method string
+			_ = json.Unmarshal(methodRaw, &method)
+			p.logger.Debug("ACP received notification", zap.String("method", method))
 			select {
 			case p.notificationCh <- &notif:
 			case <-p.ctx.Done():
@@ -179,6 +244,10 @@ func (p *Process) SendRequest(req *JSONRPCRequest) error {
 	if p.closed {
 		return fmt.Errorf("process is closed")
 	}
+
+	p.logger.Debug("ACP sending request",
+		zap.String("method", req.Method),
+		zap.Int("id", req.ID))
 
 	data, err := json.Marshal(req)
 	if err != nil {
@@ -220,6 +289,8 @@ func (p *Process) Close() error {
 	close(p.closedCh)
 	p.mu.Unlock()
 
+	p.logger.Debug("ACP process closing")
+
 	// Cancel the context to stop the read loop
 	p.cancel()
 
@@ -233,10 +304,10 @@ func (p *Process) Close() error {
 	}()
 
 	select {
-	case <-done:
-		// Process exited
+	case err := <-done:
+		p.logger.Debug("ACP process exited", zap.NamedError("exitError", err))
 	case <-p.ctx.Done():
-		// Context cancelled, kill the process
+		p.logger.Debug("ACP process kill due to context cancellation")
 		_ = p.cmd.Process.Kill()
 	}
 

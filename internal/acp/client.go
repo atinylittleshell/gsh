@@ -7,12 +7,15 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 // Client is an ACP client that manages communication with an ACP agent.
 type Client struct {
 	process *Process
 	config  ClientConfig
+	logger  *zap.Logger
 
 	// Protocol state
 	initialized       bool
@@ -39,6 +42,9 @@ type ClientConfig struct {
 
 	// Timeout for initialization
 	InitTimeout time.Duration
+
+	// Logger for ACP activity logging. If nil, a no-op logger is used.
+	Logger *zap.Logger
 }
 
 // Session represents an active ACP session.
@@ -76,10 +82,16 @@ func NewClient(config ClientConfig) *Client {
 		config.InitTimeout = 30 * time.Second
 	}
 
+	logger := config.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Client{
 		config: config,
+		logger: logger,
 		ctx:    ctx,
 		cancel: cancel,
 	}
@@ -94,14 +106,19 @@ func (c *Client) Connect(ctx context.Context) error {
 		return fmt.Errorf("client already connected")
 	}
 
+	c.logger.Debug("ACP connecting",
+		zap.String("command", c.config.Command),
+		zap.Strings("args", c.config.Args))
+
 	// Spawn the process
 	proc, err := SpawnProcess(ctx, ProcessConfig{
 		Command: c.config.Command,
 		Args:    c.config.Args,
 		Env:     c.config.Env,
 		Cwd:     c.config.Cwd,
-	})
+	}, c.logger)
 	if err != nil {
+		c.logger.Debug("ACP failed to spawn process", zap.Error(err))
 		return fmt.Errorf("failed to spawn ACP agent: %w", err)
 	}
 
@@ -112,12 +129,17 @@ func (c *Client) Connect(ctx context.Context) error {
 		stderrOutput := proc.ReadStderr()
 		proc.Close()
 		c.process = nil
+		c.logger.Debug("ACP initialization failed",
+			zap.Error(err),
+			zap.String("stderr", stderrOutput))
 		if stderrOutput != "" {
 			return fmt.Errorf("initialization failed: %w\nagent stderr: %s", err, stderrOutput)
 		}
 		return fmt.Errorf("initialization failed: %w", err)
 	}
 
+	c.logger.Debug("ACP connected successfully",
+		zap.Int("protocolVersion", c.protocolVersion))
 	c.initialized = true
 	return nil
 }
@@ -126,6 +148,8 @@ func (c *Client) Connect(ctx context.Context) error {
 func (c *Client) initialize(ctx context.Context) error {
 	initCtx, cancel := context.WithTimeout(ctx, c.config.InitTimeout)
 	defer cancel()
+
+	c.logger.Debug("ACP sending initialize handshake")
 
 	// Send initialize request
 	reqID := c.nextRequestID()
@@ -148,8 +172,14 @@ func (c *Client) initialize(ctx context.Context) error {
 	// Parse the result
 	var result InitializeResult
 	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		c.logger.Debug("ACP initialize result parse error",
+			zap.Error(err),
+			zap.ByteString("rawResult", resp.Result))
 		return fmt.Errorf("failed to parse initialize result: %w", err)
 	}
+
+	c.logger.Debug("ACP initialize handshake complete",
+		zap.Int("protocolVersion", result.ProtocolVersion))
 
 	c.protocolVersion = result.ProtocolVersion
 	c.agentCapabilities = result.AgentCapabilities
@@ -192,6 +222,8 @@ func (c *Client) NewSession(ctx context.Context, cwd string, mcpServers []MCPSer
 		mcpServers = []MCPServer{}
 	}
 
+	c.logger.Debug("ACP creating new session", zap.String("cwd", cwd))
+
 	// Send session/new request
 	reqID := c.nextRequestID()
 	req := NewSessionNewRequest(int(reqID), cwd, mcpServers)
@@ -216,6 +248,8 @@ func (c *Client) NewSession(ctx context.Context, cwd string, mcpServers []MCPSer
 		return nil, fmt.Errorf("failed to parse session/new result: %w", err)
 	}
 
+	c.logger.Debug("ACP session created", zap.String("sessionId", result.SessionID))
+
 	return &Session{
 		client:    c,
 		sessionID: result.SessionID,
@@ -234,6 +268,17 @@ func (s *Session) SendPrompt(ctx context.Context, text string, onUpdate func(*Se
 	s.onUpdate = onUpdate
 	s.mu.Unlock()
 
+	logger := s.client.logger
+
+	// Truncate prompt text for logging
+	promptPreview := text
+	if len(promptPreview) > 100 {
+		promptPreview = promptPreview[:100] + "..."
+	}
+	logger.Debug("ACP sending prompt",
+		zap.String("sessionId", s.sessionID),
+		zap.String("prompt", promptPreview))
+
 	// Send session/prompt request
 	reqID := s.client.nextRequestID()
 	req := NewSessionPromptRequest(int(reqID), s.sessionID, text)
@@ -249,10 +294,14 @@ func (s *Session) SendPrompt(ctx context.Context, text string, onUpdate func(*Se
 	for {
 		select {
 		case <-ctx.Done():
+			logger.Debug("ACP prompt context cancelled",
+				zap.String("sessionId", s.sessionID))
 			return nil, ctx.Err()
 
 		case notif, ok := <-s.client.process.Notifications():
 			if !ok {
+				logger.Debug("ACP notification channel closed during prompt",
+					zap.String("sessionId", s.sessionID))
 				return nil, fmt.Errorf("notification channel closed")
 			}
 
@@ -273,12 +322,30 @@ func (s *Session) SendPrompt(ctx context.Context, text string, onUpdate func(*Se
 				if content := params.Update.GetMessageContent(); content != nil && content.Type == "text" {
 					assistantContent += content.Text
 				}
+				logger.Debug("ACP session update",
+					zap.String("sessionId", s.sessionID),
+					zap.String("type", SessionUpdateAgentMessageChunk))
 			case SessionUpdateToolCall:
 				currentToolCalls = append(currentToolCalls, ToolCallInfo{
 					ID:        params.Update.ToolCallID,
 					Name:      params.Update.GetToolName(),
 					Arguments: params.Update.Arguments,
 				})
+				logger.Debug("ACP session update",
+					zap.String("sessionId", s.sessionID),
+					zap.String("type", SessionUpdateToolCall),
+					zap.String("toolName", params.Update.GetToolName()),
+					zap.String("toolCallId", params.Update.ToolCallID))
+			case SessionUpdateToolCallUpdate:
+				logger.Debug("ACP session update",
+					zap.String("sessionId", s.sessionID),
+					zap.String("type", SessionUpdateToolCallUpdate),
+					zap.String("toolCallId", params.Update.ToolCallID),
+					zap.String("status", params.Update.Status))
+			default:
+				logger.Debug("ACP session update",
+					zap.String("sessionId", s.sessionID),
+					zap.String("type", params.Update.SessionUpdate))
 			}
 
 			// Call the update callback if provided
@@ -288,12 +355,18 @@ func (s *Session) SendPrompt(ctx context.Context, text string, onUpdate func(*Se
 
 		case resp, ok := <-s.client.process.Responses():
 			if !ok {
+				logger.Debug("ACP response channel closed during prompt",
+					zap.String("sessionId", s.sessionID))
 				return nil, fmt.Errorf("response channel closed")
 			}
 
 			if resp.ID != nil && *resp.ID == int(reqID) {
 				// This is our response
 				if resp.Error != nil {
+					logger.Debug("ACP prompt error response",
+						zap.String("sessionId", s.sessionID),
+						zap.String("error", resp.Error.Message),
+						zap.Int("code", resp.Error.Code))
 					return nil, fmt.Errorf("session/prompt error: %s (code: %d)", resp.Error.Message, resp.Error.Code)
 				}
 
@@ -302,6 +375,10 @@ func (s *Session) SendPrompt(ctx context.Context, text string, onUpdate func(*Se
 				if err := json.Unmarshal(resp.Result, &result); err != nil {
 					return nil, fmt.Errorf("failed to parse session/prompt result: %w", err)
 				}
+
+				logger.Debug("ACP prompt completed",
+					zap.String("sessionId", s.sessionID),
+					zap.String("stopReason", result.StopReason))
 
 				// Add assistant message to local history
 				s.mu.Lock()
@@ -316,6 +393,9 @@ func (s *Session) SendPrompt(ctx context.Context, text string, onUpdate func(*Se
 			}
 
 		case err := <-s.client.process.Errors():
+			logger.Debug("ACP error during prompt",
+				zap.String("sessionId", s.sessionID),
+				zap.Error(err))
 			return nil, err
 		}
 	}
@@ -365,6 +445,8 @@ func (c *Client) nextRequestID() int64 {
 func (c *Client) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	c.logger.Debug("ACP client closing")
 
 	c.cancel()
 
