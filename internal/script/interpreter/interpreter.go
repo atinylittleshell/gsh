@@ -294,6 +294,9 @@ func (i *Interpreter) SetEnv(name, value string) {
 
 	// Run the export command - ignore errors since this is best-effort
 	_ = i.runner.Run(context.Background(), prog)
+
+	// Keep os.Environ() in sync so subprocesses see the change
+	os.Setenv(name, value)
 }
 
 // UnsetEnv removes an environment variable by running an unset command through the runner
@@ -314,6 +317,9 @@ func (i *Interpreter) UnsetEnv(name string) {
 
 	// Run the unset command - ignore errors since this is best-effort
 	_ = i.runner.Run(context.Background(), prog)
+
+	// Keep os.Environ() in sync so subprocesses see the change
+	os.Unsetenv(name)
 }
 
 // EvalString parses and evaluates a source string in the interpreter.

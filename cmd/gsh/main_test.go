@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/interp"
+	"mvdan.cc/sh/v3/syntax"
 )
 
 // newTestRunner creates a basic runner for testing gsh scripts.
@@ -26,6 +27,64 @@ func newTestRunner(t *testing.T) *interp.Runner {
 		t.Fatalf("failed to create test runner: %v", err)
 	}
 	return runner
+}
+
+// TestSyncRunnerEnvToOS tests that syncRunnerEnvToOS copies exported runner
+// variables to the OS process environment.
+func TestSyncRunnerEnvToOS(t *testing.T) {
+	const envName = "GSH_TEST_RUNNER_SYNC"
+	os.Unsetenv(envName)
+	t.Cleanup(func() { os.Unsetenv(envName) })
+
+	// Create a runner and export a variable via bash
+	runner := newTestRunner(t)
+	prog, err := syntax.NewParser().Parse(
+		strings.NewReader("export "+envName+"=runner_value"), "")
+	if err != nil {
+		t.Fatalf("failed to parse export command: %v", err)
+	}
+	if err := runner.Run(context.Background(), prog); err != nil {
+		t.Fatalf("failed to run export command: %v", err)
+	}
+
+	// Before sync, OS env should not have the variable
+	if got := os.Getenv(envName); got == "runner_value" {
+		t.Skip("variable unexpectedly already in os env")
+	}
+
+	syncRunnerEnvToOS(runner)
+
+	got := os.Getenv(envName)
+	if got != "runner_value" {
+		t.Errorf("os.Getenv(%q) = %q after syncRunnerEnvToOS, want %q",
+			envName, got, "runner_value")
+	}
+}
+
+// TestSyncRunnerEnvToOS_NonExportedNotSynced tests that non-exported variables
+// are not copied to the OS environment.
+func TestSyncRunnerEnvToOS_NonExportedNotSynced(t *testing.T) {
+	const envName = "GSH_TEST_RUNNER_NOEXPORT"
+	os.Unsetenv(envName)
+	t.Cleanup(func() { os.Unsetenv(envName) })
+
+	runner := newTestRunner(t)
+	// Set a non-exported variable
+	prog, err := syntax.NewParser().Parse(
+		strings.NewReader(envName+"=local_only"), "")
+	if err != nil {
+		t.Fatalf("failed to parse command: %v", err)
+	}
+	if err := runner.Run(context.Background(), prog); err != nil {
+		t.Fatalf("failed to run command: %v", err)
+	}
+
+	syncRunnerEnvToOS(runner)
+
+	got := os.Getenv(envName)
+	if got != "" {
+		t.Errorf("os.Getenv(%q) = %q, non-exported vars should not be synced", envName, got)
+	}
 }
 
 // TestHelpText tests that the help text contains all essential information
