@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.4](https://github.com/atinylittleshell/gsh/compare/v1.4.3...v1.4.4) (2026-02-17)
+
+
+### Bug Fixes
+
+* corrupted variable scope during agent execution ([#184](https://github.com/atinylittleshell/gsh/issues/184)) ([c782ceb](https://github.com/atinylittleshell/gsh/commit/c782cebd42e7d14adbb364c82f525eaed57c47dc))
+* **runtime:** improve runtime error formatting ([#182](https://github.com/atinylittleshell/gsh/issues/182)) ([f70da8d](https://github.com/atinylittleshell/gsh/commit/f70da8d4c4aea6d094af14cbf0a9039346eb44cf))
+
 ## [1.4.3](https://github.com/atinylittleshell/gsh/compare/v1.4.2...v1.4.3) (2026-02-17)
 
 
