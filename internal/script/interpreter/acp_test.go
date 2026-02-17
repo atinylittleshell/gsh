@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -931,4 +932,175 @@ func TestACPWithMockSession(t *testing.T) {
 			t.Error("expected agent.end event to have error field set")
 		}
 	})
+}
+
+func TestACPScopePreservationInNestedBlocks(t *testing.T) {
+	// Regression test for scope corruption during ACP event emission.
+	//
+	// Root cause: The prediction goroutine (internal/repl/input/prediction.go:259)
+	// calls interp.EmitEvent() concurrently with the main REPL thread. During an
+	// ACP pipe call inside a middleware handler, many events fire (agent.start,
+	// agent.chunk, agent.tool.*). Each event's CallTool saves/restores i.env.
+	// A concurrent EmitEvent call can overwrite i.env with a stale value,
+	// corrupting the scope chain and making tool parameters like ctx undefined.
+	//
+	// The fix: save/restore i.env in EmitEvent, sendPromptToACPSession, and
+	// executeACPWithString. This ensures i.env is restored at function boundaries
+	// even if something corrupts it mid-execution.
+	//
+	// This test simulates the corruption by having the mock session's callback
+	// directly overwrite i.env with a bogus environment (simulating the effect
+	// of a concurrent EmitEvent from the prediction goroutine).
+
+	interp := New(nil)
+	acpVal := &ACPValue{Name: "ScopeAgent", Config: map[string]Value{
+		"command": &StringValue{Value: "mock"},
+	}}
+	interp.env.Set("ScopeAgent", acpVal)
+
+	// Register event handlers for agent events (middleware signature)
+	createAgentHandler := func(name string) *ToolValue {
+		toolScript := fmt.Sprintf(`tool %s(ctx, next) { return next(ctx) }`, name)
+		l := lexer.New(toolScript)
+		p := parser.New(l)
+		prog := p.ParseProgram()
+		interp.Eval(prog)
+		val, _ := interp.env.Get(name)
+		return val.(*ToolValue)
+	}
+
+	interp.eventManager.Use(EventAgentStart, createAgentHandler("onStart"))
+	interp.eventManager.Use(EventAgentChunk, createAgentHandler("onChunk"))
+	interp.eventManager.Use(EventAgentIterationStart, createAgentHandler("onIterStart"))
+	interp.eventManager.Use(EventAgentToolPending, createAgentHandler("onToolPending"))
+	interp.eventManager.Use(EventAgentToolStart, createAgentHandler("onToolStart"))
+	interp.eventManager.Use(EventAgentToolEnd, createAgentHandler("onToolEnd"))
+	interp.eventManager.Use(EventAgentEnd, createAgentHandler("onEnd"))
+
+	// Create a mock session whose SendPromptFunc simulates the effect of a
+	// concurrent goroutine corrupting i.env. Between update callbacks (which
+	// trigger EmitEvent → CallTool save/restore cycles), we directly overwrite
+	// i.env with a bogus environment. This simulates what happens when the
+	// prediction goroutine's EmitEvent restores a stale i.env over the main
+	// thread's value.
+	mockSession := acp.NewMockSession("scope-test-session")
+	mockSession.SendPromptFunc = func(ctx context.Context, text string, onUpdate func(*acp.SessionUpdateParams)) (*acp.SessionPromptResult, error) {
+		// Build updates
+		var updates []*acp.SessionUpdateParams
+		for j := 0; j < 5; j++ {
+			ms := acp.NewMockSession(fmt.Sprintf("tmp-%d", j))
+			ms.AddChunkUpdate(fmt.Sprintf("chunk-%d ", j))
+			updates = append(updates, ms.Updates...)
+		}
+		for j := 0; j < 3; j++ {
+			ms := acp.NewMockSession(fmt.Sprintf("tmp-tool-%d", j))
+			ms.AddToolCallUpdate(fmt.Sprintf("tool-%d", j), fmt.Sprintf("test_tool_%d", j), `{"arg": "value"}`)
+			ms.AddToolCallEndUpdate(fmt.Sprintf("tool-%d", j), fmt.Sprintf("test_tool_%d", j), "completed", fmt.Sprintf("output-%d", j))
+			updates = append(updates, ms.Updates...)
+		}
+
+		// Send updates, corrupting i.env between them to simulate
+		// the effect of a concurrent prediction goroutine.
+		bogusEnv := NewEnvironment()
+		bogusEnv.Set("bogus", &StringValue{Value: "corrupted"})
+
+		for idx, update := range updates {
+			if onUpdate != nil {
+				onUpdate(update)
+			}
+			// After some updates, corrupt i.env as a concurrent goroutine would
+			if idx%3 == 0 {
+				interp.env = bogusEnv
+			}
+		}
+
+		return &acp.SessionPromptResult{StopReason: "end_turn"}, nil
+	}
+
+	// Inject mock session
+	sessionVal := &ACPSessionValue{
+		Agent: acpVal, SessionID: "scope-test-session",
+		Messages: []ChatMessage{}, Closed: false,
+	}
+	interp.InjectACPSession("ScopeAgent", "scope-test-session", mockSession)
+	interp.env.Set("session", sessionVal)
+
+	// Define a tool with nested if/else-if that accesses a variable AFTER an ACP
+	// call within the SAME block. This is critical: the bug manifests when there
+	// are statements after the ACP call inside the block, before the block's
+	// defer restores i.env. The variable `mode` is defined in the tool scope
+	// (outer) and accessed inside the if block (inner) both before and after the
+	// ACP call. With env corruption, the inner block's i.env points to a bogus
+	// environment whose scope chain doesn't include the tool scope.
+	script := `
+		tool testTool(ctx) {
+			mode = ctx.mode
+			before = null
+			after = null
+
+			if (mode == "run") {
+				before = mode
+				result = session | "do something"
+				after = mode
+			} else if (mode == "skip") {
+				before = "skip"
+				after = "skip"
+			} else {
+				before = "unknown"
+				after = "unknown"
+			}
+
+			return { before: before, after: after }
+		}
+	`
+	l := lexer.New(script)
+	p := parser.New(l)
+	prog := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parser errors: %v", p.Errors())
+	}
+	_, err := interp.Eval(prog)
+	if err != nil {
+		t.Fatalf("failed to define testTool: %v", err)
+	}
+
+	// Call the tool — the ACP pipe will trigger env corruption via the mock
+	toolVal, ok := interp.env.Get("testTool")
+	if !ok {
+		t.Fatal("testTool not found in environment")
+	}
+
+	ctxArg := &ObjectValue{
+		Properties: map[string]*PropertyDescriptor{
+			"mode": {Value: &StringValue{Value: "run"}},
+		},
+	}
+	result, err := interp.CallTool(toolVal.(*ToolValue), []Value{ctxArg})
+	if err != nil {
+		t.Fatalf("testTool call failed (scope corruption): %v", err)
+	}
+
+	// Verify the result — both 'before' and 'after' should be "run"
+	resultObj, ok := result.(*ObjectValue)
+	if !ok {
+		t.Fatalf("expected ObjectValue result, got %T", result)
+	}
+
+	beforeVal := resultObj.GetPropertyValue("before")
+	beforeStr, ok := beforeVal.(*StringValue)
+	if !ok {
+		t.Fatalf("expected before to be StringValue, got %T (%v)", beforeVal, beforeVal)
+	}
+	if beforeStr.Value != "run" {
+		t.Errorf("expected before='run', got %q", beforeStr.Value)
+	}
+
+	afterVal := resultObj.GetPropertyValue("after")
+	afterStr, ok := afterVal.(*StringValue)
+	if !ok {
+		t.Fatalf("expected after to be StringValue, got %T (%v) — scope corrupted after ACP call", afterVal, afterVal)
+	}
+	if afterStr.Value != "run" {
+		t.Errorf("expected after='run', got %q — scope corrupted after ACP call", afterStr.Value)
+	}
 }
