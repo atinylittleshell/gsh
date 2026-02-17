@@ -409,6 +409,9 @@ func (i *Interpreter) GetEventHandlers(eventName string) []*ToolValue {
 // The return value from the chain (if any non-null value) can be used
 // to override default behavior. The interpretation is event-specific.
 func (i *Interpreter) EmitEvent(eventName string, ctx Value) Value {
+	prevEnv := i.env
+	defer func() { i.env = prevEnv }()
+
 	handlers := i.eventManager.GetHandlers(eventName)
 	if len(handlers) == 0 {
 		return nil

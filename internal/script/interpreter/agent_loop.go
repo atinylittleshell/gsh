@@ -44,6 +44,9 @@ func (i *Interpreter) ExecuteAgentWithCallbacks(
 // It supports both simple execution (no callbacks) and REPL execution (with callbacks).
 // Events are always emitted via the interpreter's EmitEvent method.
 func (i *Interpreter) executeAgentInternal(ctx context.Context, conv *ConversationValue, agent *AgentValue, streaming bool, callbacks *AgentCallbacks) (Value, error) {
+	prevEnv := i.env
+	defer func() { i.env = prevEnv }()
+
 	startTime := time.Now()
 
 	// Track token usage across all iterations

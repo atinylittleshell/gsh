@@ -74,6 +74,9 @@ func (i *Interpreter) evalACPDeclaration(node *parser.ACPDeclaration) (Value, er
 // executeACPWithString creates a new ACP session with a user message and sends the prompt.
 // This is called when: "Hello" | ACPAgent
 func (i *Interpreter) executeACPWithString(message string, acpVal *ACPValue) (Value, error) {
+	prevEnv := i.env
+	defer func() { i.env = prevEnv }()
+
 	startTime := time.Now()
 
 	// Emit agent.start event
@@ -128,6 +131,9 @@ func (i *Interpreter) executeACPWithString(message string, acpVal *ACPValue) (Va
 // sendPromptToACPSession sends a prompt to an existing ACP session.
 // This is called when: session | "Follow up message"
 func (i *Interpreter) sendPromptToACPSession(session *ACPSessionValue, message string) (Value, error) {
+	prevEnv := i.env
+	defer func() { i.env = prevEnv }()
+
 	// Check if session is closed
 	if session.Closed {
 		return nil, fmt.Errorf("cannot send prompt to closed ACP session")
