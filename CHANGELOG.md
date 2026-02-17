@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/atinylittleshell/gsh/compare/v1.4.1...v1.4.2) (2026-02-17)
+
+
+### Bug Fixes
+
+* **acp:** auto-approve permission requests ([#176](https://github.com/atinylittleshell/gsh/issues/176)) ([3e4a9d7](https://github.com/atinylittleshell/gsh/commit/3e4a9d79600a4e94fd211256297985a7a1179f7c))
+
 ## [1.4.1](https://github.com/atinylittleshell/gsh/compare/v1.4.0...v1.4.1) (2026-02-17)
 
 
