@@ -337,6 +337,7 @@ func (i *Interpreter) getOrCreateACPClient(acpVal *ACPValue) (*acp.Client, error
 		Env:         env,
 		Cwd:         cwd,
 		InitTimeout: 30 * time.Second,
+		Logger:      i.logger,
 	}
 
 	// Create and connect client using the factory

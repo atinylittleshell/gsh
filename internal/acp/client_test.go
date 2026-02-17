@@ -369,7 +369,7 @@ func TestProcessConfigValidation(t *testing.T) {
 	// Test that empty command returns error
 	_, err := SpawnProcess(context.Background(), ProcessConfig{
 		Command: "",
-	})
+	}, nil)
 	if err == nil {
 		t.Error("expected error for empty command, got nil")
 	}

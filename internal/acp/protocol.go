@@ -241,14 +241,8 @@ func NewInitializeRequest(id int) *JSONRPCRequest {
 		ID:      id,
 		Method:  MethodInitialize,
 		Params: InitializeParams{
-			ProtocolVersion: 1,
-			ClientCapabilities: ClientCapabilities{
-				FS: &FSCapabilities{
-					ReadTextFile:  true,
-					WriteTextFile: true,
-				},
-				Terminal: true,
-			},
+			ProtocolVersion:    1,
+			ClientCapabilities: ClientCapabilities{},
 		},
 	}
 }
