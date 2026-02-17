@@ -58,6 +58,16 @@ func stringTrimImpl(str *StringValue, args []Value) (Value, error) {
 	return &StringValue{Value: strings.TrimSpace(str.Value)}, nil
 }
 
+// stringTrimStartImpl implements the trimStart method
+func stringTrimStartImpl(str *StringValue, args []Value) (Value, error) {
+	return &StringValue{Value: strings.TrimLeft(str.Value, " \t\n\r\v\f")}, nil
+}
+
+// stringTrimEndImpl implements the trimEnd method
+func stringTrimEndImpl(str *StringValue, args []Value) (Value, error) {
+	return &StringValue{Value: strings.TrimRight(str.Value, " \t\n\r\v\f")}, nil
+}
+
 // stringIndexOfImpl implements the indexOf method
 func stringIndexOfImpl(str *StringValue, args []Value) (Value, error) {
 	if len(args) == 0 {

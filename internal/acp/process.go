@@ -223,14 +223,14 @@ func (p *Process) SendRequest(req *JSONRPCRequest) error {
 		return fmt.Errorf("process is closed")
 	}
 
-	p.logger.Debug("ACP sending request",
-		zap.String("method", req.Method),
-		zap.Int("id", req.ID))
-
 	data, err := json.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
+
+	p.logger.Debug("ACP sending request",
+		zap.String("method", req.Method),
+		zap.Int("id", req.ID))
 
 	data = append(data, '\n')
 
@@ -347,24 +347,28 @@ func (p *Process) handleRequestPermission(params json.RawMessage) interface{} {
 	// Parse just enough to find the first option ID
 	var req struct {
 		Options []struct {
-			ID string `json:"id"`
+			OptionID string `json:"optionId"`
 		} `json:"options"`
 	}
 	if err := json.Unmarshal(params, &req); err != nil || len(req.Options) == 0 {
 		p.logger.Debug("ACP permission request: no options found, approving with empty optionId")
 		return map[string]interface{}{
-			"outcome":  "selected",
-			"optionId": "",
+			"outcome": map[string]interface{}{
+				"outcome":  "selected",
+				"optionId": "",
+			},
 		}
 	}
 
-	optionID := req.Options[0].ID
+	optionID := req.Options[0].OptionID
 	p.logger.Debug("ACP auto-approving permission request",
 		zap.String("optionId", optionID))
 
 	return map[string]interface{}{
-		"outcome":  "selected",
-		"optionId": optionID,
+		"outcome": map[string]interface{}{
+			"outcome":  "selected",
+			"optionId": optionID,
+		},
 	}
 }
 

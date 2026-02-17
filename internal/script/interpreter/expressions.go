@@ -764,6 +764,10 @@ func (i *Interpreter) getStringProperty(str *StringValue, property string, node 
 		return &StringMethodValue{Name: "split", Impl: stringSplitImpl, Str: str}, nil
 	case "trim":
 		return &StringMethodValue{Name: "trim", Impl: stringTrimImpl, Str: str}, nil
+	case "trimStart":
+		return &StringMethodValue{Name: "trimStart", Impl: stringTrimStartImpl, Str: str}, nil
+	case "trimEnd":
+		return &StringMethodValue{Name: "trimEnd", Impl: stringTrimEndImpl, Str: str}, nil
 	case "indexOf":
 		return &StringMethodValue{Name: "indexOf", Impl: stringIndexOfImpl, Str: str}, nil
 	case "lastIndexOf":
