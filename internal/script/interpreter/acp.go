@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -256,7 +257,22 @@ func (i *Interpreter) handleACPSessionUpdate(session *ACPSessionValue, update *a
 
 			var toolErr error
 			if status == "failed" {
-				toolErr = fmt.Errorf("tool call failed")
+				errMsg := output
+				// If no content output, try to extract from RawOutput
+				if errMsg == "" && update.Update.RawOutput != nil {
+					if rawStr, ok := update.Update.RawOutput.(string); ok {
+						errMsg = rawStr
+					} else {
+						if rawBytes, err := json.Marshal(update.Update.RawOutput); err == nil {
+							errMsg = string(rawBytes)
+						}
+					}
+				}
+				if errMsg != "" {
+					toolErr = fmt.Errorf("tool call failed: %s", errMsg)
+				} else {
+					toolErr = fmt.Errorf("tool call failed")
+				}
 			}
 
 			i.EmitEvent(EventAgentToolEnd, createACPToolCallContext(session.Agent, toolCallID, toolName, nil, &durationMs, &output, toolErr))

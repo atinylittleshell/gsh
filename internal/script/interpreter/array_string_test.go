@@ -293,6 +293,16 @@ func TestStringMethods(t *testing.T) {
 			input:    "str = \"  hello  \"\nresult = str.trim()",
 			expected: "hello",
 		},
+		{
+			name:     "trimStart",
+			input:    "str = \"  hello  \"\nresult = str.trimStart()",
+			expected: "hello  ",
+		},
+		{
+			name:     "trimEnd",
+			input:    "str = \"  hello  \"\nresult = str.trimEnd()",
+			expected: "  hello",
+		},
 	}
 
 	for _, tt := range tests {

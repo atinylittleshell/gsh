@@ -261,7 +261,7 @@ Output:
 
 Note: If you have multiple spaces, you get empty strings between them. Use `.trim()` first if needed (see below).
 
-### `.trim()` — Remove Whitespace
+### `.trim()`, `.trimStart()`, `.trimEnd()` — Remove Whitespace
 
 Remove leading and trailing whitespace:
 
@@ -277,7 +277,22 @@ Output:
 "Hello, world!"
 ```
 
-This is great for cleaning up user input or text from files.
+Use `.trimStart()` or `.trimEnd()` to remove whitespace from only one side:
+
+```gsh
+message = "  Hello, world!  "
+print(`"${message.trimStart()}"`)
+print(`"${message.trimEnd()}"`)
+```
+
+Output:
+
+```
+"Hello, world!  "
+"  Hello, world!"
+```
+
+These are great for cleaning up user input or text from files.
 
 ### `.toUpperCase()` and `.toLowerCase()`
 
