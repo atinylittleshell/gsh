@@ -5,6 +5,8 @@
 # Track if we've printed any real (non-whitespace) text content in the latest agent iteration.
 # This helps us skip leading whitespace before tool calls.
 __printedRealText = false
+# Track if the last chunk ended with a newline so we know whether to insert one before spinners.
+__lastChunkEndedWithNewline = true
 
 # Well-known spinner ID for the "Thinking..." spinner
 __THINKING_SPINNER_ID = "__thinking__"
@@ -136,6 +138,7 @@ tool onIterationStart(ctx, next) {
 
     gsh.ui.spinner.start("Thinking...", __THINKING_SPINNER_ID)
     __printedRealText = false
+    __lastChunkEndedWithNewline = true
     return next(ctx)
 }
 gsh.use("agent.iteration.start", onIterationStart)
@@ -154,19 +157,26 @@ tool onChunk(ctx, next) {
     # Stop thinking spinner on first content chunk
     gsh.ui.spinner.stop(__THINKING_SPINNER_ID)
 
-    # Track if we've printed real text
-    if (isRealContent) {
-        __printedRealText = true
-    }
-
     # Skip rendering whitespace-only chunks if we haven't printed real text yet.
     # This prevents empty lines from appearing before tool calls.
     if (!isRealContent && !__printedRealText) {
         return next(ctx)
     }
 
+    # Strip leading whitespace from the first chunk that has real content
+    if (!__printedRealText && isRealContent) {
+        content = content.trimStart()
+    }
+
+    # Track if we've printed real text
+    if (isRealContent) {
+        __printedRealText = true
+    }
+
     # Print the content (without trailing newline - content already includes formatting)
     gsh.ui.write(content)
+    # Track whether this chunk ends with a newline
+    __lastChunkEndedWithNewline = content.endsWith("\n")
     return next(ctx)
 }
 gsh.use("agent.chunk", onChunk)
@@ -181,7 +191,13 @@ tool onToolPending(ctx, next) {
 
     # Stop thinking spinner
     gsh.ui.spinner.stop(__THINKING_SPINNER_ID)
-    
+
+    # Ensure we're on a new line so the spinner doesn't overwrite agent text
+    if (!__lastChunkEndedWithNewline && __printedRealText) {
+        print("")
+    }
+    __lastChunkEndedWithNewline = true
+
     # Start a spinner for this tool using the tool call ID as the spinner ID
     gsh.ui.spinner.start(ctx.toolCall.name, ctx.toolCall.id)
     return next(ctx)
