@@ -277,6 +277,7 @@ func runREPLMode(startTime time.Time, opts replOptions) {
 	if err != nil {
 		panic(err)
 	}
+	syncRunnerEnvToOS(runner)
 
 	logger, _, err := initializeLogger(runner)
 	if err != nil {
@@ -357,6 +358,7 @@ func runRunCommand(startTime time.Time, args []string) {
 		fmt.Fprintf(os.Stderr, "gsh: failed to initialize: %v\n", err)
 		os.Exit(1)
 	}
+	syncRunnerEnvToOS(runner)
 
 	logger, logLevel, err := initializeLogger(runner)
 	if err != nil {
@@ -613,4 +615,15 @@ func initializeRunner(historyManager *history.HistoryManager, completionManager 
 	}
 
 	return runner, nil
+}
+
+// syncRunnerEnvToOS syncs exported variables from the runner back to the OS
+// environment. This ensures subprocesses spawned via os.Environ() see
+// environment changes made by profile scripts (.gshrc, .gsh_profile, etc.).
+func syncRunnerEnvToOS(runner *interp.Runner) {
+	for name, vr := range runner.Vars {
+		if vr.Exported {
+			os.Setenv(name, vr.String())
+		}
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
 	"sync"
 	"time"
@@ -94,13 +95,10 @@ func (m *Manager) startStdioServer(server *MCPServer) error {
 	// Create command with arguments
 	cmd := exec.Command(server.Config.Command, server.Config.Args...)
 
-	// Set environment variables
-	if len(server.Config.Env) > 0 {
-		env := make([]string, 0, len(server.Config.Env))
-		for k, v := range server.Config.Env {
-			env = append(env, fmt.Sprintf("%s=%s", k, v))
-		}
-		cmd.Env = env
+	// Start from the current process environment and merge config env on top
+	cmd.Env = os.Environ()
+	for k, v := range server.Config.Env {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 	}
 
 	// Create client

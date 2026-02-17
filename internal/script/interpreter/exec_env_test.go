@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 
@@ -232,5 +233,92 @@ func TestExec_PWDEnvVarMatchesWorkingDir(t *testing.T) {
 	expected := "pwd=/tmp PWD=/tmp"
 	if stdout != expected {
 		t.Errorf("expected '%s', got '%s'", expected, stdout)
+	}
+}
+
+// TestSetEnv_SyncsToOSEnviron tests that SetEnv syncs the variable to os.Environ()
+// so that subprocesses spawned via exec.Command (not through the bash runner) see it.
+func TestSetEnv_SyncsToOSEnviron(t *testing.T) {
+	const envName = "GSH_TEST_SETENV_SYNC"
+	// Ensure clean state
+	os.Unsetenv(envName)
+	t.Cleanup(func() { os.Unsetenv(envName) })
+
+	interp := New(nil)
+	defer interp.Close()
+
+	interp.SetEnv(envName, "synced_value")
+
+	got := os.Getenv(envName)
+	if got != "synced_value" {
+		t.Errorf("os.Getenv(%q) = %q, want %q", envName, got, "synced_value")
+	}
+}
+
+// TestUnsetEnv_SyncsToOSEnviron tests that UnsetEnv removes the variable from os.Environ()
+func TestUnsetEnv_SyncsToOSEnviron(t *testing.T) {
+	const envName = "GSH_TEST_UNSETENV_SYNC"
+	os.Setenv(envName, "to_be_removed")
+	t.Cleanup(func() { os.Unsetenv(envName) })
+
+	interp := New(nil)
+	defer interp.Close()
+
+	// First set it through the interpreter so the runner knows about it
+	interp.SetEnv(envName, "to_be_removed")
+
+	// Now unset it
+	interp.UnsetEnv(envName)
+
+	got := os.Getenv(envName)
+	if got != "" {
+		t.Errorf("os.Getenv(%q) = %q after UnsetEnv, want empty string", envName, got)
+	}
+}
+
+// TestSetEnv_GshScript_SyncsToOSEnviron tests the end-to-end flow: setting an env var
+// via gsh script (env.VAR = "value") syncs to os.Environ()
+func TestSetEnv_GshScript_SyncsToOSEnviron(t *testing.T) {
+	const envName = "GSH_TEST_SCRIPT_SYNC"
+	os.Unsetenv(envName)
+	t.Cleanup(func() { os.Unsetenv(envName) })
+
+	interp := New(nil)
+	defer interp.Close()
+
+	script := `env.GSH_TEST_SCRIPT_SYNC = "from_script"`
+	_, err := interp.EvalString(script, nil)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+
+	got := os.Getenv(envName)
+	if got != "from_script" {
+		t.Errorf("os.Getenv(%q) = %q after gsh script, want %q", envName, got, "from_script")
+	}
+}
+
+// TestUnsetEnv_GshScript_SyncsToOSEnviron tests that unsetting via gsh script
+// (env.VAR = null) removes from os.Environ()
+func TestUnsetEnv_GshScript_SyncsToOSEnviron(t *testing.T) {
+	const envName = "GSH_TEST_SCRIPT_UNSYNC"
+	os.Setenv(envName, "initial")
+	t.Cleanup(func() { os.Unsetenv(envName) })
+
+	interp := New(nil)
+	defer interp.Close()
+
+	script := `
+env.GSH_TEST_SCRIPT_UNSYNC = "set_first"
+env.GSH_TEST_SCRIPT_UNSYNC = null
+`
+	_, err := interp.EvalString(script, nil)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+
+	got := os.Getenv(envName)
+	if got != "" {
+		t.Errorf("os.Getenv(%q) = %q after gsh unset, want empty string", envName, got)
 	}
 }
