@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/atinylittleshell/gsh/compare/v1.4.0...v1.4.1) (2026-02-17)
+
+
+### Bug Fixes
+
+* **acp:** improve ACP client connection and session handling ([#174](https://github.com/atinylittleshell/gsh/issues/174)) ([0dc2603](https://github.com/atinylittleshell/gsh/commit/0dc2603e859d0da071737f02c123a90783cbc2bf))
+
 ## [1.4.0](https://github.com/atinylittleshell/gsh/compare/v1.3.4...v1.4.0) (2026-02-17)
 
 
