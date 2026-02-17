@@ -27,7 +27,7 @@ func (e *RuntimeError) Error() string {
 		sb.WriteString("\n\nStack trace:")
 		for i := len(e.StackTrace) - 1; i >= 0; i-- {
 			frame := e.StackTrace[i]
-			sb.WriteString(fmt.Sprintf("\n  at %s (%s)", frame.FunctionName, frame.Location))
+			fmt.Fprintf(&sb, "\n  at %s (%s)", frame.FunctionName, frame.Location)
 		}
 	}
 
