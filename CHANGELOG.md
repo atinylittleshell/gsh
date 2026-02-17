@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/atinylittleshell/gsh/compare/v1.3.4...v1.4.0) (2026-02-17)
+
+
+### Features
+
+* **acp:** add process management and init handshake ([#172](https://github.com/atinylittleshell/gsh/issues/172)) ([693156d](https://github.com/atinylittleshell/gsh/commit/693156d043406f9240a14f29c6f72eddd1dbabf9))
+
 ## [1.3.4](https://github.com/atinylittleshell/gsh/compare/v1.3.3...v1.3.4) (2026-02-06)
 
 
