@@ -321,5 +321,6 @@ func (p *Parser) isKeyword(t lexer.TokenType) bool {
 		t == lexer.KW_ACP || t == lexer.KW_TOOL || t == lexer.KW_IF || t == lexer.KW_ELSE ||
 		t == lexer.KW_FOR || t == lexer.KW_OF || t == lexer.KW_WHILE ||
 		t == lexer.KW_BREAK || t == lexer.KW_CONTINUE || t == lexer.KW_TRY ||
-		t == lexer.KW_CATCH || t == lexer.KW_FINALLY || t == lexer.KW_RETURN
+		t == lexer.KW_CATCH || t == lexer.KW_FINALLY || t == lexer.KW_RETURN ||
+		t == lexer.KW_THROW
 }

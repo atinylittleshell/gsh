@@ -424,6 +424,24 @@ func (r *ReturnStatement) String() string {
 	return out.String()
 }
 
+// ThrowStatement represents a throw statement
+type ThrowStatement struct {
+	Token      lexer.Token // the 'throw' token
+	Expression Expression  // the value to throw (required)
+}
+
+func (t *ThrowStatement) statementNode()       {}
+func (t *ThrowStatement) TokenLiteral() string { return t.Token.Literal }
+func (t *ThrowStatement) String() string {
+	var out strings.Builder
+	out.WriteString("throw")
+	if t.Expression != nil {
+		out.WriteString(" ")
+		out.WriteString(t.Expression.String())
+	}
+	return out.String()
+}
+
 // TryStatement represents a try/catch/finally block
 type TryStatement struct {
 	Token         lexer.Token // the 'try' token

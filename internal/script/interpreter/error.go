@@ -3,6 +3,8 @@ package interpreter
 import (
 	"fmt"
 	"strings"
+
+	"github.com/atinylittleshell/gsh/internal/script/lexer"
 )
 
 // StackFrame represents a single frame in the call stack
@@ -62,4 +64,17 @@ func (e *RuntimeError) AddStackFrame(functionName, location string) {
 		FunctionName: functionName,
 		Location:     location,
 	})
+}
+
+// ThrownError represents an error explicitly thrown by a throw statement.
+// It is a regular Go error (not a ControlFlowError), so it will be caught
+// by existing try/catch logic.
+type ThrownError struct {
+	Value Value       // the thrown gsh value
+	Token lexer.Token // source location of the throw statement
+}
+
+// Error implements the error interface
+func (e *ThrownError) Error() string {
+	return e.Value.String()
 }

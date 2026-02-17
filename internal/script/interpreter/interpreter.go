@@ -514,6 +514,11 @@ func (i *Interpreter) wrapError(err error, node parser.Node) error {
 		return err
 	}
 
+	// Don't wrap thrown errors — preserve the original thrown value
+	if _, isThrown := err.(*ThrownError); isThrown {
+		return err
+	}
+
 	// Get the current goroutine's call stack
 	callStack := i.callStacks.get()
 

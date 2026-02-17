@@ -30,6 +30,8 @@ func (p *Parser) parseStatement() Statement {
 		return p.parseContinueStatement()
 	case lexer.KW_RETURN:
 		return p.parseReturnStatement()
+	case lexer.KW_THROW:
+		return p.parseThrowStatement()
 	case lexer.KW_TRY:
 		return p.parseTryStatement()
 	case lexer.KW_IMPORT:
@@ -327,6 +329,27 @@ func (p *Parser) parseReturnStatement() Statement {
 	if !p.peekTokenIs(lexer.RBRACE) && !p.peekTokenIs(lexer.EOF) && p.peekToken.Line == returnLine {
 		p.nextToken() // move to return value expression
 		stmt.ReturnValue = p.parseExpression(LOWEST)
+	}
+
+	return stmt
+}
+
+// parseThrowStatement parses a throw statement
+func (p *Parser) parseThrowStatement() Statement {
+	stmt := &ThrowStatement{Token: p.curToken}
+	throwLine := p.curToken.Line
+
+	// throw requires an expression on the same line
+	if p.peekTokenIs(lexer.RBRACE) || p.peekTokenIs(lexer.EOF) || p.peekToken.Line != throwLine {
+		p.addError("throw statement requires an expression (line %d, column %d)",
+			p.curToken.Line, p.curToken.Column)
+		return nil
+	}
+
+	p.nextToken() // move to expression
+	stmt.Expression = p.parseExpression(LOWEST)
+	if stmt.Expression == nil {
+		return nil
 	}
 
 	return stmt

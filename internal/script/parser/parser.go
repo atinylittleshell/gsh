@@ -231,6 +231,8 @@ func formatTokenType(t lexer.TokenType) string {
 		return "keyword 'finally'"
 	case lexer.KW_RETURN:
 		return "keyword 'return'"
+	case lexer.KW_THROW:
+		return "keyword 'throw'"
 	case lexer.KW_MCP:
 		return "keyword 'mcp'"
 	case lexer.KW_MODEL:

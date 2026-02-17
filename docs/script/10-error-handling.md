@@ -176,6 +176,170 @@ try {
 
 This is the most common pattern. You handle the error and move on—no cleanup needed.
 
+## Throwing Errors
+
+So far, errors have come from runtime failures—undefined variables, bad JSON, division by zero. But what if *your* code needs to signal an error? That's what `throw` is for.
+
+The `throw` statement lets you explicitly raise an error that can be caught by `try-catch`:
+
+```gsh
+throw "something went wrong"
+```
+
+When you `throw`, execution immediately stops and jumps to the nearest `catch` block—just like a runtime error. If there's no `catch`, the script crashes with an uncaught error.
+
+### Throwing Strings
+
+The simplest use is throwing a string message:
+
+```gsh
+try {
+    throw "something went wrong"
+} catch (error) {
+    print("Caught: " + error.message)
+}
+```
+
+Output:
+
+```
+Caught: something went wrong
+```
+
+The string you throw becomes the `error.message` in the catch block, consistent with how runtime errors work.
+
+### Throwing Custom Error Objects
+
+For richer errors, throw an object with a `message` property:
+
+```gsh
+try {
+    throw {message: "not found", code: 404}
+} catch (error) {
+    print("Error: " + error.message)
+    print("Code: " + error.code)
+}
+```
+
+Output:
+
+```
+Error: not found
+Code: 404
+```
+
+When you throw an object that already has a `message` property, the catch block receives the entire object as-is. This lets you attach extra information like error codes, context, or metadata.
+
+### What Catch Receives
+
+The catch parameter always has a `.message` property, regardless of what you throw:
+
+| What you throw | What catch receives |
+|---|---|
+| `"some error"` | `{message: "some error"}` |
+| `{message: "not found", code: 404}` | `{message: "not found", code: 404}` |
+| `42` | `{message: "42"}` |
+
+If the thrown value is an object with a `message` property, it passes through directly. Otherwise, the value is converted to a string and wrapped as `{message: "..."}`. This ensures `error.message` always works.
+
+### Validation with Throw
+
+Use `throw` to validate inputs and guard against bad state:
+
+```gsh
+tool divide(a, b) {
+    if (b == 0) {
+        throw "cannot divide by zero"
+    }
+    return a / b
+}
+
+try {
+    result = divide(10, 0)
+} catch (error) {
+    print("Error: " + error.message)
+}
+```
+
+Output:
+
+```
+Error: cannot divide by zero
+```
+
+This pattern makes your tools fail explicitly with clear messages instead of producing confusing runtime errors.
+
+### Re-throwing Errors
+
+Sometimes you want to catch an error, inspect it, and then throw it again:
+
+```gsh
+try {
+    try {
+        throw {message: "database error", code: 500}
+    } catch (error) {
+        print("Logging error: " + error.message)
+        throw error
+    }
+} catch (error) {
+    print("Outer catch: " + error.message + " (code " + error.code + ")")
+}
+```
+
+Output:
+
+```
+Logging error: database error
+Outer catch: database error (code 500)
+```
+
+The inner catch logs the error, then `throw error` re-throws it for the outer catch to handle. The error object passes through intact with all its properties.
+
+### Throw with Finally
+
+The `finally` block always runs, even when an error is thrown:
+
+```gsh
+try {
+    throw "something failed"
+} catch (error) {
+    print("Caught: " + error.message)
+} finally {
+    print("Cleanup runs regardless")
+}
+```
+
+Output:
+
+```
+Caught: something failed
+Cleanup runs regardless
+```
+
+### Throw is Not Break
+
+Unlike `break` or `continue`, `throw` does not control loops—it signals an error. Inside a loop, `throw` exits the loop by propagating to the nearest catch:
+
+```gsh
+try {
+    for (i of [1, 2, 3]) {
+        if (i == 2) {
+            throw "stopped at " + i
+        }
+        print(i)
+    }
+} catch (error) {
+    print("Caught: " + error.message)
+}
+```
+
+Output:
+
+```
+1
+Caught: stopped at 2
+```
+
 ## Error Propagation: When Errors Bubble Up
 
 What happens if you don't catch an error? It propagates up the call stack:
@@ -563,6 +727,8 @@ This is a production-ready pattern you can use in real scripts.
 
 - **Try-catch blocks let your scripts survive errors** instead of crashing
 - **The `error` object has a `.message` property** describing what went wrong
+- **Use `throw` to raise errors explicitly** from your own code
+- **Thrown objects with a `message` property pass through to catch as-is**, enabling rich error objects
 - **`catch` is optional if you have `finally`**—you can clean up without handling the error
 - **`finally` always runs**, regardless of success or failure
 - **Errors propagate up the call stack** until caught—use this to your advantage
