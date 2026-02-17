@@ -34,6 +34,7 @@ const (
 	KW_CATCH
 	KW_FINALLY
 	KW_RETURN
+	KW_THROW
 	KW_IMPORT
 	KW_EXPORT
 	KW_FROM
@@ -98,6 +99,7 @@ var keywords = map[string]TokenType{
 	"catch":    KW_CATCH,
 	"finally":  KW_FINALLY,
 	"return":   KW_RETURN,
+	"throw":    KW_THROW,
 	"import":   KW_IMPORT,
 	"export":   KW_EXPORT,
 	"from":     KW_FROM,
