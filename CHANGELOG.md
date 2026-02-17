@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/atinylittleshell/gsh/compare/v1.5.0...v1.6.0) (2026-02-17)
+
+
+### Features
+
+* **env:** sync env vars to OS ([#188](https://github.com/atinylittleshell/gsh/issues/188)) ([0f0c2c3](https://github.com/atinylittleshell/gsh/commit/0f0c2c3cfe55b1ad1fb169f69c2cac25bb7cec41))
+
 ## [1.5.0](https://github.com/atinylittleshell/gsh/compare/v1.4.4...v1.5.0) (2026-02-17)
 
 
