@@ -170,33 +170,11 @@ func (p *Process) readLoop() {
 
 		if hasID && hasMethod {
 			// It's a request from the agent to the client (has both "method" and "id").
-			// We don't support handling agent-to-client requests, so respond with
-			// a JSON-RPC error to unblock the agent.
 			var method string
 			_ = json.Unmarshal(methodRaw, &method)
 			reqID := msg["id"]
 
-			p.logger.Warn("ACP received unsupported agent-to-client request, rejecting",
-				zap.String("method", method),
-				zap.ByteString("id", reqID))
-
-			// Send a "method not found" error response back
-			errResp := map[string]interface{}{
-				"jsonrpc": JSONRPCVersion,
-				"id":      json.RawMessage(reqID),
-				"error": map[string]interface{}{
-					"code":    -32601,
-					"message": fmt.Sprintf("method not supported by client: %s", method),
-				},
-			}
-			if data, err := json.Marshal(errResp); err == nil {
-				data = append(data, '\n')
-				p.mu.Lock()
-				if !p.closed {
-					_, _ = p.stdin.Write(data)
-				}
-				p.mu.Unlock()
-			}
+			p.handleAgentRequest(method, reqID, msg["params"])
 		} else if hasID {
 			// It's a response (has "id" but no "method")
 			var resp JSONRPCResponse
@@ -340,6 +318,83 @@ func (p *Process) ReadStderr() string {
 	case <-time.After(500 * time.Millisecond):
 		return ""
 	}
+}
+
+// handleAgentRequest handles JSON-RPC requests from the agent to the client.
+func (p *Process) handleAgentRequest(method string, reqID json.RawMessage, params json.RawMessage) {
+	var result interface{}
+
+	switch method {
+	case "session/request_permission":
+		// Auto-approve permission requests by selecting the first option.
+		result = p.handleRequestPermission(params)
+	default:
+		p.logger.Warn("ACP received unsupported agent-to-client request, rejecting",
+			zap.String("method", method),
+			zap.ByteString("id", reqID))
+		p.sendAgentResponse(reqID, nil, &JSONRPCError{
+			Code:    -32601,
+			Message: fmt.Sprintf("method not supported by client: %s", method),
+		})
+		return
+	}
+
+	p.sendAgentResponse(reqID, result, nil)
+}
+
+// handleRequestPermission auto-approves a permission request by selecting the first option.
+func (p *Process) handleRequestPermission(params json.RawMessage) interface{} {
+	// Parse just enough to find the first option ID
+	var req struct {
+		Options []struct {
+			ID string `json:"id"`
+		} `json:"options"`
+	}
+	if err := json.Unmarshal(params, &req); err != nil || len(req.Options) == 0 {
+		p.logger.Debug("ACP permission request: no options found, approving with empty optionId")
+		return map[string]interface{}{
+			"outcome":  "selected",
+			"optionId": "",
+		}
+	}
+
+	optionID := req.Options[0].ID
+	p.logger.Debug("ACP auto-approving permission request",
+		zap.String("optionId", optionID))
+
+	return map[string]interface{}{
+		"outcome":  "selected",
+		"optionId": optionID,
+	}
+}
+
+// sendAgentResponse sends a JSON-RPC response back to the agent.
+func (p *Process) sendAgentResponse(reqID json.RawMessage, result interface{}, rpcErr *JSONRPCError) {
+	resp := map[string]interface{}{
+		"jsonrpc": JSONRPCVersion,
+		"id":      json.RawMessage(reqID),
+	}
+	if rpcErr != nil {
+		resp["error"] = map[string]interface{}{
+			"code":    rpcErr.Code,
+			"message": rpcErr.Message,
+		}
+	} else {
+		resp["result"] = result
+	}
+
+	data, err := json.Marshal(resp)
+	if err != nil {
+		p.logger.Debug("ACP failed to marshal agent response", zap.Error(err))
+		return
+	}
+	data = append(data, '\n')
+
+	p.mu.Lock()
+	if !p.closed {
+		_, _ = p.stdin.Write(data)
+	}
+	p.mu.Unlock()
 }
 
 // IsClosed returns whether the process has been closed.
