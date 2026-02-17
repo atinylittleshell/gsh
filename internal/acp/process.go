@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"time"
 )
 
 // Process manages an ACP agent subprocess.
@@ -240,6 +241,34 @@ func (p *Process) Close() error {
 	}
 
 	return nil
+}
+
+// ReadStderr reads available stderr content from the process with a short timeout.
+// This is useful for capturing diagnostic output when the process fails.
+// The read is non-blocking to avoid hanging when the process has no stderr output.
+func (p *Process) ReadStderr() string {
+	if p.stderr == nil {
+		return ""
+	}
+	type readResult struct {
+		data []byte
+		err  error
+	}
+	ch := make(chan readResult, 1)
+	go func() {
+		buf := make([]byte, 4096)
+		n, err := p.stderr.Read(buf)
+		ch <- readResult{data: buf[:n], err: err}
+	}()
+	select {
+	case result := <-ch:
+		if len(result.data) == 0 {
+			return ""
+		}
+		return string(result.data)
+	case <-time.After(500 * time.Millisecond):
+		return ""
+	}
 }
 
 // IsClosed returns whether the process has been closed.
