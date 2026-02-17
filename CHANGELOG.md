@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.3](https://github.com/atinylittleshell/gsh/compare/v1.4.2...v1.4.3) (2026-02-17)
+
+
+### Bug Fixes
+
+* trimStart/trimEnd and fix agent output rendering ([#178](https://github.com/atinylittleshell/gsh/issues/178)) ([aef47c3](https://github.com/atinylittleshell/gsh/commit/aef47c34ae255292ce57d676f66a5da6ccbfa864))
+
 ## [1.4.2](https://github.com/atinylittleshell/gsh/compare/v1.4.1...v1.4.2) (2026-02-17)
 
 
