@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/atinylittleshell/gsh/internal/script/lexer"
@@ -60,6 +61,8 @@ func (i *Interpreter) evalStatement(stmt parser.Statement) (Value, error) {
 		return nil, &ControlFlowError{Signal: SignalContinue, Token: node.Token}
 	case *parser.ReturnStatement:
 		return i.evalReturnStatement(node)
+	case *parser.ThrowStatement:
+		return i.evalThrowStatement(node)
 	case *parser.ToolDeclaration:
 		return i.evalToolDeclaration(node)
 	case *parser.McpDeclaration:
@@ -364,6 +367,19 @@ func (i *Interpreter) evalReturnStatement(node *parser.ReturnStatement) (Value, 
 	}
 }
 
+// evalThrowStatement evaluates a throw statement
+func (i *Interpreter) evalThrowStatement(node *parser.ThrowStatement) (Value, error) {
+	val, err := i.evalExpression(node.Expression)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, &ThrownError{
+		Value: val,
+		Token: node.Token,
+	}
+}
+
 // evalToolDeclaration evaluates a tool declaration
 func (i *Interpreter) evalToolDeclaration(node *parser.ToolDeclaration) (Value, error) {
 	// Extract parameter names and types
@@ -408,11 +424,31 @@ func (i *Interpreter) evalTryStatement(node *parser.TryStatement) (Value, error)
 	if tryError != nil && node.CatchClause != nil {
 		// Don't catch control flow signals (break, continue, return)
 		if _, isControlFlow := tryError.(*ControlFlowError); !isControlFlow {
-			// Create an error object with a message property
-			errorObj := &ObjectValue{
-				Properties: map[string]*PropertyDescriptor{
-					"message": {Value: &StringValue{Value: tryError.Error()}},
-				},
+			// Determine the error object for the catch parameter
+			var errorObj Value
+			var thrownErr *ThrownError
+			if errors.As(tryError, &thrownErr) {
+				// Check if the thrown value is an ObjectValue with a "message" property
+				if objVal, ok := thrownErr.Value.(*ObjectValue); ok {
+					if _, hasMessage := objVal.Properties["message"]; hasMessage {
+						errorObj = objVal
+					}
+				}
+				// If not an object with message, wrap as {message: stringRepresentation}
+				if errorObj == nil {
+					errorObj = &ObjectValue{
+						Properties: map[string]*PropertyDescriptor{
+							"message": {Value: &StringValue{Value: thrownErr.Value.String()}},
+						},
+					}
+				}
+			} else {
+				// Regular runtime error — wrap as {message: err.Error()}
+				errorObj = &ObjectValue{
+					Properties: map[string]*PropertyDescriptor{
+						"message": {Value: &StringValue{Value: tryError.Error()}},
+					},
+				}
 			}
 
 			// Bind the error parameter to the current scope temporarily
