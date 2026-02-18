@@ -51,7 +51,7 @@ func (b *BuiltinValue) Equals(other Value) bool {
 // registerBuiltins registers all built-in functions and objects in the environment
 func (i *Interpreter) registerBuiltins() {
 	// Register print function
-	i.env.Set("print", &BuiltinValue{
+	i.globalEnv.Set("print", &BuiltinValue{
 		Name: "print",
 		Fn:   builtinPrint,
 	})
@@ -69,7 +69,7 @@ func (i *Interpreter) registerBuiltins() {
 			}},
 		},
 	}
-	i.env.Set("JSON", jsonObj)
+	i.globalEnv.Set("JSON", jsonObj)
 
 	// Register log object with debug, info, warn, error methods
 	// These methods use the interpreter's zap logger if available
@@ -93,37 +93,37 @@ func (i *Interpreter) registerBuiltins() {
 			}},
 		},
 	}
-	i.env.Set("log", logObj)
+	i.globalEnv.Set("log", logObj)
 
 	// Register env object for environment variable access
-	i.env.Set("env", &EnvValue{interp: i})
+	i.globalEnv.Set("env", &EnvValue{interp: i})
 
 	// Register Map constructor
-	i.env.Set("Map", &BuiltinValue{
+	i.globalEnv.Set("Map", &BuiltinValue{
 		Name: "Map",
 		Fn:   builtinMap,
 	})
 
 	// Register Set constructor
-	i.env.Set("Set", &BuiltinValue{
+	i.globalEnv.Set("Set", &BuiltinValue{
 		Name: "Set",
 		Fn:   builtinSet,
 	})
 
 	// Register exec function for executing shell commands
-	i.env.Set("exec", &BuiltinValue{
+	i.globalEnv.Set("exec", &BuiltinValue{
 		Name: "exec",
 		Fn:   i.builtinExec,
 	})
 
 	// Register input function for reading user input
-	i.env.Set("input", &BuiltinValue{
+	i.globalEnv.Set("input", &BuiltinValue{
 		Name: "input",
 		Fn:   i.builtinInput,
 	})
 
 	// Register typeof function for runtime type inspection
-	i.env.Set("typeof", &BuiltinValue{
+	i.globalEnv.Set("typeof", &BuiltinValue{
 		Name: "typeof",
 		Fn:   builtinTypeof,
 	})

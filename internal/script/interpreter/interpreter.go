@@ -30,7 +30,7 @@ type ACPClientFactory func(config acp.ClientConfig) (*acp.Client, error)
 
 // Interpreter represents the gsh script interpreter
 type Interpreter struct {
-	env              *Environment
+	globalEnv        *Environment
 	mcpManager       *mcp.Manager
 	providerRegistry *ProviderRegistry
 	callStacks       *goroutineCallStacks // Per-goroutine call stacks for error reporting
@@ -151,7 +151,7 @@ func New(opts *Options) *Interpreter {
 	}
 
 	i := &Interpreter{
-		env:              gshEnv,
+		globalEnv:        gshEnv,
 		mcpManager:       mcp.NewManager(),
 		providerRegistry: registry,
 		logger:           opts.Logger,
@@ -381,13 +381,13 @@ func (i *Interpreter) Close() error {
 
 // SetVariable defines or updates a variable in the interpreter's environment
 func (i *Interpreter) SetVariable(name string, value Value) {
-	i.env.Set(name, value)
+	i.globalEnv.Set(name, value)
 }
 
 // GetVariables returns all top-level variables from the interpreter's environment (excluding built-ins)
 func (i *Interpreter) GetVariables() map[string]Value {
 	vars := make(map[string]Value)
-	for k, v := range i.env.store {
+	for k, v := range i.globalEnv.store {
 		// Skip built-in functions and objects
 		if isBuiltin(k) {
 			continue
@@ -395,6 +395,11 @@ func (i *Interpreter) GetVariables() map[string]Value {
 		vars[k] = v
 	}
 	return vars
+}
+
+// GlobalEnv returns the global environment for external callers that need it
+func (i *Interpreter) GlobalEnv() *Environment {
+	return i.globalEnv
 }
 
 // GetEventHandlers returns all registered handlers for a given event name
@@ -415,8 +420,8 @@ func (i *Interpreter) GetEventHandlers(eventName string) []*ToolValue {
 // The return value from the chain (if any non-null value) can be used
 // to override default behavior. The interpretation is event-specific.
 func (i *Interpreter) EmitEvent(eventName string, ctx Value) Value {
-	prevEnv := i.env
-	defer func() { i.env = prevEnv }()
+	prevEnv := i.globalEnv
+	defer func() { i.globalEnv = prevEnv }()
 
 	handlers := i.eventManager.GetHandlers(eventName)
 	if len(handlers) == 0 {
@@ -509,7 +514,7 @@ func (i *Interpreter) Eval(program *parser.Program) (*EvalResult, error) {
 
 	return &EvalResult{
 		FinalResult: finalResult,
-		Env:         i.env,
+		Env:         i.globalEnv,
 	}, nil
 }
 
