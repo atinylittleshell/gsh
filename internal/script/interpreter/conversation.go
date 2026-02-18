@@ -68,15 +68,15 @@ type AgentCallbacks struct {
 
 // evalPipeExpression evaluates a pipe expression
 // Handles: String | Agent, Conversation | String, Conversation | Agent
-func (i *Interpreter) evalPipeExpression(node *parser.PipeExpression) (Value, error) {
+func (i *Interpreter) evalPipeExpression(env *Environment, node *parser.PipeExpression) (Value, error) {
 	// Evaluate left side
-	left, err := i.evalExpression(node.Left)
+	left, err := i.evalExpression(env, node.Left)
 	if err != nil {
 		return nil, err
 	}
 
 	// Evaluate right side
-	right, err := i.evalExpression(node.Right)
+	right, err := i.evalExpression(env, node.Right)
 	if err != nil {
 		return nil, err
 	}

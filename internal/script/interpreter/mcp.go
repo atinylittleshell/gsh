@@ -273,7 +273,7 @@ func contentToValue(content mcpsdk.Content) (Value, error) {
 }
 
 // callMCPTool calls an MCP tool with the given arguments
-func (i *Interpreter) callMCPTool(tool *MCPToolValue, argExprs []parser.Expression) (Value, error) {
+func (i *Interpreter) callMCPTool(env *Environment, tool *MCPToolValue, argExprs []parser.Expression) (Value, error) {
 	// Evaluate all arguments
 	args := make(map[string]interface{})
 
@@ -287,7 +287,7 @@ func (i *Interpreter) callMCPTool(tool *MCPToolValue, argExprs []parser.Expressi
 	}
 
 	// Evaluate first argument
-	firstArg, err := i.evalExpression(argExprs[0])
+	firstArg, err := i.evalExpression(env, argExprs[0])
 	if err != nil {
 		return nil, err
 	}
