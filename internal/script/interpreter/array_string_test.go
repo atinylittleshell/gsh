@@ -46,7 +46,7 @@ func TestArrayIndexing(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -97,7 +97,7 @@ func TestArrayIndexAssignment(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -143,7 +143,7 @@ func TestArrayLength(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -172,7 +172,7 @@ func TestArrayPushPop(t *testing.T) {
 		t.Fatalf("interpreter error: %v", err)
 	}
 
-	result, ok := interp.env.Get("result")
+	result, ok := interp.globalEnv.Get("result")
 	if !ok {
 		t.Fatalf("failed to get result")
 	}
@@ -181,7 +181,7 @@ func TestArrayPushPop(t *testing.T) {
 		t.Errorf("expected 3, got %s", result.String())
 	}
 
-	last, ok := interp.env.Get("last")
+	last, ok := interp.globalEnv.Get("last")
 	if !ok {
 		t.Fatalf("failed to get last")
 	}
@@ -208,7 +208,7 @@ func TestArrayJoin(t *testing.T) {
 		t.Fatalf("interpreter error: %v", err)
 	}
 
-	result, ok := interp.env.Get("result")
+	result, ok := interp.globalEnv.Get("result")
 	if !ok {
 		t.Fatalf("failed to get result")
 	}
@@ -235,7 +235,7 @@ func TestArraySlice(t *testing.T) {
 		t.Fatalf("interpreter error: %v", err)
 	}
 
-	result, ok := interp.env.Get("result")
+	result, ok := interp.globalEnv.Get("result")
 	if !ok {
 		t.Fatalf("failed to get result")
 	}
@@ -262,7 +262,7 @@ func TestStringLength(t *testing.T) {
 		t.Fatalf("interpreter error: %v", err)
 	}
 
-	result, ok := interp.env.Get("result")
+	result, ok := interp.globalEnv.Get("result")
 	if !ok {
 		t.Fatalf("failed to get result")
 	}
@@ -321,7 +321,7 @@ func TestStringMethods(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -372,7 +372,7 @@ func TestObjectIndexing(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}

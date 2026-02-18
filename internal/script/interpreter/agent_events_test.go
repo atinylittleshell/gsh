@@ -8,7 +8,7 @@ import (
 
 // getEmittedEvents is a helper that extracts the emitted event names from the interpreter's emittedEvents variable
 func getEmittedEvents(interp *Interpreter) []string {
-	eventsVal, ok := interp.env.Get("emittedEvents")
+	eventsVal, ok := interp.globalEnv.Get("emittedEvents")
 	if !ok || eventsVal == nil {
 		return nil
 	}
@@ -248,7 +248,7 @@ gsh.use("agent.chunk", onChunk)
 	}
 
 	// Verify that at least one chunk was emitted
-	chunkCountVal, ok := interp.env.Get("chunkCount")
+	chunkCountVal, ok := interp.globalEnv.Get("chunkCount")
 	if !ok || chunkCountVal == nil {
 		t.Fatal("chunkCount variable not found")
 	}
@@ -436,7 +436,7 @@ gsh.use("agent.tool.start", onToolStart)
 	callbacks := &AgentCallbacks{
 		ToolExecutor: func(ctx context.Context, toolName string, args map[string]interface{}) (string, error) {
 			// This should NOT be called because we override in agent.tool.start
-			interp.env.Set("toolWasExecuted", &BoolValue{Value: true})
+			interp.globalEnv.Set("toolWasExecuted", &BoolValue{Value: true})
 			return `{"weather": "sunny"}`, nil
 		},
 	}
@@ -447,7 +447,7 @@ gsh.use("agent.tool.start", onToolStart)
 	}
 
 	// Verify tool was NOT executed
-	toolWasExecuted, _ := interp.env.Get("toolWasExecuted")
+	toolWasExecuted, _ := interp.globalEnv.Get("toolWasExecuted")
 	if boolVal, ok := toolWasExecuted.(*BoolValue); ok && boolVal.Value {
 		t.Error("Tool should NOT have been executed due to override")
 	}
@@ -463,7 +463,7 @@ gsh.use("agent.tool.start", onToolStart)
 	for _, msg := range convResult.Messages {
 		if msg.Role == "tool" {
 			found = true
-			overrideMsg, _ := interp.env.Get("overrideMessage")
+			overrideMsg, _ := interp.globalEnv.Get("overrideMessage")
 			expected := overrideMsg.(*StringValue).Value
 			if msg.Content != expected {
 				t.Errorf("Expected tool result %q, got %q", expected, msg.Content)
@@ -505,7 +505,7 @@ gsh.use("agent.tool.end", onToolEnd)
 	}
 
 	// Get the tool from the environment
-	weatherTool, ok := interp.env.Get("get_weather")
+	weatherTool, ok := interp.globalEnv.Get("get_weather")
 	if !ok {
 		t.Fatal("get_weather tool not found in environment")
 	}

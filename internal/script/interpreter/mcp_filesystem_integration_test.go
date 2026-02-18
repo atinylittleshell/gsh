@@ -103,7 +103,7 @@ result = filesystem.read_file({
 	assert.NotNil(t, evalResult)
 
 	// Check that result variable exists
-	resultVal, ok := interp.env.Get("result")
+	resultVal, ok := interp.globalEnv.Get("result")
 	require.True(t, ok, "result variable not found")
 	assert.NotNil(t, resultVal)
 }
@@ -157,11 +157,11 @@ readResult = filesystem.read_file({
 	assert.Equal(t, "Hello from gsh with variables!", string(content))
 
 	// Verify variables exist
-	message, ok := interp.env.Get("message")
+	message, ok := interp.globalEnv.Get("message")
 	require.True(t, ok)
 	assert.Equal(t, "Hello from gsh with variables!", message.(*StringValue).Value)
 
-	readResult, ok := interp.env.Get("readResult")
+	readResult, ok := interp.globalEnv.Get("readResult")
 	require.True(t, ok)
 	assert.NotNil(t, readResult)
 }
@@ -206,7 +206,7 @@ listing = filesystem.list_directory({
 	assert.NotNil(t, result)
 
 	// Verify listing variable exists
-	listing, ok := interp.env.Get("listing")
+	listing, ok := interp.globalEnv.Get("listing")
 	require.True(t, ok, "listing variable not found")
 	assert.NotNil(t, listing)
 }
@@ -313,7 +313,7 @@ for (filename of files) {
 	assert.NotNil(t, result)
 
 	// Verify count
-	count, ok := interp.env.Get("count")
+	count, ok := interp.globalEnv.Get("count")
 	require.True(t, ok)
 	assert.Equal(t, float64(3), count.(*NumberValue).Value)
 
@@ -374,7 +374,7 @@ result = saveMessage("Hello from tool!", "` + testFile + `")
 	assert.Equal(t, "Hello from tool!", string(content))
 
 	// Verify the return value
-	result, ok := interp.env.Get("result")
+	result, ok := interp.globalEnv.Get("result")
 	require.True(t, ok)
 	assert.Equal(t, "Saved: Hello from tool!", result.(*StringValue).Value)
 }
@@ -491,7 +491,7 @@ result3 = writeLog("Task completed", "INFO")
 	// Verify results
 	for i := 1; i <= 3; i++ {
 		varName := "result" + string(rune('0'+i))
-		result, ok := interp.env.Get(varName)
+		result, ok := interp.globalEnv.Get(varName)
 		require.True(t, ok, "%s should exist", varName)
 		assert.True(t, strings.HasPrefix(result.(*StringValue).Value, "Logged:"), "Result should start with 'Logged:'")
 	}

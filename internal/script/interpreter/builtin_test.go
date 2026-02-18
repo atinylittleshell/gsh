@@ -546,7 +546,7 @@ func TestBuiltinsRegistered(t *testing.T) {
 	interp := New(nil)
 
 	// Check that print is registered
-	printVal, ok := interp.env.Get("print")
+	printVal, ok := interp.globalEnv.Get("print")
 	if !ok {
 		t.Errorf("print function not registered")
 	}
@@ -555,7 +555,7 @@ func TestBuiltinsRegistered(t *testing.T) {
 	}
 
 	// Check that JSON is registered
-	jsonVal, ok := interp.env.Get("JSON")
+	jsonVal, ok := interp.globalEnv.Get("JSON")
 	if !ok {
 		t.Errorf("JSON object not registered")
 	}
@@ -571,7 +571,7 @@ func TestBuiltinsRegistered(t *testing.T) {
 	}
 
 	// Check that log is registered
-	logVal, ok := interp.env.Get("log")
+	logVal, ok := interp.globalEnv.Get("log")
 	if !ok {
 		t.Errorf("log object not registered")
 	}
@@ -586,7 +586,7 @@ func TestBuiltinsRegistered(t *testing.T) {
 	}
 
 	// Check that env is registered
-	envVal, ok := interp.env.Get("env")
+	envVal, ok := interp.globalEnv.Get("env")
 	if !ok {
 		t.Errorf("env object not registered")
 	}

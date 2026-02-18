@@ -56,7 +56,7 @@ func TestStringIndexOf(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -107,7 +107,7 @@ func TestStringLastIndexOf(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -163,7 +163,7 @@ func TestStringSubstring(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -224,7 +224,7 @@ func TestStringSlice(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -275,7 +275,7 @@ func TestStringStartsWith(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -326,7 +326,7 @@ func TestStringEndsWith(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -382,7 +382,7 @@ func TestStringIncludes(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -433,7 +433,7 @@ func TestStringReplace(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -484,7 +484,7 @@ func TestStringReplaceAll(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -535,7 +535,7 @@ func TestStringRepeat(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -591,7 +591,7 @@ func TestStringPadStart(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -647,7 +647,7 @@ func TestStringPadEnd(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -708,7 +708,7 @@ func TestStringCharAt(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -754,7 +754,7 @@ func TestStringSplit(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -805,7 +805,7 @@ func TestStringUnicodeSupport(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}
@@ -932,7 +932,7 @@ func TestStringComparison(t *testing.T) {
 				t.Fatalf("interpreter error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatalf("failed to get result")
 			}

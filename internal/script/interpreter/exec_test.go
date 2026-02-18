@@ -8,7 +8,7 @@ func TestBuiltinExec_BasicExecution(t *testing.T) {
 	interp := New(nil)
 
 	// Test exec("echo 'hello world'")
-	execFn := interp.env.store["exec"].(*BuiltinValue)
+	execFn := interp.globalEnv.store["exec"].(*BuiltinValue)
 	result, err := execFn.Fn([]Value{
 		&StringValue{Value: "echo 'hello world'"},
 	})
@@ -55,7 +55,7 @@ func TestBuiltinExec_NonZeroExitCode(t *testing.T) {
 	interp := New(nil)
 
 	// Test exec with false command (exits with code 1)
-	execFn := interp.env.store["exec"].(*BuiltinValue)
+	execFn := interp.globalEnv.store["exec"].(*BuiltinValue)
 	result, err := execFn.Fn([]Value{
 		&StringValue{Value: "false"},
 	})
@@ -85,7 +85,7 @@ func TestBuiltinExec_StderrCapture(t *testing.T) {
 	interp := New(nil)
 
 	// Test exec with command that writes to stderr
-	execFn := interp.env.store["exec"].(*BuiltinValue)
+	execFn := interp.globalEnv.store["exec"].(*BuiltinValue)
 	result, err := execFn.Fn([]Value{
 		&StringValue{Value: "echo 'error message' >&2"},
 	})
@@ -114,7 +114,7 @@ func TestBuiltinExec_StderrCapture(t *testing.T) {
 
 func TestBuiltinExec_InvalidArguments(t *testing.T) {
 	interp := New(nil)
-	execFn := interp.env.store["exec"].(*BuiltinValue)
+	execFn := interp.globalEnv.store["exec"].(*BuiltinValue)
 
 	tests := []struct {
 		name string
@@ -179,7 +179,7 @@ func TestBuiltinExec_WithTimeout(t *testing.T) {
 	interp := New(nil)
 
 	// Test exec with timeout option
-	execFn := interp.env.store["exec"].(*BuiltinValue)
+	execFn := interp.globalEnv.store["exec"].(*BuiltinValue)
 	result, err := execFn.Fn([]Value{
 		&StringValue{Value: "echo 'test output'"},
 		&ObjectValue{Properties: map[string]*PropertyDescriptor{
