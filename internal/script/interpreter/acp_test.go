@@ -560,8 +560,8 @@ func TestACPPipeSemantics(t *testing.T) {
 
 	t.Run("ACPSession | SameACP should error", func(t *testing.T) {
 		interp := New(nil)
-		interp.env.Set("session", session)
-		interp.env.Set("Agent1", acp1)
+		interp.globalEnv.Set("session", session)
+		interp.globalEnv.Set("Agent1", acp1)
 
 		l := lexer.New("session | Agent1")
 		p := parser.New(l)
@@ -578,8 +578,8 @@ func TestACPPipeSemantics(t *testing.T) {
 
 	t.Run("ACPSession | DifferentACP should error", func(t *testing.T) {
 		interp := New(nil)
-		interp.env.Set("session", session)
-		interp.env.Set("Agent2", acp2)
+		interp.globalEnv.Set("session", session)
+		interp.globalEnv.Set("Agent2", acp2)
 
 		l := lexer.New("session | Agent2")
 		p := parser.New(l)
@@ -596,8 +596,8 @@ func TestACPPipeSemantics(t *testing.T) {
 
 	t.Run("ACPSession | LocalAgent should error", func(t *testing.T) {
 		interp := New(nil)
-		interp.env.Set("session", session)
-		interp.env.Set("LocalAgent", localAgent)
+		interp.globalEnv.Set("session", session)
+		interp.globalEnv.Set("LocalAgent", localAgent)
 
 		l := lexer.New("session | LocalAgent")
 		p := parser.New(l)
@@ -614,8 +614,8 @@ func TestACPPipeSemantics(t *testing.T) {
 
 	t.Run("Conversation | ACP should error", func(t *testing.T) {
 		interp := New(nil)
-		interp.env.Set("conv", conv)
-		interp.env.Set("Agent1", acp1)
+		interp.globalEnv.Set("conv", conv)
+		interp.globalEnv.Set("Agent1", acp1)
 
 		l := lexer.New("conv | Agent1")
 		p := parser.New(l)
@@ -632,7 +632,7 @@ func TestACPPipeSemantics(t *testing.T) {
 
 	t.Run("String | ACP returns error when command not found", func(t *testing.T) {
 		interp := New(nil)
-		interp.env.Set("Agent1", acp1)
+		interp.globalEnv.Set("Agent1", acp1)
 
 		l := lexer.New(`"Hello" | Agent1`)
 		p := parser.New(l)
@@ -651,7 +651,7 @@ func TestACPPipeSemantics(t *testing.T) {
 	t.Run("ACPSession | String returns error for closed session", func(t *testing.T) {
 		closedSession := &ACPSessionValue{Agent: acp1, SessionID: "closed-session", Closed: true}
 		interp := New(nil)
-		interp.env.Set("session", closedSession)
+		interp.globalEnv.Set("session", closedSession)
 
 		l := lexer.New(`session | "Hello"`)
 		p := parser.New(l)
@@ -675,7 +675,7 @@ func TestACPSessionCloseMethod(t *testing.T) {
 	t.Run("session.close() marks session as closed", func(t *testing.T) {
 		session := &ACPSessionValue{Agent: acpVal, SessionID: "test-session", Closed: false}
 		interp := New(nil)
-		interp.env.Set("session", session)
+		interp.globalEnv.Set("session", session)
 
 		l := lexer.New(`session.close()`)
 		p := parser.New(l)
@@ -698,7 +698,7 @@ func TestACPSessionCloseMethod(t *testing.T) {
 	t.Run("session.closed property reflects state", func(t *testing.T) {
 		session := &ACPSessionValue{Agent: acpVal, SessionID: "test-session", Closed: false}
 		interp := New(nil)
-		interp.env.Set("session", session)
+		interp.globalEnv.Set("session", session)
 
 		// Check closed is false initially
 		l := lexer.New(`session.closed`)
@@ -773,7 +773,7 @@ func TestACPWithMockSession(t *testing.T) {
 			Closed:    false,
 		}
 		interp.InjectACPSession("MockAgent", "mock-session-1", mockSession)
-		interp.env.Set("session", sessionVal)
+		interp.globalEnv.Set("session", sessionVal)
 
 		// Send a follow-up prompt
 		l := lexer.New(`session | "Test prompt"`)
@@ -815,7 +815,7 @@ func TestACPWithMockSession(t *testing.T) {
 		}}
 
 		// Initialize eventCount and create event handlers using proper tool definitions
-		interp.env.Set("eventCount", &NumberValue{Value: 0})
+		interp.globalEnv.Set("eventCount", &NumberValue{Value: 0})
 
 		// Helper to create a tool that increments eventCount (middleware signature)
 		createHandler := func(name string) *ToolValue {
@@ -824,7 +824,7 @@ func TestACPWithMockSession(t *testing.T) {
 			p := parser.New(l)
 			prog := p.ParseProgram()
 			interp.Eval(prog)
-			val, _ := interp.env.Get(name)
+			val, _ := interp.globalEnv.Get(name)
 			return val.(*ToolValue)
 		}
 
@@ -843,7 +843,7 @@ func TestACPWithMockSession(t *testing.T) {
 			Closed:    false,
 		}
 		interp.InjectACPSession("MockAgent", "mock-session-2", mockSession)
-		interp.env.Set("session", sessionVal)
+		interp.globalEnv.Set("session", sessionVal)
 
 		// Send a prompt
 		l := lexer.New(`session | "Do something"`)
@@ -856,7 +856,7 @@ func TestACPWithMockSession(t *testing.T) {
 		}
 
 		// Check the event count
-		eventCountVal, ok := interp.env.Get("eventCount")
+		eventCountVal, ok := interp.globalEnv.Get("eventCount")
 		if !ok {
 			t.Fatal("eventCount not found")
 		}
@@ -882,8 +882,8 @@ func TestACPWithMockSession(t *testing.T) {
 		}}
 
 		// Initialize tracking variables and create event handler
-		interp.env.Set("endEventEmitted", &BoolValue{Value: false})
-		interp.env.Set("endEventHasError", &BoolValue{Value: false})
+		interp.globalEnv.Set("endEventEmitted", &BoolValue{Value: false})
+		interp.globalEnv.Set("endEventHasError", &BoolValue{Value: false})
 
 		// Create handler that checks for error (middleware signature)
 		toolScript := `tool onAgentEnd(ctx, next) {
@@ -897,7 +897,7 @@ func TestACPWithMockSession(t *testing.T) {
 		p := parser.New(l)
 		program := p.ParseProgram()
 		interp.Eval(program)
-		handler, _ := interp.env.Get("onAgentEnd")
+		handler, _ := interp.globalEnv.Get("onAgentEnd")
 		interp.eventManager.Use(EventAgentEnd, handler.(*ToolValue))
 
 		sessionVal := &ACPSessionValue{
@@ -907,7 +907,7 @@ func TestACPWithMockSession(t *testing.T) {
 			Closed:    false,
 		}
 		interp.InjectACPSession("MockAgent", "mock-session-3", mockSession)
-		interp.env.Set("session", sessionVal)
+		interp.globalEnv.Set("session", sessionVal)
 
 		l = lexer.New(`session | "Test"`)
 		p = parser.New(l)
@@ -922,12 +922,12 @@ func TestACPWithMockSession(t *testing.T) {
 		}
 
 		// Check if end event was emitted with error
-		endEventEmittedVal, _ := interp.env.Get("endEventEmitted")
+		endEventEmittedVal, _ := interp.globalEnv.Get("endEventEmitted")
 		if bv, ok := endEventEmittedVal.(*BoolValue); !ok || !bv.Value {
 			t.Error("expected agent.end event to be emitted on error")
 		}
 
-		endEventHasErrorVal, _ := interp.env.Get("endEventHasError")
+		endEventHasErrorVal, _ := interp.globalEnv.Get("endEventHasError")
 		if bv, ok := endEventHasErrorVal.(*BoolValue); !ok || !bv.Value {
 			t.Error("expected agent.end event to have error field set")
 		}
@@ -935,28 +935,16 @@ func TestACPWithMockSession(t *testing.T) {
 }
 
 func TestACPScopePreservationInNestedBlocks(t *testing.T) {
-	// Regression test for scope corruption during ACP event emission.
-	//
-	// Root cause: The prediction goroutine (internal/repl/input/prediction.go:259)
-	// calls interp.EmitEvent() concurrently with the main REPL thread. During an
-	// ACP pipe call inside a middleware handler, many events fire (agent.start,
-	// agent.chunk, agent.tool.*). Each event's CallTool saves/restores i.env.
-	// A concurrent EmitEvent call can overwrite i.env with a stale value,
-	// corrupting the scope chain and making tool parameters like ctx undefined.
-	//
-	// The fix: save/restore i.env in EmitEvent, sendPromptToACPSession, and
-	// executeACPWithString. This ensures i.env is restored at function boundaries
-	// even if something corrupts it mid-execution.
-	//
-	// This test simulates the corruption by having the mock session's callback
-	// directly overwrite i.env with a bogus environment (simulating the effect
-	// of a concurrent EmitEvent from the prediction goroutine).
+	// Test that scope is preserved correctly during ACP pipe operations with
+	// many event emissions. With the env-as-parameter refactor, scope corruption
+	// is structurally impossible because each eval call receives its own env
+	// via the call stack rather than sharing a mutable i.env field.
 
 	interp := New(nil)
 	acpVal := &ACPValue{Name: "ScopeAgent", Config: map[string]Value{
 		"command": &StringValue{Value: "mock"},
 	}}
-	interp.env.Set("ScopeAgent", acpVal)
+	interp.globalEnv.Set("ScopeAgent", acpVal)
 
 	// Register event handlers for agent events (middleware signature)
 	createAgentHandler := func(name string) *ToolValue {
@@ -965,7 +953,7 @@ func TestACPScopePreservationInNestedBlocks(t *testing.T) {
 		p := parser.New(l)
 		prog := p.ParseProgram()
 		interp.Eval(prog)
-		val, _ := interp.env.Get(name)
+		val, _ := interp.globalEnv.Get(name)
 		return val.(*ToolValue)
 	}
 
@@ -977,15 +965,9 @@ func TestACPScopePreservationInNestedBlocks(t *testing.T) {
 	interp.eventManager.Use(EventAgentToolEnd, createAgentHandler("onToolEnd"))
 	interp.eventManager.Use(EventAgentEnd, createAgentHandler("onEnd"))
 
-	// Create a mock session whose SendPromptFunc simulates the effect of a
-	// concurrent goroutine corrupting i.env. Between update callbacks (which
-	// trigger EmitEvent → CallTool save/restore cycles), we directly overwrite
-	// i.env with a bogus environment. This simulates what happens when the
-	// prediction goroutine's EmitEvent restores a stale i.env over the main
-	// thread's value.
+	// Create a mock session with multiple updates that trigger many events
 	mockSession := acp.NewMockSession("scope-test-session")
 	mockSession.SendPromptFunc = func(ctx context.Context, text string, onUpdate func(*acp.SessionUpdateParams)) (*acp.SessionPromptResult, error) {
-		// Build updates
 		var updates []*acp.SessionUpdateParams
 		for j := 0; j < 5; j++ {
 			ms := acp.NewMockSession(fmt.Sprintf("tmp-%d", j))
@@ -999,18 +981,9 @@ func TestACPScopePreservationInNestedBlocks(t *testing.T) {
 			updates = append(updates, ms.Updates...)
 		}
 
-		// Send updates, corrupting i.env between them to simulate
-		// the effect of a concurrent prediction goroutine.
-		bogusEnv := NewEnvironment()
-		bogusEnv.Set("bogus", &StringValue{Value: "corrupted"})
-
-		for idx, update := range updates {
+		for _, update := range updates {
 			if onUpdate != nil {
 				onUpdate(update)
-			}
-			// After some updates, corrupt i.env as a concurrent goroutine would
-			if idx%3 == 0 {
-				interp.env = bogusEnv
 			}
 		}
 
@@ -1023,15 +996,13 @@ func TestACPScopePreservationInNestedBlocks(t *testing.T) {
 		Messages: []ChatMessage{}, Closed: false,
 	}
 	interp.InjectACPSession("ScopeAgent", "scope-test-session", mockSession)
-	interp.env.Set("session", sessionVal)
+	interp.globalEnv.Set("session", sessionVal)
 
 	// Define a tool with nested if/else-if that accesses a variable AFTER an ACP
-	// call within the SAME block. This is critical: the bug manifests when there
-	// are statements after the ACP call inside the block, before the block's
-	// defer restores i.env. The variable `mode` is defined in the tool scope
-	// (outer) and accessed inside the if block (inner) both before and after the
-	// ACP call. With env corruption, the inner block's i.env points to a bogus
-	// environment whose scope chain doesn't include the tool scope.
+	// pipe call within the SAME block. The variable `mode` is defined in the
+	// tool scope (outer) and accessed inside the if block (inner) both before
+	// and after the ACP call. With env-as-parameter, scope is preserved via the
+	// call stack automatically.
 	script := `
 		tool testTool(ctx) {
 			mode = ctx.mode
@@ -1064,8 +1035,8 @@ func TestACPScopePreservationInNestedBlocks(t *testing.T) {
 		t.Fatalf("failed to define testTool: %v", err)
 	}
 
-	// Call the tool — the ACP pipe will trigger env corruption via the mock
-	toolVal, ok := interp.env.Get("testTool")
+	// Call the tool — the ACP pipe will trigger many event emissions
+	toolVal, ok := interp.globalEnv.Get("testTool")
 	if !ok {
 		t.Fatal("testTool not found in environment")
 	}
@@ -1075,9 +1046,9 @@ func TestACPScopePreservationInNestedBlocks(t *testing.T) {
 			"mode": {Value: &StringValue{Value: "run"}},
 		},
 	}
-	result, err := interp.CallTool(toolVal.(*ToolValue), []Value{ctxArg})
+	result, err := interp.CallTool(interp.globalEnv, toolVal.(*ToolValue), []Value{ctxArg})
 	if err != nil {
-		t.Fatalf("testTool call failed (scope corruption): %v", err)
+		t.Fatalf("testTool call failed: %v", err)
 	}
 
 	// Verify the result — both 'before' and 'after' should be "run"
@@ -1098,9 +1069,9 @@ func TestACPScopePreservationInNestedBlocks(t *testing.T) {
 	afterVal := resultObj.GetPropertyValue("after")
 	afterStr, ok := afterVal.(*StringValue)
 	if !ok {
-		t.Fatalf("expected after to be StringValue, got %T (%v) — scope corrupted after ACP call", afterVal, afterVal)
+		t.Fatalf("expected after to be StringValue, got %T (%v)", afterVal, afterVal)
 	}
 	if afterStr.Value != "run" {
-		t.Errorf("expected after='run', got %q — scope corrupted after ACP call", afterStr.Value)
+		t.Errorf("expected after='run', got %q", afterStr.Value)
 	}
 }

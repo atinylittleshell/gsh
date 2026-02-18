@@ -7,14 +7,14 @@ import (
 )
 
 // evalAgentDeclaration evaluates an agent declaration
-func (i *Interpreter) evalAgentDeclaration(node *parser.AgentDeclaration) (Value, error) {
+func (i *Interpreter) evalAgentDeclaration(env *Environment, node *parser.AgentDeclaration) (Value, error) {
 	agentName := node.Name.Value
 
 	// Evaluate each config field and store as Value
 	config := make(map[string]Value)
 
 	for key, expr := range node.Config {
-		value, err := i.evalExpression(expr)
+		value, err := i.evalExpression(env, expr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate agent config field '%s': %w", key, err)
 		}
@@ -57,7 +57,7 @@ func (i *Interpreter) evalAgentDeclaration(node *parser.AgentDeclaration) (Value
 	}
 
 	// Register the agent in the environment
-	i.env.Set(agentName, agent)
+	env.Set(agentName, agent)
 
 	return agent, nil
 }

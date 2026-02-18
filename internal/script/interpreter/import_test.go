@@ -85,7 +85,7 @@ func TestImportSideEffectOnly(t *testing.T) {
 		t.Fatalf("Eval error: %v", err)
 	}
 
-	if _, ok := interp.env.Get("sideEffectVar"); ok {
+	if _, ok := interp.globalEnv.Get("sideEffectVar"); ok {
 		t.Errorf("Side effect import should not bring variables into scope")
 	}
 }
@@ -375,7 +375,7 @@ result = bValue
 	}
 
 	// Also verify via interpreter's env that cValue is not accessible
-	if _, ok := interp.env.Get("cValue"); ok {
+	if _, ok := interp.globalEnv.Get("cValue"); ok {
 		t.Errorf("cValue should NOT be in the interpreter's environment after A's execution")
 	}
 }

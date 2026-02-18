@@ -128,7 +128,7 @@ mcp test {
 	}
 
 	// Check that the MCP server is registered in environment
-	testVal, ok := interp.env.Get("test")
+	testVal, ok := interp.globalEnv.Get("test")
 	if !ok {
 		t.Fatal("MCP server 'test' not found in environment")
 	}
@@ -473,7 +473,7 @@ server = fs
 	}
 
 	// Verify 'fs' is in the environment
-	fsVal, ok := interp.env.Get("fs")
+	fsVal, ok := interp.globalEnv.Get("fs")
 	if !ok {
 		t.Fatal("MCP server 'fs' not found in environment")
 	}

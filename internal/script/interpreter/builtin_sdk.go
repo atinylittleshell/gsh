@@ -172,17 +172,17 @@ func (i *Interpreter) registerGshSDK() {
 	}
 
 	// Register Math as a global object (not under gsh)
-	i.env.Set("Math", mathObj)
+	i.globalEnv.Set("Math", mathObj)
 
 	// Register DateTime as a global object (not under gsh)
 	dateTimeObj := createDateTimeObject()
-	i.env.Set("DateTime", dateTimeObj)
+	i.globalEnv.Set("DateTime", dateTimeObj)
 
 	// Register Regexp as a global object (not under gsh)
 	regexpObj := createRegexpObject()
-	i.env.Set("Regexp", regexpObj)
+	i.globalEnv.Set("Regexp", regexpObj)
 
-	i.env.Set("gsh", gshObj)
+	i.globalEnv.Set("gsh", gshObj)
 }
 
 // builtinGshUse implements gsh.use(event, handler)

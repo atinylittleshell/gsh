@@ -81,7 +81,7 @@ func TestNumberToFixed(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			result, ok := interp.env.Get("result")
+			result, ok := interp.globalEnv.Get("result")
 			if !ok {
 				t.Fatal("result variable not found")
 			}

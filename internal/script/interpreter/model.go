@@ -7,14 +7,14 @@ import (
 )
 
 // evalModelDeclaration evaluates a model declaration
-func (i *Interpreter) evalModelDeclaration(node *parser.ModelDeclaration) (Value, error) {
+func (i *Interpreter) evalModelDeclaration(env *Environment, node *parser.ModelDeclaration) (Value, error) {
 	modelName := node.Name.Value
 
 	// Evaluate each config field and store as Value
 	config := make(map[string]Value)
 
 	for key, expr := range node.Config {
-		value, err := i.evalExpression(expr)
+		value, err := i.evalExpression(env, expr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate model config field '%s': %w", key, err)
 		}
@@ -88,7 +88,7 @@ func (i *Interpreter) evalModelDeclaration(node *parser.ModelDeclaration) (Value
 	}
 
 	// Register the model in the environment
-	i.env.Set(modelName, model)
+	env.Set(modelName, model)
 
 	return model, nil
 }

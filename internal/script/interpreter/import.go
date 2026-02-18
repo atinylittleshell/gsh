@@ -102,7 +102,7 @@ func normalizeImportKey(origin *ScriptOrigin, path string) string {
 }
 
 // evalImportStatement evaluates an import statement
-func (i *Interpreter) evalImportStatement(node *parser.ImportStatement) (Value, error) {
+func (i *Interpreter) evalImportStatement(env *Environment, node *parser.ImportStatement) (Value, error) {
 	importPath := node.Path.Value
 
 	// Resolve the import path
@@ -120,7 +120,7 @@ func (i *Interpreter) evalImportStatement(node *parser.ImportStatement) (Value, 
 			if len(node.Symbols) > 0 {
 				for _, sym := range node.Symbols {
 					if val, ok := exports[sym]; ok {
-						i.env.Set(sym, val)
+						env.Set(sym, val)
 					} else {
 						return nil, fmt.Errorf("symbol %q is not exported from %q", sym, importPath)
 					}
@@ -159,22 +159,20 @@ func (i *Interpreter) evalImportStatement(node *parser.ImportStatement) (Value, 
 
 	// Save current state
 	prevOrigin := i.currentOrigin
-	prevEnv := i.env
 	prevExportedNames := i.exportedNames
 
 	// Set up module execution environment
 	i.currentOrigin = origin
-	i.env = NewEnclosedEnvironment(prevEnv) // Module has its own scope but can access outer
+	moduleEnv := NewEnclosedEnvironment(env) // Module has its own scope but can access outer
 	i.exportedNames = make(map[string]bool)
 
 	// Execute the module
 	var lastResult Value = &NullValue{}
 	for _, stmt := range program.Statements {
-		val, err := i.evalStatement(stmt)
+		val, err := i.evalStatement(moduleEnv, stmt)
 		if err != nil {
 			// Restore state before returning error
 			i.currentOrigin = prevOrigin
-			i.env = prevEnv
 			i.exportedNames = prevExportedNames
 			return nil, fmt.Errorf("error in %s: %w", importPath, err)
 		}
@@ -186,7 +184,7 @@ func (i *Interpreter) evalImportStatement(node *parser.ImportStatement) (Value, 
 	// Collect exports from the module
 	exports := make(map[string]Value)
 	for name := range i.exportedNames {
-		if val, ok := i.env.Get(name); ok {
+		if val, ok := moduleEnv.Get(name); ok {
 			exports[name] = val
 		}
 	}
@@ -194,14 +192,13 @@ func (i *Interpreter) evalImportStatement(node *parser.ImportStatement) (Value, 
 
 	// Restore previous state
 	i.currentOrigin = prevOrigin
-	i.env = prevEnv
 	i.exportedNames = prevExportedNames
 
 	// Import requested symbols into current scope
 	if len(node.Symbols) > 0 {
 		for _, sym := range node.Symbols {
 			if val, ok := exports[sym]; ok {
-				i.env.Set(sym, val)
+				env.Set(sym, val)
 			} else {
 				return nil, fmt.Errorf("symbol %q is not exported from %q", sym, importPath)
 			}
@@ -212,9 +209,9 @@ func (i *Interpreter) evalImportStatement(node *parser.ImportStatement) (Value, 
 }
 
 // evalExportStatement evaluates an export statement
-func (i *Interpreter) evalExportStatement(node *parser.ExportStatement) (Value, error) {
+func (i *Interpreter) evalExportStatement(env *Environment, node *parser.ExportStatement) (Value, error) {
 	// Evaluate the declaration
-	val, err := i.evalStatement(node.Declaration)
+	val, err := i.evalStatement(env, node.Declaration)
 	if err != nil {
 		return nil, err
 	}

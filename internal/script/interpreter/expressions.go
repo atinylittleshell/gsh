@@ -11,7 +11,7 @@ import (
 // evalExpression evaluates an expression.
 // The returned value is always unwrapped (DynamicValue is resolved to its underlying value).
 // This ensures consumers don't need to manually unwrap DynamicValue.
-func (i *Interpreter) evalExpression(expr parser.Expression) (Value, error) {
+func (i *Interpreter) evalExpression(env *Environment, expr parser.Expression) (Value, error) {
 	var result Value
 	var err error
 
@@ -19,29 +19,29 @@ func (i *Interpreter) evalExpression(expr parser.Expression) (Value, error) {
 	case *parser.NumberLiteral:
 		result, err = i.evalNumberLiteral(node)
 	case *parser.StringLiteral:
-		result, err = i.evalStringLiteral(node)
+		result, err = i.evalStringLiteral(env, node)
 	case *parser.BooleanLiteral:
 		result, err = i.evalBooleanLiteral(node)
 	case *parser.NullLiteral:
 		result, err = i.evalNullLiteral(node)
 	case *parser.Identifier:
-		result, err = i.evalIdentifier(node)
+		result, err = i.evalIdentifier(env, node)
 	case *parser.BinaryExpression:
-		result, err = i.evalBinaryExpression(node)
+		result, err = i.evalBinaryExpression(env, node)
 	case *parser.UnaryExpression:
-		result, err = i.evalUnaryExpression(node)
+		result, err = i.evalUnaryExpression(env, node)
 	case *parser.ArrayLiteral:
-		result, err = i.evalArrayLiteral(node)
+		result, err = i.evalArrayLiteral(env, node)
 	case *parser.ObjectLiteral:
-		result, err = i.evalObjectLiteral(node)
+		result, err = i.evalObjectLiteral(env, node)
 	case *parser.CallExpression:
-		result, err = i.evalCallExpression(node)
+		result, err = i.evalCallExpression(env, node)
 	case *parser.MemberExpression:
-		result, err = i.evalMemberExpression(node)
+		result, err = i.evalMemberExpression(env, node)
 	case *parser.IndexExpression:
-		result, err = i.evalIndexExpression(node)
+		result, err = i.evalIndexExpression(env, node)
 	case *parser.PipeExpression:
-		result, err = i.evalPipeExpression(node)
+		result, err = i.evalPipeExpression(env, node)
 	default:
 		return nil, fmt.Errorf("unsupported expression type: %T", expr)
 	}
@@ -68,7 +68,7 @@ func (i *Interpreter) evalNumberLiteral(node *parser.NumberLiteral) (Value, erro
 }
 
 // evalStringLiteral evaluates a string literal
-func (i *Interpreter) evalStringLiteral(node *parser.StringLiteral) (Value, error) {
+func (i *Interpreter) evalStringLiteral(env *Environment, node *parser.StringLiteral) (Value, error) {
 	// Only process interpolation for template literals (backtick strings)
 	if !node.IsTemplate {
 		return &StringValue{Value: node.Value}, nil
@@ -81,7 +81,7 @@ func (i *Interpreter) evalStringLiteral(node *parser.StringLiteral) (Value, erro
 	var result string
 	var err error
 	if containsInterpolation(str) {
-		result, err = i.interpolateString(str)
+		result, err = i.interpolateString(env, str)
 		if err != nil {
 			return nil, err
 		}
@@ -106,7 +106,7 @@ func containsInterpolation(s string) bool {
 }
 
 // interpolateString processes template literal interpolations
-func (i *Interpreter) interpolateString(template string) (string, error) {
+func (i *Interpreter) interpolateString(env *Environment, template string) (string, error) {
 	var result []rune
 	runes := []rune(template)
 	pos := 0
@@ -139,7 +139,7 @@ func (i *Interpreter) interpolateString(template string) (string, error) {
 			exprStr := string(runes[start:end])
 
 			// Parse and evaluate the expression
-			value, err := i.evalInterpolationExpression(exprStr)
+			value, err := i.evalInterpolationExpression(env, exprStr)
 			if err != nil {
 				return "", fmt.Errorf("error in template literal interpolation: %w", err)
 			}
@@ -160,7 +160,7 @@ func (i *Interpreter) interpolateString(template string) (string, error) {
 }
 
 // evalInterpolationExpression parses and evaluates an expression from a template literal
-func (i *Interpreter) evalInterpolationExpression(exprStr string) (Value, error) {
+func (i *Interpreter) evalInterpolationExpression(env *Environment, exprStr string) (Value, error) {
 	// Use the existing lexer and parser to parse the expression
 	// We wrap it in a simple expression statement to use the parser
 	l := lexer.New(exprStr)
@@ -186,7 +186,7 @@ func (i *Interpreter) evalInterpolationExpression(exprStr string) (Value, error)
 	}
 
 	// Evaluate the expression using existing evaluation logic
-	return i.evalExpression(exprStmt.Expression)
+	return i.evalExpression(env, exprStmt.Expression)
 }
 
 // evalBooleanLiteral evaluates a boolean literal
@@ -200,8 +200,8 @@ func (i *Interpreter) evalNullLiteral(node *parser.NullLiteral) (Value, error) {
 }
 
 // evalIdentifier evaluates an identifier (variable lookup)
-func (i *Interpreter) evalIdentifier(node *parser.Identifier) (Value, error) {
-	value, ok := i.env.Get(node.Value)
+func (i *Interpreter) evalIdentifier(env *Environment, node *parser.Identifier) (Value, error) {
+	value, ok := env.Get(node.Value)
 	if !ok {
 		return nil, NewRuntimeError("undefined variable: %s (line %d, column %d)",
 			node.Value, node.Token.Line, node.Token.Column)
@@ -210,9 +210,9 @@ func (i *Interpreter) evalIdentifier(node *parser.Identifier) (Value, error) {
 }
 
 // evalBinaryExpression evaluates a binary expression
-func (i *Interpreter) evalBinaryExpression(node *parser.BinaryExpression) (Value, error) {
+func (i *Interpreter) evalBinaryExpression(env *Environment, node *parser.BinaryExpression) (Value, error) {
 	// Evaluate left operand first
-	left, err := i.evalExpression(node.Left)
+	left, err := i.evalExpression(env, node.Left)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +227,7 @@ func (i *Interpreter) evalBinaryExpression(node *parser.BinaryExpression) (Value
 			return &BoolValue{Value: false}, nil
 		}
 		// Left is truthy, evaluate right and return its truthiness
-		right, err := i.evalExpression(node.Right)
+		right, err := i.evalExpression(env, node.Right)
 		if err != nil {
 			return nil, err
 		}
@@ -238,7 +238,7 @@ func (i *Interpreter) evalBinaryExpression(node *parser.BinaryExpression) (Value
 			return &BoolValue{Value: true}, nil
 		}
 		// Left is falsy, evaluate right and return its truthiness
-		right, err := i.evalExpression(node.Right)
+		right, err := i.evalExpression(env, node.Right)
 		if err != nil {
 			return nil, err
 		}
@@ -247,13 +247,13 @@ func (i *Interpreter) evalBinaryExpression(node *parser.BinaryExpression) (Value
 	case "??":
 		// Nullish coalescing: if left is null, return right; otherwise return left
 		if left.Type() == ValueTypeNull {
-			return i.evalExpression(node.Right)
+			return i.evalExpression(env, node.Right)
 		}
 		return left, nil
 	}
 
 	// For all other operators, evaluate both operands
-	right, err := i.evalExpression(node.Right)
+	right, err := i.evalExpression(env, node.Right)
 	if err != nil {
 		return nil, err
 	}
@@ -336,8 +336,8 @@ func (i *Interpreter) applyBinaryOperator(op string, left, right Value) (Value, 
 }
 
 // evalUnaryExpression evaluates a unary expression
-func (i *Interpreter) evalUnaryExpression(node *parser.UnaryExpression) (Value, error) {
-	right, err := i.evalExpression(node.Right)
+func (i *Interpreter) evalUnaryExpression(env *Environment, node *parser.UnaryExpression) (Value, error) {
+	right, err := i.evalExpression(env, node.Right)
 	if err != nil {
 		return nil, err
 	}
@@ -361,11 +361,11 @@ func (i *Interpreter) evalUnaryExpression(node *parser.UnaryExpression) (Value, 
 }
 
 // evalArrayLiteral evaluates an array literal
-func (i *Interpreter) evalArrayLiteral(node *parser.ArrayLiteral) (Value, error) {
+func (i *Interpreter) evalArrayLiteral(env *Environment, node *parser.ArrayLiteral) (Value, error) {
 	elements := make([]Value, len(node.Elements))
 
 	for idx, elem := range node.Elements {
-		val, err := i.evalExpression(elem)
+		val, err := i.evalExpression(env, elem)
 		if err != nil {
 			return nil, err
 		}
@@ -376,11 +376,11 @@ func (i *Interpreter) evalArrayLiteral(node *parser.ArrayLiteral) (Value, error)
 }
 
 // evalObjectLiteral evaluates an object literal
-func (i *Interpreter) evalObjectLiteral(node *parser.ObjectLiteral) (Value, error) {
+func (i *Interpreter) evalObjectLiteral(env *Environment, node *parser.ObjectLiteral) (Value, error) {
 	properties := make(map[string]*PropertyDescriptor)
 
 	for key, expr := range node.Pairs {
-		val, err := i.evalExpression(expr)
+		val, err := i.evalExpression(env, expr)
 		if err != nil {
 			return nil, err
 		}
@@ -391,9 +391,9 @@ func (i *Interpreter) evalObjectLiteral(node *parser.ObjectLiteral) (Value, erro
 }
 
 // evalCallExpression evaluates a function/tool call
-func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, error) {
+func (i *Interpreter) evalCallExpression(env *Environment, node *parser.CallExpression) (Value, error) {
 	// Evaluate the function expression
-	function, err := i.evalExpression(node.Function)
+	function, err := i.evalExpression(env, node.Function)
 	if err != nil {
 		return nil, err
 	}
@@ -403,7 +403,7 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 		// Evaluate arguments
 		args := make([]Value, len(node.Arguments))
 		for idx, argExpr := range node.Arguments {
-			val, err := i.evalExpression(argExpr)
+			val, err := i.evalExpression(env, argExpr)
 			if err != nil {
 				return nil, err
 			}
@@ -418,7 +418,7 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 		// Evaluate arguments
 		args := make([]Value, len(node.Arguments))
 		for idx, argExpr := range node.Arguments {
-			val, err := i.evalExpression(argExpr)
+			val, err := i.evalExpression(env, argExpr)
 			if err != nil {
 				return nil, err
 			}
@@ -433,7 +433,7 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 		// Evaluate arguments
 		args := make([]Value, len(node.Arguments))
 		for idx, argExpr := range node.Arguments {
-			val, err := i.evalExpression(argExpr)
+			val, err := i.evalExpression(env, argExpr)
 			if err != nil {
 				return nil, err
 			}
@@ -448,7 +448,7 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 		// Evaluate arguments
 		args := make([]Value, len(node.Arguments))
 		for idx, argExpr := range node.Arguments {
-			val, err := i.evalExpression(argExpr)
+			val, err := i.evalExpression(env, argExpr)
 			if err != nil {
 				return nil, err
 			}
@@ -463,7 +463,7 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 		// Evaluate arguments
 		args := make([]Value, len(node.Arguments))
 		for idx, argExpr := range node.Arguments {
-			val, err := i.evalExpression(argExpr)
+			val, err := i.evalExpression(env, argExpr)
 			if err != nil {
 				return nil, err
 			}
@@ -478,7 +478,7 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 		// Evaluate arguments
 		args := make([]Value, len(node.Arguments))
 		for idx, argExpr := range node.Arguments {
-			val, err := i.evalExpression(argExpr)
+			val, err := i.evalExpression(env, argExpr)
 			if err != nil {
 				return nil, err
 			}
@@ -493,7 +493,7 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 		// Evaluate arguments
 		args := make([]Value, len(node.Arguments))
 		for idx, argExpr := range node.Arguments {
-			val, err := i.evalExpression(argExpr)
+			val, err := i.evalExpression(env, argExpr)
 			if err != nil {
 				return nil, err
 			}
@@ -505,12 +505,12 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 
 	// Check if it's an MCP tool
 	if mcpTool, ok := function.(*MCPToolValue); ok {
-		return i.callMCPTool(mcpTool, node.Arguments)
+		return i.callMCPTool(env, mcpTool, node.Arguments)
 	}
 
 	// Check if it's a native tool (gsh.tools.*)
 	if nativeTool, ok := function.(*NativeToolValue); ok {
-		return i.callNativeTool(nativeTool, node.Arguments)
+		return i.callNativeTool(env, nativeTool, node.Arguments)
 	}
 
 	// Check if it's an ACP session method
@@ -518,7 +518,7 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 		// Evaluate arguments
 		args := make([]Value, len(node.Arguments))
 		for idx, argExpr := range node.Arguments {
-			val, err := i.evalExpression(argExpr)
+			val, err := i.evalExpression(env, argExpr)
 			if err != nil {
 				return nil, err
 			}
@@ -537,7 +537,7 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 	// Evaluate arguments
 	args := make([]Value, len(node.Arguments))
 	for idx, argExpr := range node.Arguments {
-		val, err := i.evalExpression(argExpr)
+		val, err := i.evalExpression(env, argExpr)
 		if err != nil {
 			return nil, err
 		}
@@ -562,7 +562,7 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 	}
 
 	// Call the tool
-	result, err := i.CallTool(tool, args)
+	result, err := i.CallTool(env, tool, args)
 	if err != nil {
 		return nil, err
 	}
@@ -579,9 +579,8 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpression) (Value, er
 	return result, nil
 }
 
-// callTool executes a tool with the given arguments
 // CallTool calls a tool with the given arguments
-func (i *Interpreter) CallTool(tool *ToolValue, args []Value) (Value, error) {
+func (i *Interpreter) CallTool(env *Environment, tool *ToolValue, args []Value) (Value, error) {
 	// Get the body as a block statement
 	body, ok := tool.Body.(*parser.BlockStatement)
 	if !ok {
@@ -608,17 +607,10 @@ func (i *Interpreter) CallTool(tool *ToolValue, args []Value) (Value, error) {
 		toolEnv.Set(paramName, args[idx])
 	}
 
-	// Save current environment and switch to tool environment
-	prevEnv := i.env
-	i.env = toolEnv
-	defer func() {
-		i.env = prevEnv
-	}()
-
-	// Execute the tool body
+	// Execute the tool body using the tool's enclosed environment
 	var result Value = &NullValue{}
 	for _, stmt := range body.Statements {
-		val, err := i.evalStatement(stmt)
+		val, err := i.evalStatement(toolEnv, stmt)
 		if err != nil {
 			// Check for return signal
 			if cfErr, ok := err.(*ControlFlowError); ok && cfErr.Signal == SignalReturn {
@@ -660,9 +652,9 @@ func (i *Interpreter) typesMatch(expected, actual string) bool {
 }
 
 // evalMemberExpression evaluates a member access expression (e.g., obj.property, env.HOME)
-func (i *Interpreter) evalMemberExpression(node *parser.MemberExpression) (Value, error) {
+func (i *Interpreter) evalMemberExpression(env *Environment, node *parser.MemberExpression) (Value, error) {
 	// Evaluate the object expression
-	object, err := i.evalExpression(node.Object)
+	object, err := i.evalExpression(env, node.Object)
 	if err != nil {
 		return nil, err
 	}
@@ -874,13 +866,13 @@ func (i *Interpreter) getSetProperty(s *SetValue, property string, node *parser.
 }
 
 // evalIndexExpression evaluates an index expression (array[index] or object[key] or map[key])
-func (i *Interpreter) evalIndexExpression(node *parser.IndexExpression) (Value, error) {
-	left, err := i.evalExpression(node.Left)
+func (i *Interpreter) evalIndexExpression(env *Environment, node *parser.IndexExpression) (Value, error) {
+	left, err := i.evalExpression(env, node.Left)
 	if err != nil {
 		return nil, err
 	}
 
-	index, err := i.evalExpression(node.Index)
+	index, err := i.evalExpression(env, node.Index)
 	if err != nil {
 		return nil, err
 	}
@@ -949,7 +941,7 @@ func (i *Interpreter) evalIndexExpression(node *parser.IndexExpression) (Value, 
 
 // callNativeTool calls a native tool (gsh.tools.*) with the given arguments.
 // Native tools accept a single object argument containing all parameters.
-func (i *Interpreter) callNativeTool(tool *NativeToolValue, argExprs []parser.Expression) (Value, error) {
+func (i *Interpreter) callNativeTool(env *Environment, tool *NativeToolValue, argExprs []parser.Expression) (Value, error) {
 	// Build arguments map from expressions
 	args := make(map[string]interface{})
 
@@ -963,7 +955,7 @@ func (i *Interpreter) callNativeTool(tool *NativeToolValue, argExprs []parser.Ex
 	}
 
 	// Evaluate first argument
-	firstArg, err := i.evalExpression(argExprs[0])
+	firstArg, err := i.evalExpression(env, argExprs[0])
 	if err != nil {
 		return nil, err
 	}

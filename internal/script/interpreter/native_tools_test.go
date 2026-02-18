@@ -11,7 +11,7 @@ func TestNativeToolsRegistered(t *testing.T) {
 	defer interp.Close()
 
 	// Get the gsh object
-	gshVal, exists := interp.env.Get("gsh")
+	gshVal, exists := interp.globalEnv.Get("gsh")
 	if !exists {
 		t.Fatal("gsh object not found")
 	}
@@ -162,7 +162,7 @@ func TestNativeToolInAgentConfig(t *testing.T) {
 	}
 
 	// Get the agent
-	agentVal, exists := interp.env.Get("testAgent")
+	agentVal, exists := interp.globalEnv.Get("testAgent")
 	if !exists {
 		t.Fatal("testAgent not found")
 	}

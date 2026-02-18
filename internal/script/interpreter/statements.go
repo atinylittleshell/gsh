@@ -43,53 +43,53 @@ func (c *ControlFlowError) Error() string {
 }
 
 // evalStatement evaluates a statement
-func (i *Interpreter) evalStatement(stmt parser.Statement) (Value, error) {
+func (i *Interpreter) evalStatement(env *Environment, stmt parser.Statement) (Value, error) {
 	switch node := stmt.(type) {
 	case *parser.AssignmentStatement:
-		return i.evalAssignmentStatement(node)
+		return i.evalAssignmentStatement(env, node)
 	case *parser.ExpressionStatement:
-		return i.evalExpression(node.Expression)
+		return i.evalExpression(env, node.Expression)
 	case *parser.IfStatement:
-		return i.evalIfStatement(node)
+		return i.evalIfStatement(env, node)
 	case *parser.WhileStatement:
-		return i.evalWhileStatement(node)
+		return i.evalWhileStatement(env, node)
 	case *parser.ForOfStatement:
-		return i.evalForOfStatement(node)
+		return i.evalForOfStatement(env, node)
 	case *parser.BreakStatement:
 		return nil, &ControlFlowError{Signal: SignalBreak, Token: node.Token}
 	case *parser.ContinueStatement:
 		return nil, &ControlFlowError{Signal: SignalContinue, Token: node.Token}
 	case *parser.ReturnStatement:
-		return i.evalReturnStatement(node)
+		return i.evalReturnStatement(env, node)
 	case *parser.ThrowStatement:
-		return i.evalThrowStatement(node)
+		return i.evalThrowStatement(env, node)
 	case *parser.ToolDeclaration:
-		return i.evalToolDeclaration(node)
+		return i.evalToolDeclaration(env, node)
 	case *parser.McpDeclaration:
-		return i.evalMcpDeclaration(node)
+		return i.evalMcpDeclaration(env, node)
 	case *parser.ModelDeclaration:
-		return i.evalModelDeclaration(node)
+		return i.evalModelDeclaration(env, node)
 	case *parser.AgentDeclaration:
-		return i.evalAgentDeclaration(node)
+		return i.evalAgentDeclaration(env, node)
 	case *parser.ACPDeclaration:
-		return i.evalACPDeclaration(node)
+		return i.evalACPDeclaration(env, node)
 	case *parser.BlockStatement:
-		return i.evalBlockStatement(node)
+		return i.evalBlockStatement(env, node)
 	case *parser.TryStatement:
-		return i.evalTryStatement(node)
+		return i.evalTryStatement(env, node)
 	case *parser.ImportStatement:
-		return i.evalImportStatement(node)
+		return i.evalImportStatement(env, node)
 	case *parser.ExportStatement:
-		return i.evalExportStatement(node)
+		return i.evalExportStatement(env, node)
 	default:
 		return nil, fmt.Errorf("unsupported statement type: %T", stmt)
 	}
 }
 
 // evalAssignmentStatement evaluates an assignment statement
-func (i *Interpreter) evalAssignmentStatement(stmt *parser.AssignmentStatement) (Value, error) {
+func (i *Interpreter) evalAssignmentStatement(env *Environment, stmt *parser.AssignmentStatement) (Value, error) {
 	// Evaluate the right-hand side
-	value, err := i.evalExpression(stmt.Value)
+	value, err := i.evalExpression(env, stmt.Value)
 	if err != nil {
 		return nil, err
 	}
@@ -109,25 +109,25 @@ func (i *Interpreter) evalAssignmentStatement(stmt *parser.AssignmentStatement) 
 	case *parser.Identifier:
 		// Simple variable assignment
 		varName := t.Value
-		if i.env.Has(varName) {
+		if env.Has(varName) {
 			// Variable exists in current or parent scope, update it
-			err := i.env.Update(varName, value)
+			err := env.Update(varName, value)
 			if err != nil {
 				return nil, err
 			}
 		} else {
 			// Variable doesn't exist, define it in current scope
-			i.env.Set(varName, value)
+			env.Set(varName, value)
 		}
 		return value, nil
 
 	case *parser.IndexExpression:
 		// Index assignment (arr[0] = value or obj["key"] = value)
-		return i.evalIndexAssignment(t, value)
+		return i.evalIndexAssignment(env, t, value)
 
 	case *parser.MemberExpression:
 		// Member assignment (obj.prop = value or env.VAR = value)
-		return i.evalMemberAssignment(t, value)
+		return i.evalMemberAssignment(env, t, value)
 
 	default:
 		return nil, fmt.Errorf("invalid assignment target: %T", target)
@@ -135,15 +135,15 @@ func (i *Interpreter) evalAssignmentStatement(stmt *parser.AssignmentStatement) 
 }
 
 // evalIndexAssignment handles assignments to array/object indices
-func (i *Interpreter) evalIndexAssignment(indexExpr *parser.IndexExpression, value Value) (Value, error) {
+func (i *Interpreter) evalIndexAssignment(env *Environment, indexExpr *parser.IndexExpression, value Value) (Value, error) {
 	// Evaluate the left side (the array or object)
-	left, err := i.evalExpression(indexExpr.Left)
+	left, err := i.evalExpression(env, indexExpr.Left)
 	if err != nil {
 		return nil, err
 	}
 
 	// Evaluate the index
-	index, err := i.evalExpression(indexExpr.Index)
+	index, err := i.evalExpression(env, indexExpr.Index)
 	if err != nil {
 		return nil, err
 	}
@@ -172,9 +172,9 @@ func (i *Interpreter) evalIndexAssignment(indexExpr *parser.IndexExpression, val
 }
 
 // evalMemberAssignment handles assignments to object properties (obj.prop = value)
-func (i *Interpreter) evalMemberAssignment(memberExpr *parser.MemberExpression, value Value) (Value, error) {
+func (i *Interpreter) evalMemberAssignment(env *Environment, memberExpr *parser.MemberExpression, value Value) (Value, error) {
 	// Evaluate the object
-	obj, err := i.evalExpression(memberExpr.Object)
+	obj, err := i.evalExpression(env, memberExpr.Object)
 	if err != nil {
 		return nil, err
 	}
@@ -211,9 +211,9 @@ func (i *Interpreter) setProperty(obj Value, key string, value Value) (Value, er
 }
 
 // evalIfStatement evaluates an if statement
-func (i *Interpreter) evalIfStatement(node *parser.IfStatement) (Value, error) {
+func (i *Interpreter) evalIfStatement(env *Environment, node *parser.IfStatement) (Value, error) {
 	// Evaluate the condition
-	condition, err := i.evalExpression(node.Condition)
+	condition, err := i.evalExpression(env, node.Condition)
 	if err != nil {
 		return nil, err
 	}
@@ -221,22 +221,22 @@ func (i *Interpreter) evalIfStatement(node *parser.IfStatement) (Value, error) {
 	// Check if condition is truthy
 	if condition.IsTruthy() {
 		// Execute consequence block
-		return i.evalBlockStatement(node.Consequence)
+		return i.evalBlockStatement(env, node.Consequence)
 	} else if node.Alternative != nil {
 		// Execute alternative (else or else if)
-		return i.evalStatement(node.Alternative)
+		return i.evalStatement(env, node.Alternative)
 	}
 
 	return &NullValue{}, nil
 }
 
 // evalWhileStatement evaluates a while statement
-func (i *Interpreter) evalWhileStatement(node *parser.WhileStatement) (Value, error) {
+func (i *Interpreter) evalWhileStatement(env *Environment, node *parser.WhileStatement) (Value, error) {
 	var result Value = &NullValue{}
 
 	for {
 		// Evaluate the condition
-		condition, err := i.evalExpression(node.Condition)
+		condition, err := i.evalExpression(env, node.Condition)
 		if err != nil {
 			return nil, err
 		}
@@ -247,7 +247,7 @@ func (i *Interpreter) evalWhileStatement(node *parser.WhileStatement) (Value, er
 		}
 
 		// Execute the body
-		result, err = i.evalBlockStatement(node.Body)
+		result, err = i.evalBlockStatement(env, node.Body)
 		if err != nil {
 			// Check for control flow signals
 			if cfErr, ok := err.(*ControlFlowError); ok {
@@ -271,9 +271,9 @@ func (i *Interpreter) evalWhileStatement(node *parser.WhileStatement) (Value, er
 }
 
 // evalForOfStatement evaluates a for-of statement
-func (i *Interpreter) evalForOfStatement(node *parser.ForOfStatement) (Value, error) {
+func (i *Interpreter) evalForOfStatement(env *Environment, node *parser.ForOfStatement) (Value, error) {
 	// Evaluate the iterable expression
-	iterable, err := i.evalExpression(node.Iterable)
+	iterable, err := i.evalExpression(env, node.Iterable)
 	if err != nil {
 		return nil, err
 	}
@@ -300,10 +300,10 @@ func (i *Interpreter) evalForOfStatement(node *parser.ForOfStatement) (Value, er
 	// Iterate over elements
 	for _, elem := range elements {
 		// Set the loop variable
-		i.env.Set(node.Variable.Value, elem)
+		env.Set(node.Variable.Value, elem)
 
 		// Execute the body
-		result, err = i.evalBlockStatement(node.Body)
+		result, err = i.evalBlockStatement(env, node.Body)
 		if err != nil {
 			// Check for control flow signals
 			if cfErr, ok := err.(*ControlFlowError); ok {
@@ -327,18 +327,14 @@ func (i *Interpreter) evalForOfStatement(node *parser.ForOfStatement) (Value, er
 }
 
 // evalBlockStatement evaluates a block statement
-func (i *Interpreter) evalBlockStatement(node *parser.BlockStatement) (Value, error) {
+func (i *Interpreter) evalBlockStatement(env *Environment, node *parser.BlockStatement) (Value, error) {
 	// Create a new enclosed environment for the block scope
-	prevEnv := i.env
-	i.env = NewEnclosedEnvironment(prevEnv)
-	defer func() {
-		i.env = prevEnv
-	}()
+	blockEnv := NewEnclosedEnvironment(env)
 
 	var result Value = &NullValue{}
 
 	for _, stmt := range node.Statements {
-		val, err := i.evalStatement(stmt)
+		val, err := i.evalStatement(blockEnv, stmt)
 		if err != nil {
 			return nil, err
 		}
@@ -349,11 +345,11 @@ func (i *Interpreter) evalBlockStatement(node *parser.BlockStatement) (Value, er
 }
 
 // evalReturnStatement evaluates a return statement
-func (i *Interpreter) evalReturnStatement(node *parser.ReturnStatement) (Value, error) {
+func (i *Interpreter) evalReturnStatement(env *Environment, node *parser.ReturnStatement) (Value, error) {
 	var returnValue Value = &NullValue{}
 
 	if node.ReturnValue != nil {
-		val, err := i.evalExpression(node.ReturnValue)
+		val, err := i.evalExpression(env, node.ReturnValue)
 		if err != nil {
 			return nil, err
 		}
@@ -368,8 +364,8 @@ func (i *Interpreter) evalReturnStatement(node *parser.ReturnStatement) (Value, 
 }
 
 // evalThrowStatement evaluates a throw statement
-func (i *Interpreter) evalThrowStatement(node *parser.ThrowStatement) (Value, error) {
-	val, err := i.evalExpression(node.Expression)
+func (i *Interpreter) evalThrowStatement(env *Environment, node *parser.ThrowStatement) (Value, error) {
+	val, err := i.evalExpression(env, node.Expression)
 	if err != nil {
 		return nil, err
 	}
@@ -381,7 +377,7 @@ func (i *Interpreter) evalThrowStatement(node *parser.ThrowStatement) (Value, er
 }
 
 // evalToolDeclaration evaluates a tool declaration
-func (i *Interpreter) evalToolDeclaration(node *parser.ToolDeclaration) (Value, error) {
+func (i *Interpreter) evalToolDeclaration(env *Environment, node *parser.ToolDeclaration) (Value, error) {
 	// Extract parameter names and types
 	params := make([]string, len(node.Parameters))
 	paramTypes := make(map[string]string)
@@ -399,7 +395,7 @@ func (i *Interpreter) evalToolDeclaration(node *parser.ToolDeclaration) (Value, 
 		Parameters: params,
 		ParamTypes: paramTypes,
 		Body:       node.Body,
-		Env:        i.env, // Capture current environment for closure
+		Env:        env, // Capture current environment for closure
 	}
 
 	if node.ReturnType != nil {
@@ -407,18 +403,18 @@ func (i *Interpreter) evalToolDeclaration(node *parser.ToolDeclaration) (Value, 
 	}
 
 	// Register the tool in the environment
-	i.env.Set(node.Name.Value, tool)
+	env.Set(node.Name.Value, tool)
 
 	return tool, nil
 }
 
 // evalTryStatement evaluates a try/catch/finally statement
-func (i *Interpreter) evalTryStatement(node *parser.TryStatement) (Value, error) {
+func (i *Interpreter) evalTryStatement(env *Environment, node *parser.TryStatement) (Value, error) {
 	var result Value
 	var tryError error
 
 	// Execute the try block
-	result, tryError = i.evalBlockStatement(node.Block)
+	result, tryError = i.evalBlockStatement(env, node.Block)
 
 	// If there was an error and we have a catch clause, handle it
 	if tryError != nil && node.CatchClause != nil {
@@ -457,21 +453,21 @@ func (i *Interpreter) evalTryStatement(node *parser.TryStatement) (Value, error)
 			if node.CatchClause.Parameter != nil {
 				paramName := node.CatchClause.Parameter.Value
 				// Save existing value if the parameter name is already defined
-				savedErrorValue, hadErrorParam = i.env.Get(paramName)
+				savedErrorValue, hadErrorParam = env.Get(paramName)
 				// Set the error parameter in current scope
-				i.env.Set(paramName, errorObj)
+				env.Set(paramName, errorObj)
 			}
 
 			// Execute the catch block (it will have its own scope via BlockStatement)
-			catchResult, catchErr := i.evalBlockStatement(node.CatchClause.Block)
+			catchResult, catchErr := i.evalBlockStatement(env, node.CatchClause.Block)
 
 			// Restore the error parameter if it was shadowed
 			if node.CatchClause.Parameter != nil {
 				paramName := node.CatchClause.Parameter.Value
 				if hadErrorParam {
-					i.env.Set(paramName, savedErrorValue)
+					env.Set(paramName, savedErrorValue)
 				} else {
-					i.env.Delete(paramName)
+					env.Delete(paramName)
 				}
 			}
 
@@ -488,7 +484,7 @@ func (i *Interpreter) evalTryStatement(node *parser.TryStatement) (Value, error)
 
 	// Execute the finally block if present
 	if node.FinallyClause != nil {
-		_, finallyErr := i.evalBlockStatement(node.FinallyClause.Block)
+		_, finallyErr := i.evalBlockStatement(env, node.FinallyClause.Block)
 		// Finally errors override previous errors
 		if finallyErr != nil {
 			return nil, finallyErr
