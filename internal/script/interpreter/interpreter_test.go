@@ -2,6 +2,8 @@ package interpreter
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/atinylittleshell/gsh/internal/script/lexer"
@@ -768,4 +770,197 @@ func TestInterpreter_Context_ThreadSafety(t *testing.T) {
 	<-done
 
 	// If we get here without a race condition, the test passes
+}
+
+// TestConcurrentEmitEvent verifies that concurrent EmitEvent calls from multiple
+// goroutines do not cause data races or scope corruption. This is the core
+// correctness property of the env-as-parameter refactor: each EmitEvent call
+// creates its own isolated scope chain from globalEnv, so concurrent calls
+// cannot interfere with each other.
+func TestConcurrentEmitEvent(t *testing.T) {
+	interp := New(nil)
+
+	// Register an event handler that reads from ctx, creates a local variable,
+	// and returns an object with the local variable value. If scope isolation
+	// is broken, goroutines would see each other's local variables.
+	handlerScript := `
+		tool handler(ctx, next) {
+			localVar = ctx.id
+			# Do some work to increase the chance of interleaving
+			i = 0
+			while (i < 10) {
+				i = i + 1
+			}
+			# Verify localVar still has the same value (not corrupted by another goroutine)
+			return { id: localVar }
+		}
+	`
+	l := lexer.New(handlerScript)
+	p := parser.New(l)
+	prog := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parser errors: %v", p.Errors())
+	}
+	interp.Eval(prog)
+	handler, _ := interp.globalEnv.Get("handler")
+	interp.eventManager.Use("test.concurrent", handler.(*ToolValue))
+
+	const numGoroutines = 10
+	var wg sync.WaitGroup
+	errors := make(chan string, numGoroutines)
+
+	for g := 0; g < numGoroutines; g++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+
+			expectedID := fmt.Sprintf("goroutine-%d", id)
+			ctx := &ObjectValue{
+				Properties: map[string]*PropertyDescriptor{
+					"id": {Value: &StringValue{Value: expectedID}},
+				},
+			}
+
+			result := interp.EmitEvent("test.concurrent", ctx)
+			if result == nil {
+				errors <- fmt.Sprintf("goroutine %d: EmitEvent returned nil", id)
+				return
+			}
+
+			obj, ok := result.(*ObjectValue)
+			if !ok {
+				errors <- fmt.Sprintf("goroutine %d: expected ObjectValue, got %T", id, result)
+				return
+			}
+
+			idVal := obj.GetPropertyValue("id")
+			if idVal == nil {
+				errors <- fmt.Sprintf("goroutine %d: id property is nil", id)
+				return
+			}
+
+			if idVal.String() != expectedID {
+				errors <- fmt.Sprintf("goroutine %d: expected id=%q, got %q (scope corruption!)", id, expectedID, idVal.String())
+			}
+		}(g)
+	}
+
+	wg.Wait()
+	close(errors)
+
+	for errMsg := range errors {
+		t.Error(errMsg)
+	}
+}
+
+// TestConcurrentEmitEventWithEval verifies that EmitEvent from a goroutine
+// does not interfere with EmitEvent on the main goroutine. This simulates
+// the real-world scenario where the prediction goroutine calls EmitEvent
+// concurrently with the REPL thread also emitting events (e.g., during
+// agent execution).
+//
+// Note: concurrent Eval + EmitEvent still has a map race on globalEnv.store
+// because Environment is not synchronized. That is a separate concern from
+// the i.env field race that this refactor eliminates. In production, Eval
+// and EmitEvent from different goroutines don't happen simultaneously — the
+// prediction goroutine only fires EmitEvent, not Eval.
+func TestConcurrentEmitEventWithEval(t *testing.T) {
+	interp := New(nil)
+
+	// Register event handlers for two different events
+	handlerScript := `
+		tool predictHandler(ctx, next) {
+			localVar = ctx.value
+			i = 0
+			while (i < 5) {
+				i = i + 1
+			}
+			return { result: localVar }
+		}
+
+		tool mainHandler(ctx, next) {
+			localVar = ctx.value
+			i = 0
+			while (i < 5) {
+				i = i + 1
+			}
+			return { result: localVar }
+		}
+	`
+	l := lexer.New(handlerScript)
+	p := parser.New(l)
+	prog := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parser errors: %v", p.Errors())
+	}
+	interp.Eval(prog)
+
+	predictHandler, _ := interp.globalEnv.Get("predictHandler")
+	interp.eventManager.Use("test.predict", predictHandler.(*ToolValue))
+
+	mainHandler, _ := interp.globalEnv.Get("mainHandler")
+	interp.eventManager.Use("test.main", mainHandler.(*ToolValue))
+
+	var wg sync.WaitGroup
+	const iterations = 20
+
+	// Goroutine 1: repeatedly call EmitEvent (simulates prediction goroutine)
+	predictErrors := make(chan string, iterations)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			expected := fmt.Sprintf("predict-%d", i)
+			ctx := &ObjectValue{
+				Properties: map[string]*PropertyDescriptor{
+					"value": {Value: &StringValue{Value: expected}},
+				},
+			}
+			result := interp.EmitEvent("test.predict", ctx)
+			if result == nil {
+				predictErrors <- fmt.Sprintf("predict iteration %d: nil result", i)
+				continue
+			}
+			obj, ok := result.(*ObjectValue)
+			if !ok {
+				predictErrors <- fmt.Sprintf("predict iteration %d: expected ObjectValue, got %T", i, result)
+				continue
+			}
+			resultVal := obj.GetPropertyValue("result")
+			if resultVal == nil || resultVal.String() != expected {
+				predictErrors <- fmt.Sprintf("predict iteration %d: expected %q, got %v", i, expected, resultVal)
+			}
+		}
+	}()
+
+	// Main goroutine: repeatedly call EmitEvent (simulates REPL thread emitting events)
+	for i := 0; i < iterations; i++ {
+		expected := fmt.Sprintf("main-%d", i)
+		ctx := &ObjectValue{
+			Properties: map[string]*PropertyDescriptor{
+				"value": {Value: &StringValue{Value: expected}},
+			},
+		}
+		result := interp.EmitEvent("test.main", ctx)
+		if result == nil {
+			t.Errorf("main iteration %d: nil result", i)
+			continue
+		}
+		obj, ok := result.(*ObjectValue)
+		if !ok {
+			t.Errorf("main iteration %d: expected ObjectValue, got %T", i, result)
+			continue
+		}
+		resultVal := obj.GetPropertyValue("result")
+		if resultVal == nil || resultVal.String() != expected {
+			t.Errorf("main iteration %d: expected %q, got %v", i, expected, resultVal)
+		}
+	}
+
+	wg.Wait()
+	close(predictErrors)
+
+	for errMsg := range predictErrors {
+		t.Error(errMsg)
+	}
 }
