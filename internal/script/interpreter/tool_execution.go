@@ -75,8 +75,8 @@ func (i *Interpreter) executeUserToolCall(tool *ToolValue, args map[string]inter
 		valueArgs[idx] = val
 	}
 
-	// Call the tool
-	result, err := i.CallTool(tool, valueArgs)
+	// Call the tool - use globalEnv since agent tool calls create their own scope from tool.Env
+	result, err := i.CallTool(i.globalEnv, tool, valueArgs)
 	if err != nil {
 		return "", err
 	}

@@ -90,7 +90,7 @@ func (m *MCPToolValue) Call(args map[string]interface{}) (Value, error) {
 }
 
 // evalMcpDeclaration evaluates an MCP server declaration
-func (i *Interpreter) evalMcpDeclaration(node *parser.McpDeclaration) (Value, error) {
+func (i *Interpreter) evalMcpDeclaration(env *Environment, node *parser.McpDeclaration) (Value, error) {
 	serverName := node.Name.Value
 
 	// Build the server config from the declaration
@@ -98,7 +98,7 @@ func (i *Interpreter) evalMcpDeclaration(node *parser.McpDeclaration) (Value, er
 
 	// Evaluate each config field
 	for key, expr := range node.Config {
-		value, err := i.evalExpression(expr)
+		value, err := i.evalExpression(env, expr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate MCP config field '%s': %w", key, err)
 		}
@@ -183,7 +183,7 @@ func (i *Interpreter) evalMcpDeclaration(node *parser.McpDeclaration) (Value, er
 	}
 
 	// Register the proxy in the environment
-	i.env.Set(serverName, proxy)
+	env.Set(serverName, proxy)
 
 	return proxy, nil
 }
