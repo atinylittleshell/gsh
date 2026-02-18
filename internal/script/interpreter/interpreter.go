@@ -420,16 +420,18 @@ func (i *Interpreter) GetEventHandlers(eventName string) []*ToolValue {
 // The return value from the chain (if any non-null value) can be used
 // to override default behavior. The interpretation is event-specific.
 func (i *Interpreter) EmitEvent(eventName string, ctx Value) Value {
-	prevEnv := i.globalEnv
-	defer func() { i.globalEnv = prevEnv }()
-
 	handlers := i.eventManager.GetHandlers(eventName)
 	if len(handlers) == 0 {
 		return nil
 	}
 
+	// Create a fresh enclosed environment for each EmitEvent call.
+	// This ensures concurrent calls (e.g., from the prediction goroutine)
+	// each get their own isolated scope chain.
+	eventEnv := NewEnclosedEnvironment(i.globalEnv)
+
 	// Execute the middleware chain starting from the first handler
-	result, err := i.executeMiddlewareChain(eventName, handlers, 0, ctx)
+	result, err := i.executeMiddlewareChain(eventEnv, eventName, handlers, 0, ctx)
 	if err != nil {
 		// Log the error but don't fail - middleware errors shouldn't crash the system
 		if i.logger != nil {
@@ -446,7 +448,7 @@ func (i *Interpreter) EmitEvent(eventName string, ctx Value) Value {
 }
 
 // executeMiddlewareChain executes middleware handlers recursively
-func (i *Interpreter) executeMiddlewareChain(eventName string, handlers []*ToolValue, index int, ctx Value) (Value, error) {
+func (i *Interpreter) executeMiddlewareChain(env *Environment, eventName string, handlers []*ToolValue, index int, ctx Value) (Value, error) {
 	// If we've exhausted all middleware, return nil (no override)
 	if index >= len(handlers) {
 		return nil, nil
@@ -465,12 +467,12 @@ func (i *Interpreter) executeMiddlewareChain(eventName string, handlers []*ToolV
 			}
 
 			// Execute next middleware in chain
-			return i.executeMiddlewareChain(eventName, handlers, index+1, nextCtx)
+			return i.executeMiddlewareChain(env, eventName, handlers, index+1, nextCtx)
 		},
 	}
 
 	// Call the middleware with (ctx, next)
-	result, err := i.CallTool(handler, []Value{ctx, nextFn})
+	result, err := i.CallTool(env, handler, []Value{ctx, nextFn})
 	if err != nil {
 		// Log errors at Warn level so they're visible by default
 		if i.logger != nil {
@@ -482,7 +484,7 @@ func (i *Interpreter) executeMiddlewareChain(eventName string, handlers []*ToolV
 			fmt.Fprintf(os.Stderr, "gsh: error in middleware handler '%s' for event '%s': %v\n", handler.Name, eventName, err)
 		}
 		// Continue with the rest of the chain despite the error
-		return i.executeMiddlewareChain(eventName, handlers, index+1, ctx)
+		return i.executeMiddlewareChain(env, eventName, handlers, index+1, ctx)
 	}
 
 	// Return the result (could be nil, null, or an override value)
@@ -505,7 +507,7 @@ func (i *Interpreter) Eval(program *parser.Program) (*EvalResult, error) {
 	var finalResult Value = &NullValue{}
 
 	for _, stmt := range program.Statements {
-		val, err := i.evalStatement(stmt)
+		val, err := i.evalStatement(i.globalEnv, stmt)
 		if err != nil {
 			return nil, i.wrapError(err, stmt)
 		}
