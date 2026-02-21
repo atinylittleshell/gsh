@@ -61,6 +61,20 @@ You can manually start gsh from an existing shell:
 gsh
 ```
 
+### Running a bash command directly
+
+You can use `-c` to execute a command string and exit, just like `bash -c`:
+
+```bash
+gsh -c "echo hello"
+```
+
+This is useful with tools like `ssh`, `cron`, `su`, and `xargs` that invoke a shell with `-c`. You can combine it with `-l` to run as a login shell:
+
+```bash
+gsh -l -c "echo $PATH"
+```
+
 ### Automatically, through an existing shell
 
 You can also automatically launch gsh from another shell's configuration file:

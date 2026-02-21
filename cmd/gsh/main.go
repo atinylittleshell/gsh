@@ -38,6 +38,7 @@ const mainHelpText = `gsh - A battery-included, POSIX-compatible, generative she
 
 USAGE:
   gsh [options]
+  gsh -c <command>
   gsh <command> [options] [args...]
 
 COMMANDS:
@@ -45,6 +46,7 @@ COMMANDS:
   telemetry [status|on|off]     Manage anonymous usage telemetry
 
 OPTIONS:
+  -c <command>                  Execute a command string and exit
   -h, --help                    Display help information
   -v, --version                 Display version
   -l, --login                   Run as a login shell
@@ -53,6 +55,8 @@ OPTIONS:
 EXAMPLES:
   gsh                           Start interactive shell
   gsh --login                   Start as login shell
+  gsh -c "echo hello"           Execute a command string
+  gsh -l -c "echo hello"        Execute as login shell
   gsh run script.gsh            Execute a gsh script
   gsh run deploy.sh             Execute a bash script
   gsh telemetry status          Check telemetry status
@@ -120,6 +124,7 @@ Learn more: https://github.com/atinylittleshell/gsh#telemetry
 type replOptions struct {
 	login      bool
 	replConfig string
+	command    string // -c command string
 }
 
 func main() {
@@ -140,9 +145,13 @@ func main() {
 		return
 	}
 
-	// No args or only flags = REPL mode
+	// No args or only flags = REPL mode (or -c command mode)
 	if len(args) == 0 || (len(args) > 0 && strings.HasPrefix(args[0], "-")) {
 		opts := parseREPLOptions(args)
+		if opts.command != "" {
+			runDashCCommand(startTime, opts)
+			return
+		}
 		runREPLMode(startTime, opts)
 		return
 	}
@@ -163,9 +172,13 @@ func main() {
 	}
 }
 
-// containsHelpFlag checks if args contain -h or --help (case insensitive)
+// containsHelpFlag checks if args contain -h or --help (case insensitive).
+// Stops scanning after -c since the next arg is a command string, not a flag.
 func containsHelpFlag(args []string) bool {
 	for _, arg := range args {
+		if arg == "-c" {
+			break
+		}
 		lower := strings.ToLower(arg)
 		if lower == "-h" || lower == "--help" {
 			return true
@@ -174,9 +187,13 @@ func containsHelpFlag(args []string) bool {
 	return false
 }
 
-// containsVersionFlag checks if args contain -V or --version (case insensitive)
+// containsVersionFlag checks if args contain -V or --version (case insensitive).
+// Stops scanning after -c since the next arg is a command string, not a flag.
 func containsVersionFlag(args []string) bool {
 	for _, arg := range args {
+		if arg == "-c" {
+			break
+		}
 		lower := strings.ToLower(arg)
 		if lower == "-v" || lower == "--version" {
 			return true
@@ -224,6 +241,14 @@ func parseREPLOptions(args []string) replOptions {
 			}
 		case strings.HasPrefix(strings.ToLower(arg), "--repl-config="):
 			opts.replConfig = strings.SplitN(arg, "=", 2)[1]
+		case arg == "-c":
+			if i+1 < len(args) {
+				i++
+				opts.command = args[i]
+			} else {
+				fmt.Fprintf(os.Stderr, "gsh: -c requires a command string argument\n")
+				os.Exit(1)
+			}
 		default:
 			if strings.HasPrefix(arg, "-") {
 				fmt.Fprintf(os.Stderr, "gsh: unknown option: %s\n", arg)
@@ -310,6 +335,33 @@ func runREPLMode(startTime time.Time, opts replOptions) {
 	}
 
 	err = runInteractiveShell(ctx, logger, runner, startTime, telemetryClient, opts.replConfig)
+	handleExitError(err, logger)
+}
+
+// runDashCCommand handles the -c command execution mode
+func runDashCCommand(startTime time.Time, opts replOptions) {
+	// Initialize managers (minimal for command execution)
+	historyManager, _ := initializeHistoryManager()
+	completionManager := initializeCompletionManager()
+
+	runner, err := initializeRunner(historyManager, completionManager, opts.login)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "gsh: failed to initialize: %v\n", err)
+		os.Exit(1)
+	}
+	syncRunnerEnvToOS(runner)
+
+	logger, _, err := initializeLogger(runner)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "gsh: failed to initialize logger: %v\n", err)
+		os.Exit(1)
+	}
+	defer logger.Sync()
+
+	logger.Info("-------- new gsh -c session --------", zap.String("command", opts.command))
+
+	ctx := context.Background()
+	err = bash.RunBashScriptFromReader(ctx, runner, strings.NewReader(opts.command), "gsh -c")
 	handleExitError(err, logger)
 }
 
