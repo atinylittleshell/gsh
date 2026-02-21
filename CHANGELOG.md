@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/atinylittleshell/gsh/compare/v1.6.0...v1.7.0) (2026-02-21)
+
+
+### Features
+
+* support bash c command ([#192](https://github.com/atinylittleshell/gsh/issues/192)) ([8849268](https://github.com/atinylittleshell/gsh/commit/884926840312daee08b7e37b199946a0bb1a09e3))
+
 ## [1.6.0](https://github.com/atinylittleshell/gsh/compare/v1.5.0...v1.6.0) (2026-02-17)
 
 
