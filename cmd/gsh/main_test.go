@@ -112,6 +112,8 @@ func TestHelpText(t *testing.T) {
 		// Options section
 		{"has options section", "OPTIONS:", "Should have options section header"},
 		{"has repl-config option", "--repl-config", "Should document --repl-config flag"},
+		{"has dash-c option", "-c <command>", "Should document -c flag"},
+		{"has dash-c example", "gsh -c \"echo hello\"", "Should show -c example"},
 	}
 
 	for _, tt := range tests {
@@ -121,6 +123,69 @@ func TestHelpText(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestParseREPLOptions_DashC tests -c flag parsing
+func TestParseREPLOptions_DashC(t *testing.T) {
+	t.Run("basic -c command", func(t *testing.T) {
+		opts := parseREPLOptions([]string{"-c", "echo hello"})
+		if opts.command != "echo hello" {
+			t.Errorf("expected command %q, got %q", "echo hello", opts.command)
+		}
+		if opts.login {
+			t.Error("login should be false")
+		}
+	})
+
+	t.Run("-l -c command", func(t *testing.T) {
+		opts := parseREPLOptions([]string{"-l", "-c", "echo hello"})
+		if opts.command != "echo hello" {
+			t.Errorf("expected command %q, got %q", "echo hello", opts.command)
+		}
+		if !opts.login {
+			t.Error("login should be true")
+		}
+	})
+
+	t.Run("-c -l order", func(t *testing.T) {
+		opts := parseREPLOptions([]string{"-c", "echo hello", "-l"})
+		if opts.command != "echo hello" {
+			t.Errorf("expected command %q, got %q", "echo hello", opts.command)
+		}
+		if !opts.login {
+			t.Error("login should be true even after -c")
+		}
+	})
+}
+
+// TestContainsHelpFlag_DashC tests that -c stops help flag scanning
+func TestContainsHelpFlag_DashC(t *testing.T) {
+	t.Run("--help before -c", func(t *testing.T) {
+		if !containsHelpFlag([]string{"--help", "-c", "echo"}) {
+			t.Error("should find --help before -c")
+		}
+	})
+
+	t.Run("--help after -c is command not flag", func(t *testing.T) {
+		if containsHelpFlag([]string{"-c", "--help"}) {
+			t.Error("should not treat --help after -c as a flag")
+		}
+	})
+}
+
+// TestContainsVersionFlag_DashC tests that -c stops version flag scanning
+func TestContainsVersionFlag_DashC(t *testing.T) {
+	t.Run("--version before -c", func(t *testing.T) {
+		if !containsVersionFlag([]string{"--version", "-c", "echo"}) {
+			t.Error("should find --version before -c")
+		}
+	})
+
+	t.Run("--version after -c is command not flag", func(t *testing.T) {
+		if containsVersionFlag([]string{"-c", "--version"}) {
+			t.Error("should not treat --version after -c as a flag")
+		}
+	})
 }
 
 // TestHelpTextStructure tests the overall structure and formatting of help text
