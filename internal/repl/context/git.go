@@ -37,14 +37,14 @@ func (r *GitStatusRetriever) GetContext() (string, error) {
 	ctx := context.Background()
 
 	// Check if we're in a git repository
-	revParseOut, _, exitCode, err := r.executor.ExecuteBashInSubshell(ctx, "git rev-parse --show-toplevel")
+	revParseOut, _, exitCode, err := r.executor.ExecuteBashInSubshell(ctx, "GIT_OPTIONAL_LOCKS=0 git rev-parse --show-toplevel")
 	if err != nil || exitCode != 0 {
 		r.logger.Debug("error running `git rev-parse --show-toplevel`", zap.Error(err), zap.Int("exitCode", exitCode))
 		return "<git_status>not in a git repository</git_status>", nil
 	}
 
 	// Get git status
-	statusOut, _, exitCode, err := r.executor.ExecuteBashInSubshell(ctx, "git status")
+	statusOut, _, exitCode, err := r.executor.ExecuteBashInSubshell(ctx, "GIT_OPTIONAL_LOCKS=0 git status")
 	if err != nil || exitCode != 0 {
 		r.logger.Debug("error running `git status`", zap.Error(err), zap.Int("exitCode", exitCode))
 		return "", nil

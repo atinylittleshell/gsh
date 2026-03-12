@@ -24,7 +24,7 @@ tool __predictionContext() {
         contextParts.push(`<cwd>${cwdResult.stdout.trim()}</cwd>`)
     }
 
-    gitResult = exec("git status --short --branch 2>/dev/null")
+    gitResult = exec("GIT_OPTIONAL_LOCKS=0 git status --short --branch 2>/dev/null")
     if (gitResult.exitCode == 0 && gitResult.stdout != null && gitResult.stdout.trim() != "") {
         contextParts.push(`<git>${gitResult.stdout.trim()}</git>`)
     }
