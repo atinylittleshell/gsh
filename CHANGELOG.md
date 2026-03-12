@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/atinylittleshell/gsh/compare/v1.7.0...v1.7.1) (2026-03-12)
+
+
+### Bug Fixes
+
+* disable git optional locks ([#194](https://github.com/atinylittleshell/gsh/issues/194)) ([c63bd96](https://github.com/atinylittleshell/gsh/commit/c63bd962316c3e131fb2d91520f11fb626d924d3))
+
 ## [1.7.0](https://github.com/atinylittleshell/gsh/compare/v1.6.0...v1.7.0) (2026-02-21)
 
 
