@@ -70,13 +70,13 @@ export tool getGitChanges(autoStage) {
     }
     
     # Get a summary of changes (files changed, insertions, deletions)
-    statResult = exec(`git diff ${diffFlag} --stat 2>/dev/null`)
+    statResult = exec(`GIT_OPTIONAL_LOCKS=0 git diff ${diffFlag} --stat 2>/dev/null`)
     if (statResult.exitCode != 0 || statResult.stdout == null || statResult.stdout.trim() == "") {
         return null
     }
     
     # Get the actual diff (limited to avoid huge outputs)
-    diffResult = exec(`git diff ${diffFlag} -U15 2>/dev/null | head -1000`)
+    diffResult = exec(`GIT_OPTIONAL_LOCKS=0 git diff ${diffFlag} -U15 2>/dev/null | head -1000`)
     if (diffResult.exitCode != 0 || diffResult.stdout == null || diffResult.stdout.trim() == "") {
         return statResult.stdout.trim()
     }
