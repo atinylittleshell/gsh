@@ -263,6 +263,9 @@ func (r *REPL) setSigintChannelFactory(factory func() (chan os.Signal, func())) 
 func (r *REPL) Run(ctx context.Context) error {
 	r.logger.Info("starting REPL")
 
+	// Cache hostname for OSC 7 escape sequences (terminal CWD tracking)
+	hostname, _ := os.Hostname()
+
 	// Emit repl.ready event (welcome screen is handled by event handler in defaults/events/repl.gsh)
 	r.executor.Interpreter().EmitEvent(interpreter.EventReplReady, interpreter.CreateReplReadyContext())
 
@@ -290,6 +293,12 @@ func (r *REPL) Run(ctx context.Context) error {
 			r.executor.Interpreter().EmitEvent(interpreter.EventReplExit, interpreter.CreateReplExitContext())
 			return ctx.Err()
 		default:
+		}
+
+		// Emit OSC 7 to tell the terminal the current working directory
+		// (enables new tabs/windows to open in the same directory)
+		if dir := r.executor.GetPwd(); dir != "" && term.IsTerminal(int(os.Stdout.Fd())) {
+			emitOSC7(os.Stdout, hostname, dir)
 		}
 
 		// Get prompt - emits repl.prompt event internally
