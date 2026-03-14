@@ -15,6 +15,10 @@ model exampleModel {
 }
 ```
 
+## Test-Driven Development
+
+Always use TDD when developing new features. Write tests first based on the expected behavior (e.g., spec, protocol, or requirements), then write the implementation to make them pass. Writing tests after the implementation risks asserting what the code does rather than what it should do, which lets bugs slip through.
+
 ## Testing the binary
 
 If you need to build the gsh binary for testing, you can just run `make build` or a custom build command outputting to `./bin/gsh`.
