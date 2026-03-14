@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/atinylittleshell/gsh/compare/v1.7.1...v1.8.0) (2026-03-14)
+
+
+### Features
+
+* **repl:** add OSC 7 support for terminal cwd ([#196](https://github.com/atinylittleshell/gsh/issues/196)) ([aa49cdc](https://github.com/atinylittleshell/gsh/commit/aa49cdc2ad3cafba8371b84c43880c8d83c0eac4))
+
 ## [1.7.1](https://github.com/atinylittleshell/gsh/compare/v1.7.0...v1.7.1) (2026-03-12)
 
 
