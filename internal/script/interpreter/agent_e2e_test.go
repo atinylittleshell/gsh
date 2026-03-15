@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/atinylittleshell/gsh/internal/script/lexer"
-	"github.com/atinylittleshell/gsh/internal/script/parser"
+	"github.com/kunchenguid/gsh/internal/script/lexer"
+	"github.com/kunchenguid/gsh/internal/script/parser"
 )
 
 // runScript is a helper to execute a gsh script and return the result

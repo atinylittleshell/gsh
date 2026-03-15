@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/atinylittleshell/gsh/internal/analytics/telemetry"
-	"github.com/atinylittleshell/gsh/internal/core"
+	"github.com/kunchenguid/gsh/internal/analytics/telemetry"
+	"github.com/kunchenguid/gsh/internal/core"
 )
 
 // BenchmarkStartupInitialization measures the cost of preparing core gsh

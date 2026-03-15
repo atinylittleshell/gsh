@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/atinylittleshell/gsh/internal/repl/executor"
-	"github.com/atinylittleshell/gsh/internal/script/interpreter"
+	"github.com/kunchenguid/gsh/internal/repl/executor"
+	"github.com/kunchenguid/gsh/internal/script/interpreter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

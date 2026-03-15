@@ -3,7 +3,7 @@ package parser
 import (
 	"fmt"
 
-	"github.com/atinylittleshell/gsh/internal/script/lexer"
+	"github.com/kunchenguid/gsh/internal/script/lexer"
 	"slices"
 )
 

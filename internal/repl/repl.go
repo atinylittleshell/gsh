@@ -20,14 +20,14 @@ import (
 	"golang.org/x/term"
 	shinterp "mvdan.cc/sh/v3/interp"
 
-	"github.com/atinylittleshell/gsh/internal/core"
-	"github.com/atinylittleshell/gsh/internal/history"
-	"github.com/atinylittleshell/gsh/internal/repl/completion"
-	"github.com/atinylittleshell/gsh/internal/repl/config"
-	"github.com/atinylittleshell/gsh/internal/repl/executor"
-	"github.com/atinylittleshell/gsh/internal/repl/input"
-	"github.com/atinylittleshell/gsh/internal/repl/predict"
-	"github.com/atinylittleshell/gsh/internal/script/interpreter"
+	"github.com/kunchenguid/gsh/internal/core"
+	"github.com/kunchenguid/gsh/internal/history"
+	"github.com/kunchenguid/gsh/internal/repl/completion"
+	"github.com/kunchenguid/gsh/internal/repl/config"
+	"github.com/kunchenguid/gsh/internal/repl/executor"
+	"github.com/kunchenguid/gsh/internal/repl/input"
+	"github.com/kunchenguid/gsh/internal/repl/predict"
+	"github.com/kunchenguid/gsh/internal/script/interpreter"
 )
 
 // ErrExit is returned when the user requests to exit the REPL.

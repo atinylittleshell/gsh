@@ -76,12 +76,12 @@ This guide is organized into 7 logical parts, progressing from basics to advance
 
 ## Community and Support
 
-- **GitHub Issues** - [Report bugs or ask questions](https://github.com/atinylittleshell/gsh/issues)
+- **GitHub Issues** - [Report bugs or ask questions](https://github.com/kunchenguid/gsh/issues)
 - **Contributing** - Help improve gsh! See [CONTRIBUTING.md](../../CONTRIBUTING.md)
 
 ## Additional Resources
 
-- **[gsh GitHub Repository](https://github.com/atinylittleshell/gsh)** - Source code and issues
+- **[gsh GitHub Repository](https://github.com/kunchenguid/gsh)** - Source code and issues
 - **[Language Specification](../../spec/GSH_SCRIPT_SPEC.md)** - Formal language specification
 - **[Tutorial Guide](../tutorial/README.md)** - Interactive shell usage
 - **[SDK Guide](../sdk/README.md)** - Advanced REPL configuration

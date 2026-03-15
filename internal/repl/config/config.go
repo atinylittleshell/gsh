@@ -5,8 +5,8 @@
 package config
 
 import (
-	"github.com/atinylittleshell/gsh/internal/script/interpreter"
-	"github.com/atinylittleshell/gsh/internal/script/mcp"
+	"github.com/kunchenguid/gsh/internal/script/interpreter"
+	"github.com/kunchenguid/gsh/internal/script/mcp"
 )
 
 // Config holds all REPL configuration extracted from declarations in ~/.gsh/repl.gsh.

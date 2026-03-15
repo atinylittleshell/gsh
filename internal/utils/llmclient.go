@@ -61,7 +61,7 @@ func GetLLMClient(runner *interp.Runner, modelType LLMModelType) (*openai.Client
 
 	// Special headers for the openrouter.ai API
 	if strings.HasPrefix(strings.ToLower(baseURL), "https://openrouter.ai/") {
-		headers["HTTP-Referer"] = "https://github.com/atinylittleshell/gsh"
+		headers["HTTP-Referer"] = "https://github.com/kunchenguid/gsh"
 		headers["X-Title"] = "gsh - The Generative Shell"
 	}
 

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/atinylittleshell/gsh/internal/script/lexer"
-	"github.com/atinylittleshell/gsh/internal/script/parser"
+	"github.com/kunchenguid/gsh/internal/script/lexer"
+	"github.com/kunchenguid/gsh/internal/script/parser"
 )
 
 // evalExpression evaluates an expression.

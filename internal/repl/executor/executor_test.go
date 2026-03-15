@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/atinylittleshell/gsh/internal/script/interpreter"
+	"github.com/kunchenguid/gsh/internal/script/interpreter"
 	"go.uber.org/zap"
 	shinterp "mvdan.cc/sh/v3/interp"
 )

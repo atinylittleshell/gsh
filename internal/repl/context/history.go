@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/atinylittleshell/gsh/internal/history"
+	"github.com/kunchenguid/gsh/internal/history"
 )
 
 const (

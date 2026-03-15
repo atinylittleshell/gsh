@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/atinylittleshell/gsh/internal/script/lexer"
-	"github.com/atinylittleshell/gsh/internal/script/parser"
+	"github.com/kunchenguid/gsh/internal/script/lexer"
+	"github.com/kunchenguid/gsh/internal/script/parser"
 )
 
 func TestRuntimeError_Error(t *testing.T) {

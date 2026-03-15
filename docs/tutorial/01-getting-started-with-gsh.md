@@ -18,8 +18,8 @@ To install gsh:
 
 ```bash
 # Linux and macOS through Homebrew
-brew tap atinylittleshell/gsh https://github.com/atinylittleshell/gsh
-brew install atinylittleshell/gsh/gsh
+brew tap kunchenguid/gsh https://github.com/kunchenguid/gsh
+brew install kunchenguid/gsh/gsh
 
 # You can use gsh on arch, btw
 yay -S gsh-bin

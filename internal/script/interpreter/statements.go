@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/atinylittleshell/gsh/internal/script/lexer"
-	"github.com/atinylittleshell/gsh/internal/script/parser"
+	"github.com/kunchenguid/gsh/internal/script/lexer"
+	"github.com/kunchenguid/gsh/internal/script/parser"
 )
 
 // ControlFlowSignal represents a control flow interruption (break, continue, return)

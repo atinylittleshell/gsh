@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/atinylittleshell/gsh/internal/core"
+	"github.com/kunchenguid/gsh/internal/core"
 	"github.com/posthog/posthog-go"
 )
 
@@ -154,7 +154,7 @@ func GetFirstRunNotification() string {
 No commands, prompts, or personal data are ever collected.
 
 To opt out: gsh telemetry off
-Learn more: https://github.com/atinylittleshell/gsh#telemetry
+Learn more: https://github.com/kunchenguid/gsh#telemetry
 `
 }
 

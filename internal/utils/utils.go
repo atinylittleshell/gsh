@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/atinylittleshell/gsh/internal/environment"
+	"github.com/kunchenguid/gsh/internal/environment"
 	"github.com/sashabaranov/go-openai/jsonschema"
 	"go.uber.org/zap"
 	"mvdan.cc/sh/v3/interp"

@@ -83,7 +83,7 @@ func printTelemetryHelp() {
 		"  - Error messages or stack traces",
 		"  - Any personally identifiable information",
 		"",
-		"Learn more: https://github.com/atinylittleshell/gsh#telemetry",
+		"Learn more: https://github.com/kunchenguid/gsh#telemetry",
 	}
 	fmt.Println(strings.Join(help, "\n"))
 }

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/atinylittleshell/gsh/internal/bash"
+	"github.com/kunchenguid/gsh/internal/bash"
 )
 
 // builtinExec implements the exec() function for executing shell commands

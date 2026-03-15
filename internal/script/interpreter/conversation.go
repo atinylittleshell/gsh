@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/atinylittleshell/gsh/internal/acp"
-	"github.com/atinylittleshell/gsh/internal/script/parser"
+	"github.com/kunchenguid/gsh/internal/acp"
+	"github.com/kunchenguid/gsh/internal/script/parser"
 )
 
 // AgentCallbacks provides hooks for observing and customizing agent execution.

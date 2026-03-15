@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/atinylittleshell/gsh/internal/core"
+	"github.com/kunchenguid/gsh/internal/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
@@ -111,7 +111,7 @@ func TestHandleSelfUpdate_UpdateNeeded(t *testing.T) {
 
 	mockRemoteRelease.On("Version").Return("1.2.0")
 
-	mockUpdater.On("DetectLatest", mock.Anything, "atinylittleshell/gsh").Return(mockRemoteRelease, true, nil)
+	mockUpdater.On("DetectLatest", mock.Anything, "kunchenguid/gsh").Return(mockRemoteRelease, true, nil)
 
 	resultChannel := HandleSelfUpdate("1.0.0", logger, mockFS, mockUpdater)
 
@@ -143,7 +143,7 @@ func TestHandleSelfUpdate_NoUpdateNeeded(t *testing.T) {
 	mockFS.On("Create", core.LatestVersionFile()).Return(mockFileForWrite, nil)
 
 	mockRemoteRelease.On("Version").Return("1.2.4")
-	mockUpdater.On("DetectLatest", mock.Anything, "atinylittleshell/gsh").Return(mockRemoteRelease, true, nil)
+	mockUpdater.On("DetectLatest", mock.Anything, "kunchenguid/gsh").Return(mockRemoteRelease, true, nil)
 
 	resultChannel := HandleSelfUpdate("2.0.0", logger, mockFS, mockUpdater)
 
@@ -176,7 +176,7 @@ func TestHandleSelfUpdate_MajorVersionBoundary(t *testing.T) {
 
 	// Major version bump: v0.9.0 -> v1.0.0
 	mockRemoteRelease.On("Version").Return("1.0.0")
-	mockUpdater.On("DetectLatest", mock.Anything, "atinylittleshell/gsh").Return(mockRemoteRelease, true, nil)
+	mockUpdater.On("DetectLatest", mock.Anything, "kunchenguid/gsh").Return(mockRemoteRelease, true, nil)
 
 	resultChannel := HandleSelfUpdate("0.9.0", logger, mockFS, mockUpdater)
 
@@ -242,7 +242,7 @@ func TestHandleSelfUpdate_HomebrewSkipsBinaryUpdate(t *testing.T) {
 	mockFS.On("Create", core.LatestVersionFile()).Return(mockFileForWrite, nil)
 
 	mockRemoteRelease.On("Version").Return("1.2.0")
-	mockUpdater.On("DetectLatest", mock.Anything, "atinylittleshell/gsh").Return(mockRemoteRelease, true, nil)
+	mockUpdater.On("DetectLatest", mock.Anything, "kunchenguid/gsh").Return(mockRemoteRelease, true, nil)
 
 	originalStdout := os.Stdout
 	readPipe, writePipe, _ := os.Pipe()

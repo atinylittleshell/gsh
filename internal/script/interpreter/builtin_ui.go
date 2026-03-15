@@ -8,7 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/atinylittleshell/gsh/internal/repl/render"
+	"github.com/kunchenguid/gsh/internal/repl/render"
 )
 
 // Global spinner manager shared across all scripts

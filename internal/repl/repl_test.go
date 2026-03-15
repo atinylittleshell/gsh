@@ -14,13 +14,13 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	// Import all subpackages to verify the directory structure is correct
-	_ "github.com/atinylittleshell/gsh/internal/repl/completion"
-	_ "github.com/atinylittleshell/gsh/internal/repl/config"
-	_ "github.com/atinylittleshell/gsh/internal/repl/context"
-	_ "github.com/atinylittleshell/gsh/internal/repl/executor"
-	"github.com/atinylittleshell/gsh/internal/repl/input"
-	_ "github.com/atinylittleshell/gsh/internal/repl/predict"
-	"github.com/atinylittleshell/gsh/internal/script/interpreter"
+	_ "github.com/kunchenguid/gsh/internal/repl/completion"
+	_ "github.com/kunchenguid/gsh/internal/repl/config"
+	_ "github.com/kunchenguid/gsh/internal/repl/context"
+	_ "github.com/kunchenguid/gsh/internal/repl/executor"
+	"github.com/kunchenguid/gsh/internal/repl/input"
+	_ "github.com/kunchenguid/gsh/internal/repl/predict"
+	"github.com/kunchenguid/gsh/internal/script/interpreter"
 )
 
 // mockPredictionProvider implements input.PredictionProvider for testing.

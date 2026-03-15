@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/atinylittleshell/gsh/internal/script/mcp"
-	"github.com/atinylittleshell/gsh/internal/script/parser"
+	"github.com/kunchenguid/gsh/internal/script/mcp"
+	"github.com/kunchenguid/gsh/internal/script/parser"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

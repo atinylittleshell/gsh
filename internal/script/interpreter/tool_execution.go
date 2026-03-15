@@ -3,7 +3,7 @@ package interpreter
 import (
 	"fmt"
 
-	"github.com/atinylittleshell/gsh/internal/acp"
+	"github.com/kunchenguid/gsh/internal/acp"
 )
 
 // classifyToolKind determines the ToolKind based on the tool name.

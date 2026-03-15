@@ -73,7 +73,7 @@ func TestGetFirstRunNotification(t *testing.T) {
 	notification := GetFirstRunNotification()
 	assert.Contains(t, notification, "anonymous usage statistics")
 	assert.Contains(t, notification, "gsh telemetry off")
-	assert.Contains(t, notification, "github.com/atinylittleshell/gsh")
+	assert.Contains(t, notification, "github.com/kunchenguid/gsh")
 }
 
 func TestClientDebugMode(t *testing.T) {

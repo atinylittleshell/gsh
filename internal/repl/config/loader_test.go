@@ -8,8 +8,8 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/atinylittleshell/gsh/internal/core"
-	"github.com/atinylittleshell/gsh/internal/script/interpreter"
+	"github.com/kunchenguid/gsh/internal/core"
+	"github.com/kunchenguid/gsh/internal/script/interpreter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

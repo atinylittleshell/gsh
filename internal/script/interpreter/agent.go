@@ -3,7 +3,7 @@ package interpreter
 import (
 	"fmt"
 
-	"github.com/atinylittleshell/gsh/internal/script/parser"
+	"github.com/kunchenguid/gsh/internal/script/parser"
 )
 
 // evalAgentDeclaration evaluates an agent declaration
