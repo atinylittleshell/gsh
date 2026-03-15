@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/kunchenguid/gsh/compare/v1.8.0...v1.8.1) (2026-03-15)
+
+
+### Bug Fixes
+
+* **repo:** rename github user to kunchenguid ([#198](https://github.com/kunchenguid/gsh/issues/198)) ([f41835c](https://github.com/kunchenguid/gsh/commit/f41835c17e54c79fd27abaa93fd5c481d6b27bb7))
+
 ## [1.8.0](https://github.com/atinylittleshell/gsh/compare/v1.7.1...v1.8.0) (2026-03-14)
 
 
