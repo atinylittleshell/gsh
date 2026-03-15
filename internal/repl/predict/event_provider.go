@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/atinylittleshell/gsh/internal/script/interpreter"
+	"github.com/kunchenguid/gsh/internal/script/interpreter"
 	"go.uber.org/zap"
 )
 

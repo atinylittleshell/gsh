@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atinylittleshell/gsh/internal/acp"
-	"github.com/atinylittleshell/gsh/internal/script/parser"
+	"github.com/kunchenguid/gsh/internal/acp"
+	"github.com/kunchenguid/gsh/internal/script/parser"
 )
 
 // evalACPDeclaration evaluates an ACP (Agent Client Protocol) agent declaration.

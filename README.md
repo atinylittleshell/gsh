@@ -1,12 +1,12 @@
 # gsh
 
-[![License](https://img.shields.io/github/license/atinylittleshell/gsh.svg)](https://github.com/atinylittleshell/gsh/blob/main/LICENSE)
-[![Release](https://img.shields.io/github/release/atinylittleshell/gsh.svg)](https://github.com/atinylittleshell/gsh/releases)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/atinylittleshell/gsh/ci.yml?branch=main)](https://github.com/atinylittleshell/gsh/actions)
-[![Test Coverage](https://codecov.io/gh/atinylittleshell/gsh/branch/main/graph/badge.svg?token=U7HWPOEPTF)](https://codecov.io/gh/atinylittleshell/gsh)
+[![License](https://img.shields.io/github/license/kunchenguid/gsh.svg)](https://github.com/kunchenguid/gsh/blob/main/LICENSE)
+[![Release](https://img.shields.io/github/release/kunchenguid/gsh.svg)](https://github.com/kunchenguid/gsh/releases)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/kunchenguid/gsh/ci.yml?branch=main)](https://github.com/kunchenguid/gsh/actions)
+[![Test Coverage](https://codecov.io/gh/kunchenguid/gsh/branch/main/graph/badge.svg?token=U7HWPOEPTF)](https://codecov.io/gh/kunchenguid/gsh)
 
 <p align="center">
-    <img alt="gsh" src="https://github.com/atinylittleshell/gsh/blob/main/assets/banner.png?raw=true">
+    <img alt="gsh" src="https://github.com/kunchenguid/gsh/blob/main/assets/banner.png?raw=true">
 </p>
 
 <p align="center">

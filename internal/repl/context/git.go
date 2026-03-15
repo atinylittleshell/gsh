@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/atinylittleshell/gsh/internal/repl/executor"
+	"github.com/kunchenguid/gsh/internal/repl/executor"
 	"go.uber.org/zap"
 )
 

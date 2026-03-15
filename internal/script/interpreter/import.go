@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/atinylittleshell/gsh/internal/script/lexer"
-	"github.com/atinylittleshell/gsh/internal/script/parser"
+	"github.com/kunchenguid/gsh/internal/script/lexer"
+	"github.com/kunchenguid/gsh/internal/script/parser"
 )
 
 // OriginType represents the origin of a script

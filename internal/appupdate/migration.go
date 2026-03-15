@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/atinylittleshell/gsh/internal/core"
+	"github.com/kunchenguid/gsh/internal/core"
 )
 
 // GetLastUsedVersion reads the last used version from the version marker file.
@@ -56,7 +56,7 @@ func GetMigrationMessage() string {
 │                                                                             │
 │  Your existing .gshrc and shell history are preserved.                      │
 │                                                                             │
-│  Learn more: https://github.com/atinylittleshell/gsh                        │
+│  Learn more: https://github.com/kunchenguid/gsh                        │
 └─────────────────────────────────────────────────────────────────────────────┘
 `
 }

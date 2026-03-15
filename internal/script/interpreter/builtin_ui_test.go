@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/atinylittleshell/gsh/internal/repl/render"
+	"github.com/kunchenguid/gsh/internal/repl/render"
 )
 
 func TestSpinnerManager(t *testing.T) {

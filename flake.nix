@@ -16,7 +16,7 @@
         name = "gsh";
         version = "v1.3.3";
         src = pkgs.fetchFromGitHub {
-          owner = "atinylittleshell";
+          owner = "kunchenguid";
           repo = "gsh";
           rev = version;
           hash = "sha256-kyEWFoBXuR23wM4Y17tcPmPLpcSKUXy8v857CYeyv0U=";

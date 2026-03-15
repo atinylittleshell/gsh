@@ -4,7 +4,7 @@ package input
 import (
 	"strings"
 
-	"github.com/atinylittleshell/gsh/internal/repl/render"
+	"github.com/kunchenguid/gsh/internal/repl/render"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )

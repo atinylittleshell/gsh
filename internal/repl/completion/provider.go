@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/atinylittleshell/gsh/internal/repl/completion/completers"
+	"github.com/kunchenguid/gsh/internal/repl/completion/completers"
 	"mvdan.cc/sh/v3/interp"
 )
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/atinylittleshell/gsh/internal/acp"
+	"github.com/kunchenguid/gsh/internal/acp"
 )
 
 // DefaultMaxIterations is the default maximum number of tool call iterations

@@ -3,7 +3,7 @@ package parser
 import (
 	"strings"
 
-	"github.com/atinylittleshell/gsh/internal/script/lexer"
+	"github.com/kunchenguid/gsh/internal/script/lexer"
 )
 
 // Node represents any node in the AST

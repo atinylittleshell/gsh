@@ -3,7 +3,7 @@ package parser
 import (
 	"testing"
 
-	"github.com/atinylittleshell/gsh/internal/script/lexer"
+	"github.com/kunchenguid/gsh/internal/script/lexer"
 )
 
 func TestSimplePipeExpression(t *testing.T) {

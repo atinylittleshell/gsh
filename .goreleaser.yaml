@@ -42,30 +42,30 @@ changelog:
 
 brews:
   - name: gsh
-    homepage: https://github.com/atinylittleshell/gsh
+    homepage: https://github.com/kunchenguid/gsh
     description: A battery-included, POSIX-compatible, generative shell
     license: GPL-3.0-or-later
     directory: Formula
     commit_author:
-      name: atinylittleshell
-      email: shell@atinylittleshell.me
+      name: kunchenguid
+      email: kun@kunchenguid.com
     repository:
-      owner: atinylittleshell
+      owner: kunchenguid
       name: gsh
       token: "{{ .Env.GITHUB_TOKEN }}"
 
 aurs:
   - name: gsh-bin
-    homepage: https://github.com/atinylittleshell/gsh
+    homepage: https://github.com/kunchenguid/gsh
     description: A battery-included, POSIX-compatible, generative shell
     license: GPL-3.0-or-later
     maintainers:
-      - "atinylittleshell <shell@atinylittleshell.me>"
+      - "kunchenguid <kun@kunchenguid.com>"
     private_key: "{{ .Env.AUR_PRIVATE_KEY }}"
     git_url: "ssh://aur@aur.archlinux.org/gsh-bin.git"
     commit_author:
-      name: atinylittleshell
-      email: shell@atinylittleshell.me
+      name: kunchenguid
+      email: kun@kunchenguid.com
     package: |-
       # bin
       install -Dm755 "./gsh" "${pkgdir}/usr/bin/gsh"
@@ -75,17 +75,17 @@ aurs:
 
 aur_sources:
   - name: gsh
-    homepage: https://github.com/atinylittleshell/gsh
+    homepage: https://github.com/kunchenguid/gsh
     description: A battery-included, POSIX-compatible, generative shell
     license: GPL-3.0-or-later
     maintainers:
-      - "atinylittleshell <shell@atinylittleshell.me>"
+      - "kunchenguid <kun@kunchenguid.com>"
       - "Vitalii Kuzhdin <vitaliikuzhdin@gmail.com>"
     private_key: "{{ .Env.AUR_PRIVATE_KEY }}"
     git_url: "ssh://aur@aur.archlinux.org/gsh.git"
     commit_author:
-      name: atinylittleshell
-      email: shell@atinylittleshell.me
+      name: kunchenguid
+      email: kun@kunchenguid.com
     prepare: |-
       cd "${srcdir}/${_pkgsrc}"
       go mod download

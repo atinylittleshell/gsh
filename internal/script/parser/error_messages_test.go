@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/atinylittleshell/gsh/internal/script/lexer"
+	"github.com/kunchenguid/gsh/internal/script/lexer"
 )
 
 // TestDetailedErrorMessages tests that parser provides helpful, detailed error messages

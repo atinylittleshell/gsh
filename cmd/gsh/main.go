@@ -10,16 +10,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atinylittleshell/gsh/internal/analytics/telemetry"
-	"github.com/atinylittleshell/gsh/internal/appupdate"
-	"github.com/atinylittleshell/gsh/internal/bash"
-	"github.com/atinylittleshell/gsh/internal/core"
-	"github.com/atinylittleshell/gsh/internal/environment"
-	"github.com/atinylittleshell/gsh/internal/filesystem"
-	"github.com/atinylittleshell/gsh/internal/history"
-	"github.com/atinylittleshell/gsh/internal/repl"
-	"github.com/atinylittleshell/gsh/internal/repl/completion"
-	"github.com/atinylittleshell/gsh/internal/script/interpreter"
+	"github.com/kunchenguid/gsh/internal/analytics/telemetry"
+	"github.com/kunchenguid/gsh/internal/appupdate"
+	"github.com/kunchenguid/gsh/internal/bash"
+	"github.com/kunchenguid/gsh/internal/core"
+	"github.com/kunchenguid/gsh/internal/environment"
+	"github.com/kunchenguid/gsh/internal/filesystem"
+	"github.com/kunchenguid/gsh/internal/history"
+	"github.com/kunchenguid/gsh/internal/repl"
+	"github.com/kunchenguid/gsh/internal/repl/completion"
+	"github.com/kunchenguid/gsh/internal/script/interpreter"
 	"go.uber.org/zap"
 	"golang.org/x/term"
 	"mvdan.cc/sh/v3/expand"
@@ -84,7 +84,7 @@ SCRIPTING:
   Files with .gsh extension use the gsh scripting language for agentic
   workflows with MCP servers, AI models, and agents.
 
-  For documentation and examples, see: https://github.com/atinylittleshell/gsh
+  For documentation and examples, see: https://github.com/kunchenguid/gsh
 `
 
 // Help text for the telemetry subcommand
@@ -117,7 +117,7 @@ WHAT WE NEVER COLLECT:
   - Error messages or stack traces
   - Any personally identifiable information
 
-Learn more: https://github.com/atinylittleshell/gsh#telemetry
+Learn more: https://github.com/kunchenguid/gsh#telemetry
 `
 
 // CLI options for REPL mode

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/atinylittleshell/gsh/internal/history"
+	"github.com/kunchenguid/gsh/internal/history"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

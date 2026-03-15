@@ -9,9 +9,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/atinylittleshell/gsh/internal/core"
-	"github.com/atinylittleshell/gsh/internal/script/interpreter"
-	"github.com/atinylittleshell/gsh/internal/script/mcp"
+	"github.com/kunchenguid/gsh/internal/core"
+	"github.com/kunchenguid/gsh/internal/script/interpreter"
+	"github.com/kunchenguid/gsh/internal/script/mcp"
 	"go.uber.org/zap"
 )
 

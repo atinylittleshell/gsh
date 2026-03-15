@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/atinylittleshell/gsh/internal/core"
+	"github.com/kunchenguid/gsh/internal/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +14,7 @@ func TestGetMigrationMessage(t *testing.T) {
 	message := GetMigrationMessage()
 	assert.Contains(t, message, "Welcome to gsh v1.0")
 	assert.Contains(t, message, "repl.gsh")
-	assert.Contains(t, message, "github.com/atinylittleshell/gsh")
+	assert.Contains(t, message, "github.com/kunchenguid/gsh")
 }
 
 func TestVersionMarker(t *testing.T) {

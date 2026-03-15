@@ -45,7 +45,7 @@ If you're brand new to shells, you might want to quickly learn bash basics first
 
 ## Community and Support
 
-- **GitHub Issues** - [Report bugs or ask questions](https://github.com/atinylittleshell/gsh/issues)
+- **GitHub Issues** - [Report bugs or ask questions](https://github.com/kunchenguid/gsh/issues)
 - **Contributing** - Help improve gsh! See [CONTRIBUTING.md](../../CONTRIBUTING.md)
 
 ---

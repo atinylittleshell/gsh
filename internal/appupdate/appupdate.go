@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/atinylittleshell/gsh/internal/core"
-	"github.com/atinylittleshell/gsh/internal/filesystem"
+	"github.com/kunchenguid/gsh/internal/core"
+	"github.com/kunchenguid/gsh/internal/filesystem"
 	"github.com/creativeprojects/go-selfupdate"
 	"go.uber.org/zap"
 )
@@ -118,7 +118,7 @@ func updateToLatestVersion(
 		logger.Info("major version update available",
 			zap.String("current", currentSemVer.String()),
 			zap.String("latest", latestSemVer.String()),
-			zap.String("info", "Major version updates require manual upgrade. See https://github.com/atinylittleshell/gsh for migration guide."))
+			zap.String("info", "Major version updates require manual upgrade. See https://github.com/kunchenguid/gsh for migration guide."))
 		return
 	}
 
@@ -140,7 +140,7 @@ func updateToLatestVersion(
 
 	latest, found, err := updater.DetectLatest(
 		context.Background(),
-		"atinylittleshell/gsh",
+		"kunchenguid/gsh",
 	)
 	if err != nil {
 		logger.Warn("error occurred while detecting latest version", zap.Error(err))
@@ -169,7 +169,7 @@ func fetchAndSaveLatestVersion(resultChannel chan string, logger *zap.Logger, fs
 
 	latest, found, err := updater.DetectLatest(
 		context.Background(),
-		"atinylittleshell/gsh",
+		"kunchenguid/gsh",
 	)
 	if err != nil {
 		logger.Warn("error occurred while getting latest version from remote", zap.Error(err))
