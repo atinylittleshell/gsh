@@ -4,6 +4,8 @@
 [![Release](https://img.shields.io/github/release/kunchenguid/gsh.svg)](https://github.com/kunchenguid/gsh/releases)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/kunchenguid/gsh/ci.yml?branch=main)](https://github.com/kunchenguid/gsh/actions)
 [![Test Coverage](https://codecov.io/gh/kunchenguid/gsh/branch/main/graph/badge.svg?token=U7HWPOEPTF)](https://codecov.io/gh/kunchenguid/gsh)
+[![X](https://img.shields.io/badge/X-@kunchenguid-black?logo=x)](https://x.com/kunchenguid)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?logo=discord&logoColor=white)](https://discord.gg/BW4aJuQhTf)
 
 <p align="center">
     <img alt="gsh" src="https://github.com/kunchenguid/gsh/blob/main/assets/banner.png?raw=true">
