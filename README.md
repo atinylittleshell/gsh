@@ -1,11 +1,13 @@
-# gsh
+<h1 align="center">gsh</h1>
 
-[![License](https://img.shields.io/github/license/kunchenguid/gsh.svg)](https://github.com/kunchenguid/gsh/blob/main/LICENSE)
-[![Release](https://img.shields.io/github/release/kunchenguid/gsh.svg)](https://github.com/kunchenguid/gsh/releases)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/kunchenguid/gsh/ci.yml?branch=main)](https://github.com/kunchenguid/gsh/actions)
-[![Test Coverage](https://codecov.io/gh/kunchenguid/gsh/branch/main/graph/badge.svg?token=U7HWPOEPTF)](https://codecov.io/gh/kunchenguid/gsh)
-[![X](https://img.shields.io/badge/X-@kunchenguid-black?logo=x)](https://x.com/kunchenguid)
-[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?logo=discord&logoColor=white)](https://discord.gg/BW4aJuQhTf)
+<p align="center">
+  <a href="https://github.com/kunchenguid/gsh/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/kunchenguid/gsh.svg?style=flat-square" /></a>
+  <a href="https://github.com/kunchenguid/gsh/releases"><img alt="Release" src="https://img.shields.io/github/release/kunchenguid/gsh.svg?style=flat-square" /></a>
+  <a href="https://github.com/kunchenguid/gsh/actions"><img alt="Build Status" src="https://img.shields.io/github/actions/workflow/status/kunchenguid/gsh/ci.yml?style=flat-square&label=build" /></a>
+  <a href="https://codecov.io/gh/kunchenguid/gsh"><img alt="Test Coverage" src="https://img.shields.io/codecov/c/github/kunchenguid/gsh?style=flat-square&token=U7HWPOEPTF" /></a>
+  <a href="https://x.com/kunchenguid"><img alt="X" src="https://img.shields.io/badge/X-@kunchenguid-black?style=flat-square" /></a>
+  <a href="https://discord.gg/BW4aJuQhTf"><img alt="Discord" src="https://img.shields.io/discord/1439901831038763092?style=flat-square&label=discord" /></a>
+</p>
 
 <p align="center">
     <img alt="gsh" src="https://github.com/kunchenguid/gsh/blob/main/assets/banner.png?raw=true">
