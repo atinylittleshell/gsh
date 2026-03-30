@@ -115,6 +115,25 @@ gsh.on("repl.prompt", dynamicPrompt)
 
 For more prompt customization options including Starship integration, see the [Tutorial](../tutorial/02-configuration.md).
 
+## `gsh.continuationPrompt`
+
+**Type:** `string` (read/write)
+**Availability:** REPL only
+
+Sets the continuation prompt displayed on subsequent lines when entering multi-line input (e.g., unclosed quotes, heredocs, or trailing `|`). Defaults to `"> "`.
+
+When Starship is available, gsh automatically uses `starship prompt --continuation` to set this (configurable via `starship.toml`).
+
+### Example
+
+```gsh
+tool myPrompt() {
+    gsh.prompt = "my-shell> "
+    gsh.continuationPrompt = "... "
+}
+gsh.on("repl.prompt", myPrompt)
+```
+
 ## `gsh.lastCommand`
 
 **Type:** `object` (read-only)  

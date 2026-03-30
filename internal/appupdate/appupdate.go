@@ -11,9 +11,9 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/creativeprojects/go-selfupdate"
 	"github.com/kunchenguid/gsh/internal/core"
 	"github.com/kunchenguid/gsh/internal/filesystem"
-	"github.com/creativeprojects/go-selfupdate"
 	"go.uber.org/zap"
 )
 

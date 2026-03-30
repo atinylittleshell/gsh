@@ -650,19 +650,24 @@ func TestSanitizeRunes(t *testing.T) {
 			expected: []rune("hello world"),
 		},
 		{
-			name:     "newline replaced with space",
+			name:     "newline preserved",
 			input:    []rune("hello\nworld"),
-			expected: []rune("hello world"),
+			expected: []rune("hello\nworld"),
 		},
 		{
-			name:     "carriage return replaced with space",
+			name:     "lone carriage return normalized to newline",
 			input:    []rune("hello\rworld"),
-			expected: []rune("hello world"),
+			expected: []rune("hello\nworld"),
+		},
+		{
+			name:     "CRLF normalized to newline",
+			input:    []rune("hello\r\nworld"),
+			expected: []rune("hello\nworld"),
 		},
 		{
 			name:     "multiple special chars",
 			input:    []rune("a\tb\nc\rd"),
-			expected: []rune("a b c d"),
+			expected: []rune("a b\nc\nd"),
 		},
 	}
 

@@ -48,6 +48,9 @@ const (
 
 	// History search actions
 	ActionHistorySearchBackward // Start/continue reverse history search (Ctrl+R)
+
+	// Multi-line actions
+	ActionInsertNewline // Force-insert a newline (Alt+Enter)
 )
 
 // String returns the string representation of an Action.
@@ -103,6 +106,8 @@ func (a Action) String() string {
 		return "AcceptPrediction"
 	case ActionHistorySearchBackward:
 		return "HistorySearchBackward"
+	case ActionInsertNewline:
+		return "InsertNewline"
 	default:
 		return "Unknown"
 	}
@@ -182,6 +187,9 @@ func DefaultKeyMap() *KeyMap {
 
 		// History search
 		{Keys: []string{"ctrl+r"}, Action: ActionHistorySearchBackward},
+
+		// Multi-line
+		{Keys: []string{"alt+enter"}, Action: ActionInsertNewline},
 	})
 }
 

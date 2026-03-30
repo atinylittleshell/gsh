@@ -163,9 +163,10 @@ type SDKConfig struct {
 
 // REPLContext holds REPL-specific state that's available in the SDK
 type REPLContext struct {
-	LastCommand *REPLLastCommand
-	PromptValue Value        // Prompt string set by event handlers (read/write via gsh.prompt)
-	Interpreter *Interpreter // Reference to interpreter for event execution
+	LastCommand             *REPLLastCommand
+	PromptValue             Value        // Prompt string set by event handlers (read/write via gsh.prompt)
+	ContinuationPromptValue Value        // Continuation prompt set by event handlers (read/write via gsh.continuationPrompt)
+	Interpreter             *Interpreter // Reference to interpreter for event execution
 }
 
 // Models holds the model tier definitions (available in both REPL and script mode)
