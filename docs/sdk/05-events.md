@@ -97,7 +97,7 @@ gsh.use("repl.ready", welcome)
 
 ### `repl.prompt`
 
-Fired after each command to generate the shell prompt. Set `gsh.prompt` to customize.
+Fired after each command to generate the shell prompt. Set `gsh.prompt` to customize. You can also set `gsh.continuationPrompt` for multi-line input (see [gsh.continuationPrompt](01-gsh-object.md#gshcontinuationprompt)).
 
 **Context:** `null`
 

@@ -129,6 +129,27 @@ It's on the roadmap to allow users to customize these key bindings.
 - **Line Start**: `Home`, `Ctrl+A`
 - **Line End**: `End`, `Ctrl+E`
 - **Paste**: `Ctrl+V`
+- **Insert Newline**: `Alt+Enter`
+
+## Multi-line Input
+
+gsh automatically detects incomplete input—unclosed quotes, heredocs, trailing pipes (`|`), `&&`, `||`, and control structures like `if`/`while` without their closing keywords. When you press **Enter** on incomplete input, gsh inserts a newline and shows a continuation prompt (`> `) so you can keep typing:
+
+```bash
+gsh> echo "hello
+> world"
+hello
+world
+
+gsh> if true; then
+> echo hi
+> fi
+hi
+```
+
+You can also force a newline at any time with **Alt+Enter**, even when the input is already complete.
+
+The continuation prompt can be customized via `gsh.continuationPrompt` — see the [SDK Reference](../sdk/01-gsh-object.md#gshcontinuationprompt).
 
 ## Basic Shell Experience
 
