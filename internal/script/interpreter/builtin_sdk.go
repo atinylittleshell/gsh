@@ -51,6 +51,17 @@ func (i *Interpreter) registerGshSDK() {
 		},
 	}
 
+	// Create gsh.continuationPrompt (dynamic, reads from REPL context)
+	continuationPromptObj := &DynamicValue{
+		Get: func() Value {
+			replCtx := i.sdkConfig.GetREPLContext()
+			if replCtx == nil || replCtx.ContinuationPromptValue == nil {
+				return &StringValue{Value: ""}
+			}
+			return replCtx.ContinuationPromptValue
+		},
+	}
+
 	// Create gsh.tools object with native tool implementations
 	toolsObj := i.createNativeToolsObject()
 
@@ -145,17 +156,18 @@ func (i *Interpreter) registerGshSDK() {
 	gshObj := &GshObjectValue{
 		interp: i,
 		baseProps: map[string]*PropertyDescriptor{
-			"version":          {Value: &StringValue{Value: i.version}, ReadOnly: true},
-			"terminal":         {Value: terminalObj, ReadOnly: true},
-			"logging":          {Value: loggingObj},
-			"lastAgentRequest": {Value: lastAgentRequestObj, ReadOnly: true},
-			"tools":            {Value: toolsObj, ReadOnly: true},
-			"ui":               {Value: uiObj, ReadOnly: true},
-			"models":           {Value: modelsObj, ReadOnly: true},
-			"lastCommand":      {Value: lastCommandObj, ReadOnly: true},
-			"history":          {Value: historyObj, ReadOnly: true},
-			"currentDirectory": {Value: currentDirectoryObj, ReadOnly: true},
-			"prompt":           {Value: promptObj},
+			"version":            {Value: &StringValue{Value: i.version}, ReadOnly: true},
+			"terminal":           {Value: terminalObj, ReadOnly: true},
+			"logging":            {Value: loggingObj},
+			"lastAgentRequest":   {Value: lastAgentRequestObj, ReadOnly: true},
+			"tools":              {Value: toolsObj, ReadOnly: true},
+			"ui":                 {Value: uiObj, ReadOnly: true},
+			"models":             {Value: modelsObj, ReadOnly: true},
+			"lastCommand":        {Value: lastCommandObj, ReadOnly: true},
+			"history":            {Value: historyObj, ReadOnly: true},
+			"currentDirectory":   {Value: currentDirectoryObj, ReadOnly: true},
+			"prompt":             {Value: promptObj},
+			"continuationPrompt": {Value: continuationPromptObj},
 			"use": {Value: &BuiltinValue{
 				Name: "gsh.use",
 				Fn:   i.builtinGshUse,
@@ -642,6 +654,16 @@ func (g *GshObjectValue) SetProperty(name string, value Value) error {
 		replCtx := g.interp.sdkConfig.GetREPLContext()
 		if replCtx != nil {
 			replCtx.PromptValue = promptStr
+		}
+		return nil
+	case "continuationPrompt":
+		cpStr, ok := value.(*StringValue)
+		if !ok {
+			return fmt.Errorf("gsh.continuationPrompt must be a string, got %s", value.Type())
+		}
+		replCtx := g.interp.sdkConfig.GetREPLContext()
+		if replCtx != nil {
+			replCtx.ContinuationPromptValue = cpStr
 		}
 		return nil
 	default:

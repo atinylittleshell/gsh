@@ -319,6 +319,7 @@ func (r *REPL) Run(ctx context.Context) error {
 		}
 		inputModel := input.New(input.Config{
 			Prompt:             prompt,
+			ContinuationPrompt: r.getContinuationPrompt(),
 			HistoryValues:      historyValues,
 			HistorySearchFunc:  r.createHistorySearchFunc(),
 			CompletionProvider: r.completionProvider,
@@ -367,7 +368,13 @@ func (r *REPL) Run(ctx context.Context) error {
 		case input.ResultSubmit:
 			// Print the prompt + user input so it persists in terminal history
 			// We use \r to return to start of line since Bubble Tea may leave cursor mid-line
-			fmt.Print("\r" + model.Prompt() + result.Value + "\n")
+			// For multi-line input, show continuation prompts on subsequent lines
+			lines := strings.Split(result.Value, "\n")
+			fmt.Print("\r" + model.Prompt() + lines[0])
+			for _, line := range lines[1:] {
+				fmt.Print("\n" + model.ContinuationPrompt() + line)
+			}
+			fmt.Print("\n")
 
 			// Process the command
 			if err := r.processCommand(ctx, result.Value); err != nil {
@@ -583,6 +590,19 @@ func (r *REPL) getPrompt() string {
 
 	// Fallback to default prompt if gsh.prompt not set
 	return "gsh> "
+}
+
+// getContinuationPrompt returns the continuation prompt for multi-line input.
+// It reads gsh.continuationPrompt which may have been set by event handlers (e.g., Starship).
+func (r *REPL) getContinuationPrompt() string {
+	interp := r.executor.Interpreter()
+	replCtx := interp.SDKConfig().GetREPLContext()
+	if replCtx != nil && replCtx.ContinuationPromptValue != nil {
+		if strVal, ok := replCtx.ContinuationPromptValue.(*interpreter.StringValue); ok && strVal.Value != "" {
+			return strVal.Value
+		}
+	}
+	return "> "
 }
 
 // getHistoryValues returns recent history entries for navigation.

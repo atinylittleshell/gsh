@@ -31,6 +31,13 @@ tool onReplPrompt(ctx, next) {
             } else {
                 gsh.prompt = __starship_result.stdout
             }
+
+            # Get continuation prompt from Starship
+            __starship_cont = exec("starship prompt --continuation 2>/dev/null")
+            if (__starship_cont.exitCode == 0 && __starship_cont.stdout != "") {
+                gsh.continuationPrompt = __starship_cont.stdout
+            }
+
             return next(ctx)
         }
     }

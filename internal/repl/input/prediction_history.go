@@ -13,6 +13,17 @@ import (
 func (m Model) onTextChanged() (tea.Model, tea.Cmd) {
 	text := m.buffer.Text()
 
+	// Disable predictions for multi-line input.
+	// Call OnInputChanged("") to cancel any in-flight prediction and bump the
+	// state ID so stale results are rejected by SetPrediction.
+	if strings.Contains(text, "\n") {
+		m.currentPrediction = ""
+		if m.prediction != nil {
+			m.prediction.OnInputChanged("")
+		}
+		return m, nil
+	}
+
 	// Check if prediction still applies
 	if m.currentPrediction != "" && !strings.HasPrefix(m.currentPrediction, text) {
 		m.currentPrediction = ""

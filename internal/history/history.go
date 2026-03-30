@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kunchenguid/gsh/internal/core"
 	"github.com/glebarez/sqlite"
+	"github.com/kunchenguid/gsh/internal/core"
 	"gorm.io/gorm"
 )
 

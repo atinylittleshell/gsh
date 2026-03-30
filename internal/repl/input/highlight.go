@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kunchenguid/gsh/internal/repl/render"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kunchenguid/gsh/internal/repl/render"
 	"mvdan.cc/sh/v3/syntax"
 )
 
@@ -365,13 +365,13 @@ func (h *Highlighter) highlightBasic(input string) string {
 		case r == '"':
 			// Double quoted string
 			end := h.findStringEnd(runes, i, '"')
-			result.WriteString(h.styles[TokenString].Render(string(runes[i:end])))
+			result.WriteString(renderStyled(h.styles[TokenString], string(runes[i:end])))
 			i = end
 
 		case r == '\'':
 			// Single quoted string
 			end := h.findStringEnd(runes, i, '\'')
-			result.WriteString(h.styles[TokenString].Render(string(runes[i:end])))
+			result.WriteString(renderStyled(h.styles[TokenString], string(runes[i:end])))
 			i = end
 
 		case r == '$':
@@ -545,7 +545,7 @@ func (h *Highlighter) renderSpans(spans []tokenSpan, input string) string {
 
 		// Add styled span
 		if span.end <= len(input) {
-			result.WriteString(span.style.Render(input[span.start:span.end]))
+			result.WriteString(renderStyled(span.style, input[span.start:span.end]))
 			lastEnd = span.end
 		}
 	}
@@ -569,6 +569,21 @@ func sortSpans(spans []tokenSpan) {
 		}
 		spans[j+1] = key
 	}
+}
+
+// renderStyled renders text with a lipgloss style, handling newlines correctly.
+// lipgloss.Style.Render() pads shorter lines in multi-line text, which breaks
+// character-by-character correspondence needed for cursor and wrapping.
+// This function renders each line independently to avoid the padding issue.
+func renderStyled(style lipgloss.Style, text string) string {
+	if !strings.Contains(text, "\n") {
+		return style.Render(text)
+	}
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		lines[i] = style.Render(line)
+	}
+	return strings.Join(lines, "\n")
 }
 
 // Helper functions for basic highlighting

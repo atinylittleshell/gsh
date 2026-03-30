@@ -44,7 +44,8 @@ type Model struct {
 	focused bool
 
 	// Prompt
-	prompt string
+	prompt             string
+	continuationPrompt string
 
 	// History navigation
 	historyValues       []string
@@ -121,6 +122,10 @@ type Config struct {
 	// RenderConfig provides styling. If nil, DefaultRenderConfig is used.
 	RenderConfig *RenderConfig
 
+	// ContinuationPrompt is the prompt shown on continuation lines for multi-line input.
+	// If empty, defaults to "> ".
+	ContinuationPrompt string
+
 	// MinHeight is the minimum number of lines to render.
 	MinHeight int
 
@@ -154,14 +159,21 @@ func New(cfg Config) Model {
 		width = 80
 	}
 
+	continuationPrompt := cfg.ContinuationPrompt
+	if continuationPrompt == "" {
+		continuationPrompt = "> "
+	}
+
 	renderer := NewRenderer(*renderConfig, NewHighlighter(cfg.AliasExistsFunc, cfg.GetEnvFunc, cfg.GetWorkingDirFunc))
 	renderer.SetWidth(width)
+	renderer.SetContinuationPrompt(continuationPrompt)
 
 	return Model{
 		buffer:             NewBuffer(),
 		keymap:             keymap,
 		focused:            true,
 		prompt:             cfg.Prompt,
+		continuationPrompt: continuationPrompt,
 		historyValues:      cfg.HistoryValues,
 		historyIndex:       0,
 		historySearch:      NewHistorySearchState(),
@@ -288,6 +300,11 @@ func (m Model) Prompt() string {
 	return m.prompt
 }
 
+// ContinuationPrompt returns the continuation prompt for multi-line input.
+func (m Model) ContinuationPrompt() string {
+	return m.continuationPrompt
+}
+
 // SetHistoryValues updates the history values for navigation.
 func (m *Model) SetHistoryValues(values []string) {
 	m.historyValues = values
@@ -371,6 +388,9 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch action {
 	case ActionSubmit:
 		return m.handleSubmit()
+
+	case ActionInsertNewline:
+		return m.handleInsertNewline()
 
 	case ActionInterrupt:
 		return m.handleInterrupt()

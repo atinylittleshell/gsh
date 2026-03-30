@@ -7,10 +7,22 @@ import (
 )
 
 // handleSubmit handles the Enter key.
+// If the input is incomplete (unclosed quotes, heredocs, etc.), it inserts a
+// newline to allow multi-line editing. Otherwise, it submits the input.
 func (m Model) handleSubmit() (tea.Model, tea.Cmd) {
+	text := m.buffer.Text()
+
+	if !IsInputComplete(text) {
+		// Input is incomplete — insert newline and continue editing
+		m.buffer.InsertRunes([]rune{'\n'})
+		m.historyIndex = 0
+		m.hasNavigatedHistory = false
+		return m.onTextChanged()
+	}
+
 	m.result = Result{
 		Type:  ResultSubmit,
-		Value: m.buffer.Text(),
+		Value: text,
 	}
 	return m, tea.Quit
 }
@@ -31,6 +43,14 @@ func (m Model) handleEOF() (tea.Model, tea.Cmd) {
 		Value: "",
 	}
 	return m, tea.Quit
+}
+
+// handleInsertNewline force-inserts a newline regardless of input completeness.
+func (m Model) handleInsertNewline() (tea.Model, tea.Cmd) {
+	m.buffer.InsertRunes([]rune{'\n'})
+	m.historyIndex = 0
+	m.hasNavigatedHistory = false
+	return m.onTextChanged()
 }
 
 // handleCancel handles the Escape key.
@@ -311,15 +331,22 @@ func (m *Model) applyCompletion(suggestion string) {
 	m.completion.UpdateBoundaries(suggestion, newStart, newEnd)
 }
 
-// sanitizeRunes cleans up input runes by replacing tabs and newlines with spaces.
+// sanitizeRunes cleans up input runes by replacing tabs with spaces and
+// normalizing line endings. CRLF (\r\n) and lone \r are converted to \n.
 func sanitizeRunes(runes []rune) []rune {
-	result := make([]rune, len(runes))
-	for i, r := range runes {
-		switch r {
-		case '\t', '\n', '\r':
-			result[i] = ' '
+	result := make([]rune, 0, len(runes))
+	for i := 0; i < len(runes); i++ {
+		switch runes[i] {
+		case '\t':
+			result = append(result, ' ')
+		case '\r':
+			// Normalize \r\n to \n, and lone \r to \n
+			result = append(result, '\n')
+			if i+1 < len(runes) && runes[i+1] == '\n' {
+				i++ // skip the \n in \r\n pair
+			}
 		default:
-			result[i] = r
+			result = append(result, runes[i])
 		}
 	}
 	return result
