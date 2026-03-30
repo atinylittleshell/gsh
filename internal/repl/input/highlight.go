@@ -359,7 +359,7 @@ func (h *Highlighter) highlightBasic(input string) string {
 
 		case r == '#':
 			// Comment - rest of line
-			result.WriteString(h.styles[TokenComment].Render(string(runes[i:])))
+			result.WriteString(renderStyled(h.styles[TokenComment], string(runes[i:])))
 			i = len(runes)
 
 		case r == '"':

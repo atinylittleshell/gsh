@@ -6,8 +6,6 @@ import (
 	"mvdan.cc/sh/v3/syntax"
 )
 
-var shParser = syntax.NewParser()
-
 // IsInputComplete checks whether the given shell input is syntactically complete.
 // Returns true if the input is a complete statement (or has a hard syntax error).
 // Returns false if the input is incomplete and needs more input (unclosed quotes,
@@ -25,7 +23,8 @@ func IsInputComplete(input string) bool {
 
 	// Append a newline before parsing to properly detect heredocs and other
 	// constructs that require a newline to trigger IsIncomplete in mvdan/sh.
-	_, err := shParser.Parse(strings.NewReader(input+"\n"), "")
+	parser := syntax.NewParser()
+	_, err := parser.Parse(strings.NewReader(input+"\n"), "")
 	if err == nil {
 		return true
 	}
