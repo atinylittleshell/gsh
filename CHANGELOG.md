@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/kunchenguid/gsh/compare/v1.8.1...v1.9.0) (2026-03-31)
+
+
+### Features
+
+* **input:** add multiline support ([#200](https://github.com/kunchenguid/gsh/issues/200)) ([b05973a](https://github.com/kunchenguid/gsh/commit/b05973a8e35058beacf9ff5c624be0f0c08ca278))
+
 ## [1.8.1](https://github.com/kunchenguid/gsh/compare/v1.8.0...v1.8.1) (2026-03-15)
 
 
