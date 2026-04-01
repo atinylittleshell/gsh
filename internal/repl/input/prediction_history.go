@@ -19,7 +19,7 @@ func (m Model) onTextChanged() (tea.Model, tea.Cmd) {
 	if strings.Contains(text, "\n") {
 		m.currentPrediction = ""
 		if m.prediction != nil {
-			m.prediction.OnInputChanged("")
+			m.prediction.Cancel()
 		}
 		return m, nil
 	}

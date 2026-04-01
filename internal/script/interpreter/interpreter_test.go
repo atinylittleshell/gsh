@@ -721,17 +721,17 @@ func TestInterpreter_SetContext_NilReturnsBackground(t *testing.T) {
 	}
 
 	// Now set nil
-	interp.SetContext(nil)
+	interp.ClearContext()
 
 	// Verify we get a non-cancelled context back
 	ctx := interp.Context()
 	if ctx == nil {
-		t.Fatal("Context() returned nil after SetContext(nil)")
+		t.Fatal("Context() returned nil after ClearContext()")
 	}
 
 	select {
 	case <-ctx.Done():
-		t.Error("context after SetContext(nil) should not be cancelled")
+		t.Error("context after ClearContext() should not be cancelled")
 	default:
 		// Expected - context is not cancelled
 	}
@@ -770,6 +770,51 @@ func TestInterpreter_Context_ThreadSafety(t *testing.T) {
 	<-done
 
 	// If we get here without a race condition, the test passes
+}
+
+func TestInterpreter_Context_IsolatedPerGoroutine(t *testing.T) {
+	interp := New(nil)
+
+	mainCtx, mainCancel := context.WithCancel(context.Background())
+	defer mainCancel()
+	otherCtx, otherCancel := context.WithCancel(context.Background())
+	defer otherCancel()
+
+	interp.SetContext(mainCtx)
+
+	done := make(chan struct{})
+	go func() {
+		interp.SetContext(otherCtx)
+		close(done)
+	}()
+	<-done
+
+	if interp.Context() != mainCtx {
+		t.Fatal("main goroutine context should not be overwritten by another goroutine")
+	}
+}
+
+func TestInterpreter_Context_ClearDoesNotAffectOtherGoroutines(t *testing.T) {
+	interp := New(nil)
+
+	mainCtx, mainCancel := context.WithCancel(context.Background())
+	defer mainCancel()
+	otherCtx, otherCancel := context.WithCancel(context.Background())
+	defer otherCancel()
+
+	interp.SetContext(mainCtx)
+
+	done := make(chan struct{})
+	go func() {
+		interp.SetContext(otherCtx)
+		interp.ClearContext()
+		close(done)
+	}()
+	<-done
+
+	if interp.Context() != mainCtx {
+		t.Fatal("clearing context in another goroutine should not clear this goroutine's context")
+	}
 }
 
 // TestConcurrentEmitEvent verifies that concurrent EmitEvent calls from multiple

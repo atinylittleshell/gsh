@@ -84,6 +84,7 @@ model localLlama {
     apiKey: "ollama",
     baseURL: "http://localhost:11434/v1",
     model: "devstral-small-2",
+    timeout: 15000,
 }
 ```
 
@@ -95,6 +96,7 @@ The key points here:
 - `apiKey` is literally the string `"ollama"` (not a real key)
 - `baseURL` points to your local Ollama server
 - `model` is the name of the model you've pulled into Ollama
+- `timeout` is in milliseconds and protects callers from hanging forever if the backend stops responding
 
 ---
 
@@ -262,6 +264,7 @@ Every model declaration needs:
 
 - **`temperature`** (default: 0.7) - Controls randomness in responses (0.0-1.0)
 - **`baseURL`** - For Ollama or self-hosted services, the URL to the API endpoint
+- **`timeout`** - Request timeout in milliseconds for model API calls
 
 ### Practical Example: Choosing the Right Parameters
 

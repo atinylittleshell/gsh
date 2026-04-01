@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // OpenAIProvider implements the ModelProvider interface for OpenAI
@@ -84,6 +85,12 @@ func (p *OpenAIProvider) ChatCompletion(ctx context.Context, request ChatRequest
 	if request.Model == nil {
 		return nil, fmt.Errorf("OpenAI provider requires a model")
 	}
+
+	ctx, cancel, err := withModelTimeout(ctx, request.Model)
+	if err != nil {
+		return nil, err
+	}
+	defer cancel()
 
 	// Get API key from model config
 	apiKeyVal, ok := request.Model.Config["apiKey"]
@@ -312,6 +319,12 @@ func (p *OpenAIProvider) StreamingChatCompletion(ctx context.Context, request Ch
 	if request.Model == nil {
 		return nil, fmt.Errorf("OpenAI provider requires a model")
 	}
+
+	ctx, cancel, err := withModelTimeout(ctx, request.Model)
+	if err != nil {
+		return nil, err
+	}
+	defer cancel()
 
 	// Get API key from model config
 	apiKeyVal, ok := request.Model.Config["apiKey"]
@@ -618,6 +631,25 @@ func (p *OpenAIProvider) StreamingChatCompletion(ctx context.Context, request Ch
 	}
 
 	return response, nil
+}
+
+func withModelTimeout(ctx context.Context, model *ModelValue) (context.Context, context.CancelFunc, error) {
+	timeoutVal, ok := model.Config["timeout"]
+	if !ok {
+		return ctx, func() {}, nil
+	}
+
+	timeoutNum, ok := timeoutVal.(*NumberValue)
+	if !ok {
+		return nil, nil, fmt.Errorf("OpenAI provider requires 'timeout' to be a number (milliseconds)")
+	}
+	if timeoutNum.Value <= 0 {
+		return nil, nil, fmt.Errorf("OpenAI provider requires 'timeout' to be positive")
+	}
+
+	timeout := time.Duration(timeoutNum.Value) * time.Millisecond
+	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+	return timeoutCtx, cancel, nil
 }
 
 // objectValueToMap converts an ObjectValue to a map[string]interface{} for JSON serialization.

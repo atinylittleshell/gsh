@@ -437,7 +437,7 @@ func (r *REPL) processCommand(ctx context.Context, command string) error {
 	// Set the cancellable context on the interpreter so agent execution can use it
 	interp := r.executor.Interpreter()
 	interp.SetContext(cmdCtx)
-	defer interp.SetContext(context.Background()) // Clear context after command completes
+	defer interp.ClearContext() // Clear context after command completes
 
 	// Record ALL user input in history (including agent commands like "#...")
 	// This is done before middleware so all user input is captured
