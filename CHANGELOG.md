@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/kunchenguid/gsh/compare/v1.9.0...v1.9.1) (2026-04-01)
+
+
+### Bug Fixes
+
+* **repl:** prevent multiline prediction hangs ([#202](https://github.com/kunchenguid/gsh/issues/202)) ([7e54d84](https://github.com/kunchenguid/gsh/commit/7e54d84b8e4a09793e6098fd8a9b3d3ae73a9b4f))
+
 ## [1.9.0](https://github.com/kunchenguid/gsh/compare/v1.8.1...v1.9.0) (2026-03-31)
 
 
