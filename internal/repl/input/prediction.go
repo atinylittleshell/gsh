@@ -144,6 +144,17 @@ func (ps *PredictionState) Reset() {
 	ps.cancelPendingLocked()
 }
 
+// Cancel clears any in-flight prediction work without scheduling a replacement.
+// It increments the state ID so stale async results are rejected.
+func (ps *PredictionState) Cancel() {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	ps.cancelPendingLocked()
+	ps.stateID.Add(1)
+	ps.prediction = ""
+	ps.inputForPrediction = ""
+}
+
 // cancelPendingLocked cancels any pending prediction request.
 // Must be called with mu held.
 func (ps *PredictionState) cancelPendingLocked() {

@@ -34,14 +34,11 @@ type Interpreter struct {
 	mcpManager       *mcp.Manager
 	providerRegistry *ProviderRegistry
 	callStacks       *goroutineCallStacks // Per-goroutine call stacks for error reporting
+	contexts         *goroutineContexts   // Per-goroutine execution contexts for cancellation
 	logger           *zap.Logger          // Optional zap logger for log.* functions
 	stdin            io.Reader            // Reader for input() function, defaults to os.Stdin
 	runner           *interp.Runner       // Shared sh runner for env vars, working dir, and exec()
 	runnerMu         sync.RWMutex         // Protects runner access
-
-	// Context for cancellation (e.g., Ctrl+C handling)
-	ctx   context.Context // Current execution context
-	ctxMu sync.RWMutex    // Protects ctx access
 
 	// SDK infrastructure
 	eventManager *EventManager
@@ -158,6 +155,7 @@ func New(opts *Options) *Interpreter {
 		stdin:            os.Stdin,
 		runner:           runner,
 		callStacks:       newGoroutineCallStacks(),
+		contexts:         newGoroutineContexts(),
 		eventManager:     NewEventManager(),
 		sdkConfig:        NewSDKConfig(opts.Logger, atomicLevel),
 		version:          version,
@@ -216,21 +214,19 @@ func (i *Interpreter) SetStdin(r io.Reader) {
 // The REPL sets this before executing commands so that long-running operations
 // (like agent execution or shell commands) can be cancelled.
 func (i *Interpreter) SetContext(ctx context.Context) {
-	i.ctxMu.Lock()
-	defer i.ctxMu.Unlock()
-	i.ctx = ctx
+	i.contexts.set(ctx)
+}
+
+// ClearContext removes the execution context for the current goroutine.
+func (i *Interpreter) ClearContext() {
+	i.contexts.clear()
 }
 
 // Context returns the current execution context.
 // If no context has been set, returns context.Background().
 // This should be used by operations that support cancellation.
 func (i *Interpreter) Context() context.Context {
-	i.ctxMu.RLock()
-	defer i.ctxMu.RUnlock()
-	if i.ctx == nil {
-		return context.Background()
-	}
-	return i.ctx
+	return i.contexts.get()
 }
 
 // Runner returns the underlying sh runner

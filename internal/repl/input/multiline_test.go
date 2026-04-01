@@ -1,13 +1,37 @@
 package input
 
 import (
+	"context"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kunchenguid/gsh/internal/script/interpreter"
 	"github.com/muesli/termenv"
 )
+
+type countingPredictionProvider struct {
+	mu     sync.Mutex
+	inputs []string
+}
+
+func (p *countingPredictionProvider) Predict(ctx context.Context, input string, trigger interpreter.PredictTrigger, existingPrediction string) (string, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.inputs = append(p.inputs, input)
+	return "", nil
+}
+
+func (p *countingPredictionProvider) Inputs() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := make([]string, len(p.inputs))
+	copy(out, p.inputs)
+	return out
+}
 
 func TestIsInputComplete(t *testing.T) {
 	tests := []struct {
@@ -256,6 +280,33 @@ func TestRenderMultiLineNoPrediction(t *testing.T) {
 	// The prediction suffix should NOT appear in multi-line mode
 	if strings.Contains(result, "prediction") {
 		t.Errorf("predictions should not appear in multi-line mode, got %q", result)
+	}
+}
+
+func TestMultiLineInputDoesNotStartHiddenPrediction(t *testing.T) {
+	provider := &countingPredictionProvider{}
+	predictionState := NewPredictionState(PredictionStateConfig{
+		DebounceDelay: 10 * time.Millisecond,
+		Provider:      provider,
+	})
+
+	// Simulate normal single-line editing that marks prediction state dirty.
+	predictionState.OnInputChanged(`echo "test`)
+
+	m := New(Config{
+		PredictionState: predictionState,
+	})
+	m.SetValue(`echo "test`)
+
+	newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = newModel.(Model)
+
+	time.Sleep(30 * time.Millisecond)
+
+	for _, input := range provider.Inputs() {
+		if input == "" {
+			t.Fatalf("multiline editing should cancel prediction without starting an empty-input prediction")
+		}
 	}
 }
 

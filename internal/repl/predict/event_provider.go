@@ -3,10 +3,13 @@ package predict
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/kunchenguid/gsh/internal/script/interpreter"
 	"go.uber.org/zap"
 )
+
+const defaultPredictionRequestTimeout = 30 * time.Second
 
 // EventPredictionProvider calls the repl.predict middleware chain to obtain predictions.
 // If no middleware is registered or middleware returns null, no prediction is returned.
@@ -65,6 +68,12 @@ func (p *EventPredictionProvider) emitPredictEvent(ctx context.Context, input st
 		return "", nil
 	}
 
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, defaultPredictionRequestTimeout)
+		defer cancel()
+	}
+
 	// For instant predictions, use TryLock to avoid blocking the UI thread.
 	// If a debounced prediction is running (holding the mutex for expensive
 	// operations like git diff or LLM calls), we skip rather than block.
@@ -79,7 +88,7 @@ func (p *EventPredictionProvider) emitPredictEvent(ctx context.Context, input st
 	// Ensure middleware sees the cancellable context used by PredictionState
 	p.interp.SetContext(ctx)
 	defer func() {
-		p.interp.SetContext(context.Background())
+		p.interp.ClearContext()
 		p.mu.Unlock()
 	}()
 

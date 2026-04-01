@@ -51,6 +51,7 @@ model myPredictModel {
     apiKey: "ollama",
     baseURL: "http://localhost:11434/v1",
     model: "gemma3:1b",
+    timeout: 15000,
 }
 
 # Tell gsh to use this model for predictions
@@ -161,10 +162,13 @@ model myPredictModel {
     apiKey: "ollama",  # Magic value for local Ollama
     baseURL: "http://localhost:11434/v1",
     model: "gemma3:1b",
+    timeout: 15000,
 }
 
 gsh.models.lite = myPredictModel
 ```
+
+`timeout` is in milliseconds. For prediction models, setting it is recommended so a stuck model backend does not leave REPL suggestions hanging indefinitely.
 
 **Advantages:**
 
@@ -190,6 +194,7 @@ model OpenAIPredictor {
     provider: "openai",
     apiKey: env.OPENAI_API_KEY,
     model: "gpt-5-mini",
+    timeout: 15000,
 }
 
 gsh.models.lite = OpenAIPredictor
@@ -243,6 +248,8 @@ Try switching to a smaller model:
 ```gsh
 model: "gemma3:270m",  # Smaller than gemma3:1b
 ```
+
+If the backend sometimes stalls entirely, set `timeout` on the model declaration so prediction requests fail fast instead of hanging.
 
 ### Predictions Are Wrong
 

@@ -63,9 +63,10 @@ model myModel {
 
 ### Optional Fields
 
-| Field     | Type     | Description                                 |
-| --------- | -------- | ------------------------------------------- |
-| `baseURL` | `string` | API endpoint URL (defaults to OpenAI's API) |
+| Field     | Type     | Description                                              |
+| --------- | -------- | -------------------------------------------------------- |
+| `baseURL` | `string` | API endpoint URL (defaults to OpenAI's API)              |
+| `timeout` | `number` | Request timeout in milliseconds for model API calls      |
 
 ## Provider Examples
 
@@ -89,6 +90,7 @@ model gemma {
     apiKey: "ollama",
     baseURL: "http://localhost:11434/v1",
     model: "gemma3:1b",
+    timeout: 15000,
 }
 
 gsh.models.lite = gemma
@@ -100,6 +102,7 @@ gsh.models.lite = gemma
 - Set `apiKey: "ollama"` (required placeholder)
 - Use `baseURL: "http://localhost:11434/v1"`
 - Model name should match output from `ollama list`
+- Set `timeout` to bound requests so hung model backends do not stall REPL features indefinitely
 
 ### OpenRouter
 

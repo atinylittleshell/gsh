@@ -3,10 +3,13 @@ package interpreter
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestOpenAIProviderChatCompletion(t *testing.T) {
@@ -293,6 +296,63 @@ func TestOpenAIProviderChatCompletion(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOpenAIProviderChatCompletion_UsesModelTimeout(t *testing.T) {
+	provider := NewOpenAIProvider()
+	provider.httpClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			select {
+			case <-time.After(50 * time.Millisecond):
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body: io.NopCloser(strings.NewReader(`{
+						"id": "chatcmpl-timeout",
+						"object": "chat.completion",
+						"created": 1677652288,
+						"model": "gpt-4",
+						"choices": [{
+							"index": 0,
+							"message": {
+								"role": "assistant",
+								"content": "too slow"
+							},
+							"finish_reason": "stop"
+						}]
+					}`)),
+					Header: make(http.Header),
+				}, nil
+			case <-req.Context().Done():
+				return nil, req.Context().Err()
+			}
+		}),
+	}
+	req := ChatRequest{
+		Model: &ModelValue{
+			Name: "gpt4",
+			Config: map[string]Value{
+				"provider": &StringValue{Value: "openai"},
+				"apiKey":   &StringValue{Value: "test-key"},
+				"model":    &StringValue{Value: "gpt-4"},
+				"baseURL":  &StringValue{Value: "http://example.test/v1"},
+				"timeout":  &NumberValue{Value: 10},
+			},
+		},
+		Messages: []ChatMessage{
+			{Role: "user", Content: "Hello"},
+		},
+	}
+
+	_, err := provider.ChatCompletion(context.Background(), req)
+	if !errors.Is(err, context.DeadlineExceeded) && !strings.Contains(err.Error(), "context deadline exceeded") {
+		t.Fatalf("expected context deadline exceeded error, got %v", err)
+	}
+}
+
+type roundTripFunc func(req *http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func TestOpenAIProviderToolCallMessageFields(t *testing.T) {

@@ -7,6 +7,7 @@ model lite {
     apiKey: "ollama",
     model: "gemma3:1b",
     baseURL: "http://localhost:11434/v1",
+    timeout: 15000,
 }
 
 # Use for agent interactions (more capable)
