@@ -26,6 +26,7 @@ func HandleSelfUpdate(
 	resultChannel := make(chan string)
 
 	isHomebrewInstall := isHomebrewInstall(logger)
+	isNixInstall := isNixInstall(logger)
 
 	currentSemVer, err := semver.NewVersion(currentVersion)
 	if err != nil {
@@ -35,7 +36,7 @@ func HandleSelfUpdate(
 	}
 
 	// Check if we have previously detected a newer version
-	updateToLatestVersion(currentSemVer, logger, fs, updater, isHomebrewInstall)
+	updateToLatestVersion(currentSemVer, logger, fs, updater, isHomebrewInstall, isNixInstall)
 
 	// Check for newer versions from remote repository
 	go fetchAndSaveLatestVersion(resultChannel, logger, fs, updater)
@@ -69,6 +70,30 @@ func isHomebrewInstall(logger *zap.Logger) bool {
 	return false
 }
 
+func isNixInstall(logger *zap.Logger) bool {
+	executable, err := executablePath()
+	if err != nil {
+		logger.Debug("failed to determine executable path for update strategy", zap.Error(err))
+		return false
+	}
+
+	resolvedExecutable := executable
+	if resolved, err := filepath.EvalSymlinks(executable); err == nil {
+		resolvedExecutable = resolved
+	} else {
+		logger.Debug("failed to resolve symlinks for executable", zap.Error(err))
+	}
+
+	nixStorePrefix := "/nix/store/"
+	if strings.HasPrefix(resolvedExecutable, nixStorePrefix) ||
+		strings.HasPrefix(executable, nixStorePrefix) {
+		logger.Info("detected Nix installation; skipping self-update")
+		return true
+	}
+
+	return false
+}
+
 func readLatestVersion(fs filesystem.FileSystem) string {
 	file, err := fs.Open(core.LatestVersionFile())
 	if err != nil {
@@ -91,6 +116,7 @@ func updateToLatestVersion(
 	fs filesystem.FileSystem,
 	updater Updater,
 	isHomebrewInstall bool,
+	isNixInstall bool,
 ) {
 	latestVersion := readLatestVersion(fs)
 	if latestVersion == "" {
@@ -110,6 +136,13 @@ func updateToLatestVersion(
 	if isHomebrewInstall {
 		fmt.Printf("\nNew version of gsh available: %s (current: %s)\n", latestVersion, currentSemVer.String())
 		fmt.Println("gsh was installed via Homebrew. Run `brew update && brew upgrade gsh` to install the latest version.")
+		return
+	}
+
+	// Nix installations shouldn't self-update; just notify the user.
+	if isNixInstall {
+		fmt.Printf("\nNew version of gsh available: %s (current: %s)\n", latestVersion, currentSemVer.String())
+		fmt.Println("gsh was installed via Nix. Update your flake input to install the latest version.")
 		return
 	}
 
