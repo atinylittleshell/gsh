@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.3](https://github.com/kunchenguid/gsh/compare/v1.10.2...v1.10.3) (2026-04-04)
+
+
+### Bug Fixes
+
+* manually fix nix version ([9917913](https://github.com/kunchenguid/gsh/commit/99179138a28d76e0f6e37ae19854bd40cb7cbf65))
+
 ## [1.10.2](https://github.com/kunchenguid/gsh/compare/v1.10.1...v1.10.2) (2026-04-04)
 
 
