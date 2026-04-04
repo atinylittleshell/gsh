@@ -5,21 +5,21 @@
 class Gsh < Formula
   desc "A battery-included, POSIX-compatible, generative shell"
   homepage "https://github.com/kunchenguid/gsh"
-  version "1.9.1"
+  version "1.10.0"
   license "GPL-3.0-or-later"
 
   on_macos do
     if Hardware::CPU.intel?
-      url "https://github.com/kunchenguid/gsh/releases/download/v1.9.1/gsh_Darwin_x86_64.tar.gz"
-      sha256 "b7ec1e193d39c4d35384a234e2bf3fda2a98066075a255bb9e1d984c2a536522"
+      url "https://github.com/kunchenguid/gsh/releases/download/v1.10.0/gsh_Darwin_x86_64.tar.gz"
+      sha256 "c070302e12276d1acff8dcf522ed3e6b902cb49e409fbff471a309106003862d"
 
       define_method(:install) do
         bin.install "gsh"
       end
     end
     if Hardware::CPU.arm?
-      url "https://github.com/kunchenguid/gsh/releases/download/v1.9.1/gsh_Darwin_arm64.tar.gz"
-      sha256 "cede9c6883b3e28b94b72a9f6982cb6c14ad6596bb144e44adfc9e7f61fb69c7"
+      url "https://github.com/kunchenguid/gsh/releases/download/v1.10.0/gsh_Darwin_arm64.tar.gz"
+      sha256 "2c948cd559239a022774a48cddd7bb7c1bfe743948933f6a75dd86cac5a96a98"
 
       define_method(:install) do
         bin.install "gsh"
@@ -29,15 +29,15 @@ class Gsh < Formula
 
   on_linux do
     if Hardware::CPU.intel? && Hardware::CPU.is_64_bit?
-      url "https://github.com/kunchenguid/gsh/releases/download/v1.9.1/gsh_Linux_x86_64.tar.gz"
-      sha256 "225b384734bc392f8badf53fe5d7c3998d9bd3c0d07820e13d14b4d63a85c53e"
+      url "https://github.com/kunchenguid/gsh/releases/download/v1.10.0/gsh_Linux_x86_64.tar.gz"
+      sha256 "075ad57ae6278c03ce8a20de3b69813292bfca0cd2d0b274ed75a8b67d08875a"
       define_method(:install) do
         bin.install "gsh"
       end
     end
     if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
-      url "https://github.com/kunchenguid/gsh/releases/download/v1.9.1/gsh_Linux_arm64.tar.gz"
-      sha256 "78b243476d5fa22340117a81179808c2aa263540d4b8bbbcf02169c28ccf5bd4"
+      url "https://github.com/kunchenguid/gsh/releases/download/v1.10.0/gsh_Linux_arm64.tar.gz"
+      sha256 "727596dcf6b98da52f60930be452e88cab3057c1291c851f22a11d2cb17d5e8a"
       define_method(:install) do
         bin.install "gsh"
       end
