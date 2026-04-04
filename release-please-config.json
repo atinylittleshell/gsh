@@ -1,0 +1,13 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "go",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "flake.nix"
+        }
+      ]
+    }
+  }
+}

@@ -31,3 +31,6 @@ go.work.sum
 
 dist/
 *_string.go
+
+# Nix
+result
