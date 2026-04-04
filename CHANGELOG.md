@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.1](https://github.com/kunchenguid/gsh/compare/v1.10.0...v1.10.1) (2026-04-04)
+
+
+### Bug Fixes
+
+* nix system field ([60e9dd7](https://github.com/kunchenguid/gsh/commit/60e9dd764a5914247c70eefe0eba87adb5690c44))
+
 ## [1.10.0](https://github.com/kunchenguid/gsh/compare/v1.9.1...v1.10.0) (2026-04-04)
 
 
