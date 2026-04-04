@@ -6,31 +6,33 @@
 
   outputs = { nixpkgs, ... }:
   let
+    # x-release-please-version
+    version = "1.9.1";
     forAllSystems = f:
       nixpkgs.lib.genAttrs
         [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ]
         (system: f nixpkgs.legacyPackages.${system});
   in {
     packages = forAllSystems (pkgs: {
-      default = pkgs.buildGoModule rec {
-        name = "gsh";
-        version = "v1.3.3";
-        src = pkgs.fetchFromGitHub {
-          owner = "kunchenguid";
-          repo = "gsh";
-          rev = version;
-          hash = "sha256-kyEWFoBXuR23wM4Y17tcPmPLpcSKUXy8v857CYeyv0U=";
-        };
-        vendorHash = "sha256-0ZzdlcI6ZdaWq9yutdrONMkshwfoiHxmLupNXo8Zjtc=";
+      default = pkgs.buildGoModule {
+        pname = "gsh";
+        inherit version;
+        src = ./.;
+        # Run `nix build` with lib.fakeHash to get the correct hash
+        vendorHash = "sha256-Ov9D1D7lrS2JmreSJlxwVVsWCdQK0qoun9aCYXwYvL4=";
+
+        subPackages = [ "cmd/gsh" ];
+
+        ldflags = [
+          "-X main.BUILD_VERSION=${version}"
+        ];
 
         nativeBuildInputs = with pkgs; [
           which
         ];
 
         # Skip tests that require network access or violate
-        # the filesystem sandboxing. Basically all tests tries
-        # to create a /homeless-shelter directory and errors with
-        # 'read-only file system'.
+        # the filesystem sandboxing.
         doCheck = false;
       };
     });
