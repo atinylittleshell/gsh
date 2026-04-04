@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/kunchenguid/gsh/compare/v1.9.1...v1.10.0) (2026-04-04)
+
+
+### Features
+
+* automate nix release ([#204](https://github.com/kunchenguid/gsh/issues/204)) ([7bc1d55](https://github.com/kunchenguid/gsh/commit/7bc1d55ac836c05a95288be998679e10ae4fbbb0))
+
 ## [1.9.1](https://github.com/kunchenguid/gsh/compare/v1.9.0...v1.9.1) (2026-04-01)
 
 
